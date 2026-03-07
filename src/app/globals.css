@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --paper: #F7F7F5;
+  --forest: #1A3C2B;
+  --grid: #3A3A38;
+  --coral: #FF8C69;
+  --mint: #9EFFBF;
+  --gold: #F4D35E;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'General Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--paper);
+  color: var(--forest);
+}
+
+/* Hairline borders */
+.hairline {
+  border-color: rgba(58, 58, 56, 0.2);
+}
+
+.hairline-dark {
+  border-color: rgba(58, 58, 56, 0.3);
+}
+
+/* No shadows anywhere */
+* {
+  box-shadow: none !important;
+}
+
+/* Mosaic background pattern */
+.mosaic-bg {
+  background-image: url("data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect fill='%23F7F7F5' width='200' height='200'/%3E%3Cpath d='M0 100h200M100 0v200M0 50h100M100 150h100M50 0v100M150 100v100' stroke='%233A3A38' stroke-opacity='0.08' stroke-width='0.5'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+/* Toast animations and shadow exception */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out forwards;
+}
+
+/* Exception: floating elements like toasts get subtle shadow */
+.toast-shadow {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Skeleton animations */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
