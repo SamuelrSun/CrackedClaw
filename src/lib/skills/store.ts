@@ -75,15 +75,17 @@ export async function syncSkillsToMemory(userId: string): Promise<void> {
   const content = `## Installed Skills\nYou have the following skills installed — use them proactively:\n${skillsList}`;
 
   // Upsert a memory entry for installed skills
-  await supabase.from('memories').upsert({
-    user_id: userId,
-    key: 'installed_skills',
-    content,
-    type: 'system',
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'user_id,key' }).catch(() => {
+  try {
+    await supabase.from('memories').upsert({
+      user_id: userId,
+      key: 'installed_skills',
+      content,
+      type: 'system',
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,key' });
+  } catch {
     // Memory table may not have this exact schema — fail silently
-  });
+  }
 }
 
 /**
