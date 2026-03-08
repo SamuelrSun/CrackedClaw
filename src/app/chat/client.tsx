@@ -92,14 +92,7 @@ function RichMessage({
               />
             );
           case "welcome":
-            return (
-              <OnboardingWelcomeAnimation
-                key={idx}
-                userName={segment.userName}
-                agentName={segment.agentName}
-                onComplete={onWelcomeComplete}
-              />
-            );
+            return null; // removed - redundant with agent's intro message
           default:
             return null;
         }
@@ -736,9 +729,13 @@ export default function ChatPageClient({
                         onWelcomeComplete={handleWelcomeComplete}
                       />
                     ) : (
-                      <div className="prose prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-headings:font-header prose-headings:text-forest prose-strong:text-forest prose-code:text-xs prose-code:bg-grid/10 prose-code:px-1 prose-code:rounded prose-pre:bg-grid/10 prose-pre:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-                      </div>
+                      {msg.role === "user" ? (
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                      ) : (
+                        <div className="prose prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-headings:font-header prose-headings:text-forest prose-strong:text-forest prose-code:text-xs prose-code:bg-grid/10 prose-code:px-1 prose-code:rounded prose-pre:bg-grid/10 prose-pre:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
+                      )}
                     )}
                   </div>
                 </div>
