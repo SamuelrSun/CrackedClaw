@@ -108,7 +108,7 @@ async function getRedirectPath(): Promise<string> {
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(true);
   const [serverError, setServerError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -357,8 +357,8 @@ function LoginContent() {
               className="font-mono text-[10px] text-forest/70 hover:text-forest uppercase tracking-wide transition-colors"
             >
               {isSignUp
-                ? "Already have an account? Sign in"
-                : "Don't have an account? Sign up"}
+                ? "Already have an account? Sign in →"
+                : "← Back to sign up"}
             </button>
           </div>
 
