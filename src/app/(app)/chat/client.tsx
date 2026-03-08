@@ -22,6 +22,7 @@ import {
   ContextSummaryCard,
   OnboardingWelcomeAnimation,
 } from "@/components/chat";
+import { ActiveAgentsPanel } from "@/components/chat/active-agents-panel";
 
 interface ToolCallInfo {
   tool: string;
@@ -71,6 +72,30 @@ function getToolLabel(tool: string, input?: Record<string, unknown>): string {
   }
   if (tool.includes("skill")) return "Installing skill";
   return `Using ${tool}`;
+}
+
+
+function getAgentTaskLabel(tool: string, input: Record<string, unknown>): string {
+  switch (tool) {
+    case 'browser': {
+      const url = (input.url as string) || (input.targetUrl as string) || '';
+      const action = (input.action as string) || '';
+      if (url) {
+        try { return `Browsing ${new URL(url).hostname}...`; } catch { return `Browsing...`; }
+      }
+      return `Browser: ${action}...`;
+    }
+    case 'exec':
+      return `Running: ${String(input.command || '').slice(0, 40)}...`;
+    case 'web_search':
+      return `Searching: ${String(input.query || '').slice(0, 40)}...`;
+    case 'web_fetch': {
+      const url = input.url as string || '';
+      try { return `Reading ${new URL(url).hostname}...`; } catch { return 'Reading webpage...'; }
+    }
+    default:
+      return `Running ${tool}...`;
+  }
 }
 
 interface ChatPageClientProps {
@@ -381,6 +406,7 @@ export default function ChatPageClient({
   const [error, setError] = useState<GatewayError | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
   const [retryCount, setRetryCount] = useState(0);
+  const [activeAgentTasks, setActiveAgentTasks] = useState<Array<{id: string, label: string, startedAt: number}>>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastFailedMessage = useRef<string | null>(null);
   const handleSendRef = useRef<(messageOverride?: string) => Promise<void>>(async () => {});
@@ -591,7 +617,11 @@ export default function ChatPageClient({
             const label = getToolLabel(chunk.tool, chunk.input);
             const toolCall: ToolCallInfo = { tool: chunk.tool, status: "running", label };
             updateMsg((m) => ({ ...m, toolCalls: [...(m.toolCalls || []), toolCall] }));
+            const taskId = `${chunk.tool}-${Date.now()}`;
+            const taskLabel = getAgentTaskLabel(chunk.tool, chunk.input || {});
+            setActiveAgentTasks(prev => [...prev, { id: taskId, label: taskLabel, startedAt: Date.now() }]);
           } else if (chunk.type === "tool_end" && chunk.tool) {
+            setActiveAgentTasks(prev => prev.slice(1));
             updateMsg((m) => ({
               ...m,
               toolCalls: (m.toolCalls || []).map((tc) =>
@@ -603,6 +633,7 @@ export default function ChatPageClient({
           } else if (chunk.type === "done") {
             if (chunk.conversation_id) setConversationId(chunk.conversation_id);
             updateMsg((m) => ({ ...m, isStreaming: false }));
+            setActiveAgentTasks([]);
             setRetryCount(0);
             lastFailedMessage.current = null;
             refreshOnboardingState();
@@ -829,7 +860,7 @@ export default function ChatPageClient({
       </aside>
 
       {/* Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col relative">
         {/* Onboarding Progress Bar */}
         {isInOnboarding && currentPhase && (
           <OnboardingProgress phase={currentPhase} />
@@ -979,6 +1010,8 @@ export default function ChatPageClient({
           
           <div ref={messagesEndRef} />
         </div>
+
+        <ActiveAgentsPanel tasks={activeAgentTasks} />
 
         {/* Input */}
         <div className="border-t border-[rgba(58,58,56,0.2)] p-4">
