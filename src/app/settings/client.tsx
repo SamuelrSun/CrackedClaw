@@ -10,6 +10,7 @@ import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { TeamSection, TeamMember, TeamInvitation } from "@/components/settings/team-section";
 import { validateUrl, validateRequired, composeValidators } from "@/lib/validation";
 import type { GatewayConnection, GatewayTestResult } from "@/types/gateway";
+import { useGateway } from "@/hooks/use-gateway";
 import type { Organization } from "@/lib/supabase/data";
 import { Sparkles, Radio, ArrowRight, Monitor } from "lucide-react";
 
@@ -91,6 +92,14 @@ export default function SettingsPageClient({
   // Gateway connection state
   const [gateway, setGateway] = useState<GatewayConnection | null>(null);
   const [gatewayLoading, setGatewayLoading] = useState(true);
+  
+  // Bug 3 fix: live gateway status from hook for reconnect button
+  const { 
+    status: liveGatewayStatus, 
+    isConnected: isGatewayConnected,
+    forceReconnect: reconnectGateway,
+    isReconnecting: isGatewayReconnecting,
+  } = useGateway();
   const [gatewayUrl, setGatewayUrl] = useState("");
   const [authToken, setAuthToken] = useState("");
   const [gatewayName, setGatewayName] = useState("");
@@ -566,9 +575,12 @@ export default function SettingsPageClient({
             ) : gateway ? (
               <div className="mt-2 space-y-4">
                 <div className="flex items-center gap-3">
-                  <span className="w-3 h-3 bg-mint rounded-none block animate-pulse" />
+                  <span className={`w-3 h-3 rounded-none block ${isGatewayConnected ? 'bg-mint animate-pulse' : isGatewayReconnecting ? 'bg-[#F4D35E] animate-pulse' : 'bg-red-400'}`} />
                   <span className="font-mono text-sm text-forest">
                     Connected: <span className="font-bold">{gateway.name}</span>
+                  </span>
+                  <span className={`font-mono text-[10px] uppercase tracking-wide ${isGatewayConnected ? 'text-forest' : isGatewayReconnecting ? 'text-[#B8860B]' : 'text-red-500'}`}>
+                    ({isGatewayConnected ? 'live' : isGatewayReconnecting ? 'reconnecting...' : liveGatewayStatus})
                   </span>
                 </div>
                 
@@ -603,6 +615,16 @@ export default function SettingsPageClient({
                 )}
                 
                 <div className="flex gap-2">
+                  {!isGatewayConnected && (
+                    <Button
+                      variant="solid"
+                      size="sm"
+                      onClick={reconnectGateway}
+                      disabled={isGatewayReconnecting}
+                    >
+                      {isGatewayReconnecting ? "Reconnecting..." : "Reconnect"}
+                    </Button>
+                  )}
                   <Button 
                     variant="ghost" 
                     size="sm" 

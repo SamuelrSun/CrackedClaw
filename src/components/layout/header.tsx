@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/hooks/use-user";
 import { UserMenu } from "@/components/auth/user-menu";
 import { useSearchContext } from "@/contexts/search-context";
+import { useGateway } from "@/hooks/use-gateway";
 import { Search, Command } from "lucide-react";
 
 const navLinks = [
@@ -18,45 +18,16 @@ const navLinks = [
   { href: "/settings", label: "Settings" },
 ];
 
-interface GatewayInfo {
-  name: string;
-  status: 'connected' | 'disconnected' | 'error';
-}
-
 export function Header() {
   const pathname = usePathname();
   const { user, loading } = useUser();
   const { openSearch } = useSearchContext();
-  const [gatewayInfo, setGatewayInfo] = useState<GatewayInfo | null>(null);
-  const [gatewayLoading, setGatewayLoading] = useState(true);
-
-  // Fetch gateway status when user is authenticated
-  useEffect(() => {
-    if (user) {
-      fetchGatewayStatus();
-    } else {
-      setGatewayLoading(false);
-    }
-  }, [user]);
-
-  async function fetchGatewayStatus() {
-    try {
-      const res = await fetch("/api/gateway/connect");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.gateway) {
-          setGatewayInfo({
-            name: data.gateway.name,
-            status: data.gateway.status,
-          });
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch gateway status:", err);
-    } finally {
-      setGatewayLoading(false);
-    }
-  }
+  // Bug 4 fix: use real-time gateway status from the hook
+  const { status: gatewayStatus, loading: gatewayLoading, statusInfo } = useGateway();
+  const gatewayLoaded = !gatewayLoading;
+  const isGatewayConnected = gatewayStatus === 'connected';
+  const isGatewayError = gatewayStatus === 'error';
+  const isGatewayReconnecting = gatewayStatus === 'reconnecting' || gatewayStatus === 'connecting' || gatewayStatus === 'checking';
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-paper border-b border-[rgba(58,58,56,0.2)]">
@@ -112,32 +83,37 @@ export function Header() {
 
           <div className="h-4 w-px bg-[rgba(58,58,56,0.15)]" />
 
-          {/* System Online indicator */}
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 bg-mint rounded-none block" />
-            <span className="font-mono text-[10px] uppercase tracking-wide text-grid/60">
-              Online
-            </span>
-          </div>
-
-          <div className="h-4 w-px bg-[rgba(58,58,56,0.15)]" />
-
-          {/* Gateway Connection Status */}
-          {!gatewayLoading && user && (
+          {/* Bug 4 fix: Gateway status indicator — reflects actual connection state */}
+          {gatewayLoaded && user && (
             <>
-              <Link 
-                href="/settings" 
+              <Link
+                href="/settings"
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-                title={gatewayInfo ? `Connected to ${gatewayInfo.name}` : "No agent connected"}
+                title={
+                  isGatewayConnected
+                    ? `Connected to ${statusInfo?.agentName || 'gateway'}`
+                    : isGatewayReconnecting
+                    ? 'Reconnecting to gateway...'
+                    : isGatewayError
+                    ? 'Gateway error — click to fix'
+                    : 'Gateway disconnected — click to connect'
+                }
               >
-                {gatewayInfo && gatewayInfo.status === 'connected' ? (
+                {isGatewayConnected ? (
                   <>
                     <span className="w-2 h-2 bg-mint rounded-none block animate-pulse" />
                     <span className="font-mono text-[10px] uppercase tracking-wide text-forest">
-                      {gatewayInfo.name}
+                      {statusInfo?.agentName || 'Connected'}
                     </span>
                   </>
-                ) : gatewayInfo && gatewayInfo.status === 'error' ? (
+                ) : isGatewayReconnecting ? (
+                  <>
+                    <span className="w-2 h-2 bg-[#F4D35E] rounded-none block animate-pulse" />
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-[#B8860B]">
+                      Reconnecting
+                    </span>
+                  </>
+                ) : isGatewayError ? (
                   <>
                     <span className="w-2 h-2 bg-red-400 rounded-none block" />
                     <span className="font-mono text-[10px] uppercase tracking-wide text-red-500">
@@ -148,7 +124,7 @@ export function Header() {
                   <>
                     <span className="w-2 h-2 bg-grid/30 rounded-none block" />
                     <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50">
-                      No Agent
+                      Offline
                     </span>
                   </>
                 )}

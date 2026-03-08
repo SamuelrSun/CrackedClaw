@@ -147,6 +147,7 @@ function GatewayStatusPanel({
   reconnectAttempt,
   reconnectCountdown,
   isReconnecting,
+  isCanceled,
   error,
   onRetry,
   onCancel,
@@ -156,6 +157,7 @@ function GatewayStatusPanel({
   reconnectAttempt: number;
   reconnectCountdown: number | null;
   isReconnecting: boolean;
+  isCanceled: boolean;
   error: string | null;
   onRetry: () => void;
   onCancel: () => void;
@@ -222,19 +224,22 @@ function GatewayStatusPanel({
         </div>
       )}
 
-      {/* Error state with retry */}
-      {status === "error" && !isReconnecting && (
+      {/* Error state or disconnected/canceled — show reconnect button */}
+      {(status === "error" || status === "disconnected" || isCanceled) && !isReconnecting && (
         <div className="mt-2">
           {error && (
             <p className="text-[9px] text-[#FF6B6B] mb-1.5 truncate" title={error}>
               {error.length > 40 ? error.slice(0, 40) + '...' : error}
             </p>
           )}
+          {isCanceled && !error && (
+            <p className="text-[9px] text-grid/50 mb-1.5">Reconnection canceled</p>
+          )}
           <button
             onClick={onRetry}
             className="w-full px-2 py-1 text-[8px] font-mono uppercase tracking-wide bg-forest text-white hover:bg-forest/90 transition-colors"
           >
-            Try Again
+            Reconnect
           </button>
         </div>
       )}
@@ -245,45 +250,72 @@ function GatewayStatusPanel({
 // Reconnection banner for chat area
 function ReconnectionBanner({
   isReconnecting,
+  isCanceled,
+  gatewayStatus,
   reconnectAttempt,
   reconnectCountdown,
   onRetry,
   onCancel,
 }: {
   isReconnecting: boolean;
+  isCanceled: boolean;
+  gatewayStatus: string;
   reconnectAttempt: number;
   reconnectCountdown: number | null;
   onRetry: () => void;
   onCancel: () => void;
 }) {
-  if (!isReconnecting) return null;
-
-  return (
-    <div className="bg-[#F4D35E]/10 border-b border-[#F4D35E]/30 px-4 py-2 flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <div className="w-2 h-2 rounded-full bg-[#F4D35E] animate-pulse" />
-        <span className="text-sm text-[#B8860B]">
-          Connection lost. Reconnecting
-          {reconnectCountdown ? ` in ${reconnectCountdown}s` : '...'}
-          <span className="text-xs opacity-60 ml-1">(attempt {reconnectAttempt}/5)</span>
-        </span>
+  // Show reconnecting state
+  if (isReconnecting) {
+    return (
+      <div className="bg-[#F4D35E]/10 border-b border-[#F4D35E]/30 px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-[#F4D35E] animate-pulse" />
+          <span className="text-sm text-[#B8860B]">
+            Connection lost. Reconnecting
+            {reconnectCountdown ? ` in ${reconnectCountdown}s` : '...'}
+            <span className="text-xs opacity-60 ml-1">(attempt {reconnectAttempt}/5)</span>
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onRetry}
+            className="text-xs font-mono uppercase tracking-wide text-[#B8860B] hover:text-[#8B6914] px-2 py-1 bg-[#F4D35E]/20 hover:bg-[#F4D35E]/30 transition-colors"
+          >
+            Retry Now
+          </button>
+          <button
+            onClick={onCancel}
+            className="text-xs text-[#B8860B]/60 hover:text-[#B8860B]"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
-      <div className="flex gap-2">
+    );
+  }
+
+  // Bug 5 fix: Show disconnected/canceled state with Reconnect button
+  if (isCanceled || gatewayStatus === 'disconnected' || gatewayStatus === 'error') {
+    return (
+      <div className="bg-[#FF6B6B]/10 border-b border-[#FF6B6B]/30 px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-[#FF6B6B]" />
+          <span className="text-sm text-[#CC4444]">
+            {isCanceled ? 'Reconnection canceled.' : 'Gateway disconnected.'}
+          </span>
+        </div>
         <button
           onClick={onRetry}
-          className="text-xs font-mono uppercase tracking-wide text-[#B8860B] hover:text-[#8B6914] px-2 py-1 bg-[#F4D35E]/20 hover:bg-[#F4D35E]/30 transition-colors"
+          className="text-xs font-mono uppercase tracking-wide text-white px-3 py-1 bg-[#CC4444] hover:bg-[#AA2222] transition-colors"
         >
-          Retry Now
-        </button>
-        <button
-          onClick={onCancel}
-          className="text-xs text-[#B8860B]/60 hover:text-[#B8860B]"
-        >
-          Cancel
+          Reconnect
         </button>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return null;
 }
 
 export default function ChatPageClient({ 
@@ -312,6 +344,7 @@ export default function ChatPageClient({
     reconnectAttempt,
     reconnectCountdown,
     isReconnecting,
+    isCanceled: gatewayIsCanceled,
     error: gatewayError,
     forceReconnect,
     cancelReconnect,
@@ -651,6 +684,7 @@ export default function ChatPageClient({
           reconnectAttempt={reconnectAttempt}
           reconnectCountdown={reconnectCountdown}
           isReconnecting={isReconnecting}
+          isCanceled={gatewayIsCanceled}
           error={gatewayError}
           onRetry={forceReconnect}
           onCancel={cancelReconnect}
@@ -667,6 +701,8 @@ export default function ChatPageClient({
         {/* Reconnection Banner */}
         <ReconnectionBanner
           isReconnecting={isReconnecting}
+          isCanceled={gatewayIsCanceled}
+          gatewayStatus={gatewayStatus}
           reconnectAttempt={reconnectAttempt}
           reconnectCountdown={reconnectCountdown}
           onRetry={forceReconnect}
