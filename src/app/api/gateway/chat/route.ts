@@ -6,6 +6,7 @@ import { sendGatewayMessage } from "@/lib/gateway-client";
 import { getOnboardingPrompt, parseOnboardingActions, extractUserName, extractAgentName } from "@/lib/onboarding/agent-prompt";
 import { toOnboardingState, type OnboardingStateRow, type OnboardingStep } from "@/types/onboarding";
 import type { GatewayError } from "@/types/gateway";
+import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
 
 // POST /api/gateway/chat - Send a message through the user's gateway
 export async function POST(request: NextRequest) {
@@ -118,11 +119,33 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Check for workflow match (skip during onboarding)
+    let workflowContext: string | null = null;
+    let matchedWorkflowId: string | null = null;
+    if (!isOnboarding) {
+      try {
+        const { data: workflows } = await supabase
+          .from("workflows")
+          .select("id, name, description, prompt, trigger_phrases")
+          .eq("user_id", user.id)
+          .eq("status", "active");
+        const workflowMatch = matchWorkflow(message, workflows || []);
+        if (workflowMatch && workflowMatch.confidence >= 0.8) {
+          matchedWorkflowId = workflowMatch.workflow.id;
+          workflowContext = buildWorkflowContext(workflowMatch.workflow);
+        }
+      } catch (e) {
+        console.error("Failed to match workflows:", e);
+      }
+    }
+
     // Build the message to send
     // If in onboarding, prepend the system prompt
     let fullMessage = message;
     if (isOnboarding && onboardingPrompt) {
       fullMessage = `[SYSTEM PROMPT - FOLLOW THESE INSTRUCTIONS]\n${onboardingPrompt}\n\n[USER MESSAGE]\n${message}`;
+    } else if (workflowContext) {
+      fullMessage = `${workflowContext}\n\n${fullMessage}`;
     }
 
     // Send message through gateway

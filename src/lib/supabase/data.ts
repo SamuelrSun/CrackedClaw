@@ -2184,3 +2184,64 @@ export async function getOrganizationById(orgId: string): Promise<Organization |
     return null;
   }
 }
+
+// ============ CRON JOBS ============
+
+export interface CronJob {
+  id: string;
+  user_id: string;
+  workflow_id: string | null;
+  name: string;
+  description: string | null;
+  schedule: string;
+  prompt: string;
+  enabled: boolean;
+  last_run_at: string | null;
+  last_run_status: string | null;
+  last_run_output: string | null;
+  next_run_at: string | null;
+  run_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getCronJobs(userId: string): Promise<CronJob[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('cron_jobs')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('getCronJobs error:', error); return []; }
+  return data || [];
+}
+
+export async function createCronJob(userId: string, job: Omit<CronJob, 'id' | 'user_id' | 'run_count' | 'last_run_at' | 'last_run_status' | 'last_run_output' | 'next_run_at' | 'created_at' | 'updated_at'>): Promise<CronJob | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('cron_jobs')
+    .insert({ ...job, user_id: userId })
+    .select()
+    .single();
+  if (error) { console.error('createCronJob error:', error); return null; }
+  return data;
+}
+
+export async function updateCronJob(id: string, updates: Partial<CronJob>): Promise<CronJob | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('cron_jobs')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) { console.error('updateCronJob error:', error); return null; }
+  return data;
+}
+
+export async function deleteCronJob(id: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { error } = await supabase.from('cron_jobs').delete().eq('id', id);
+  if (error) { console.error('deleteCronJob error:', error); return false; }
+  return true;
+}

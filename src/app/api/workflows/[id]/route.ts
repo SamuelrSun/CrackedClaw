@@ -1,132 +1,77 @@
 import { NextRequest } from "next/server";
 import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
-import { workflows, Workflow } from "@/lib/mock-data";
+import { getWorkflow, updateWorkflow, deleteWorkflow, logActivity } from "@/lib/supabase/data";
+import type { WorkflowInput } from "@/lib/supabase/data";
 
-// In-memory store (would be Supabase in production)
-let workflowsStore = [...workflows];
+type RouteContext = { params: Promise<{ id: string }> };
 
-// GET /api/workflows/[id] - Get a single workflow
+// GET /api/workflows/[id]
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  _request: NextRequest,
+  { params }: RouteContext
 ) {
   const { error } = await requireApiAuth();
   if (error) return error;
 
   const { id } = await params;
-  const workflow = workflowsStore.find((w) => w.id === id);
-
-  if (!workflow) {
-    return errorResponse("Workflow not found", 404);
-  }
-
-  return jsonResponse({ workflow });
-}
-
-// PUT /api/workflows/[id] - Full update of a workflow
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { error } = await requireApiAuth();
-  if (error) return error;
-
-  const { id } = await params;
-  const index = workflowsStore.findIndex((w) => w.id === id);
-
-  if (index === -1) {
-    return errorResponse("Workflow not found", 404);
-  }
 
   try {
-    const body = await request.json();
-    
-    // Validate required fields
-    if (!body.name) {
-      return errorResponse("Name is required", 400);
+    const workflow = await getWorkflow(id);
+    if (!workflow) {
+      return errorResponse("Workflow not found", 404);
     }
-    if (!body.description) {
-      return errorResponse("Description is required", 400);
-    }
-    
-    const updated: Workflow = {
-      id: workflowsStore[index].id,
-      name: body.name,
-      description: body.description,
-      status: body.status || workflowsStore[index].status,
-      lastRun: workflowsStore[index].lastRun,
-      icon: body.icon || workflowsStore[index].icon,
-    };
-
-    workflowsStore[index] = updated;
-
-    return jsonResponse({ 
-      message: "Workflow updated", 
-      workflow: updated 
-    });
-  } catch {
-    return errorResponse("Invalid request body", 400);
+    return jsonResponse({ workflow });
+  } catch (err) {
+    console.error("Get workflow error:", err);
+    return errorResponse("Failed to fetch workflow", 500);
   }
 }
 
-// PATCH /api/workflows/[id] - Partial update of a workflow
+// PATCH /api/workflows/[id]
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: RouteContext
 ) {
   const { error } = await requireApiAuth();
   if (error) return error;
 
   const { id } = await params;
-  const index = workflowsStore.findIndex((w) => w.id === id);
-
-  if (index === -1) {
-    return errorResponse("Workflow not found", 404);
-  }
 
   try {
-    const body = await request.json();
-    
-    // Update only provided fields
-    const updated: Workflow = {
-      ...workflowsStore[index],
-      ...(body.name && { name: body.name }),
-      ...(body.description && { description: body.description }),
-      ...(body.status && { status: body.status }),
-      ...(body.icon && { icon: body.icon }),
-      ...(body.lastRun && { lastRun: body.lastRun }),
-    };
-
-    workflowsStore[index] = updated;
-
-    return jsonResponse({ 
-      message: "Workflow updated", 
-      workflow: updated 
-    });
-  } catch {
-    return errorResponse("Invalid request body", 400);
+    const body = await request.json() as Partial<WorkflowInput>;
+    const workflow = await updateWorkflow(id, body);
+    await logActivity("Workflow updated", `Updated workflow: ${workflow.name}`, { workflowId: id });
+    return jsonResponse({ message: "Workflow updated", workflow });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to update workflow";
+    console.error("Update workflow error:", err);
+    if (message.includes("not found") || message.includes("access denied")) {
+      return errorResponse(message, 404);
+    }
+    return errorResponse(message, 500);
   }
 }
 
-// DELETE /api/workflows/[id] - Delete a workflow
+// DELETE /api/workflows/[id]
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  _request: NextRequest,
+  { params }: RouteContext
 ) {
   const { error } = await requireApiAuth();
   if (error) return error;
 
   const { id } = await params;
-  const index = workflowsStore.findIndex((w) => w.id === id);
 
-  if (index === -1) {
-    return errorResponse("Workflow not found", 404);
+  try {
+    await deleteWorkflow(id);
+    await logActivity("Workflow deleted", `Deleted workflow ${id}`, { workflowId: id });
+    return jsonResponse({ message: "Workflow deleted" });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to delete workflow";
+    console.error("Delete workflow error:", err);
+    if (message.includes("not found") || message.includes("access denied")) {
+      return errorResponse(message, 404);
+    }
+    return errorResponse(message, 500);
   }
-
-  const deleted = workflowsStore.splice(index, 1)[0];
-
-  return jsonResponse({ 
-    message: "Workflow deleted", 
-    workflow: deleted 
-  });
 }

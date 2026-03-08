@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
-import { createClient } from "@/lib/supabase/server";
-import { getWorkflows, logActivity } from "@/lib/supabase/data";
+import { getWorkflows, createWorkflow } from "@/lib/supabase/data";
+import type { WorkflowInput } from "@/lib/supabase/data";
 
 // GET /api/workflows - List all workflows
 export async function GET() {
@@ -10,12 +10,7 @@ export async function GET() {
 
   try {
     const workflows = await getWorkflows();
-    
-    return jsonResponse({
-      workflows,
-      count: workflows.length,
-      userId: user.id,
-    });
+    return jsonResponse({ workflows, count: workflows.length, userId: user.id });
   } catch (err) {
     console.error("Failed to fetch workflows:", err);
     return errorResponse("Failed to fetch workflows", 500);
@@ -28,65 +23,31 @@ export async function POST(request: NextRequest) {
   if (error) return error;
 
   try {
-    const body = await request.json();
-    
-    // Validate required fields
-    if (!body.name) {
+    const body = await request.json() as Record<string, unknown>;
+
+    if (!body.name || typeof body.name !== "string") {
       return errorResponse("Name is required", 400);
     }
-    if (!body.description) {
+    if (!body.description || typeof body.description !== "string") {
       return errorResponse("Description is required", 400);
     }
 
-    const supabase = await createClient();
-    const now = new Date().toISOString();
-
-    const { data, error: insertError } = await supabase
-      .from("workflows")
-      .insert({
-        user_id: user.id,
-        name: body.name,
-        description: body.description,
-        status: body.status || "active",
-        icon: body.icon || "Zap",
-        config: body.config || {},
-        schedule: body.schedule || null,
-        created_at: now,
-        updated_at: now,
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error("Failed to create workflow:", insertError);
-      return errorResponse("Failed to create workflow", 500);
-    }
-
-    // Log activity
-    await logActivity(
-      "Workflow created",
-      `Created workflow: ${body.name}`,
-      { workflowId: data.id }
-    );
-
-    const workflow = {
-      id: data.id,
-      name: data.name,
-      description: data.description,
-      status: data.status || "active",
-      lastRun: data.last_run || "Never",
-      icon: data.icon || "Zap",
+    const input: WorkflowInput = {
+      name: body.name,
+      description: body.description,
+      icon: typeof body.icon === "string" ? body.icon : undefined,
+      status: body.status === "active" || body.status === "inactive" || body.status === "pending"
+        ? body.status : undefined,
+      trigger_type: body.trigger_type === "manual" || body.trigger_type === "scheduled" || body.trigger_type === "webhook"
+        ? body.trigger_type : undefined,
+      schedule: body.schedule as WorkflowInput["schedule"],
     };
 
-    return jsonResponse(
-      { 
-        message: "Workflow created", 
-        workflow,
-      }, 
-      201
-    );
+    const workflow = await createWorkflow(input);
+
+    return jsonResponse({ message: "Workflow created", workflow, userId: user.id }, 201);
   } catch (err) {
     console.error("Create workflow error:", err);
-    return errorResponse("Invalid request body", 400);
+    return errorResponse("Failed to create workflow", 500);
   }
 }
