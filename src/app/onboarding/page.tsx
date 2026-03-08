@@ -164,6 +164,11 @@ function ConnectStep({
       const data = await res.json();
 
       if (!res.ok) {
+        // Already provisioned — just go to chat
+        if (data.organization?.openclaw_gateway_url || (data.error && data.error.includes("already has a provisioned"))) {
+          router.push("/chat");
+          return;
+        }
         setProvisionError(data.error || "Failed to create agent");
         return;
       }
@@ -723,6 +728,25 @@ export default function OnboardingPage() {
     
     router.push("/");
   };
+
+  // Check if already provisioned on mount — redirect to chat if so
+  useEffect(() => {
+    async function checkExistingOrg() {
+      try {
+        const res = await fetch("/api/organizations/provision");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.organization?.openclaw_status === "running" && data.organization?.openclaw_gateway_url) {
+            router.replace("/chat");
+          }
+        }
+      } catch {
+        // ignore, let onboarding proceed
+      }
+    }
+    checkExistingOrg();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Don't render until state is loaded
   if (!isLoaded) {
