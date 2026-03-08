@@ -92,11 +92,17 @@ export function resolveIntegration(serviceName: string): ResolvedIntegration {
   // 1. Main registry
   const registered = getIntegration(slug) || INTEGRATIONS.find(i => i.name.toLowerCase() === lower);
   if (registered) {
+    // Map registry AuthType to resolver AuthType (registry uses dashes, resolver uses underscores)
+    let authType: ResolvedIntegration['authType'] = 'oauth';
+    if (registered.authType === 'browser-login') authType = 'browser';
+    else if (registered.authType === 'api-key') authType = 'api_key';
+    else if (registered.authType === 'oauth') authType = 'oauth';
+
     return {
       name: registered.name,
       slug: registered.id,
       icon: guessIcon(registered.name),
-      authType: registered.authType === 'browser-login' ? 'browser' : registered.authType,
+      authType,
       needsNode: !registered.hasApi && registered.browserFallback,
       oauthScopes: [],
       category: registered.category,
@@ -159,7 +165,7 @@ export function parseServicesFromText(text: string): string[] {
     if (stopWords.has(first)) continue;
     services.push(trimmed);
   }
-  return [...new Set(services)];
+  return Array.from(new Set(services));
 }
 
 export function resolveFromText(text: string): ResolvedIntegration[] {
