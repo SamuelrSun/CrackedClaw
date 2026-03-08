@@ -62,30 +62,86 @@ export async function getWorkflows(): Promise<Workflow[]> {
 export async function getIntegrations(): Promise<Integration[]> {
   try {
     const supabase = await createClient()
-    const { data, error } = await supabase
-      .from('integrations')
-      .select('*')
-      .order('name')
 
-    if (error || !data) {
-      console.error('Failed to fetch integrations:', error)
-      return []
+    // Fetch both the static integrations list and actual OAuth connections
+    const [integrationsResult, userIntegrationsResult] = await Promise.all([
+      supabase.from('integrations').select('*').order('name'),
+      supabase.from('user_integrations').select('*').eq('status', 'connected'),
+    ])
+
+    // Build a map of connected providers from user_integrations
+    const connectedMap: Record<string, { email?: string; name?: string; created_at?: string }[]> = {}
+    for (const ui of userIntegrationsResult.data || []) {
+      if (!connectedMap[ui.provider]) connectedMap[ui.provider] = []
+      connectedMap[ui.provider].push({
+        email: ui.account_email,
+        name: ui.account_name,
+        created_at: ui.created_at,
+      })
     }
 
-    return data.map((i): Integration => ({
-      id: i.id,
-      user_id: i.user_id,
-      name: i.name,
-      slug: i.slug,
-      icon: i.icon || '🔗',
-      type: i.type as IntegrationType,
-      status: i.status as IntegrationStatus,
-      config: i.config || {},
-      accounts: (i.accounts || []) as IntegrationAccount[],
-      last_sync: i.last_sync,
-      created_at: i.created_at,
-      updated_at: i.updated_at,
-    }))
+    // If there are no static integrations rows but we have OAuth connections, build from OAuth
+    const staticData = integrationsResult.data || []
+
+    // Merge: update static integrations with real connection status
+    const merged = staticData.map((i): Integration => {
+      const provider = i.slug?.replace('-workspace', '').replace('-', '') || i.name?.toLowerCase()
+      const connected = connectedMap[provider] || connectedMap[i.name?.toLowerCase()] || []
+      const isConnected = connected.length > 0
+
+      return {
+        id: i.id,
+        user_id: i.user_id,
+        name: i.name,
+        slug: i.slug,
+        icon: i.icon || '🔗',
+        type: i.type as IntegrationType,
+        status: isConnected ? 'connected' as IntegrationStatus : i.status as IntegrationStatus,
+        config: i.config || {},
+        accounts: isConnected ? connected.map((c, idx) => ({
+          id: `oauth-${idx}`,
+          email: c.email || '',
+          name: c.name || c.email || 'Connected',
+          connectedAt: c.created_at ? new Date(c.created_at).toLocaleDateString() : 'Recently',
+          isPrimary: idx === 0,
+        })) as IntegrationAccount[] : (i.accounts || []) as IntegrationAccount[],
+        last_sync: i.last_sync,
+        created_at: i.created_at,
+        updated_at: i.updated_at,
+      }
+    })
+
+    // Also add any OAuth connections not in the static list (e.g. google)
+    for (const [provider, accounts] of Object.entries(connectedMap)) {
+      const alreadyIncluded = merged.some(m =>
+        m.slug?.includes(provider) || m.name?.toLowerCase().includes(provider)
+      )
+      if (!alreadyIncluded) {
+        const name = provider.charAt(0).toUpperCase() + provider.slice(1)
+        merged.push({
+          id: `oauth-${provider}`,
+          user_id: '',
+          name,
+          slug: provider,
+          icon: provider === 'google' ? '🔵' : provider === 'slack' ? '💬' : '📝',
+          type: 'oauth' as IntegrationType,
+          status: 'connected' as IntegrationStatus,
+          config: {},
+          accounts: accounts.map((c, idx) => ({
+            id: `oauth-${idx}`,
+            email: c.email || '',
+            name: c.name || c.email || 'Connected',
+            connectedAt: c.created_at ? new Date(c.created_at).toLocaleDateString() : 'Recently',
+            isPrimary: idx === 0,
+          })) as IntegrationAccount[],
+          last_sync: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+      }
+    }
+
+    return merged
   } catch (err) {
     console.error('Integrations fetch error:', err)
     return []
