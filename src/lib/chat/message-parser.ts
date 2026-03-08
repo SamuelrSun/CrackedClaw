@@ -7,9 +7,13 @@ export type ParsedSegment =
   | { type: "subagent-progress"; agents: Array<{ name: string; status: "scanning" | "complete" | "error"; source: string }> }
   | { type: "workflow-suggest"; suggestions: Array<{ id: string; title: string; description: string }> }
   | { type: "context-summary"; insights: Array<{ icon: string; text: string }>; source: string }
-  | { type: "welcome"; userName: string; agentName: string };
+  | { type: "welcome"; userName: string; agentName: string }
+  | { type: "integrations-resolve"; services: string[] }
+  | { type: "skill-suggest"; skillId: string; reason: string };
 
 const PATTERNS = {
+  integrationsResolve: /\[\[integrations:resolve:([^\]]+)\]\]/g,
+  skillSuggest: /\[\[skill:suggest:([^,\]]+)(?:,([^\]]+))?\]\]/g,
   integrationConnect: /\[\[integration:(google|slack|notion)\]\]/g,
   integrationStatus: /\[\[integration-status:(\w+):(connected|error)(?::([^\]]+))?\]\]/g,
   subagentProgress: /\[\[subagent:progress:(\{.*?\})\]\]/g,
@@ -111,6 +115,33 @@ export function parseMessageContent(content: string): ParsedSegment[] {
     }
   }
 
+  // Find all integrations:resolve patterns
+  PATTERNS.integrationsResolve.lastIndex = 0;
+  while ((match = PATTERNS.integrationsResolve.exec(content)) !== null) {
+    const services = match[1].split(",").map(s => s.trim()).filter(Boolean);
+    if (services.length > 0) {
+      matches.push({
+        index: match.index,
+        length: match[0].length,
+        segment: { type: "integrations-resolve", services },
+      });
+    }
+  }
+
+  // Find all skill:suggest patterns
+  PATTERNS.skillSuggest.lastIndex = 0;
+  while ((match = PATTERNS.skillSuggest.exec(content)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      segment: {
+        type: "skill-suggest",
+        skillId: match[1].trim(),
+        reason: match[2]?.trim() || "This skill would enhance my capabilities for this task",
+      },
+    });
+  }
+
   // Find all welcome patterns
   PATTERNS.welcome.lastIndex = 0;
   while ((match = PATTERNS.welcome.exec(content)) !== null) {
@@ -169,6 +200,8 @@ export function hasRichContent(content: string): boolean {
     PATTERNS.subagentProgress.test(content) ||
     PATTERNS.workflowSuggest.test(content) ||
     PATTERNS.contextSummary.test(content) ||
-    PATTERNS.welcome.test(content)
+    PATTERNS.welcome.test(content) ||
+    PATTERNS.integrationsResolve.test(content) ||
+    PATTERNS.skillSuggest.test(content)
   );
 }

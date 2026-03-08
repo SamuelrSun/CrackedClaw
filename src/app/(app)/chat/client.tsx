@@ -14,6 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConversationListSkeleton } from "@/components/skeletons/list-skeleton";
 import { ChatSkeleton } from "@/components/skeletons/chat-skeleton";
 import { parseMessageContent, type ParsedSegment } from "@/lib/chat/message-parser";
+import { DynamicIntegrationsCard } from "@/components/chat/dynamic-integrations-card";
+import { SkillSuggestCard } from "@/components/chat/skill-suggest-card";
 import {
   IntegrationConnectCard,
   IntegrationStatusCard,
@@ -168,6 +170,21 @@ function RichMessage({
             );
           case "welcome":
             return null; // removed - redundant with agent's intro message
+          case "integrations-resolve":
+            return (
+              <DynamicIntegrationsCard
+                key={idx}
+                services={segment.services}
+              />
+            );
+          case "skill-suggest":
+            return (
+              <SkillSuggestCard
+                key={idx}
+                skillId={segment.skillId}
+                reason={segment.reason}
+              />
+            );
           default:
             return null;
         }

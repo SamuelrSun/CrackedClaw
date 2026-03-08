@@ -305,7 +305,7 @@ export function parseOnboardingActions(response: string): Array<{
   }> = [];
   
   // Match all [[type:payload]] patterns
-  const pattern = /\[\[(integration|welcome|subagent|context|workflow|action):([^\]]+)\]\]/g;
+  const pattern = /\[\[(integrations|integration|welcome|subagent|context|workflow|skill|action):([^\]]+)\]\]/g;
   let match;
   
   while ((match = pattern.exec(response)) !== null) {
@@ -323,7 +323,7 @@ export function parseOnboardingActions(response: string): Array<{
  * Remove special syntax from response for display
  */
 export function stripOnboardingActions(response: string): string {
-  return response.replace(/\[\[(integration|welcome|subagent|context|workflow|action):[^\]]+\]\]/g, '').trim();
+  return response.replace(/\[\[(integrations|integration|welcome|subagent|context|workflow|skill|action):[^\]]+\]\]/g, '').trim();
 }
 
 /**
