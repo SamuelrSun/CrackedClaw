@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { buildSkillsSystemPrompt } from '@/lib/skills/store';
 import { getRelevantMemories, MemoryEntry } from '@/lib/memory/service';
 
 export interface SystemPromptContext {
@@ -8,6 +9,7 @@ export interface SystemPromptContext {
   integrations?: string[]; // list of connected provider names e.g. ['google', 'slack']
   memoryEntries?: MemoryEntry[];
   secretNames?: string[]; // names only, never values
+  skillsPrompt?: string;
 }
 
 const CORE_PROMPT = `You are a proactive AI agent. Your job is to DO things for the user — never tell them to do things you can do yourself.
@@ -91,6 +93,10 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     parts.push('\nMEMORY (things you know about this user):\n' + memLines);
   }
 
+  if (ctx.skillsPrompt) {
+    parts.push(ctx.skillsPrompt);
+  }
+
   return parts.join('\n');
 }
 
@@ -145,6 +151,14 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
   } catch (err) {
     console.error('Failed to build system prompt context:', err);
   }
+
+  // Inject installed skills into system prompt
+  try {
+    const skillsPrompt = await buildSkillsSystemPrompt(userId);
+    if (skillsPrompt) {
+      ctx.skillsPrompt = skillsPrompt;
+    }
+  } catch { /* skills table may not exist yet */ }
 
   return buildSystemPrompt(ctx);
 }
