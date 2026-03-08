@@ -1,68 +1,93 @@
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { getWorkflows, getActivityLog, getTokenUsage } from "@/lib/supabase/data";
-import { ActivityFeed } from "@/components/activity/activity-feed";
-import DashboardClient from "./dashboard-client";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import Link from "next/link";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
-  const [workflows, activityLog, tokenUsage] = await Promise.all([
-    getWorkflows(),
-    getActivityLog({ limit: 5 }),
-    getTokenUsage(),
-  ]);
+export default async function RootPage() {
+  // Check auth
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const activeWorkflows = workflows.filter(w => w.status === "active");
+  if (user) {
+    redirect("/chat");
+  }
 
+  // Not authenticated — show landing page
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="font-header text-3xl font-bold tracking-tight leading-tight">
-          Command Center
+    <div className="min-h-screen bg-paper text-forest font-body">
+      {/* Header */}
+      <header className="flex items-center justify-between px-6 py-4 border-b border-forest/10">
+        <span className="font-header text-xl font-bold tracking-tight">CrackedClaw</span>
+        <Link
+          href="/login"
+          className="font-mono text-[11px] uppercase tracking-wide border border-forest/30 px-4 py-2 hover:bg-forest hover:text-white transition-colors"
+        >
+          Sign In
+        </Link>
+      </header>
+
+      {/* Hero */}
+      <section className="flex flex-col items-center justify-center text-center px-6 py-24 mosaic-bg">
+        <div className="w-16 h-16 bg-forest mb-8 flex items-center justify-center">
+          <span className="text-white font-header text-2xl font-bold">CC</span>
+        </div>
+        <h1 className="font-header text-5xl md:text-6xl font-bold tracking-tight leading-tight mb-6 max-w-2xl">
+          Your AI agent,<br />in the cloud
         </h1>
-        <p className="font-mono text-[10px] uppercase tracking-wide text-grid/50 mt-1">
-          Agent Dashboard / Overview
+        <p className="font-mono text-[13px] text-grid/70 max-w-lg mb-10 leading-relaxed">
+          CrackedClaw gives you a personal AI that actually does things — browses the
+          web, connects your tools, remembers everything.
         </p>
-      </div>
+        <Link
+          href="/login"
+          className="bg-forest text-white font-mono text-[12px] uppercase tracking-wide px-8 py-3 hover:bg-forest/90 transition-colors"
+        >
+          Get Started Free →
+        </Link>
+      </section>
 
-      {/* Bento Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-px bg-[rgba(58,58,56,0.2)]">
-        {/* Client-side gateway status components */}
-        <DashboardClient initialTokenUsage={tokenUsage} />
-
-        {/* Active Workflows */}
-        <Card label="Active Workflows" accentColor="#1A3C2B" className="md:col-span-2" bordered={false}>
-          <div className="space-y-3 mt-2">
-            {activeWorkflows.length > 0 ? (
-              activeWorkflows.slice(0, 4).map((w) => (
-                <div key={w.id} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge status="active">{w.name}</Badge>
-                  </div>
-                  <span className="font-mono text-[10px] text-grid/40">{w.lastRun}</span>
-                </div>
-              ))
-            ) : (
-              <div className="py-8 text-center">
-                <p className="text-sm text-grid/50 mb-2">No workflows yet</p>
-                <p className="font-mono text-[10px] text-grid/40">
-                  Create your first workflow to automate tasks
-                </p>
-              </div>
-            )}
+      {/* Features */}
+      <section className="px-6 py-20 max-w-4xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-forest/10">
+          <div className="bg-paper p-8">
+            <div className="w-12 h-12 bg-mint/30 flex items-center justify-center mb-4 text-2xl">
+              🌐
+            </div>
+            <h3 className="font-header text-lg font-bold mb-2">Browser automation</h3>
+            <p className="font-mono text-[11px] text-grid/60 leading-relaxed">
+              Your agent navigates the web, fills forms, and automates any task with a UI
+            </p>
           </div>
-        </Card>
+          <div className="bg-paper p-8">
+            <div className="w-12 h-12 bg-gold/30 flex items-center justify-center mb-4 text-2xl">
+              🔗
+            </div>
+            <h3 className="font-header text-lg font-bold mb-2">Connects everything</h3>
+            <p className="font-mono text-[11px] text-grid/60 leading-relaxed">
+              Gmail, Sheets, LinkedIn, Twilio — if it has an API or a web UI, your agent can use it
+            </p>
+          </div>
+          <div className="bg-paper p-8">
+            <div className="w-12 h-12 bg-coral/30 flex items-center justify-center mb-4 text-2xl">
+              🧠
+            </div>
+            <h3 className="font-header text-lg font-bold mb-2">Remembers across sessions</h3>
+            <p className="font-mono text-[11px] text-grid/60 leading-relaxed">
+              Your agent builds a persistent memory of your preferences, credentials, and context
+            </p>
+          </div>
+        </div>
+      </section>
 
-        {/* Recent Activity */}
-        <Card label="Recent Activity" accentColor="#FF8C69" className="md:col-span-2" bordered={false}>
-          <ActivityFeed 
-            activities={activityLog} 
-            limit={5} 
-            showViewAll={true}
-          />
-        </Card>
-      </div>
+      {/* Footer */}
+      <footer className="border-t border-forest/10 px-6 py-6 text-center">
+        <p className="font-mono text-[10px] text-grid/40 uppercase tracking-wide">
+          CrackedClaw © 2026
+        </p>
+      </footer>
     </div>
   );
 }
