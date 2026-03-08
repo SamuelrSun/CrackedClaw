@@ -720,11 +720,10 @@ export default function ChatPageClient({
                   </div>
                   <div
                     className={cn(
-                      "border border-[rgba(58,58,56,0.2)] rounded-none p-4 text-sm leading-relaxed",
+                      "text-sm leading-relaxed",
                       msg.role === "user"
-                        ? "bg-forest text-white"
-                        : "bg-white text-forest",
-                      hasRichContent && msg.role === "assistant" && "p-0 border-0 bg-transparent"
+                        ? "border border-[rgba(58,58,56,0.2)] rounded-none p-4 bg-forest text-white"
+                        : "text-forest p-0 border-0 bg-transparent"
                     )}
                   >
                     {hasRichContent && msg.role === "assistant" ? (
