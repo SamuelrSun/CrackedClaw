@@ -126,14 +126,6 @@ export async function POST(request: NextRequest) {
     // If there's an instance and user is solo owner, delete the instance first
     let instanceDeleted = false;
     if (org?.openclaw_instance_id && memberCount === 0) {
-      if (!confirmDeleteInstance && org.openclaw_status === "running") {
-        return NextResponse.json({
-          error: "Instance deletion not confirmed",
-          requiresInstanceConfirmation: true,
-          instanceId: org.openclaw_instance_id,
-        }, { status: 400 });
-      }
-
       // Delete the provisioned instance
       try {
         const deleteResult = await deleteInstance(org.openclaw_instance_id);
