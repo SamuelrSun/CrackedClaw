@@ -1,176 +1,235 @@
 "use client";
 
-import { useState } from "react";
-import { Card } from "@/components/ui/card";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FormErrorSummary } from "@/components/ui/form-error-summary";
-import { useFormValidation } from "@/hooks/use-form-validation";
-import { validateRequired, validateMaxLength, composeValidators } from "@/lib/validation";
-import { workflows as initialWorkflows, Workflow } from "@/lib/mock-data";
-import { X } from "lucide-react";
+import Link from "next/link";
+
+interface Workflow {
+  id: string;
+  name: string;
+  description: string;
+  status: 'active' | 'inactive' | 'pending';
+  trigger_type: 'manual' | 'scheduled' | 'webhook';
+  icon?: string;
+  last_run?: string;
+  schedule?: { human_readable?: string };
+  metadata?: {
+    steps?: Array<{ id: string; description: string; integrationSlug?: string }>;
+    requiredIntegrations?: string[];
+    estimatedDuration?: string;
+  };
+}
 
 export default function WorkflowsPage() {
-  const [workflows, setWorkflows] = useState<Workflow[]>(initialWorkflows);
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [prompt, setPrompt] = useState("");
   const [creating, setCreating] = useState(false);
+  const [createdWorkflow, setCreatedWorkflow] = useState<Workflow | null>(null);
+  const [runningId, setRunningId] = useState<string | null>(null);
 
-  // Form validation for creating workflow
-  const createForm = useFormValidation({
-    fields: {
-      name: composeValidators(
-        (v) => validateRequired(v, "Name"),
-        (v) => validateMaxLength(v, 50, "Name"),
-      ),
-      description: (v) => validateMaxLength(v, 500, "Description"),
-    },
-    onSubmit: handleCreateWorkflow,
-  });
+  useEffect(() => {
+    fetch('/api/workflows')
+      .then(r => r.json())
+      .then(d => setWorkflows(d.workflows || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-  async function handleCreateWorkflow(values: { name: string; description: string }) {
+  const createFromPrompt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!prompt.trim() || creating) return;
     setCreating(true);
+    setCreatedWorkflow(null);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const newWorkflow: Workflow = {
-        id: Date.now().toString(),
-        name: values.name,
-        description: values.description || "No description",
-        icon: "⚡",
-        status: "pending",
-        lastRun: "Never",
-      };
-      
-      setWorkflows(prev => [newWorkflow, ...prev]);
-      setShowCreateForm(false);
-      createForm.reset();
-    } catch (err) {
-      console.error('Failed to create workflow:', err);
+      const res = await fetch('/api/workflows/create-from-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await res.json();
+      if (data.workflow) {
+        setCreatedWorkflow(data.workflow);
+        setWorkflows(prev => [data.workflow, ...prev]);
+        setPrompt("");
+      }
     } finally {
       setCreating(false);
     }
-  }
+  };
+
+  const runWorkflow = async (id: string) => {
+    setRunningId(id);
+    try {
+      await fetch(`/api/workflows/${id}/run`, { method: 'POST' });
+      // Update last_run in UI
+      setWorkflows(prev => prev.map(w => w.id === id ? { ...w, last_run: 'Just now' } : w));
+    } finally {
+      setRunningId(null);
+    }
+  };
+
+  const activateWorkflow = async (id: string) => {
+    try {
+      await fetch(`/api/workflows/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      });
+      setWorkflows(prev => prev.map(w => w.id === id ? { ...w, status: 'active' } : w));
+      setCreatedWorkflow(null);
+    } catch {}
+  };
 
   return (
     <div className="p-6">
-      <div className="mb-6 flex items-end justify-between">
-        <div>
-          <h1 className="font-header text-3xl font-bold tracking-tight leading-tight">
-            Workflows
-          </h1>
-          <p className="font-mono text-[10px] uppercase tracking-wide text-grid/50 mt-1">
-            Pre-built automation commands
-          </p>
-        </div>
-        <Button variant="solid" onClick={() => setShowCreateForm(true)}>Create Workflow</Button>
+      <div className="mb-6">
+        <h1 className="font-header text-3xl font-bold tracking-tight mb-1">Workflows</h1>
+        <p className="font-mono text-[10px] uppercase tracking-wide text-grid/50">
+          Automate anything — just describe it
+        </p>
       </div>
 
-      {/* Create Workflow Form Modal */}
-      {showCreateForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white border border-[rgba(58,58,56,0.2)] w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-[rgba(58,58,56,0.1)]">
-              <h2 className="font-header text-lg font-bold">Create Workflow</h2>
-              <button 
-                onClick={() => {
-                  setShowCreateForm(false);
-                  createForm.reset();
-                }}
-                className="text-grid/50 hover:text-forest transition-colors"
-              >
-                <X className="w-5 h-5" />
+      {/* Prompt-driven creation */}
+      <form onSubmit={createFromPrompt} className="mb-6">
+        <div className="border border-[rgba(58,58,56,0.25)] bg-paper p-4">
+          <p className="font-mono text-[10px] uppercase tracking-wide text-grid/40 mb-2">Create a workflow</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={prompt}
+              onChange={e => setPrompt(e.target.value)}
+              placeholder='Describe what to automate... e.g. "Every morning, check Gmail for urgent emails, summarize them, post to #standup on Slack"'
+              className="flex-1 bg-transparent font-mono text-xs outline-none placeholder:text-grid/30 text-grid border-b border-[rgba(58,58,56,0.1)] pb-2"
+            />
+            <button
+              type="submit"
+              disabled={creating || !prompt.trim()}
+              className="px-4 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-grid text-paper hover:bg-grid/80 transition-colors disabled:opacity-40 self-end"
+            >
+              {creating ? "Building..." : "Create →"}
+            </button>
+          </div>
+          <p className="font-mono text-[9px] text-grid/30 mt-2">
+            Describe triggers (every morning, on webhook, manually), actions, and which integrations to use
+          </p>
+        </div>
+      </form>
+
+      {/* Just-created workflow card */}
+      {createdWorkflow && (
+        <div className="mb-6 border border-forest/30 bg-forest/5 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span>✨</span>
+            <p className="font-mono text-[10px] uppercase tracking-wide text-forest">Workflow created!</p>
+          </div>
+          <p className="font-header font-bold text-lg mb-1">{createdWorkflow.name}</p>
+          <p className="font-mono text-[11px] text-grid/60 mb-3">{createdWorkflow.description}</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => activateWorkflow(createdWorkflow.id)}
+              className="px-4 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-forest text-white hover:bg-forest/80 transition-colors"
+            >
+              Activate
+            </button>
+            <Link href={`/workflows/${createdWorkflow.id}`}>
+              <button className="px-4 py-1.5 font-mono text-[10px] uppercase tracking-wide border border-grid/30 hover:bg-grid/5 transition-colors">
+                Edit / Refine
               </button>
-            </div>
-            
-            <form onSubmit={createForm.handleSubmit} className="p-4 space-y-4">
-              {/* Form Error Summary */}
-              {createForm.formErrors.length > 0 && (
-                <FormErrorSummary 
-                  errors={createForm.formErrors}
-                  onScrollToFirst={createForm.scrollToFirstError}
-                />
-              )}
-              
-              <Input
-                label="Name"
-                placeholder="My Workflow"
-                value={createForm.values.name}
-                onChange={createForm.handleChange("name")}
-                onBlur={createForm.handleBlur("name")}
-                error={createForm.errors.name}
-                touched={createForm.touched.name}
-              />
-              
-              <div className="flex flex-col gap-1.5">
-                <label className="font-mono text-[10px] uppercase tracking-wide text-grid/60">
-                  Description (optional)
-                </label>
-                <textarea
-                  className={`w-full bg-white border rounded-none px-3 py-2 font-body text-sm text-forest placeholder:text-grid/30 outline-none transition-colors min-h-[80px] resize-none ${
-                    createForm.errors.description && createForm.touched.description
-                      ? "border-coral focus:border-coral"
-                      : "border-[rgba(58,58,56,0.2)] focus:border-forest"
-                  }`}
-                  placeholder="What does this workflow do..."
-                  value={createForm.values.description}
-                  onChange={createForm.handleChange("description")}
-                  onBlur={createForm.handleBlur("description")}
-                />
-                {createForm.errors.description && createForm.touched.description && (
-                  <span className="font-mono text-[11px] text-coral">
-                    {createForm.errors.description}
-                  </span>
-                )}
-                <span className="font-mono text-[9px] text-grid/40">
-                  {createForm.values.description.length}/500 characters
-                </span>
-              </div>
-              
-              <div className="flex gap-2 pt-2">
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => {
-                    setShowCreateForm(false);
-                    createForm.reset();
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  variant="solid" 
-                  size="sm"
-                  disabled={creating || !createForm.isValid}
-                >
-                  {creating ? "Creating..." : "Create Workflow"}
-                </Button>
-              </div>
-            </form>
+            </Link>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-px bg-[rgba(58,58,56,0.2)]">
-        {workflows.map((wf) => (
-          <Card key={wf.id} label={wf.icon} accentColor={wf.status === "active" ? "#9EFFBF" : wf.status === "pending" ? "#F4D35E" : undefined}>
-            <div className="mt-2">
-              <h3 className="font-header text-lg font-bold tracking-tight">{wf.name}</h3>
-              <p className="text-sm text-grid/60 mt-1">{wf.description}</p>
-              <div className="flex items-center justify-between mt-4">
-                <Badge status={wf.status}>{wf.status}</Badge>
-                <Button variant="solid" size="sm">Run</Button>
-              </div>
-              <p className="font-mono text-[10px] text-grid/40 mt-3">
-                Last run: {wf.lastRun}
-              </p>
+      {/* Workflows list */}
+      {loading ? (
+        <p className="font-mono text-xs text-grid/40">Loading workflows...</p>
+      ) : workflows.length === 0 ? (
+        <div className="border border-[rgba(58,58,56,0.15)] bg-paper p-12 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 border border-[rgba(58,58,56,0.15)] flex items-center justify-center">
+            <span className="text-2xl">⚡</span>
+          </div>
+          <h2 className="font-header text-xl font-bold mb-2">No workflows yet</h2>
+          <p className="text-sm text-grid/50 max-w-md mx-auto">
+            Describe what you want automated above — like &quot;every morning check my email and summarize urgent ones.&quot;
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {workflows.map(workflow => (
+            <WorkflowCard
+              key={workflow.id}
+              workflow={workflow}
+              onRun={runWorkflow}
+              isRunning={runningId === workflow.id}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WorkflowCard({ workflow, onRun, isRunning }: { workflow: Workflow; onRun: (id: string) => void; isRunning: boolean }) {
+  const steps = workflow.metadata?.steps || [];
+  const integrations = workflow.metadata?.requiredIntegrations || [];
+
+  return (
+    <div className={`border p-4 transition-colors ${workflow.status === 'active' ? 'border-forest/30 bg-forest/5' : 'border-[rgba(58,58,56,0.15)] bg-paper'}`}>
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{workflow.icon || '⚡'}</span>
+          <div>
+            <Link href={`/workflows/${workflow.id}`} className="font-header font-bold text-sm hover:underline">{workflow.name}</Link>
+            <div className="flex items-center gap-2 mt-0.5">
+              <Badge status={workflow.status === 'active' ? 'active' : 'inactive'}>
+                {workflow.status}
+              </Badge>
+              <span className="font-mono text-[9px] text-grid/40 uppercase">
+                {workflow.trigger_type}{workflow.schedule?.human_readable ? ` · ${workflow.schedule.human_readable}` : ''}
+              </span>
             </div>
-          </Card>
-        ))}
+          </div>
+        </div>
+        <button
+          onClick={() => onRun(workflow.id)}
+          disabled={isRunning}
+          className="px-3 py-1 font-mono text-[10px] uppercase tracking-wide border border-grid/30 hover:bg-grid hover:text-paper transition-colors disabled:opacity-50"
+        >
+          {isRunning ? '▶ Running...' : '▶ Run'}
+        </button>
       </div>
+      <p className="font-mono text-[10px] text-grid/50 mb-3">{workflow.description}</p>
+      
+      {/* Steps preview */}
+      {steps.length > 0 && (
+        <div className="flex items-center gap-1 mb-2 overflow-x-auto">
+          {steps.slice(0, 4).map((step, i) => (
+            <div key={step.id} className="flex items-center gap-1 flex-shrink-0">
+              <span className="font-mono text-[9px] bg-grid/5 px-2 py-0.5 border border-[rgba(58,58,56,0.1)] text-grid/60 max-w-[120px] truncate">
+                {step.description.slice(0, 30)}
+              </span>
+              {i < steps.length - 1 && i < 3 && <span className="text-grid/30">→</span>}
+            </div>
+          ))}
+          {steps.length > 4 && <span className="font-mono text-[9px] text-grid/40">+{steps.length - 4} more</span>}
+        </div>
+      )}
+
+      {/* Integrations */}
+      {integrations.length > 0 && (
+        <div className="flex gap-1 flex-wrap">
+          {integrations.map(slug => (
+            <span key={slug} className="font-mono text-[8px] uppercase bg-grid/5 px-2 py-0.5 border border-[rgba(58,58,56,0.1)] text-grid/50">
+              {slug}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {workflow.last_run && (
+        <p className="font-mono text-[9px] text-grid/40 mt-2">Last run: {workflow.last_run}</p>
+      )}
     </div>
   );
 }
