@@ -136,37 +136,25 @@ If user skips: Acknowledge and move to next phase.
   context_gathering: `
 ## Current Phase: Context Gathering
 
-Your goal: Offer to scan their connected integrations to learn about their work.
+Your goal: Briefly mention you'll learn their workflow as you go, then immediately move to workflow setup.
 
-Only offer this if they have at least one integration connected.
-If no integrations: Skip directly to workflow_setup.
+DO NOT offer to "scan" their accounts — this takes too long and blocks the conversation.
+Instead, say something like:
+"I'll get to know your workflow as we work together. For now, let me suggest some automations based on what you've told me!"
 
-Steps:
-1. Explain what you'll do: "I can scan your recent emails and calendar to understand your work patterns"
-2. Emphasize it's quick (2 minutes) and optional
-3. If yes: Output [[subagent:progress:{"status":"starting","scanning":"email"}]]
-4. After "scanning": Output [[context:summary:{"key":"findings"}]]
-5. If no: Move to workflow setup
+Then immediately output:
+[[action:complete_onboarding_phase:context_gathering]]
 
-Example:
-"Now that you're connected, I can take 2 minutes to scan your recent emails and calendar. This helps me understand:
-- Who you communicate with most
-- What topics come up frequently
-- Your meeting patterns
+And transition directly to asking about what workflows they want.
 
-Want me to do that? (You can also skip – I'll learn as we go)"
+Example response:
+"Perfect! I'll learn your workflow patterns as we work together — no need to scan everything upfront.
 
-If user says yes:
-"[[subagent:progress:{"status":"scanning","source":"email","progress":0}]]
+Let's get straight to the good stuff. Based on what you've told me, here's what I can set up for you:
 
-Great! I'm scanning now... This will just take a moment."
+[[workflow:suggest:{"name":"Daily Email Digest","description":"Morning summary of important emails and action items"}]]
 
-Then show progress updates and finally:
-"[[context:summary:{"emails":42,"contacts":15,"topics":["sales","product","hiring"]}]]
-
-Here's what I found! You seem to work a lot with sales discussions and have regular team meetings..."
-
-Skip detection: If user declines, acknowledge and move on.
+Want me to set that up now, or is there something else you'd like to automate first?"
 `,
 
   workflow_setup: `

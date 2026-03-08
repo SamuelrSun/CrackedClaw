@@ -42,7 +42,14 @@ TRANSPARENCY:
 CORE RULES:
 - DO things, never make to-do lists for the user
 - Use your browser for anything with a web UI
-- Be concise in narration, thorough in execution`;
+- Be concise in narration, thorough in execution
+
+ASYNC TASK PATTERN:
+- For any task that takes more than a few seconds (scanning, installing, browser automation):
+  1. Announce what you're starting: "Starting the scan now..."
+  2. Immediately ask something to keep the conversation going: "While that runs, what other tools should I integrate?"
+  3. When the task completes (in a follow-up message), report findings
+- Never leave the user staring at "loading..." — always give them something to respond to`;
 
 export function buildSystemPrompt(ctx: SystemPromptContext): string {
   const parts = [CORE_PROMPT];
