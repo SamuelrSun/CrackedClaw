@@ -10,18 +10,44 @@ export async function GET() {
   const supabase = await createClient();
   const { data } = await supabase
     .from('user_memory')
-    .select('key, value, updated_at')
+    .select('*')
     .eq('user_id', user.id)
+    .order('importance', { ascending: false })
     .order('updated_at', { ascending: false });
   return jsonResponse({ memory: data || [] });
+}
+
+export async function POST(request: NextRequest) {
+  const { user, error } = await requireApiAuth();
+  if (error) return error;
+  const { key, value, category } = await request.json();
+  if (!key || !value) return errorResponse('key and value required', 400);
+  const { saveMemory } = await import('@/lib/memory/service');
+  await saveMemory(user.id, key, value, { category, source: 'user_input', importance: 4 });
+  return jsonResponse({ ok: true });
+}
+
+export async function PATCH(request: NextRequest) {
+  const { user, error } = await requireApiAuth();
+  if (error) return error;
+  const { id, ...updates } = await request.json();
+  if (!id) return errorResponse('id required', 400);
+  const { updateMemory } = await import('@/lib/memory/service');
+  await updateMemory(user.id, id, updates);
+  return jsonResponse({ ok: true });
 }
 
 export async function DELETE(request: NextRequest) {
   const { user, error } = await requireApiAuth();
   if (error) return error;
-  const { key } = await request.json();
-  if (!key) return errorResponse('key required', 400);
+  const { key, id } = await request.json();
   const supabase = await createClient();
-  await supabase.from('user_memory').delete().eq('user_id', user.id).eq('key', key);
+  if (id) {
+    await supabase.from('user_memory').delete().eq('user_id', user.id).eq('id', id);
+  } else if (key) {
+    await supabase.from('user_memory').delete().eq('user_id', user.id).eq('key', key);
+  } else {
+    return errorResponse('key or id required', 400);
+  }
   return jsonResponse({ ok: true });
 }

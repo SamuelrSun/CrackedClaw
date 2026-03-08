@@ -1,11 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
+import { getRelevantMemories, MemoryEntry } from '@/lib/memory/service';
 
 export interface SystemPromptContext {
   userId?: string;
   userName?: string;
   agentName?: string;
   integrations?: string[]; // list of connected provider names e.g. ['google', 'slack']
-  memoryEntries?: Array<{key: string, value: string}>;
+  memoryEntries?: MemoryEntry[];
   secretNames?: string[]; // names only, never values
 }
 
@@ -49,7 +50,14 @@ ASYNC TASK PATTERN:
   1. Announce what you're starting: "Starting the scan now..."
   2. Immediately ask something to keep the conversation going: "While that runs, what other tools should I integrate?"
   3. When the task completes (in a follow-up message), report findings
-- Never leave the user staring at "loading..." — always give them something to respond to`;
+- Never leave the user staring at "loading..." — always give them something to respond to
+
+DATA SCANNING:
+When a user asks you to scan their accounts, learn their workflow, or understand their work patterns:
+1. You have a scan endpoint. Use web_fetch or exec with curl to POST to the scan API.
+2. The app URL is injected in context. POST to {appUrl}/api/memory/scan with the Authorization header.
+3. After scanning: report findings naturally. "I scanned your Gmail — looks like you work a lot with [topics] and frequently email [contacts]."
+4. Scanned data is automatically saved to memory and will be available in future sessions.`;
 
 export function buildSystemPrompt(ctx: SystemPromptContext): string {
   const parts = [CORE_PROMPT];
@@ -70,8 +78,17 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   }
 
   if (ctx.memoryEntries && ctx.memoryEntries.length > 0) {
-    parts.push('\nMEMORY (things you know about this user):\n' + 
-      ctx.memoryEntries.map(e => `- ${e.key}: ${e.value}`).join('\n'));
+    const grouped = ctx.memoryEntries.reduce((acc, e) => {
+      const cat = (e as MemoryEntry).category || 'fact';
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(e);
+      return acc;
+    }, {} as Record<string, MemoryEntry[]>);
+    const memLines = Object.entries(grouped).map(([cat, entries]) => {
+      const entryLines = (entries as MemoryEntry[]).map(e => `  - ${e.key}: ${e.value}`).join('\n');
+      return `[${cat.toUpperCase()}]\n${entryLines}`;
+    }).join('\n');
+    parts.push('\nMEMORY (things you know about this user):\n' + memLines);
   }
 
   return parts.join('\n');
@@ -106,16 +123,11 @@ export async function buildSystemPromptForUser(userId: string): Promise<string> 
       ctx.integrations = integrations.map((i: { provider: string }) => i.provider);
     }
 
-    // Get memory entries (will be empty until Phase 2 creates the table)
+    // Get relevant memories using smart scoring
     try {
-      const { data: memory } = await supabase
-        .from('user_memory')
-        .select('key, value')
-        .eq('user_id', userId)
-        .order('updated_at', { ascending: false })
-        .limit(50);
-      if (memory && memory.length > 0) {
-        ctx.memoryEntries = memory;
+      const memories = await getRelevantMemories(userId, '', 30);
+      if (memories.length > 0) {
+        ctx.memoryEntries = memories;
       }
     } catch { /* table may not exist yet */ }
 
