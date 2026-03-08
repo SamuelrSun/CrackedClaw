@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
-import { Header } from "@/components/layout/header";
 import { ErrorBoundary } from "@/components/error/error-boundary";
 import { ToastProvider } from "@/contexts/toast-context";
 import { SearchProvider } from "@/contexts/search-context";
@@ -37,8 +36,7 @@ export default function RootLayout({
         <ToastProvider>
           <SearchProvider>
             <ErrorBoundary>
-              <Header />
-              <main className="pt-14 min-h-screen mosaic-bg">{children}</main>
+              <main className="min-h-screen">{children}</main>
               <GlobalSearch />
               <KeyboardShortcuts />
             </ErrorBoundary>
