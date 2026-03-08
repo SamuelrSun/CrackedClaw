@@ -1,9 +1,14 @@
--- Dynamic integrations support
+-- ============================================================
+-- Dynamic Integrations, Skills, Workflow Memory, Files
+-- Safe to re-run: all operations use IF NOT EXISTS / IF EXISTS
+-- ============================================================
+
+-- ---- Integrations columns ----
 ALTER TABLE integrations ADD COLUMN IF NOT EXISTS is_dynamic boolean DEFAULT false;
 ALTER TABLE integrations ADD COLUMN IF NOT EXISTS needs_node boolean DEFAULT false;
 ALTER TABLE integrations ADD COLUMN IF NOT EXISTS resolved_config jsonb;
 
--- Node pairings table
+-- ---- Node pairings ----
 CREATE TABLE IF NOT EXISTS node_pairings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -17,7 +22,14 @@ CREATE TABLE IF NOT EXISTS node_pairings (
   UNIQUE(user_id, node_id)
 );
 
--- Browser sessions log
+ALTER TABLE node_pairings ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'node_pairings' AND policyname = 'Users own their node pairings') THEN
+    CREATE POLICY "Users own their node pairings" ON node_pairings FOR ALL USING (user_id = auth.uid());
+  END IF;
+END $$;
+
+-- ---- Browser sessions ----
 CREATE TABLE IF NOT EXISTS browser_sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -30,19 +42,14 @@ CREATE TABLE IF NOT EXISTS browser_sessions (
   ended_at timestamptz
 );
 
--- RLS
-ALTER TABLE node_pairings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE browser_sessions ENABLE ROW LEVEL SECURITY;
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'node_pairings' AND policyname = 'Users own their node pairings') THEN
-    CREATE POLICY "Users own their node pairings" ON node_pairings FOR ALL USING (user_id = auth.uid());
-  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'browser_sessions' AND policyname = 'Users own their browser sessions') THEN
     CREATE POLICY "Users own their browser sessions" ON browser_sessions FOR ALL USING (user_id = auth.uid());
   END IF;
 END $$;
 
--- Installed skills
+-- ---- Installed skills ----
 CREATE TABLE IF NOT EXISTS installed_skills (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -62,7 +69,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Workflow memory
+-- ---- Workflow memory ----
 CREATE TABLE IF NOT EXISTS workflow_memory (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workflow_id uuid REFERENCES workflows(id) ON DELETE CASCADE,
@@ -77,7 +84,22 @@ CREATE TABLE IF NOT EXISTS workflow_memory (
   created_at timestamptz DEFAULT now()
 );
 
--- Workflow run history
+-- In case table already existed without user_id
+ALTER TABLE workflow_memory ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
+
+ALTER TABLE workflow_memory ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'workflow_memory' AND policyname = 'Users own workflow memory') THEN
+    -- Policy via workflow FK since user_id may be null on legacy rows
+    CREATE POLICY "Users own workflow memory" ON workflow_memory FOR ALL
+      USING (
+        user_id = auth.uid()
+        OR workflow_id IN (SELECT id FROM workflows WHERE user_id = auth.uid())
+      );
+  END IF;
+END $$;
+
+-- ---- Workflow runs ----
 CREATE TABLE IF NOT EXISTS workflow_runs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workflow_id uuid REFERENCES workflows(id) ON DELETE CASCADE,
@@ -91,18 +113,22 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
   completed_at timestamptz
 );
 
-ALTER TABLE workflow_memory ENABLE ROW LEVEL SECURITY;
+-- In case table already existed without user_id
+ALTER TABLE workflow_runs ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
+
 ALTER TABLE workflow_runs ENABLE ROW LEVEL SECURITY;
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'workflow_memory' AND policyname = 'Users own workflow memory') THEN
-    CREATE POLICY "Users own workflow memory" ON workflow_memory FOR ALL USING (user_id = auth.uid());
-  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'workflow_runs' AND policyname = 'Users own workflow runs') THEN
-    CREATE POLICY "Users own workflow runs" ON workflow_runs FOR ALL USING (user_id = auth.uid());
+    -- Policy via workflow FK since user_id may be null on legacy rows
+    CREATE POLICY "Users own workflow runs" ON workflow_runs FOR ALL
+      USING (
+        user_id = auth.uid()
+        OR workflow_id IN (SELECT id FROM workflows WHERE user_id = auth.uid())
+      );
   END IF;
 END $$;
 
--- Files for RAG (pgvector optional — skip embedding column if extension not available)
+-- ---- Files for RAG ----
 CREATE TABLE IF NOT EXISTS files (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -119,6 +145,14 @@ CREATE TABLE IF NOT EXISTS files (
   expires_at timestamptz
 );
 
+ALTER TABLE files ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'files' AND policyname = 'Users own their files') THEN
+    CREATE POLICY "Users own their files" ON files FOR ALL USING (user_id = auth.uid());
+  END IF;
+END $$;
+
+-- ---- File chunks (keyword search, no pgvector needed) ----
 CREATE TABLE IF NOT EXISTS file_chunks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   file_id uuid REFERENCES files(id) ON DELETE CASCADE,
@@ -129,12 +163,8 @@ CREATE TABLE IF NOT EXISTS file_chunks (
   created_at timestamptz DEFAULT now()
 );
 
-ALTER TABLE files ENABLE ROW LEVEL SECURITY;
 ALTER TABLE file_chunks ENABLE ROW LEVEL SECURITY;
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'files' AND policyname = 'Users own their files') THEN
-    CREATE POLICY "Users own their files" ON files FOR ALL USING (user_id = auth.uid());
-  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'file_chunks' AND policyname = 'Users own their chunks') THEN
     CREATE POLICY "Users own their chunks" ON file_chunks FOR ALL USING (user_id = auth.uid());
   END IF;
