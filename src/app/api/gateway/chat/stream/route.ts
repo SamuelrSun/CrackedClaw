@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
       let fullContent = "";
 
       try {
-        const systemPrompt = isOnboarding ? undefined : await buildSystemPromptForUser(user.id);
+        const systemPrompt = isOnboarding ? undefined : await buildSystemPromptForUser(user.id, message);
         const result = await streamGatewayMessage(
           capturedGatewayUrl,
           capturedAuthToken,

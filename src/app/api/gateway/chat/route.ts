@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
 
     // Send message through gateway
     try {
-      const systemPrompt = isOnboarding ? undefined : await buildSystemPromptForUser(user.id);
+      const systemPrompt = isOnboarding ? undefined : await buildSystemPromptForUser(user.id, message);
       const response = await sendGatewayMessage(gatewayUrl, authToken, fullMessage, activeConversationId, { systemPrompt });
 
       if (response.error) {

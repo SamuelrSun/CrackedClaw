@@ -94,7 +94,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   return parts.join('\n');
 }
 
-export async function buildSystemPromptForUser(userId: string): Promise<string> {
+export async function buildSystemPromptForUser(userId: string, userMessage?: string): Promise<string> {
   const ctx: SystemPromptContext = { userId };
 
   try {
@@ -125,7 +125,7 @@ export async function buildSystemPromptForUser(userId: string): Promise<string> 
 
     // Get relevant memories using smart scoring
     try {
-      const memories = await getRelevantMemories(userId, '', 30);
+      const memories = await getRelevantMemories(userId, userMessage || '', 30);
       if (memories.length > 0) {
         ctx.memoryEntries = memories;
       }
