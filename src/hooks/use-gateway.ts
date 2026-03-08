@@ -73,8 +73,12 @@ function calculateBackoffDelay(attempt: number, config: ReconnectConfig): number
 }
 
 export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatewayReturn {
-  const config = { ...DEFAULT_RECONNECT_CONFIG, ...reconnectConfig };
-  
+  // Stable config ref — never causes re-renders, always readable inside callbacks
+  const configRef = useRef<ReconnectConfig>({ ...DEFAULT_RECONNECT_CONFIG, ...reconnectConfig });
+  useEffect(() => {
+    configRef.current = { ...DEFAULT_RECONNECT_CONFIG, ...reconnectConfig };
+  }, [reconnectConfig]);
+
   const [gateway, setGateway] = useState<GatewayConnection | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,48 +93,34 @@ export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatew
   const [reconnectCountdown, setReconnectCountdown] = useState<number | null>(null);
   const [isCanceled, setIsCanceled] = useState(false);
   
-  // Refs for accurate values inside async callbacks (avoids stale closure bugs)
+  // Refs for stable access inside async callbacks
+  const isConnectedRef = useRef(false);
   const reconnectAttemptRef = useRef(0);
   const isCanceledRef = useRef(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const wasConnectedRef = useRef(false);
+
+  // Keep isConnectedRef in sync
+  useEffect(() => {
+    isConnectedRef.current = isConnected;
+  }, [isConnected]);
   
   const [memoryEntries, setMemoryEntries] = useState<GatewayMemoryEntry[]>([]);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [memoryError, setMemoryError] = useState<string | null>(null);
   const [memorySource, setMemorySource] = useState<'live' | 'mock'>('mock');
 
-  const clearReconnectTimers = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
-      countdownIntervalRef.current = null;
-    }
-    setReconnectCountdown(null);
-  }, []);
-
-  /**
-   * Cancel reconnection — stops all retries immediately and prevents future auto-reconnects.
-   * Bug 1 fix: sets isCanceledRef so handleDisconnection won't schedule more retries.
-   */
-  const cancelReconnect = useCallback(() => {
-    isCanceledRef.current = true;
-    setIsCanceled(true);
-    clearReconnectTimers();
-    reconnectAttemptRef.current = 0;
-    setReconnectAttempt(0);
-    setConnectionStatus('disconnected');
-  }, [clearReconnectTimers]);
-
-  // Forward declare so handleDisconnection can reference it
+  // Forward-declare so handleDisconnection can call refreshStatus
   const refreshStatusRef = useRef<(isReconnect?: boolean) => Promise<void>>(async () => {});
 
+  /**
+   * handleDisconnection — STABLE (empty deps).
+   * Reads config, counts, and flags from refs only.
+   */
   const handleDisconnection = useCallback((errorMessage?: string) => {
     setIsConnected(false);
+    isConnectedRef.current = false;
     setStatusInfo(null);
     setLatencyMs(null);
     setIsLive(false);
@@ -140,17 +130,17 @@ export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatew
       setError(errorMessage);
     }
 
-    // Bug 1 fix: don't reconnect if user explicitly canceled
     if (isCanceledRef.current) {
       setConnectionStatus('disconnected');
       return;
     }
-    
+
+    const config = configRef.current;
     const currentAttempt = reconnectAttemptRef.current;
+
     if (wasConnectedRef.current && config.enabled && currentAttempt < config.maxAttempts) {
       const nextAttempt = currentAttempt + 1;
       reconnectAttemptRef.current = nextAttempt;
-      // Bug 2 fix: cap display at maxAttempts
       setReconnectAttempt(Math.min(nextAttempt, config.maxAttempts));
       setConnectionStatus('reconnecting');
       
@@ -172,7 +162,6 @@ export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatew
       }, 1000);
       
       reconnectTimeoutRef.current = setTimeout(() => {
-        // Double-check not canceled before firing
         if (!isCanceledRef.current) {
           refreshStatusRef.current(true);
         }
@@ -183,10 +172,13 @@ export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatew
     } else {
       setConnectionStatus('disconnected');
     }
-  }, [config]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * refreshStatus — STABLE (handleDisconnection is stable).
+   * Reads all values from refs; never re-created.
+   */
   const refreshStatus = useCallback(async (isReconnect = false) => {
-    // Bug 1 fix: abort auto-reconnect if user canceled
     if (isCanceledRef.current && isReconnect) {
       return;
     }
@@ -203,13 +195,24 @@ export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatew
       
       if (data.connected && data.status) {
         setIsConnected(true);
+        isConnectedRef.current = true;
         setStatusInfo(data.status);
         setLatencyMs(data.latencyMs ?? null);
         setConnectionStatus('connected');
         setIsLive(data.isLive);
         wasConnectedRef.current = true;
         
-        clearReconnectTimers();
+        // Clear reconnect timers
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
+        setReconnectCountdown(null);
+
         reconnectAttemptRef.current = 0;
         setReconnectAttempt(0);
         isCanceledRef.current = false;
@@ -234,7 +237,7 @@ export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatew
     } finally {
       setIsLoading(false);
     }
-  }, [clearReconnectTimers, handleDisconnection]);
+  }, [handleDisconnection]); // handleDisconnection is stable → refreshStatus is stable
 
   // Keep the ref in sync
   useEffect(() => {
@@ -242,18 +245,45 @@ export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatew
   }, [refreshStatus]);
 
   /**
-   * Force a reconnection attempt — resets canceled state and attempt counter.
-   * Bug 3 fix: allows user to reconnect after canceling.
+   * cancelReconnect — STABLE (empty deps).
+   */
+  const cancelReconnect = useCallback(() => {
+    isCanceledRef.current = true;
+    setIsCanceled(true);
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setReconnectCountdown(null);
+    reconnectAttemptRef.current = 0;
+    setReconnectAttempt(0);
+    setConnectionStatus('disconnected');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * forceReconnect — STABLE (refreshStatus is stable).
    */
   const forceReconnect = useCallback(() => {
-    clearReconnectTimers();
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setReconnectCountdown(null);
     isCanceledRef.current = false;
     setIsCanceled(false);
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
     wasConnectedRef.current = true;
     refreshStatus();
-  }, [clearReconnectTimers, refreshStatus]);
+  }, [refreshStatus]); // refreshStatus is stable → forceReconnect is stable
 
   const refreshMemory = useCallback(async () => {
     setMemoryLoading(true);
@@ -274,16 +304,25 @@ export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatew
     } finally {
       setMemoryLoading(false);
     }
-  }, []);
+  }, []); // stable
 
   const disconnect = useCallback(() => {
-    clearReconnectTimers();
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setReconnectCountdown(null);
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
     wasConnectedRef.current = false;
     isCanceledRef.current = false;
     setIsCanceled(false);
     setIsConnected(false);
+    isConnectedRef.current = false;
     setStatusInfo(null);
     setLatencyMs(null);
     setConnectionStatus('disconnected');
@@ -291,34 +330,46 @@ export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatew
     setMemoryEntries([]);
     setMemorySource('mock');
     setGateway(null);
-  }, [clearReconnectTimers]);
+  }, []); // stable
 
+  // Initial fetch — runs once (refreshStatus is stable)
   useEffect(() => {
     refreshStatus();
     return () => {
-      clearReconnectTimers();
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     };
-  }, [refreshStatus, clearReconnectTimers]);
+  }, [refreshStatus]); // stable → runs once on mount
 
+  // Health-check interval — created once, reads isConnectedRef inside (no isConnected in deps)
   useEffect(() => {
-    if (!isConnected) return;
     const healthCheckInterval = setInterval(() => {
-      refreshStatus(true);
+      if (isConnectedRef.current) {
+        refreshStatus(true);
+      }
     }, 30000);
     return () => clearInterval(healthCheckInterval);
-  }, [isConnected, refreshStatus]);
+  }, [refreshStatus]); // refreshStatus is stable → interval created once, never recreated
 
-  // Only auto-reconnect on visibility change if not canceled
+  // Visibility change — stable deps
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && wasConnectedRef.current && !isConnected && !isCanceledRef.current) {
+      if (
+        document.visibilityState === 'visible' &&
+        wasConnectedRef.current &&
+        !isConnectedRef.current &&
+        !isCanceledRef.current
+      ) {
         forceReconnect();
       }
     };
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isConnected, forceReconnect]);
+  }, [forceReconnect]); // forceReconnect is stable → effect runs once
+
+  // Stable public refreshStatus wrapper (no isReconnect param exposed)
+  const publicRefreshStatus = useCallback(() => refreshStatus(false), [refreshStatus]);
 
   return {
     gateway,
@@ -339,7 +390,7 @@ export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatew
     memoryLoading,
     memoryError,
     memorySource,
-    refreshStatus: () => refreshStatus(false),
+    refreshStatus: publicRefreshStatus,
     refreshMemory,
     disconnect,
     cancelReconnect,
