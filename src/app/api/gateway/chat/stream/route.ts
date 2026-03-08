@@ -8,6 +8,7 @@ import { toOnboardingState, type OnboardingStateRow, type OnboardingStep } from 
 import type { GatewayError } from "@/types/gateway";
 import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
 import { processAgentResponse } from "@/lib/memory/service";
+import { incrementUsage } from "@/lib/usage/tracker";
 import { buildSystemPromptForUser } from "@/lib/gateway/system-prompt";
 
 export const dynamic = "force-dynamic";
@@ -215,6 +216,7 @@ export async function POST(request: NextRequest) {
         ).catch((e: unknown) => console.error("Failed to log activity:", e));
 
         const estimatedTokens = Math.ceil((message.length + cleanedContent.length) / 4);
+        incrementUsage(user.id, estimatedTokens, 0); // fire-and-forget
         await incrementTokenUsage(estimatedTokens).catch((e: unknown) =>
           console.error("Failed to track token usage:", e)
         );

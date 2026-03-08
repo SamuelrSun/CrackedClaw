@@ -14,6 +14,7 @@ const navLinks = [
   { href: "/commands", label: "Commands" },
   { href: "/chat", label: "Chat" },
   { href: "/memory", label: "Memory" },
+  { href: "/usage", label: "Usage" },
   { href: "/integrations", label: "Integrations" },
   { href: "/settings", label: "Settings" },
 ];

@@ -1,67 +1,37 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
-import { getTokenUsage, incrementTokenUsage, getUsageHistory } from "@/lib/supabase/data";
+import { requireApiAuth, jsonResponse } from '@/lib/api-auth';
+import { createClient } from '@/lib/supabase/server';
 
-// GET /api/usage - Fetch current usage and history
-export async function GET(request: NextRequest) {
-  const { error } = await requireApiAuth();
+export const dynamic = 'force-dynamic';
+
+export async function GET() {
+  const { user, error } = await requireApiAuth();
   if (error) return error;
 
-  try {
-    const { searchParams } = new URL(request.url);
-    const days = parseInt(searchParams.get("days") || "7", 10);
+  const supabase = await createClient();
 
-    const [usage, history] = await Promise.all([
-      getTokenUsage(),
-      getUsageHistory(days),
-    ]);
+  // Last 30 days
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const { data: daily } = await supabase
+    .from('user_usage')
+    .select('date, messages_sent, tokens_used, tool_calls')
+    .eq('user_id', user.id)
+    .gte('date', since)
+    .order('date', { ascending: true });
 
-    // Calculate days until reset
-    let daysUntilReset = 0;
-    if (usage.resetDate && usage.resetDate !== "—") {
-      const resetDate = new Date(usage.resetDate);
-      const now = new Date();
-      const diffTime = resetDate.getTime() - now.getTime();
-      daysUntilReset = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-    }
+  const totals = (daily || []).reduce(
+    (acc, row) => ({
+      messages: acc.messages + (row.messages_sent || 0),
+      tokens: acc.tokens + (row.tokens_used || 0),
+      toolCalls: acc.toolCalls + (row.tool_calls || 0),
+    }),
+    { messages: 0, tokens: 0, toolCalls: 0 }
+  );
 
-    return jsonResponse({
-      usage: {
-        used: usage.used,
-        limit: usage.limit,
-        resetDate: usage.resetDate,
-        percentage: Math.round((usage.used / usage.limit) * 100),
-        daysUntilReset,
-      },
-      history,
-    });
-  } catch (err) {
-    console.error("Usage fetch error:", err);
-    return errorResponse("Failed to fetch usage", 500);
-  }
-}
+  // Memory count
+  const { count: memoryCount } = await supabase
+    .from('user_memory')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id);
 
-// POST /api/usage - Increment usage (called after gateway chat)
-export async function POST(request: NextRequest) {
-  const { error } = await requireApiAuth();
-  if (error) return error;
-
-  try {
-    const body = await request.json();
-    const { tokens } = body;
-
-    if (typeof tokens !== "number" || tokens < 0) {
-      return errorResponse("Invalid token count", 400);
-    }
-
-    await incrementTokenUsage(tokens);
-
-    return jsonResponse({
-      success: true,
-      tokens_added: tokens,
-    });
-  } catch (err) {
-    console.error("Usage increment error:", err);
-    return errorResponse("Failed to increment usage", 500);
-  }
+  return jsonResponse({ daily: daily || [], totals, memoryCount: memoryCount || 0 });
 }

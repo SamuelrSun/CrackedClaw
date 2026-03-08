@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -117,9 +118,23 @@ export default function SettingsPageClient({
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
+  // Billing state
+  const [billingPlan, setBillingPlan] = useState<string>('free');
+  const [billingStatus, setBillingStatus] = useState<string>('active');
+  const [billingPeriodEnd, setBillingPeriodEnd] = useState<string | null>(null);
+  const [billingLoading, setBillingLoading] = useState(true);
+  const [billingUpgrading, setBillingUpgrading] = useState(false);
+  const [upgradedBanner, setUpgradedBanner] = useState(false);
+
   // Fetch existing gateway connection on mount
   useEffect(() => {
     fetchGateway();
+    fetchBilling();
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('upgraded') === 'true') {
+      setUpgradedBanner(true);
+      setTimeout(() => setUpgradedBanner(false), 5000);
+    }
   }, []);
 
   // Validate a single field
@@ -176,6 +191,48 @@ export default function SettingsPageClient({
 
   // Get form error messages for summary
   const formErrors = Object.values(errors).filter(Boolean) as string[];
+
+  async function fetchBilling() {
+    try {
+      const res = await fetch('/api/billing/status');
+      if (res.ok) {
+        const data = await res.json();
+        setBillingPlan(data.plan || 'free');
+        setBillingStatus(data.status || 'active');
+        setBillingPeriodEnd(data.periodEnd || null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch billing:', err);
+    } finally {
+      setBillingLoading(false);
+    }
+  }
+
+  async function handleUpgrade() {
+    setBillingUpgrading(true);
+    try {
+      const res = await fetch('/api/billing/checkout', { method: 'POST' });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      console.error('Failed to start checkout:', err);
+    } finally {
+      setBillingUpgrading(false);
+    }
+  }
+
+  async function handleManageBilling() {
+    setBillingUpgrading(true);
+    try {
+      const res = await fetch('/api/billing/portal', { method: 'POST' });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      console.error('Failed to open portal:', err);
+    } finally {
+      setBillingUpgrading(false);
+    }
+  }
 
   async function fetchGateway() {
     try {
@@ -803,6 +860,52 @@ export default function SettingsPageClient({
                 <ArrowRight className="w-3 h-3" />
               </Button>
             </Link>
+          </div>
+        </Card>
+
+{/* Billing */}
+        {upgradedBanner && (
+          <div className="p-3 border border-mint bg-mint/10">
+            <span className="font-mono text-[11px] text-forest font-bold">🎉 You're now on Pro! Enjoy unlimited access.</span>
+          </div>
+        )}
+        <Card label="Plan & Billing" accentColor="#9EFFBF" bordered={false}>
+          <div className="mt-2 space-y-3">
+            {billingLoading ? (
+              <p className="font-mono text-[11px] text-grid/40">Loading...</p>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Badge status={billingPlan === 'pro' ? 'active' : 'pending'}>
+                    {billingPlan === 'pro' ? 'Pro' : 'Free'}
+                  </Badge>
+                  {billingPlan === 'pro' && billingPeriodEnd && (
+                    <span className="font-mono text-[10px] text-grid/40">
+                      Renews {new Date(billingPeriodEnd).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                <ul className="space-y-1">
+                  {(billingPlan === 'pro'
+                    ? ['1 agent instance', 'Unlimited messages', 'Unlimited memories', 'Google + integrations', 'Priority support']
+                    : ['1 agent instance', '100 messages/month', '10 memories']
+                  ).map((f) => (
+                    <li key={f} className="font-mono text-[10px] text-grid/60 flex items-center gap-1">
+                      <span className="text-mint">✓</span> {f}
+                    </li>
+                  ))}
+                </ul>
+                {billingPlan === 'pro' ? (
+                  <Button variant="ghost" size="sm" onClick={handleManageBilling} disabled={billingUpgrading}>
+                    {billingUpgrading ? 'Opening...' : 'Manage Billing'}
+                  </Button>
+                ) : (
+                  <Button variant="solid" size="sm" onClick={handleUpgrade} disabled={billingUpgrading}>
+                    {billingUpgrading ? 'Redirecting...' : 'Upgrade to Pro — $29/month'}
+                  </Button>
+                )}
+              </>
+            )}
           </div>
         </Card>
 
