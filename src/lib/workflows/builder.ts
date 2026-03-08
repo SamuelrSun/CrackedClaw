@@ -76,7 +76,8 @@ export async function buildWorkflowFromPrompt(
       gatewayUrl,
       authToken,
       `Build a workflow for: "${prompt}"`,
-      BUILDER_SYSTEM_PROMPT
+      null,
+      { systemPrompt: BUILDER_SYSTEM_PROMPT }
     );
 
     // Extract JSON from response text
