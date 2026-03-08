@@ -7,6 +7,8 @@ import { getOnboardingPrompt, parseOnboardingActions, extractUserName, extractAg
 import { toOnboardingState, type OnboardingStateRow, type OnboardingStep } from "@/types/onboarding";
 import type { GatewayError } from "@/types/gateway";
 import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
+import { processAgentResponse } from "@/lib/memory/service";
+import { buildSystemPromptForUser } from "@/lib/gateway/system-prompt";
 
 export const dynamic = 'force-dynamic';
 
@@ -151,7 +153,8 @@ export async function POST(request: NextRequest) {
 
     // Send message through gateway
     try {
-      const response = await sendGatewayMessage(gatewayUrl, authToken, fullMessage, activeConversationId);
+      const systemPrompt = isOnboarding ? undefined : await buildSystemPromptForUser(user.id);
+      const response = await sendGatewayMessage(gatewayUrl, authToken, fullMessage, activeConversationId, { systemPrompt });
 
       if (response.error) {
         const err: GatewayError = {
@@ -161,19 +164,24 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: err }, { status: 503 });
       }
 
+      // Process memory/secret markers and clean response
+      const cleanedContent = response.content
+        ? await processAgentResponse(user.id, response.content)
+        : response.content;
+
       // Process onboarding state updates based on response
-      if (isOnboarding && onboardingState && response.content) {
-        await processOnboardingResponse(supabase, user.id, message, response.content, onboardingState);
+      if (isOnboarding && onboardingState && cleanedContent) {
+        await processOnboardingResponse(supabase, user.id, message, cleanedContent, onboardingState);
       }
 
       // Save assistant message
-      if (activeConversationId && response.content) {
+      if (activeConversationId && cleanedContent) {
         const { error: asstError } = await supabase
           .from("messages")
           .insert({
             conversation_id: activeConversationId,
             role: "assistant",
-            content: response.content,
+            content: cleanedContent,
           });
         
         if (asstError) {
@@ -202,7 +210,7 @@ export async function POST(request: NextRequest) {
       });
 
       return jsonResponse({
-        message: response.content,
+        message: cleanedContent,
         conversation_id: activeConversationId,
         timestamp: response.timestamp,
         is_onboarding: isOnboarding,

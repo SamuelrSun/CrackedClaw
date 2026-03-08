@@ -162,9 +162,9 @@ export async function sendGatewayMessage(
   token: string, 
   message: string,
   conversationId?: string | null,
-  options: FetchOptions = {}
+  options: FetchOptions & { systemPrompt?: string } = {}
 ): Promise<GatewayChatResponse> {
-  const { timeout = 60000 } = options;
+  const { timeout = 60000, systemPrompt } = options;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
   const baseUrl = url.replace(/\/$/, "");
@@ -181,7 +181,12 @@ export async function sendGatewayMessage(
       },
       body: JSON.stringify({
         model: "openclaw:main",
-        messages: [{ role: "user", content: message }],
+        messages: systemPrompt
+          ? [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: message },
+            ]
+          : [{ role: "user", content: message }],
         // Use conversationId as user field for session continuity
         user: conversationId || undefined,
       }),
@@ -255,9 +260,9 @@ export async function streamGatewayMessage(
   message: string,
   conversationId?: string | null,
   onChunk?: (chunk: StreamChunk) => void,
-  options: FetchOptions = {}
+  options: FetchOptions & { systemPrompt?: string } = {}
 ): Promise<{ fullContent: string; error?: string }> {
-  const { timeout = 120000 } = options;
+  const { timeout = 120000, systemPrompt } = options;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
   const baseUrl = url.replace(/\/$/, "");
@@ -274,7 +279,12 @@ export async function streamGatewayMessage(
       },
       body: JSON.stringify({
         model: "openclaw:main",
-        messages: [{ role: "user", content: message }],
+        messages: systemPrompt
+          ? [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: message },
+            ]
+          : [{ role: "user", content: message }],
         stream: true,
         user: conversationId || undefined,
       }),

@@ -7,6 +7,8 @@ import { getOnboardingPrompt, parseOnboardingActions, extractUserName, extractAg
 import { toOnboardingState, type OnboardingStateRow, type OnboardingStep } from "@/types/onboarding";
 import type { GatewayError } from "@/types/gateway";
 import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
+import { processAgentResponse } from "@/lib/memory/service";
+import { buildSystemPromptForUser } from "@/lib/gateway/system-prompt";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -149,6 +151,7 @@ export async function POST(request: NextRequest) {
       let fullContent = "";
 
       try {
+        const systemPrompt = isOnboarding ? undefined : await buildSystemPromptForUser(user.id);
         const result = await streamGatewayMessage(
           capturedGatewayUrl,
           capturedAuthToken,
@@ -164,7 +167,8 @@ export async function POST(request: NextRequest) {
             try {
               await writer.write(encode(chunk));
             } catch { /* writer closed */ }
-          }
+          },
+          { systemPrompt }
         );
 
         if (result.fullContent && !fullContent) {
@@ -186,13 +190,18 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        if (isOnboarding && onboardingState && fullContent) {
-          await processOnboardingResponse(supabase, user.id, message, fullContent, onboardingState);
+        // Process memory/secret markers and clean response
+        const cleanedContent = fullContent
+          ? await processAgentResponse(user.id, fullContent)
+          : fullContent;
+
+        if (isOnboarding && onboardingState && cleanedContent) {
+          await processOnboardingResponse(supabase, user.id, message, cleanedContent, onboardingState);
         }
 
-        if (capturedConvoId && fullContent) {
+        if (capturedConvoId && cleanedContent) {
           try {
-            await supabase.from("messages").insert({ conversation_id: capturedConvoId, role: "assistant", content: fullContent });
+            await supabase.from("messages").insert({ conversation_id: capturedConvoId, role: "assistant", content: cleanedContent });
           } catch (e) { console.error("Failed to save assistant message:", e); }
           try {
             await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", capturedConvoId);
@@ -205,7 +214,7 @@ export async function POST(request: NextRequest) {
           { conversation_id: capturedConvoId }
         ).catch((e: unknown) => console.error("Failed to log activity:", e));
 
-        const estimatedTokens = Math.ceil((message.length + fullContent.length) / 4);
+        const estimatedTokens = Math.ceil((message.length + cleanedContent.length) / 4);
         await incrementTokenUsage(estimatedTokens).catch((e: unknown) =>
           console.error("Failed to track token usage:", e)
         );
