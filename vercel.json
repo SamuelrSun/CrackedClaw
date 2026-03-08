@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/app/api/gateway/chat/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/gateway/status/route.ts": {
+      "maxDuration": 15
+    }
+  }
+}
