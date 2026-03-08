@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { getRelevantMemories, MemoryEntry } from '@/lib/memory/service';
+import { searchFileChunks } from '@/lib/files/storage';
 
 export interface SystemPromptContext {
   userId?: string;
