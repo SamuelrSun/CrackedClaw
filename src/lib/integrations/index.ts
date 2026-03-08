@@ -65,3 +65,11 @@ export {
   getBrowserProgressMessage,
   getErrorRecoveryMessage,
 } from './messages';
+
+// Resolver
+export {
+  resolveIntegration,
+  resolveFromText,
+  parseServicesFromText,
+  type ResolvedIntegration,
+} from './resolver';
