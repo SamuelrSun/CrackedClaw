@@ -11,6 +11,7 @@ export interface SystemPromptContext {
   memoryEntries?: MemoryEntry[];
   secretNames?: string[]; // names only, never values
   skillsPrompt?: string;
+  fileContext?: string;
 }
 
 const CORE_PROMPT = `You are a proactive AI agent. Your job is to DO things for the user — never tell them to do things you can do yourself.
@@ -94,6 +95,10 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     parts.push('\nMEMORY (things you know about this user):\n' + memLines);
   }
 
+  if (ctx.fileContext) {
+    parts.push('\nRELEVANT FILES (from your memory):\n' + ctx.fileContext);
+  }
+
   if (ctx.skillsPrompt) {
     parts.push(ctx.skillsPrompt);
   }
@@ -152,6 +157,18 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
   } catch (err) {
     console.error('Failed to build system prompt context:', err);
   }
+
+  // Search memory files for relevant context
+  try {
+    if (userMessage) {
+      const chunks = await searchFileChunks(userId, userMessage, 3);
+      if (chunks.length > 0) {
+        ctx.fileContext = chunks.map(c =>
+          `[From: ${c.fileName}]\n${c.content}`
+        ).join('\n---\n');
+      }
+    }
+  } catch { /* file chunks table may not exist yet */ }
 
   // Inject installed skills into system prompt
   try {
