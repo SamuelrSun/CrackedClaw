@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -98,8 +99,10 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
         throw new Error(data.error || "Failed to delete account");
       }
 
-      // Success - redirect to goodbye page or home
-      router.push("/goodbye");
+      // Success - sign out and redirect to home
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      window.location.href = "/";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete account");
       setDeleting(false);

@@ -213,7 +213,7 @@ export default function SettingsPageClient({
   }
 
   async function deleteCloudInstance() {
-    if (!confirm("Are you sure you want to delete your cloud agent? This cannot be undone.")) {
+    if (!window.confirm("Are you sure you want to delete your instance? This cannot be undone.")) {
       return;
     }
 
@@ -221,17 +221,17 @@ export default function SettingsPageClient({
     try {
       const res = await fetch("/api/organizations/provision", { method: "DELETE" });
       if (res.ok) {
-        setOrganization(prev => prev ? {
-          ...prev,
-          openclaw_instance_id: null,
-          openclaw_gateway_url: null,
-          openclaw_auth_token: null,
-          openclaw_status: "not_provisioned",
-        } : null);
-        setGateway(null);
+        window.location.href = "/settings";
+      } else {
+        const data = await res.json().catch(() => ({}));
+        const msg = data?.error || `Server error (${res.status})`;
+        alert(`Failed to delete instance: ${msg}`);
+        setDeletingInstance(false);
       }
     } catch (err) {
       console.error("Failed to delete instance:", err);
+      alert("Failed to delete instance: network error. Please try again.");
+      setDeletingInstance(false);
     } finally {
       setDeletingInstance(false);
     }
