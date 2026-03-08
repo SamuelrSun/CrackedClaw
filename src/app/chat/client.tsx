@@ -359,44 +359,36 @@ export default function ChatPageClient({
       `width=${width},height=${height},left=${left},top=${top}`
     );
 
-    // Listen for OAuth completion
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.data?.type === "oauth_complete" && event.data?.provider === provider) {
-        window.removeEventListener("message", handleMessage);
-        
-        if (event.data.success) {
-          toast.success("Connected!", `${provider} has been connected successfully.`);
-          // Mark integration step as complete
-          const stepName = `integration_${provider}` as 'integration_google' | 'integration_slack' | 'integration_notion';
-          try {
-            await completeStep(stepName);
-          } catch {
-            // Continue anyway
-          }
-          // Add a status message to chat
-          const statusMessage: Message = {
-            id: `msg_status_${Date.now()}`,
-            role: "assistant",
-            content: `[[integration-status:${provider}:connected:${event.data.accountName || "Connected"}]]`,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          };
-          setMessages((prev) => [...prev, statusMessage]);
-        } else {
-          toast.error("Connection failed", event.data.error || `Could not connect to ${provider}`);
-        }
-      }
-    };
-    
-    window.addEventListener("message", handleMessage);
-
-    // Cleanup if popup closes without completing
+    // Poll for integration completion (avoids COOP postMessage issues)
     if (popup) {
-      const checkClosed = setInterval(() => {
+      const pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/integrations/status/${provider}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.connected) {
+              clearInterval(pollInterval);
+              popup.close();
+              toast.success("Connected!", `${provider} has been connected successfully.`);
+              const stepName = `integration_${provider}` as 'integration_google' | 'integration_slack' | 'integration_notion';
+              try { await completeStep(stepName); } catch { /* continue */ }
+              const statusMessage: Message = {
+                id: `msg_status_${Date.now()}`,
+                role: "assistant",
+                content: `[[integration-status:${provider}:connected:${data.accountEmail || data.accountName || "Connected"}]]`,
+                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              };
+              setMessages((prev) => [...prev, statusMessage]);
+            }
+          }
+        } catch { /* ignore poll errors */ }
+
         if (popup.closed) {
-          clearInterval(checkClosed);
-          window.removeEventListener("message", handleMessage);
+          clearInterval(pollInterval);
         }
-      }, 500);
+      }, 1500);
+
+      setTimeout(() => clearInterval(pollInterval), 5 * 60 * 1000);
     }
   }, [toast, completeStep]);
 
