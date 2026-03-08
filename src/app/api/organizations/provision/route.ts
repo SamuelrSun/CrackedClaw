@@ -221,12 +221,14 @@ export async function GET() {
       const statusResult = await getInstanceStatus(org.openclaw_instance_id);
       
       if (statusResult.success && statusResult.instance) {
-        // Update status if changed
-        if (statusResult.instance.status !== org.openclaw_status) {
+        // Normalize status: provisioning API may return "stopped" even when running
+        // Always keep as "running" if instance exists and gateway URL is set
+        const normalizedStatus = org.openclaw_gateway_url ? "running" : statusResult.instance.status;
+        if (normalizedStatus !== org.openclaw_status) {
           await supabase
             .from("organizations")
             .update({
-              openclaw_status: statusResult.instance.status,
+              openclaw_status: normalizedStatus,
               updated_at: new Date().toISOString(),
             })
             .eq("id", org.id);
@@ -239,7 +241,7 @@ export async function GET() {
             plan: org.plan,
             openclaw_instance_id: org.openclaw_instance_id,
             openclaw_gateway_url: org.openclaw_gateway_url,
-            openclaw_status: statusResult.instance.status,
+            openclaw_status: normalizedStatus,
           },
         });
       }

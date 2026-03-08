@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     try {
       const org = await getOrganization(user.id);
-      if (org?.openclaw_gateway_url && org?.openclaw_auth_token && org?.openclaw_status === "running") {
+      if (org?.openclaw_gateway_url && org?.openclaw_auth_token) {
         gatewayUrl = org.openclaw_gateway_url;
         authToken = org.openclaw_auth_token;
       }
@@ -127,8 +127,7 @@ export async function POST(request: NextRequest) {
         const { data: workflows } = await supabase
           .from("workflows")
           .select("id, name, description, prompt, trigger_phrases")
-          .eq("user_id", user.id)
-          .eq("status", "active");
+          .eq("user_id", user.id);
         const workflowMatch = matchWorkflow(message, workflows || []);
         if (workflowMatch && workflowMatch.confidence >= 0.8) {
           matchedWorkflowId = workflowMatch.workflow.id;

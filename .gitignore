@@ -5,3 +5,4 @@ node_modules/
 *.bak
 tsconfig.tsbuildinfo
 supabase/.temp/
+.env.local
