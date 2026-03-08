@@ -108,7 +108,7 @@ export async function recordWorkflowRun(workflowId: string, userId: string, succ
     error,
     started_at: new Date().toISOString(),
     completed_at: new Date().toISOString(),
-  }).catch(() => {});
+  });
 }
 
 /**

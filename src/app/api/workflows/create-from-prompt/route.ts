@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
       description: built.description,
       trigger_type: built.trigger.type === 'schedule' ? 'scheduled' : built.trigger.type === 'webhook' ? 'webhook' : 'manual',
       schedule: built.trigger.cronExpression ? {
-        cron: built.trigger.cronExpression,
-        human_readable: built.trigger.humanReadable,
+        frequency: 'custom' as const,
+        cronExpression: built.trigger.cronExpression,
       } : undefined,
       status: 'inactive',
     });
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
         builtFrom: prompt,
         trigger: built.trigger,
       },
-    }).eq('id', workflow.id).catch(() => {});
+    }).eq('id', workflow.id);
 
     return jsonResponse({ workflow, built }, 201);
   } catch (err) {

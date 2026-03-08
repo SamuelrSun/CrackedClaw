@@ -79,8 +79,9 @@ export async function buildWorkflowFromPrompt(
       BUILDER_SYSTEM_PROMPT
     );
 
-    // Extract JSON from response
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    // Extract JSON from response text
+    const responseText = response.content || '';
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       // Validate required fields
