@@ -301,6 +301,7 @@ export default function ChatPageClient({
   const [retryCount, setRetryCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastFailedMessage = useRef<string | null>(null);
+  const handleSendRef = useRef<(messageOverride?: string) => Promise<void>>(async () => {});
   
   const { 
     gateway, 
@@ -365,6 +366,11 @@ export default function ChatPageClient({
               const stepName = `integration_${provider}` as 'integration_google' | 'integration_slack' | 'integration_notion';
               try { await completeStep(stepName); } catch { /* continue */ }
               resolve(true);
+              // Auto-send continuation message so agent continues the task
+              setTimeout(() => {
+                const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
+                handleSendRef.current(`${providerName} connected ✓`);
+              }, 500);
               return;
             }
           }
@@ -522,6 +528,8 @@ export default function ChatPageClient({
       handleSend(lastFailedMessage.current);
     }
   };
+
+  handleSendRef.current = handleSend;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
