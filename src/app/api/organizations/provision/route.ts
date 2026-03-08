@@ -44,12 +44,17 @@ export async function POST(request: NextRequest) {
       organizationId = existingOrg.id;
     } else {
       isNewOrganization = true;
+
+      // Generate a unique slug: base + user id suffix to avoid collisions
+      const baseSlug = organization_name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "org";
+      const uniqueSlug = `${baseSlug}-${user.id.slice(0, 8)}`;
+
       // Create new organization
       const { data: newOrg, error: createError } = await supabase
         .from("organizations")
         .insert({
           name: organization_name,
-          slug: organization_name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-"),
+          slug: uniqueSlug,
           owner_id: user.id,
           openclaw_status: "provisioning",
         })
@@ -58,7 +63,30 @@ export async function POST(request: NextRequest) {
 
       if (createError || !newOrg) {
         console.error("Failed to create organization:", createError);
-        return NextResponse.json({ error: "Failed to create organization" }, { status: 500 });
+        const errMsg = createError?.message || "Failed to create organization";
+        // Slug collision fallback: try with full timestamp
+        if (errMsg.includes("unique") || errMsg.includes("duplicate")) {
+          const fallbackSlug = `${baseSlug}-${Date.now()}`;
+          const { data: retryOrg, error: retryError } = await supabase
+            .from("organizations")
+            .insert({
+              name: organization_name,
+              slug: fallbackSlug,
+              owner_id: user.id,
+              openclaw_status: "provisioning",
+            })
+            .select()
+            .single();
+          if (retryError || !retryOrg) {
+            console.error("Retry org creation failed:", retryError);
+            return NextResponse.json({ error: "Failed to create organization: " + (retryError?.message || "unknown") }, { status: 500 });
+          }
+          organizationId = retryOrg.id;
+        } else {
+          return NextResponse.json({ error: "Failed to create organization: " + errMsg }, { status: 500 });
+        }
+      } else {
+        organizationId = newOrg.id;
       }
       organizationId = newOrg.id;
 
@@ -185,9 +213,10 @@ export async function POST(request: NextRequest) {
       onboarding_initialized: isNewOrganization,
     });
   } catch (error) {
-    console.error("Provision error:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Provision error (full):", msg, error);
     return NextResponse.json({
-      error: error instanceof Error ? error.message : "Internal server error",
+      error: "Internal server error: " + msg,
     }, { status: 500 });
   }
 }
