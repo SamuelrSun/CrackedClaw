@@ -236,6 +236,181 @@ export async function sendGatewayMessage(
   }
 }
 
+export interface StreamChunk {
+  type: "token" | "tool_start" | "tool_end" | "thinking" | "done" | "error";
+  text?: string;
+  tool?: string;
+  input?: Record<string, unknown>;
+  result?: string;
+  conversation_id?: string;
+  message?: string;
+}
+
+/**
+ * Stream a chat message to OpenClaw gateway using OpenAI-compatible endpoint
+ */
+export async function streamGatewayMessage(
+  url: string,
+  token: string,
+  message: string,
+  conversationId?: string | null,
+  onChunk?: (chunk: StreamChunk) => void,
+  options: FetchOptions = {}
+): Promise<{ fullContent: string; error?: string }> {
+  const { timeout = 120000 } = options;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  const baseUrl = url.replace(/\/$/, "");
+
+  try {
+    const chatUrl = `${baseUrl}/v1/chat/completions`;
+
+    const res = await fetch(chatUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify({
+        model: "openclaw:main",
+        messages: [{ role: "user", content: message }],
+        stream: true,
+        user: conversationId || undefined,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => res.statusText);
+      const errMsg = `Chat endpoint returned ${res.status}: ${errorText}`;
+      onChunk?.({ type: "error", message: errMsg });
+      return { fullContent: "", error: errMsg };
+    }
+
+    // If server doesn't stream (returns JSON), handle gracefully
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("text/event-stream") && !contentType.includes("text/plain")) {
+      const data = await res.json();
+      const content =
+        data.choices?.[0]?.message?.content ||
+        data.content ||
+        data.message ||
+        data.response ||
+        "";
+      onChunk?.({ type: "token", text: content });
+      onChunk?.({ type: "done", conversation_id: conversationId || data.id });
+      return { fullContent: content };
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) {
+      return { fullContent: "", error: "No response body" };
+    }
+
+    const decoder = new TextDecoder();
+    let fullContent = "";
+    let buf = "";
+    let currentToolName: string | null = null;
+
+    const processLine = (line: string) => {
+      if (line.startsWith(":") || !line.trim()) return;
+      const dataPrefix = "data: ";
+      if (!line.startsWith(dataPrefix)) return;
+      const jsonStr = line.slice(dataPrefix.length).trim();
+      if (jsonStr === "[DONE]") {
+        onChunk?.({ type: "done", conversation_id: conversationId || undefined });
+        return;
+      }
+      let parsed: Record<string, unknown>;
+      try { parsed = JSON.parse(jsonStr); } catch { return; }
+      const evtType = parsed.type as string | undefined;
+
+      // Anthropic streaming format
+      if (evtType === "content_block_start") {
+        const block = parsed.content_block as Record<string, unknown> | undefined;
+        if (block?.type === "tool_use") {
+          currentToolName = (block.name as string) || "unknown";
+          const input = (block.input as Record<string, unknown>) || {};
+          onChunk?.({ type: "tool_start", tool: currentToolName, input });
+        }
+        return;
+      }
+      if (evtType === "content_block_delta") {
+        const delta = parsed.delta as Record<string, unknown> | undefined;
+        if (delta?.type === "text_delta") {
+          const text = (delta.text as string) || "";
+          fullContent += text;
+          onChunk?.({ type: "token", text });
+        } else if (delta?.type === "thinking_delta") {
+          onChunk?.({ type: "thinking", text: (delta.thinking as string) || "" });
+        }
+        return;
+      }
+      if (evtType === "content_block_stop") {
+        if (currentToolName) {
+          onChunk?.({ type: "tool_end", tool: currentToolName, result: "done" });
+          currentToolName = null;
+        }
+        return;
+      }
+      if (evtType === "message_stop" || evtType === "message_delta") return;
+
+      // OpenAI streaming format
+      const choices = parsed.choices as Array<Record<string, unknown>> | undefined;
+      if (choices && choices.length > 0) {
+        const delta = choices[0].delta as Record<string, unknown> | undefined;
+        if (delta) {
+          const text = delta.content as string | undefined;
+          if (text) { fullContent += text; onChunk?.({ type: "token", text }); }
+          const toolCalls = delta.tool_calls as Array<Record<string, unknown>> | undefined;
+          if (toolCalls?.length) {
+            const fn = toolCalls[0].function as Record<string, unknown> | undefined;
+            if (fn?.name) {
+              currentToolName = fn.name as string;
+              let input: Record<string, unknown> = {};
+              try { input = JSON.parse((fn.arguments as string) || "{}"); } catch { /* partial */ }
+              onChunk?.({ type: "tool_start", tool: currentToolName, input });
+            }
+          }
+        }
+        const fin = choices[0].finish_reason as string | undefined;
+        if (fin === "tool_calls" && currentToolName) {
+          onChunk?.({ type: "tool_end", tool: currentToolName, result: "done" });
+          currentToolName = null;
+        }
+        if (fin === "stop") onChunk?.({ type: "done", conversation_id: conversationId || undefined });
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        if (buf.trim()) processLine(buf);
+        onChunk?.({ type: "done", conversation_id: conversationId || undefined });
+        break;
+      }
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() || "";
+      for (const line of lines) processLine(line);
+    }
+    return { fullContent };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      const msg = "Request timed out";
+      onChunk?.({ type: "error", message: msg });
+      return { fullContent: "", error: msg };
+    }
+    const msg = err instanceof Error ? err.message : "Failed to send message";
+    onChunk?.({ type: "error", message: msg });
+    return { fullContent: "", error: msg };
+  }
+}
+
 /**
  * Ping gateway to check connectivity
  */

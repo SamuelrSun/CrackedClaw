@@ -1,0 +1,304 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireApiAuth } from "@/lib/api-auth";
+import { createClient } from "@/lib/supabase/server";
+import { logActivity, incrementTokenUsage, getOrganization } from "@/lib/supabase/data";
+import { streamGatewayMessage, type StreamChunk } from "@/lib/gateway-client";
+import { getOnboardingPrompt, parseOnboardingActions, extractUserName, extractAgentName } from "@/lib/onboarding/agent-prompt";
+import { toOnboardingState, type OnboardingStateRow, type OnboardingStep } from "@/types/onboarding";
+import type { GatewayError } from "@/types/gateway";
+import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+function encode(chunk: StreamChunk): Uint8Array {
+  return new TextEncoder().encode(`data: ${JSON.stringify(chunk)}\n\n`);
+}
+
+export async function POST(request: NextRequest) {
+  const { user, error } = await requireApiAuth();
+  if (error) return error;
+
+  try {
+    const body = await request.json();
+    const { message, conversation_id } = body;
+
+    if (!message || typeof message !== "string") {
+      return NextResponse.json({ error: "Message is required" }, { status: 400 });
+    }
+
+    let gatewayUrl: string | null = null;
+    let authToken: string | null = null;
+
+    try {
+      const org = await getOrganization(user.id);
+      if (org?.openclaw_gateway_url && org?.openclaw_auth_token) {
+        gatewayUrl = org.openclaw_gateway_url;
+        authToken = org.openclaw_auth_token;
+      }
+    } catch (e) {
+      console.error("Failed to get organization:", e);
+    }
+
+    if (!gatewayUrl) {
+      try {
+        const supabase = await createClient();
+        const { data } = await supabase
+          .from("user_gateways")
+          .select("gateway_url, auth_token")
+          .eq("user_id", user.id)
+          .limit(1);
+        if (data && data.length > 0) {
+          gatewayUrl = data[0].gateway_url;
+          authToken = data[0].auth_token;
+        }
+      } catch (e) {
+        console.error("Failed to get user gateway:", e);
+      }
+    }
+
+    if (!gatewayUrl || !authToken) {
+      const err: GatewayError = {
+        code: "NO_GATEWAY",
+        message: "No OpenClaw gateway connected. Go to Settings to connect.",
+      };
+      return NextResponse.json({ error: err }, { status: 404 });
+    }
+
+    const supabase = await createClient();
+    let activeConversationId = conversation_id;
+
+    let isOnboarding = false;
+    let onboardingState = null;
+    let onboardingPrompt: string | null = null;
+
+    try {
+      const { data: stateRow } = await supabase
+        .from("onboarding_state")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      if (stateRow && stateRow.phase !== "complete") {
+        isOnboarding = true;
+        onboardingState = toOnboardingState(stateRow as OnboardingStateRow);
+        onboardingPrompt = getOnboardingPrompt(onboardingState);
+      }
+    } catch (e) {
+      console.error("Failed to get onboarding state:", e);
+    }
+
+    if (!activeConversationId) {
+      const { data: newConvo, error: convoError } = await supabase
+        .from("conversations")
+        .insert({
+          user_id: user.id,
+          title: isOnboarding
+            ? "Welcome to OpenClaw"
+            : message.length > 50
+            ? message.substring(0, 47) + "..."
+            : message,
+        })
+        .select()
+        .single();
+
+      if (convoError) {
+        console.error("Failed to create conversation:", convoError);
+      } else {
+        activeConversationId = newConvo.id;
+      }
+    }
+
+    if (activeConversationId) {
+      try {
+        await supabase.from("messages").insert({ conversation_id: activeConversationId, role: "user", content: message });
+      } catch (e) { console.error("Failed to save user message:", e); }
+    }
+
+    let workflowContext: string | null = null;
+    if (!isOnboarding) {
+      try {
+        const { data: workflows } = await supabase
+          .from("workflows")
+          .select("id, name, description, prompt, trigger_phrases")
+          .eq("user_id", user.id);
+        const workflowMatch = matchWorkflow(message, workflows || []);
+        if (workflowMatch && workflowMatch.confidence >= 0.8) {
+          workflowContext = buildWorkflowContext(workflowMatch.workflow);
+        }
+      } catch (e) {
+        console.error("Failed to match workflows:", e);
+      }
+    }
+
+    let fullMessage = message;
+    if (isOnboarding && onboardingPrompt) {
+      fullMessage = `[SYSTEM PROMPT - FOLLOW THESE INSTRUCTIONS]\n${onboardingPrompt}\n\n[USER MESSAGE]\n${message}`;
+    } else if (workflowContext) {
+      fullMessage = `${workflowContext}\n\n${fullMessage}`;
+    }
+
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+    const writer = writable.getWriter();
+
+    const capturedGatewayUrl = gatewayUrl;
+    const capturedAuthToken = authToken;
+    const capturedConvoId = activeConversationId;
+
+    (async () => {
+      let fullContent = "";
+
+      try {
+        const result = await streamGatewayMessage(
+          capturedGatewayUrl,
+          capturedAuthToken,
+          fullMessage,
+          capturedConvoId,
+          async (chunk: StreamChunk) => {
+            if (chunk.type === "token" && chunk.text) {
+              fullContent += chunk.text;
+            }
+            if (chunk.type === "done") {
+              chunk.conversation_id = capturedConvoId || chunk.conversation_id;
+            }
+            try {
+              await writer.write(encode(chunk));
+            } catch { /* writer closed */ }
+          }
+        );
+
+        if (result.fullContent && !fullContent) {
+          fullContent = result.fullContent;
+        }
+
+        if (result.error && !fullContent) {
+          try {
+            await writer.write(encode({ type: "error", message: result.error }));
+          } catch { /* ignore */ }
+        }
+      } catch (err) {
+        console.error("Streaming error:", err);
+        try {
+          await writer.write(
+            encode({ type: "error", message: err instanceof Error ? err.message : "Streaming failed" })
+          );
+        } catch { /* ignore */ }
+      }
+
+      try {
+        if (isOnboarding && onboardingState && fullContent) {
+          await processOnboardingResponse(supabase, user.id, message, fullContent, onboardingState);
+        }
+
+        if (capturedConvoId && fullContent) {
+          try {
+            await supabase.from("messages").insert({ conversation_id: capturedConvoId, role: "assistant", content: fullContent });
+          } catch (e) { console.error("Failed to save assistant message:", e); }
+          try {
+            await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", capturedConvoId);
+          } catch (e) { console.error("Failed to update conversation:", e); }
+        }
+
+        await logActivity(
+          "Chat message sent",
+          message.length > 50 ? message.substring(0, 50) + "..." : message,
+          { conversation_id: capturedConvoId }
+        ).catch((e: unknown) => console.error("Failed to log activity:", e));
+
+        const estimatedTokens = Math.ceil((message.length + fullContent.length) / 4);
+        await incrementTokenUsage(estimatedTokens).catch((e: unknown) =>
+          console.error("Failed to track token usage:", e)
+        );
+      } catch (e) {
+        console.error("Post-stream DB error:", e);
+      }
+
+      try { await writer.close(); } catch { /* ignore */ }
+    })();
+
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "X-Conversation-Id": activeConversationId || "",
+      },
+    });
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+}
+
+async function processOnboardingResponse(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  userMessage: string,
+  assistantResponse: string,
+  currentState: ReturnType<typeof toOnboardingState>
+) {
+  const updates: Record<string, unknown> = {};
+  const now = new Date().toISOString();
+
+  const addCompletedStep = (step: OnboardingStep) => {
+    const currentSteps =
+      (updates.completed_steps as OnboardingStep[]) || [...currentState.completed_steps];
+    if (!currentSteps.includes(step)) {
+      updates.completed_steps = [...currentSteps, step];
+    }
+  };
+
+  if (currentState.phase === "welcome") {
+    if (!currentState.user_display_name) {
+      const userName = extractUserName(userMessage);
+      if (userName) { updates.user_display_name = userName; addCompletedStep("user_name_provided"); }
+    } else if (!currentState.agent_name) {
+      const agentName = extractAgentName(userMessage);
+      if (agentName) { updates.agent_name = agentName; addCompletedStep("agent_name_provided"); }
+    }
+  }
+
+  const actions = parseOnboardingActions(assistantResponse);
+  for (const action of actions) {
+    switch (action.type) {
+      case "welcome": {
+        const completedSteps = (updates.completed_steps as OnboardingStep[]) || currentState.completed_steps;
+        if (completedSteps.includes("user_name_provided") && completedSteps.includes("agent_name_provided")) {
+          updates.phase = "integrations";
+        }
+        break;
+      }
+      case "action":
+        if (action.payload === "complete_onboarding") {
+          updates.phase = "complete";
+          await supabase
+            .from("profiles")
+            .update({ onboarding_completed: true, onboarding_completed_at: now, updated_at: now })
+            .eq("id", userId);
+        }
+        break;
+      case "context":
+        try {
+          const contextData = JSON.parse(action.payload);
+          updates.gathered_context = { ...currentState.gathered_context, ...contextData };
+          addCompletedStep("context_scan_completed");
+        } catch { /* Invalid JSON */ }
+        break;
+      case "workflow":
+        try {
+          const workflowData = JSON.parse(action.payload);
+          if (workflowData.suggestions) updates.suggested_workflows = workflowData.suggestions;
+          addCompletedStep("workflow_suggested");
+        } catch { /* Invalid JSON */ }
+        break;
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    updates.updated_at = now;
+    const { error } = await supabase
+      .from("onboarding_state")
+      .update(updates)
+      .eq("user_id", userId);
+    if (error) console.error("Failed to update onboarding state:", error);
+  }
+}

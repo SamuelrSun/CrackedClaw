@@ -23,6 +23,56 @@ import {
   OnboardingWelcomeAnimation,
 } from "@/components/chat";
 
+interface ToolCallInfo {
+  tool: string;
+  status: "running" | "done";
+  label: string;
+}
+
+// Extended message type with streaming fields
+interface StreamingMessage extends Message {
+  isStreaming?: boolean;
+  toolCalls?: ToolCallInfo[];
+}
+
+function getToolEmoji(tool: string): string {
+  if (tool === "browser") return "🌐";
+  if (tool === "exec") return "⚙️";
+  if (tool === "web_search" || tool === "web_fetch") return "🔍";
+  if (tool.includes("skill")) return "📦";
+  if (tool === "thinking") return "💭";
+  return "🔧";
+}
+
+function getToolLabel(tool: string, input?: Record<string, unknown>): string {
+  if (tool === "browser") {
+    const action = input?.action as string | undefined;
+    const url = (input?.url || input?.targetUrl) as string | undefined;
+    if (url) {
+      try {
+        const host = new URL(url).hostname.replace("www.", "");
+        if (action === "navigate") return `Navigating to ${host}`;
+        if (action === "screenshot") return `Taking screenshot of ${host}`;
+        if (action === "snapshot") return `Capturing ${host}`;
+        return `Browser: ${action || "action"} on ${host}`;
+      } catch { /* invalid URL */ }
+    }
+    return `Browser: ${action || "action"}`;
+  }
+  if (tool === "web_search" || tool === "web_fetch") {
+    const query = (input?.query || input?.url) as string | undefined;
+    if (query) return `Searching for "${query.length > 40 ? query.slice(0, 40) + "..." : query}"`;
+    return "Searching the web";
+  }
+  if (tool === "exec") {
+    const cmd = input?.command as string | undefined;
+    if (cmd) return `Running: ${cmd.length > 40 ? cmd.slice(0, 40) + "..." : cmd}`;
+    return "Running command";
+  }
+  if (tool.includes("skill")) return "Installing skill";
+  return `Using ${tool}`;
+}
+
 interface ChatPageClientProps {
   initialConversations: Conversation[];
   initialMessages: Message[];
@@ -326,7 +376,7 @@ export default function ChatPageClient({
 }: ChatPageClientProps) {
   const [activeConvo, setActiveConvo] = useState(initialConversationId || initialConversations[0]?.id || "");
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<StreamingMessage[]>(initialMessages as StreamingMessage[]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<GatewayError | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
@@ -457,97 +507,184 @@ export default function ChatPageClient({
     const messageToSend = messageOverride || input.trim();
     if (!messageToSend || isLoading) return;
 
-    const userMessage: Message = {
+    const userMessage: StreamingMessage = {
       id: "msg_" + Date.now(),
       role: "user",
       content: messageToSend,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
-    // Only add user message if it's not a retry
     if (!messageOverride) {
       setMessages((prev) => [...prev, userMessage]);
       setInput("");
     }
-    
+
     setIsLoading(true);
     setError(null);
     lastFailedMessage.current = messageToSend;
 
+    // Create streaming placeholder
+    const streamingMsgId = "msg_" + Date.now() + "_assistant";
+    const placeholderMsg: StreamingMessage = {
+      id: streamingMsgId,
+      role: "assistant",
+      content: "",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      isStreaming: true,
+      toolCalls: [],
+    };
+    setMessages((prev) => [...prev, placeholderMsg]);
+
+    try {
+      const response = await fetch("/api/gateway/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: messageToSend, conversation_id: conversationId }),
+      });
+
+      if (!response.ok || !response.body) {
+        // Fall back to non-streaming route
+        setMessages((prev) => prev.filter((m) => m.id !== streamingMsgId));
+        await fallbackSend(messageToSend);
+        return;
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream")) {
+        // Non-streaming response, fall back
+        setMessages((prev) => prev.filter((m) => m.id !== streamingMsgId));
+        await fallbackSend(messageToSend);
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+
+      const updateMsg = (updater: (msg: StreamingMessage) => StreamingMessage) => {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === streamingMsgId ? updater(m as StreamingMessage) : m))
+        );
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice("data: ".length).trim();
+          if (!jsonStr) continue;
+
+          let chunk: { type: string; text?: string; tool?: string; input?: Record<string, unknown>; result?: string; conversation_id?: string; message?: string };
+          try { chunk = JSON.parse(jsonStr); } catch { continue; }
+
+          if (chunk.type === "token" && chunk.text) {
+            updateMsg((m) => ({ ...m, content: m.content + chunk.text! }));
+          } else if (chunk.type === "thinking" && chunk.text) {
+            // Optionally show thinking
+          } else if (chunk.type === "tool_start" && chunk.tool) {
+            const label = getToolLabel(chunk.tool, chunk.input);
+            const toolCall: ToolCallInfo = { tool: chunk.tool, status: "running", label };
+            updateMsg((m) => ({ ...m, toolCalls: [...(m.toolCalls || []), toolCall] }));
+          } else if (chunk.type === "tool_end" && chunk.tool) {
+            updateMsg((m) => ({
+              ...m,
+              toolCalls: (m.toolCalls || []).map((tc) =>
+                tc.tool === chunk.tool && tc.status === "running"
+                  ? { ...tc, status: "done" as const }
+                  : tc
+              ),
+            }));
+          } else if (chunk.type === "done") {
+            if (chunk.conversation_id) setConversationId(chunk.conversation_id);
+            updateMsg((m) => ({ ...m, isStreaming: false }));
+            setRetryCount(0);
+            lastFailedMessage.current = null;
+            refreshOnboardingState();
+          } else if (chunk.type === "error") {
+            // Remove placeholder and fall back
+            setMessages((prev) => prev.filter((m) => m.id !== streamingMsgId));
+            await fallbackSend(messageToSend);
+            return;
+          }
+        }
+      }
+
+      // Ensure streaming is marked done
+      updateMsg((m) => ({ ...m, isStreaming: false }));
+    } catch (err) {
+      console.error("Streaming chat error:", err);
+      setMessages((prev) => prev.filter((m) => m.id !== streamingMsgId));
+      if (retryCount < 2) {
+        toast.error("Network error", `Retrying... (${retryCount + 1}/3)`);
+        setRetryCount((prev) => prev + 1);
+        setTimeout(() => handleSend(messageToSend), 1500 * (retryCount + 1));
+        return;
+      }
+      toast.error("Connection failed", "Check your internet connection");
+      setRetryCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fallbackSend = async (messageToSend: string) => {
     try {
       const response = await fetch("/api/gateway/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: messageToSend,
-          conversation_id: conversationId,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: messageToSend, conversation_id: conversationId }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        // Handle gateway errors with retry logic
         const gatewayError: GatewayError = data.error || {
           code: "UNKNOWN_ERROR",
           message: "Something went wrong. Please try again.",
         };
         setError(gatewayError);
-        
-        // Check if it's a retryable error
         const isRetryable = ["GATEWAY_OFFLINE", "GATEWAY_ERROR"].includes(gatewayError.code);
         if (isRetryable && retryCount < 2) {
           toast.error("Connection issue", `Retrying... (${retryCount + 1}/3)`);
-          setRetryCount(prev => prev + 1);
-          // Retry after a short delay
+          setRetryCount((prev) => prev + 1);
           setTimeout(() => handleSend(messageToSend), 1000 * (retryCount + 1));
           return;
         }
-        
         toast.error("Gateway error", gatewayError.message);
         setRetryCount(0);
         return;
       }
 
-      // Success - add assistant message
-      const assistantMessage: Message = {
+      const assistantMessage: StreamingMessage = {
         id: "msg_" + Date.now() + "_assistant",
         role: "assistant",
         content: data.message,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
-
       setMessages((prev) => [...prev, assistantMessage]);
       setRetryCount(0);
       lastFailedMessage.current = null;
-      
-      // Store conversation ID for future messages
-      if (data.conversation_id) {
-        setConversationId(data.conversation_id);
-      }
-
-      // Refresh onboarding state if we're in onboarding
-      if (data.is_onboarding) {
-        refreshOnboardingState();
-      }
+      if (data.conversation_id) setConversationId(data.conversation_id);
+      if (data.is_onboarding) refreshOnboardingState();
     } catch (err) {
-      console.error("Chat error:", err);
+      console.error("Fallback chat error:", err);
       const gatewayError: GatewayError = {
         code: "GATEWAY_OFFLINE",
         message: "Failed to connect. Check your internet connection.",
       };
       setError(gatewayError);
-      
-      // Auto-retry for network errors
       if (retryCount < 2) {
         toast.error("Network error", `Retrying... (${retryCount + 1}/3)`);
-        setRetryCount(prev => prev + 1);
+        setRetryCount((prev) => prev + 1);
         setTimeout(() => handleSend(messageToSend), 1500 * (retryCount + 1));
         return;
       }
-      
       toast.error("Connection failed", "Check your internet connection");
       setRetryCount(0);
     } finally {
@@ -764,6 +901,19 @@ export default function ChatPageClient({
                         : "text-forest p-0 border-0 bg-transparent"
                     )}
                   >
+                    {/* Tool calls */}
+                    {msg.role === "assistant" && (msg as StreamingMessage).toolCalls && (msg as StreamingMessage).toolCalls!.length > 0 && (
+                      <div className="mb-2 space-y-1">
+                        {(msg as StreamingMessage).toolCalls!.map((tc, i) => (
+                          <div key={i} className="flex items-center gap-1.5 text-xs text-grid/50 font-mono">
+                            <span>{getToolEmoji(tc.tool)}</span>
+                            <span className={tc.status === "done" ? "line-through opacity-50" : ""}>
+                              {tc.label}{tc.status === "running" ? "..." : " ✓"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {hasRichContent && msg.role === "assistant" ? (
                       <RichMessage
                         segments={segments}
@@ -777,6 +927,9 @@ export default function ChatPageClient({
                     ) : (
                       <div className="prose prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-headings:font-header prose-headings:text-forest prose-strong:text-forest prose-code:text-xs prose-code:bg-grid/10 prose-code:px-1 prose-code:rounded prose-pre:bg-grid/10 prose-pre:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
                         <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        {(msg as StreamingMessage).isStreaming && (
+                          <span className="inline-block animate-pulse ml-0.5 text-forest">▊</span>
+                        )}
                       </div>
                     )}
                   </div>
