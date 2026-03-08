@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Mail, MessageSquare, FileText, Check, Loader2 } from "lucide-react";
 
@@ -8,7 +8,7 @@ export type IntegrationProvider = "google" | "slack" | "notion";
 
 interface IntegrationConnectCardProps {
   provider: IntegrationProvider;
-  onConnect: () => void;
+  onConnect: () => Promise<boolean>;
 }
 
 const providerConfig: Record<
@@ -36,20 +36,37 @@ export function IntegrationConnectCard({
   provider,
   onConnect,
 }: IntegrationConnectCardProps) {
-  const [status, setStatus] = useState<"default" | "connecting" | "connected">(
-    "default"
-  );
+  const [status, setStatus] = useState<"loading" | "default" | "connecting" | "connected">("loading");
   const config = providerConfig[provider];
+
+  // Check on mount if already connected
+  useEffect(() => {
+    fetch(`/api/integrations/status/${provider}`)
+      .then(r => r.json())
+      .then(d => setStatus(d.connected ? "connected" : "default"))
+      .catch(() => setStatus("default"));
+  }, [provider]);
 
   const handleConnect = async () => {
     setStatus("connecting");
     try {
-      await onConnect();
-      setStatus("connected");
+      const success = await onConnect();
+      setStatus(success ? "connected" : "default");
     } catch {
       setStatus("default");
     }
   };
+
+  if (status === "loading") {
+    return (
+      <div className="border border-[rgba(58,58,56,0.2)] rounded-none bg-white p-4 max-w-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 border border-[rgba(58,58,56,0.2)] flex items-center justify-center text-forest animate-pulse bg-grid/10" />
+          <div className="flex-1 h-8 bg-grid/10 animate-pulse rounded" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="border border-[rgba(58,58,56,0.2)] rounded-none bg-white p-4 max-w-sm">
@@ -61,12 +78,14 @@ export function IntegrationConnectCard({
           <h4 className="font-header text-sm font-bold text-forest">
             {config.name}
           </h4>
-          <p className="text-xs text-grid/60 mt-0.5">{config.description}</p>
+          <p className="text-xs text-grid/60 mt-0.5">
+            {status === "connected" ? "Connected ✓" : config.description}
+          </p>
         </div>
       </div>
 
       <button
-        onClick={handleConnect}
+        onClick={status === "default" ? handleConnect : undefined}
         disabled={status !== "default"}
         className={cn(
           "w-full mt-3 py-2 px-4 font-mono text-[10px] uppercase tracking-wide transition-all border border-[rgba(58,58,56,0.2)] rounded-none",

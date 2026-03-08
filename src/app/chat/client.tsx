@@ -31,7 +31,7 @@ interface ChatPageClientProps {
 
 interface RichMessageProps {
   segments: ParsedSegment[];
-  onIntegrationConnect: (provider: string) => void;
+  onIntegrationConnect: (provider: string) => Promise<boolean>;
   onWorkflowSelect: (id: string) => void;
   onWorkflowCustom: () => void;
   onWelcomeComplete: () => void;
@@ -59,7 +59,7 @@ function RichMessage({
               <IntegrationConnectCard
                 key={idx}
                 provider={segment.provider}
-                onConnect={() => onIntegrationConnect(segment.provider)}
+                onConnect={async () => { return await onIntegrationConnect(segment.provider); }}
               />
             );
           case "integration-status":
@@ -345,22 +345,21 @@ export default function ChatPageClient({
   }, [messages]);
 
   // Handle integration connect via OAuth popup
-  const handleIntegrationConnect = useCallback(async (provider: string) => {
-    // Open OAuth flow
+  const handleIntegrationConnect = useCallback(async (provider: string): Promise<boolean> => {
     const width = 600;
     const height = 700;
     const left = window.screenX + (window.outerWidth - width) / 2;
     const top = window.screenY + (window.outerHeight - height) / 2;
-    
-    // Start OAuth flow
+
     const popup = window.open(
       `/api/integrations/oauth/start?provider=${provider}`,
       `Connect ${provider}`,
       `width=${width},height=${height},left=${left},top=${top}`
     );
 
-    // Poll for integration completion (avoids COOP postMessage issues)
-    if (popup) {
+    if (!popup) return false;
+
+    return new Promise<boolean>((resolve) => {
       const pollInterval = setInterval(async () => {
         try {
           const res = await fetch(`/api/integrations/status/${provider}`);
@@ -369,28 +368,23 @@ export default function ChatPageClient({
             if (data.connected) {
               clearInterval(pollInterval);
               popup.close();
-              toast.success("Connected!", `${provider} has been connected successfully.`);
               const stepName = `integration_${provider}` as 'integration_google' | 'integration_slack' | 'integration_notion';
               try { await completeStep(stepName); } catch { /* continue */ }
-              const statusMessage: Message = {
-                id: `msg_status_${Date.now()}`,
-                role: "assistant",
-                content: `[[integration-status:${provider}:connected:${data.accountEmail || data.accountName || "Connected"}]]`,
-                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-              };
-              setMessages((prev) => [...prev, statusMessage]);
+              resolve(true);
+              return;
             }
           }
-        } catch { /* ignore poll errors */ }
+        } catch { /* ignore */ }
 
         if (popup.closed) {
           clearInterval(pollInterval);
+          resolve(false);
         }
       }, 1500);
 
-      setTimeout(() => clearInterval(pollInterval), 5 * 60 * 1000);
-    }
-  }, [toast, completeStep]);
+      setTimeout(() => { clearInterval(pollInterval); resolve(false); }, 5 * 60 * 1000);
+    });
+  }, [completeStep]);
 
   const handleWorkflowSelect = useCallback((workflowId: string) => {
     // Send workflow selection as message
