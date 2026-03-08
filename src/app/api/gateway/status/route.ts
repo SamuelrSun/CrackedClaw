@@ -5,6 +5,8 @@ import { getOrganization } from "@/lib/supabase/data";
 import { createClient } from "@/lib/supabase/server";
 import type { GatewayStatusResponse, GatewayStatusInfo } from "@/types/gateway";
 
+export const dynamic = 'force-dynamic';
+
 // Mock status for when gateway is not connected
 const mockStatus: GatewayStatusInfo = {
   agentName: "OpenClaw Agent",

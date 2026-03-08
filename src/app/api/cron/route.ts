@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
 import { createClient } from "@/lib/supabase/server";
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/cron - List cron jobs
 export async function GET() {
   const { user, error } = await requireApiAuth();

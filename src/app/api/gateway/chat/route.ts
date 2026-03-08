@@ -8,6 +8,8 @@ import { toOnboardingState, type OnboardingStateRow, type OnboardingStep } from 
 import type { GatewayError } from "@/types/gateway";
 import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
 
+export const dynamic = 'force-dynamic';
+
 // POST /api/gateway/chat - Send a message through the user's gateway
 export async function POST(request: NextRequest) {
   const { user, error } = await requireApiAuth();

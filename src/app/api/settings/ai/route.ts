@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getInstanceConfig, updateInstanceConfig } from "@/lib/provisioning-client";
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/settings/ai
  * Get current AI settings for the user's instance

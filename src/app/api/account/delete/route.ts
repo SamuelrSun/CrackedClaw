@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { deleteInstance } from "@/lib/provisioning-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export const dynamic = 'force-dynamic';
+
 interface DeletionInfo {
   has_organization: boolean;
   organization_id?: string;

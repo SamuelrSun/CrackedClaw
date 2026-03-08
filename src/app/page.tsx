@@ -4,6 +4,8 @@ import { getWorkflows, getActivityLog, getTokenUsage } from "@/lib/supabase/data
 import { ActivityFeed } from "@/components/activity/activity-feed";
 import DashboardClient from "./dashboard-client";
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage() {
   const [workflows, activityLog, tokenUsage] = await Promise.all([
     getWorkflows(),

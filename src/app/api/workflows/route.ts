@@ -3,6 +3,8 @@ import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
 import { getWorkflows, createWorkflow } from "@/lib/supabase/data";
 import type { WorkflowInput } from "@/lib/supabase/data";
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/workflows - List all workflows
 export async function GET() {
   const { user, error } = await requireApiAuth();

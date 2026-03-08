@@ -3,6 +3,8 @@ import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
 import { getUserGateway, saveUserGateway, deleteUserGateway, logActivity, getOrganization } from "@/lib/supabase/data";
 import type { GatewayConnectionInput } from "@/types/gateway";
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/gateway/connect - Fetch current user's gateway connection
 export async function GET() {
   const { user, error } = await requireApiAuth();

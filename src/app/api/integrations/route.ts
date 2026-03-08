@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
 import { Integration, IntegrationType, IntegrationStatus } from "@/types/integration";
 
+export const dynamic = 'force-dynamic';
+
 // In-memory store for demo (would be Supabase in production)
 const integrationsStore: Integration[] = [
   {

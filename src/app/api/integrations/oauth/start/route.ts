@@ -8,6 +8,8 @@ import { requireApiAuth, jsonResponse, errorResponse } from '@/lib/api-auth';
 import { isValidProvider, isProviderConfigured, OAUTH_PROVIDERS } from '@/lib/oauth/providers';
 import { generateStateToken, buildAuthorizationUrl, createOAuthFlow } from '@/lib/oauth/utils';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/integrations/oauth/start?provider=google
  * Initiates OAuth flow and redirects directly to provider
