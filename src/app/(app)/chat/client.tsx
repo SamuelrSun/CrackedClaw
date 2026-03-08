@@ -958,9 +958,7 @@ export default function ChatPageClient({
                     ) : (
                       <div className="prose prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-headings:font-header prose-headings:text-forest prose-strong:text-forest prose-code:text-xs prose-code:bg-grid/10 prose-code:px-1 prose-code:rounded prose-pre:bg-grid/10 prose-pre:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
                         <ReactMarkdown>{msg.content}</ReactMarkdown>
-                        {(msg as StreamingMessage).isStreaming && (
-                          <span className="inline-block animate-pulse ml-0.5 text-forest">▊</span>
-                        )}
+
                       </div>
                     )}
                   </div>
@@ -987,24 +985,15 @@ export default function ChatPageClient({
           
           {/* Loading indicator */}
           {isLoading && (
-            <div className="max-w-[70%] mr-auto">
+            <div className="max-w-[70%] mr-auto px-1">
               <div className="flex items-center gap-2 mb-1">
                 <span className="font-mono text-[10px] uppercase tracking-wide text-grid/40">
                   {onboardingState?.agent_name || "OpenClaw"}
                 </span>
               </div>
-              <div className="border border-[rgba(58,58,56,0.2)] rounded-none p-4 bg-white text-forest">
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-forest/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <span className="w-2 h-2 bg-forest/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <span className="w-2 h-2 bg-forest/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                  </div>
-                  <span className="font-mono text-[10px] text-grid/40">
-                    {retryCount > 0 ? `Retrying (${retryCount}/3)...` : "Thinking..."}
-                  </span>
-                </div>
-              </div>
+              <span className="font-mono text-[11px] text-grid/40 italic animate-pulse">
+                {retryCount > 0 ? `Retrying (${retryCount}/3)...` : "Thinking..."}
+              </span>
             </div>
           )}
           
