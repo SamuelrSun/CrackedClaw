@@ -6,13 +6,29 @@ import type { GatewayConnectionInput } from "@/types/gateway";
 export const dynamic = 'force-dynamic';
 
 // GET /api/gateway/connect - Fetch current user's gateway connection
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { user, error } = await requireApiAuth();
   if (error) return error;
 
   try {
+    const { searchParams } = new URL(request.url);
+    const activeOrgId = searchParams.get("org_id") || request.headers.get("x-org-id");
+
     // First check for cloud-provisioned organization
-    const org = await getOrganization(user.id);
+    let org = null;
+    if (activeOrgId) {
+      const { createClient } = await import("@/lib/supabase/server");
+      const supabase = await createClient();
+      const { data } = await supabase
+        .from("organizations")
+        .select("*")
+        .eq("id", activeOrgId)
+        .eq("owner_id", user.id)
+        .single();
+      org = data;
+    } else {
+      org = await getOrganization(user.id);
+    }
     // Check for URL + token (don't gate on status — instance may be running even if status field is stale)
     if (org?.openclaw_gateway_url && org?.openclaw_auth_token) {
       return jsonResponse({

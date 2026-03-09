@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/hooks/use-user";
@@ -32,14 +33,9 @@ export function Header() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-paper border-b border-[rgba(58,58,56,0.2)]">
       <div className="flex items-center h-14 px-6">
-        <Link href="/" className="flex items-center gap-3 mr-8">
-          <div className="w-8 h-8 bg-forest rounded-none flex items-center justify-center">
-            <span className="text-white font-header text-sm font-bold">CC</span>
-          </div>
-          <span className="font-header text-sm font-bold tracking-tight text-forest">
-            CrackedClaw
-          </span>
-        </Link>
+        <div className="mr-8">
+          <WorkspaceSwitcher />
+        </div>
 
         <nav className="flex items-center gap-1">
           {navLinks.map((link) => {

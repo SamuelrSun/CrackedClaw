@@ -28,9 +28,27 @@ export async function GET(request: NextRequest) {
   let gatewayUrl: string | null = null;
   let gatewayToken: string | null = null;
 
+  // Check for active org_id from query param (workspace switcher)
+  const { searchParams: sp } = new URL(request.url);
+  const activeOrgId = sp.get("org_id") || request.headers.get("x-org-id");
+
   // First check for cloud-provisioned organization
   try {
-    const org = await getOrganization(user.id);
+    let org = null;
+    if (activeOrgId) {
+      // Use the specific org requested
+      const { createClient } = await import("@/lib/supabase/server");
+      const supabaseClient = await createClient();
+      const { data } = await supabaseClient
+        .from("organizations")
+        .select("*")
+        .eq("id", activeOrgId)
+        .eq("owner_id", user.id)
+        .single();
+      org = data;
+    } else {
+      org = await getOrganization(user.id);
+    }
     // Use org gateway if URL + token exist (don't require exact "running" status — provisioning API can return stale status)
     if (org?.openclaw_gateway_url && org?.openclaw_auth_token) {
       gatewayUrl = org.openclaw_gateway_url;

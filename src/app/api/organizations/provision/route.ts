@@ -35,28 +35,33 @@ export async function POST(request: NextRequest) {
     const user_display_name: string | undefined = body.user_display_name;
     const agent_name: string | undefined = body.agent_name;
     const use_case: string | undefined = body.use_case;
+    // force_new=true means always create a new org (for workspace switcher "Create New Workspace")
+    const force_new: boolean = body.force_new === true;
 
-    // Check if user already has an organization
-    const { data: existingOrg } = await supabase
-      .from("organizations")
-      .select("*")
-      .eq("owner_id", user.id)
-      .single();
-
-    let organizationId: string;
+    let organizationId!: string;
     let isNewOrganization = false;
 
-    if (existingOrg) {
-      // Check if already provisioned
-      if (existingOrg.openclaw_instance_id && existingOrg.openclaw_status === "running") {
-        return NextResponse.json({
-          error: "Organization already has a provisioned instance",
-          organization: existingOrg,
-        }, { status: 400 });
+    if (!force_new) {
+      // Legacy: check if user already has an unprovisioned org to reuse
+      const { data: existingOrg } = await supabase
+        .from("organizations")
+        .select("*")
+        .eq("owner_id", user.id)
+        .is("openclaw_instance_id", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingOrg) {
+        organizationId = existingOrg.id;
+      } else {
+        isNewOrganization = true;
       }
-      organizationId = existingOrg.id;
     } else {
       isNewOrganization = true;
+    }
+
+    if (isNewOrganization) {
 
       // Generate a unique slug: base + user id suffix to avoid collisions
       const baseSlug = organization_name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "org";
