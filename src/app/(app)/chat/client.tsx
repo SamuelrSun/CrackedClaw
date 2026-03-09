@@ -913,6 +913,8 @@ User message: `
             if (chunk.conversation_id) {
               const isNew = !conversations.find((c) => c.id === chunk.conversation_id);
               setConversationId(chunk.conversation_id);
+              // Replace any temp entry (from handleNewConversation) with real convo
+              setConversations(prev => prev.filter(c => !c.id.startsWith('temp-')));
               if (isNew) {
                 await refreshConversations(chunk.conversation_id);
               } else {
@@ -1026,8 +1028,16 @@ User message: `
 
 
   const handleNewConversation = () => {
-    setActiveConvo("");
-    setConversationId(null);
+    const tempId = `temp-${Date.now()}`;
+    const newConvo: Conversation = {
+      id: tempId,
+      title: "Untitled",
+      lastMessage: "",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+    setConversations(prev => [newConvo, ...prev]);
+    setActiveConvo(tempId);
+    setConversationId(null); // still null until first message creates it server-side
     setMessages([]);
     setError(null);
   };
@@ -1064,6 +1074,21 @@ User message: `
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
+
+  // Issue 3: Show onboarding welcome conversation in sidebar from the start
+  useEffect(() => {
+    if (conversations.length === 0 && isInOnboarding) {
+      const welcomeConvo: Conversation = {
+        id: 'temp-welcome',
+        title: 'Welcome to CrackedClaw',
+        lastMessage: "",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+      setConversations([welcomeConvo]);
+      setActiveConvo('temp-welcome');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInOnboarding]);
 
   const handleLinkConversations = async (selectedIds: string[], linkType: string) => {
     if (!conversationId) return;
@@ -1510,25 +1535,29 @@ User message: `
 
         <ActiveAgentsPanel tasks={activeAgentTasks} />
 
-        {/* Inline subagent task cards */}
-        {inlineSubagents.filter((s) => s.status === "running" || !s.status || s.status === "done" || s.status === "failed" || s.status === "killed").slice(0, 5).map((s) => {
-          const cardStatus: "running" | "complete" | "failed" =
-            !s.status || s.status === "running" ? "running" :
-            s.status === "done" ? "complete" : "failed";
-          return (
-            <div key={s.id} className="px-4">
-              <InlineTaskCard
-                taskId={s.id}
-                taskName={s.label || s.task || "Background Task"}
-                status={cardStatus}
-                model={s.model || undefined}
-                result={cardStatus === "complete" ? (s.output || undefined) : undefined}
-                error={cardStatus === "failed" ? (s.output || "Task failed") : undefined}
-                onStop={cardStatus === "running" ? () => handleStopSubagent(s.id) : undefined}
-              />
-            </div>
-          );
-        })}
+        {/* Inline subagent task cards - max-h to prevent pushing input area up */}
+        {inlineSubagents.filter((s) => s.status === "running" || !s.status || s.status === "done" || s.status === "failed" || s.status === "killed").length > 0 && (
+          <div className="max-h-48 overflow-y-auto flex-shrink-0">
+            {inlineSubagents.filter((s) => s.status === "running" || !s.status || s.status === "done" || s.status === "failed" || s.status === "killed").slice(0, 5).map((s) => {
+              const cardStatus: "running" | "complete" | "failed" =
+                !s.status || s.status === "running" ? "running" :
+                s.status === "done" ? "complete" : "failed";
+              return (
+                <div key={s.id} className="px-4">
+                  <InlineTaskCard
+                    taskId={s.id}
+                    taskName={s.label || s.task || "Background Task"}
+                    status={cardStatus}
+                    model={s.model || undefined}
+                    result={cardStatus === "complete" ? (s.output || undefined) : undefined}
+                    error={cardStatus === "failed" ? (s.output || "Task failed") : undefined}
+                    onStop={cardStatus === "running" ? () => handleStopSubagent(s.id) : undefined}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Subagent Dashboard Panel */}
         <SubagentPanel
