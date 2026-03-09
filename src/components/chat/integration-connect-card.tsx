@@ -68,6 +68,16 @@ export function IntegrationConnectCard({
     );
   }
 
+  // Already connected — render minimal inline badge instead of full card
+  if (status === "connected") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-forest bg-[#9EFFBF]/20 border border-[#9EFFBF]/40 px-2 py-1 rounded-sm">
+        <Check className="w-3 h-3" />
+        {config.name} connected
+      </span>
+    );
+  }
+
   return (
     <div className="border border-[rgba(58,58,56,0.2)] rounded-none bg-gray-100 p-4 max-w-sm">
       <div className="flex items-start gap-3">
