@@ -1,11 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
-async function getOnboardingRedirect(origin: string): Promise<string> {
+async function getOnboardingRedirect(origin: string, source?: string): Promise<string> {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return `${origin}/onboarding`;
+    if (!user) return `${origin}/home`;
 
     // Check onboarding_state table
     const { data } = await supabase
@@ -28,9 +28,17 @@ async function getOnboardingRedirect(origin: string): Promise<string> {
     if (profile?.onboarding_completed) {
       return `${origin}/`;
     }
+
+    // If coming from landing chat (OAuth redirect), go back to home
+    // so the LandingChat component can detect the session and provision
+    if (source === "landing") {
+      return `${origin}/home`;
+    }
   } catch {
-    // Ignore DB errors — default to onboarding
+    // Ignore DB errors — default to home for landing flow, onboarding otherwise
   }
+  // Default: if from landing, go to home (LandingChat handles provisioning)
+  if (source === "landing") return `${origin}/home`;
   return `${origin}/onboarding`;
 }
 
@@ -39,6 +47,7 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? null;
   const type = searchParams.get("type");
+  const source = searchParams.get("source") ?? undefined;
 
   // Handle email verification callback
   const isEmailVerification =
@@ -61,7 +70,7 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${origin}${next}`);
       }
       // Otherwise check onboarding status
-      const redirectTo = await getOnboardingRedirect(origin);
+      const redirectTo = await getOnboardingRedirect(origin, source);
       return NextResponse.redirect(redirectTo);
     }
 

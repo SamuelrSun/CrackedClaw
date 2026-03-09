@@ -4,8 +4,22 @@ import { provisionInstance, getInstanceStatus } from "@/lib/provisioning-client"
 import { createInitialState } from "@/lib/onboarding/state-machine";
 
 /**
+ * Generate a random workspace name like "swift-horizon-4821"
+ */
+function generateWorkspaceName(): string {
+  const adjectives = ["swift", "bright", "calm", "bold", "keen", "crisp", "clear", "sharp", "deep", "wide", "pure", "free", "strong", "wise", "warm"];
+  const nouns = ["horizon", "studio", "signal", "layer", "stream", "base", "core", "space", "field", "forge", "grid", "loop", "node", "stack", "tide"];
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const num = Math.floor(Math.random() * 9000) + 1000;
+  return `${adj}-${noun}-${num}`;
+}
+
+/**
  * POST /api/organizations/provision
- * Provision a new OpenClaw instance for the user's organization
+ * Provision a new OpenClaw instance for the user's organization.
+ * organization_name is now optional — auto-generated if omitted.
+ * Also accepts: user_display_name, agent_name, use_case for onboarding context.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -17,11 +31,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { organization_name } = body;
-
-    if (!organization_name) {
-      return NextResponse.json({ error: "Organization name is required" }, { status: 400 });
-    }
+    const organization_name: string = body.organization_name || generateWorkspaceName();
+    const user_display_name: string | undefined = body.user_display_name;
+    const agent_name: string | undefined = body.agent_name;
+    const use_case: string | undefined = body.use_case;
 
     // Check if user already has an organization
     const { data: existingOrg } = await supabase
@@ -148,6 +161,17 @@ export async function POST(request: NextRequest) {
     // Initialize onboarding state for new users
     if (isNewOrganization) {
       const initialState = createInitialState(user.id);
+
+      // Merge pre-auth landing chat context into initial state
+      const gatheredContext = {
+        ...initialState.gathered_context,
+        ...(use_case ? { use_case, source: "landing_chat" } : {}),
+      };
+      const completedSteps = [
+        ...initialState.completed_steps,
+        ...(user_display_name ? ["user_name_provided" as const] : []),
+        ...(agent_name ? ["agent_name_provided" as const] : []),
+      ];
       
       // Create onboarding state record
       const { error: onboardingError } = await supabase
@@ -155,12 +179,12 @@ export async function POST(request: NextRequest) {
         .upsert({
           user_id: user.id,
           phase: initialState.phase,
-          completed_steps: initialState.completed_steps,
+          completed_steps: completedSteps,
           skipped_steps: initialState.skipped_steps,
-          gathered_context: initialState.gathered_context,
+          gathered_context: gatheredContext,
           suggested_workflows: initialState.suggested_workflows,
-          agent_name: initialState.agent_name,
-          user_display_name: initialState.user_display_name,
+          agent_name: agent_name ?? initialState.agent_name,
+          user_display_name: user_display_name ?? initialState.user_display_name,
           created_at: now,
           updated_at: now,
         }, {
@@ -196,7 +220,9 @@ export async function POST(request: NextRequest) {
           .insert({
             conversation_id: welcomeConvo.id,
             role: "assistant",
-            content: "👋 Welcome! I'm your new AI assistant. Let's get to know each other.\n\nWhat should I call you?",
+            content: user_display_name
+              ? `Hey ${user_display_name}! I'm ${agent_name ?? "your AI agent"} — fully set up and ready to go. What would you like to tackle first?`
+              : "👋 Welcome! I'm your new AI assistant. Let's get to know each other.\n\nWhat should I call you?",
             created_at: now,
           });
       }
