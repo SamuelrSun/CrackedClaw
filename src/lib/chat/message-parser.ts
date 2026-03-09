@@ -17,7 +17,7 @@ const PATTERNS = {
   integrationConnect: /\[\[integration:(google|slack|notion)\]\]/g,
   integrationStatus: /\[\[integration-status:(\w+):(connected|error)(?::([^\]]+))?\]\]/g,
   subagentProgress: /\[\[subagent:progress:(\{.*?\})\]\]/g,
-  workflowSuggest: /\[\[workflow:suggest:([^\]]+)\]\]/g,
+  workflowSuggest: /\[\[workflow:suggest:/g,
   contextSummary: /\[\[context:summary:(\{.*?\})\]\]/g,
   welcome: /\[\[welcome:([^,\]]+),([^\]]+)\]\]/g,
 };
@@ -39,12 +39,28 @@ function extractWorkflowSuggestions(content: string): {
   suggestions: Array<{ id: string; title: string; description: string }>;
 } {
   const suggestions: Array<{ id: string; title: string; description: string }> = [];
-  const regex = /\[\[workflow:suggest:([^\]]+)\]\]/g;
-  let match: RegExpExecArray | null;
-
+  
+  // Custom bracket-aware extraction to handle JSON with nested [] inside [[workflow:suggest:...]]
+  const TAG_START = "[[workflow:suggest:";
   const allMatches: Array<{ index: number; length: number; payload: string }> = [];
-  while ((match = regex.exec(content)) !== null) {
-    allMatches.push({ index: match.index, length: match[0].length, payload: match[1] });
+  let searchFrom = 0;
+  while (true) {
+    const start = content.indexOf(TAG_START, searchFrom);
+    if (start === -1) break;
+    const payloadStart = start + TAG_START.length;
+    // Find matching ]] — skip nested brackets
+    let depth = 2; // we're inside [[
+    let pos = payloadStart;
+    while (pos < content.length && depth > 0) {
+      if (content[pos] === "[") depth++;
+      else if (content[pos] === "]") depth--;
+      if (depth > 0) pos++;
+    }
+    if (depth === 0) {
+      const payload = content.slice(payloadStart, pos - 1); // -1 because pos is at last ]
+      allMatches.push({ index: start, length: pos + 1 - start, payload });
+    }
+    searchFrom = pos + 1;
   }
 
   if (allMatches.length === 0) return { content, suggestions };

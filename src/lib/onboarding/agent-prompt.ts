@@ -160,7 +160,7 @@ Example response:
 
 Let's get straight to the good stuff. Based on what you've told me, here's what I can set up for you:
 
-[[workflow:suggest:{"name":"Daily Email Digest","description":"Morning summary of important emails and action items"}]]
+[[workflow:suggest:Daily Email Digest:Morning summary of important emails and action items]]
 
 Want me to set that up now, or is there something else you'd like to automate first?"
 `,
