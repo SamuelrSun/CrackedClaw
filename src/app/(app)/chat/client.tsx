@@ -27,6 +27,8 @@ import {
 } from "@/components/chat";
 import { ActiveAgentsPanel } from "@/components/chat/active-agents-panel";
 import { SubagentPanel } from "@/components/chat/subagent-panel";
+import { InlineTaskCard } from "@/components/chat/inline-task-card";
+import type { SubagentSession } from "@/components/chat/subagent-card";
 import { ChatError } from "@/components/chat/chat-error";
 import { useNodeStatus } from "@/hooks/use-node-status";
 
@@ -193,6 +195,16 @@ function RichMessage({
                 key={idx}
                 skillId={segment.skillId}
                 reason={segment.reason}
+              />
+            );
+          case "inline-task":
+            return (
+              <InlineTaskCard
+                key={idx}
+                taskId={`inline-${idx}`}
+                taskName={segment.taskName}
+                status={segment.status}
+                details={segment.details}
               />
             );
           case "scan-trigger":
@@ -446,6 +458,7 @@ export default function ChatPageClient({
   const [activeAgentTasks, setActiveAgentTasks] = useState<Array<{id: string, label: string, startedAt: number}>>([]); 
   const [showSubagentPanel, setShowSubagentPanel] = useState(false); 
   const [subagentCount, setSubagentCount] = useState(0); 
+  const [inlineSubagents, setInlineSubagents] = useState<SubagentSession[]>([]);
   const prevSubagentCountRef = { current: 0 };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastFailedMessage = useRef<string | null>(null);
@@ -619,6 +632,35 @@ export default function ChatPageClient({
     checkIntegrations(); // init baseline
     return () => clearInterval(interval);
   }, [isInOnboarding]);
+
+  // Inline subagent polling — runs independently of the slide-out panel
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const res = await fetch("/api/gateway/subagents");
+        if (!res.ok) return;
+        const data = await res.json();
+        const sessions: SubagentSession[] = data.subagents || [];
+        if (!cancelled) {
+          setInlineSubagents(sessions);
+          const running = sessions.filter((s) => !s.status || s.status === "running").length;
+          setSubagentCount(running);
+        }
+      } catch { /* ignore */ }
+    };
+    poll();
+    const interval = setInterval(poll, 5000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  const handleStopSubagent = async (sessionId: string) => {
+    await fetch(`/api/gateway/subagents?sessionId=${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+    setInlineSubagents((prev) =>
+      prev.map((s) => s.id === sessionId ? { ...s, status: "killed" as const } : s)
+    );
+  };
 
   const handleSend = async (messageOverride?: string) => {
     const messageToSend = messageOverride || input.trim();
@@ -1171,6 +1213,26 @@ export default function ChatPageClient({
         </div>
 
         <ActiveAgentsPanel tasks={activeAgentTasks} />
+
+        {/* Inline subagent task cards */}
+        {inlineSubagents.filter((s) => s.status === "running" || !s.status || s.status === "done" || s.status === "failed" || s.status === "killed").slice(0, 5).map((s) => {
+          const cardStatus: "running" | "complete" | "failed" =
+            !s.status || s.status === "running" ? "running" :
+            s.status === "done" ? "complete" : "failed";
+          return (
+            <div key={s.id} className="px-4">
+              <InlineTaskCard
+                taskId={s.id}
+                taskName={s.label || s.task || "Background Task"}
+                status={cardStatus}
+                model={s.model || undefined}
+                result={cardStatus === "complete" ? (s.output || undefined) : undefined}
+                error={cardStatus === "failed" ? (s.output || "Task failed") : undefined}
+                onStop={cardStatus === "running" ? () => handleStopSubagent(s.id) : undefined}
+              />
+            </div>
+          );
+        })}
 
         {/* Subagent Dashboard Panel */}
         <SubagentPanel

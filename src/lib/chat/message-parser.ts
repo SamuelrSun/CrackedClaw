@@ -10,9 +10,11 @@ export type ParsedSegment =
   | { type: "context-summary"; insights: Array<{ icon: string; text: string }>; source: string }
   | { type: "welcome"; userName: string; agentName: string }
   | { type: "integrations-resolve"; services: string[] }
-  | { type: "skill-suggest"; skillId: string; reason: string };
+  | { type: "skill-suggest"; skillId: string; reason: string }
+  | { type: "inline-task"; taskName: string; status: "running" | "complete" | "failed"; details?: string };
 
 const PATTERNS = {
+  inlineTask: /\[\[task:([^:]+):([^:]+)(?::([^\]]+))?\]\]/g,
   integrationsResolve: /\[\[integrations:resolve:([^\]]+)\]\]/g,
   skillSuggest: /\[\[skill:suggest:([^,\]]+)(?:,([^\]]+))?\]\]/g,
   integrationConnect: /\[\[integration:(google|slack|notion)\]\]/g,
@@ -237,6 +239,24 @@ export function parseMessageContent(content: string): ParsedSegment[] {
     });
   }
 
+  // Inline task cards
+  PATTERNS.inlineTask.lastIndex = 0;
+  while ((match = PATTERNS.inlineTask.exec(processedContent)) !== null) {
+    const taskStatus = match[2].trim() as "running" | "complete" | "failed";
+    if (["running", "complete", "failed"].includes(taskStatus)) {
+      matches.push({
+        index: match.index,
+        length: match[0].length,
+        segment: {
+          type: "inline-task",
+          taskName: match[1].trim(),
+          status: taskStatus,
+          details: match[3]?.trim(),
+        },
+      });
+    }
+  }
+
   // Welcome
   PATTERNS.welcome.lastIndex = 0;
   while ((match = PATTERNS.welcome.exec(processedContent)) !== null) {
@@ -287,6 +307,7 @@ export function hasRichContent(content: string): boolean {
   PATTERNS.welcome.lastIndex = 0;
   PATTERNS.integrationsResolve.lastIndex = 0;
   PATTERNS.skillSuggest.lastIndex = 0;
+  PATTERNS.inlineTask.lastIndex = 0;
 
   return (
     PATTERNS.integrationConnect.test(content) ||
@@ -296,6 +317,7 @@ export function hasRichContent(content: string): boolean {
     PATTERNS.contextSummary.test(content) ||
     PATTERNS.welcome.test(content) ||
     PATTERNS.integrationsResolve.test(content) ||
-    PATTERNS.skillSuggest.test(content)
+    PATTERNS.skillSuggest.test(content) ||
+    PATTERNS.inlineTask.test(content)
   );
 }

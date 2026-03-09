@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { InlineTaskCard } from "./inline-task-card";
 
 interface ScanTriggerCardProps {
   provider: string;
@@ -12,8 +13,9 @@ interface ScanTriggerCardProps {
 }
 
 export function ScanTriggerCard({ provider, scope = "full", onComplete, onAgentScanNeeded }: ScanTriggerCardProps) {
-  const [status, setStatus] = useState<"scanning" | "agent" | "complete" | "error">("scanning");
+  const [status, setStatus] = useState<"running" | "complete" | "failed">("running");
   const [summary, setSummary] = useState<string>("");
+  const [startTime] = useState(Date.now());
   const toast = useToast();
 
   useEffect(() => {
@@ -30,7 +32,7 @@ export function ScanTriggerCard({ provider, scope = "full", onComplete, onAgentS
         if (cancelled) return;
 
         if (!res.ok) {
-          setStatus("error");
+          setStatus("failed");
           setSummary("Scan failed — try reconnecting the integration.");
           toast.error(`${provider} scan failed`, "Try reconnecting the integration.");
           return;
@@ -41,9 +43,8 @@ export function ScanTriggerCard({ provider, scope = "full", onComplete, onAgentS
         // ── No native adapter: hand off to agent ───────────────────────────
         if (data.needsAgentScan) {
           if (cancelled) return;
-          setStatus("agent");
           const caps = (data.capabilities as string[] | undefined)?.join(", ") || "unknown capabilities";
-          setSummary(`Agent is scanning ${provider} using browser...`);
+          setSummary(`Agent scanning ${provider} using browser...`);
 
           const agentMessage = `[System: No native scanner for ${provider}. Use your browser/exec tools to scan the user's ${provider} account. Capabilities: ${caps}. Be scoped — sample recent data only. After scanning, save key insights with [[REMEMBER: key=value]] tags and report findings to the user.]`;
 
@@ -52,25 +53,24 @@ export function ScanTriggerCard({ provider, scope = "full", onComplete, onAgentS
           } else if (onComplete) {
             onComplete(agentMessage);
           }
+          setStatus("complete");
           return;
         }
 
         // ── Native scan completed ──────────────────────────────────────────
-        setStatus("complete");
         const summaryText = data.summary || `Scanned ${provider} successfully.`;
         setSummary(summaryText);
+        setStatus("complete");
 
-        // Show toast notification
         const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1);
         toast.success(`✓ ${providerLabel} scan complete`, summaryText);
 
-        // Auto-inject summary message into chat
         if (onComplete) {
           onComplete(summaryText);
         }
       } catch {
         if (!cancelled) {
-          setStatus("error");
+          setStatus("failed");
           setSummary("Network error during scan.");
           toast.error(`${provider} scan failed`, "Network error during scan.");
         }
@@ -83,32 +83,22 @@ export function ScanTriggerCard({ provider, scope = "full", onComplete, onAgentS
 
   const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1);
 
+  const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+  const runtimeStr = status !== "running"
+    ? elapsedSeconds >= 60
+      ? `${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`
+      : `${elapsedSeconds}s`
+    : undefined;
+
   return (
-    <div className="rounded-lg border border-forest/20 bg-forest/5 p-3 my-2">
-      <div className="flex items-center gap-2">
-        {(status === "scanning" || status === "agent") && (
-          <>
-            <div className="w-4 h-4 border-2 border-forest/30 border-t-forest rounded-full animate-spin" />
-            <span className="text-sm text-forest">
-              {status === "agent"
-                ? `Agent is scanning ${providerLabel} using browser...`
-                : `Learning about you via ${providerLabel}...`}
-            </span>
-          </>
-        )}
-        {status === "complete" && (
-          <>
-            <span className="text-green-600">✓</span>
-            <span className="text-sm text-forest">{summary}</span>
-          </>
-        )}
-        {status === "error" && (
-          <>
-            <span className="text-red-500">✕</span>
-            <span className="text-sm text-red-600">{summary}</span>
-          </>
-        )}
-      </div>
-    </div>
+    <InlineTaskCard
+      taskId={`scan-${provider}`}
+      taskName={`${providerLabel} Scan`}
+      status={status}
+      statusText={status === "running" ? "Learning about you" : undefined}
+      result={status === "complete" ? summary : undefined}
+      error={status === "failed" ? summary : undefined}
+      runtime={runtimeStr}
+    />
   );
 }
