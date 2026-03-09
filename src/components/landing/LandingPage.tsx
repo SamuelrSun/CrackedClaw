@@ -83,24 +83,25 @@ function useTypewriter(text: string, active: boolean, onDone: () => void) {
 }
 
 // ─── Block cursor input ────────────────────────────────────────────────────────
+// Uses an invisible real <input> on top of a mirrored display div,
+// so the block cursor always sits flush after the last character.
 
 function BlockInput({
   value,
   onChange,
   onSubmit,
-  placeholder,
   disabled,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSubmit: () => void;
-  placeholder: string;
+  placeholder?: string;
   disabled: boolean;
 }) {
-  const ref = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!disabled) ref.current?.focus();
+    if (!disabled) inputRef.current?.focus();
   }, [disabled]);
 
   function handleKey(e: React.KeyboardEvent) {
@@ -108,44 +109,30 @@ function BlockInput({
   }
 
   return (
-    <div className="relative flex items-center border-b border-[rgba(58,58,56,0.2)] pb-1 group focus-within:border-forest transition-colors">
-      <span className="font-mono text-[13px] text-forest/40 mr-2 select-none">›</span>
+    <div className="relative" onClick={() => inputRef.current?.focus()}>
+      {/* Invisible real input — handles all keyboard events */}
       <input
-        ref={ref}
+        ref={inputRef}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKey}
         disabled={disabled}
-        placeholder={placeholder}
-        className="flex-1 bg-transparent font-body text-[15px] text-forest placeholder:text-grid/25 focus:outline-none disabled:opacity-40 [caret-color:transparent]"
+        className="absolute inset-0 w-full opacity-0 cursor-default"
         style={{ caretColor: "transparent" }}
+        autoComplete="off"
+        spellCheck={false}
       />
-      {/* Block cursor — only visible when input is focused and not disabled */}
-      {!disabled && (
-        <span
-          className="absolute pointer-events-none animate-[blink_0.9s_step-end_infinite]"
-          style={{
-            left: `calc(1.25rem + ${value.length}ch)`,
-            top: "50%",
-            transform: "translateY(-50%)",
-            width: "9px",
-            height: "18px",
-            background: "#9EFFBF",
-            display: "inline-block",
-            // hide cursor when there's placeholder text showing
-            opacity: value.length === 0 ? 0.7 : 1,
-          }}
-        />
-      )}
-      {value.trim() && !disabled && (
-        <button
-          onClick={onSubmit}
-          className="ml-3 font-mono text-[10px] text-grid/30 hover:text-forest uppercase tracking-wide transition-colors flex-shrink-0"
-        >
-          enter ↵
-        </button>
-      )}
+      {/* Visual display — mirrors the input value with the block cursor inline */}
+      <div className="font-body text-[15px] text-forest leading-relaxed flex items-center min-h-[28px]">
+        <span className="whitespace-pre">{value}</span>
+        {!disabled && (
+          <span
+            className="inline-block ml-[1px] flex-shrink-0 animate-[cursorFade_1.1s_ease-in-out_infinite]"
+            style={{ width: "10px", height: "20px", background: "#1A3C2B", verticalAlign: "middle" }}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -359,8 +346,8 @@ export default function LandingPage() {
         </a>
       </header>
 
-      {/* Hero — chat lives here */}
-      <main className="flex-1 flex flex-col items-center px-6 pt-16 pb-8">
+      {/* Hero — chat lives here. Fixed height so features section never shifts. */}
+      <main className="flex flex-col items-center px-6 pt-16 pb-8" style={{ minHeight: "520px" }}>
         <div className="w-full max-w-2xl">
 
           {/* Scrollable chat region with fade */}
@@ -466,7 +453,6 @@ export default function LandingPage() {
                 value={input}
                 onChange={setInput}
                 onSubmit={handleSubmit}
-                placeholder={inputPlaceholder}
                 disabled={aiTyping}
               />
             </div>
@@ -475,7 +461,7 @@ export default function LandingPage() {
       </main>
 
       {/* Features */}
-      <section className="border-t border-[rgba(58,58,56,0.15)] px-6 py-16 mt-8">
+      <section className="border-t border-[rgba(58,58,56,0.15)] px-6 py-16 mt-24">
         <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-px bg-[rgba(58,58,56,0.15)]">
           {[
             {
