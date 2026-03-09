@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { INTEGRATIONS } from '@/lib/integrations/registry';
 import { buildSkillsSystemPrompt } from '@/lib/skills/store';
 import { getRelevantMemories, MemoryEntry } from '@/lib/memory/service';
 import { searchFileChunks } from '@/lib/files/storage';
@@ -99,19 +100,14 @@ When a user asks you to scan their accounts, learn their workflow, or understand
 IMPORTANT: NEVER say scanning "isn't working" or "can't be done". If Google is in CONNECTED INTEGRATIONS, the scan WILL work. Just output [[scan:google]] and wait.
 
 INTEGRATION CONNECTIONS:
-When a user asks to connect a NEW integration that is NOT listed under CONNECTED INTEGRATIONS below:
-- Output ONE marker per provider (not per service):
-  - For ANY Google service (Gmail, Sheets, Calendar, Drive, Docs): output [[integration:google]] ONCE
-    This single OAuth grants access to ALL Google services — Gmail, Calendar, Drive, Sheets, Docs.
-    NEVER output multiple [[integration:google]] markers. One is enough for everything.
-  - For Slack: output [[integration:slack]]
-  - For Notion: output [[integration:notion]]
-- This renders a "Connect Google" button that opens the real OAuth flow
-- Only confirm success AFTER the user has gone through OAuth
-- If the requested service is not yet supported via OAuth (e.g. LinkedIn, GitHub), explain that and offer to open it in their browser instead
-- When telling users to connect their computer, give them the EXACT command with their specific host. The command will be injected in DEVICE_CONNECTION_COMMAND below.
-
-IMPORTANT: Google is ONE integration. If a user says "connect Gmail and Google Sheets", output ONE [[integration:google]] — not two separate cards. All Google services are covered by a single OAuth.
+The integration registry is injected below as AVAILABLE INTEGRATIONS.
+Each provider is ONE connection that covers ALL its capabilities.
+- To connect a provider: output [[integration:PROVIDER_ID]] (e.g. [[integration:google]])
+- ONLY output ONE marker per provider, never duplicates
+- If the user asks for a specific service (e.g. "Gmail", "Google Sheets"), find which PROVIDER covers it and connect that provider
+- Example: "connect Gmail and Sheets" → both are under 'google' → output ONE [[integration:google]]
+- Only ask to connect if the provider is NOT already in CONNECTED INTEGRATIONS below
+- If a provider is already connected, just USE it — don't re-prompt
 
 USING CONNECTED INTEGRATIONS:
 - Check the CONNECTED INTEGRATIONS section below. If an integration is listed there, it IS already connected and you CAN use it immediately.
@@ -132,8 +128,17 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   }
 
   if (ctx.integrations && ctx.integrations.length > 0) {
-    parts.push('\nCONNECTED INTEGRATIONS:\n' + ctx.integrations.map(i => `- ${i}`).join('\n'));
+    parts.push('\nCONNECTED INTEGRATIONS:\n' + ctx.integrations.map(i => {
+      const reg = INTEGRATIONS.find(r => r.id === i);
+      return reg ? `- ${reg.name} (${reg.id}) — capabilities: ${reg.capabilities.join(', ')}` : `- ${i}`;
+    }).join('\n'));
   }
+
+  // Inject available integrations from registry so agent knows the full landscape
+  const integrationMap = INTEGRATIONS.map(i => 
+    `- ${i.name} (${i.id}): ${i.capabilities.join(', ')} [${i.authType}]`
+  ).join('\n');
+  parts.push('\nAVAILABLE INTEGRATIONS (one connection per provider covers all its capabilities):\n' + integrationMap);
 
   if (ctx.secretNames && ctx.secretNames.length > 0) {
     parts.push('\nAVAILABLE SECRETS (reference by name):\n' + ctx.secretNames.map(n => `- ${n}`).join('\n'));
