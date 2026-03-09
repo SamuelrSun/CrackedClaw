@@ -146,6 +146,7 @@ echo "   Connecting to: \$GATEWAY_HOST"
 echo "   Leave this window open. Press Ctrl+C to stop."
 echo ""
 
+export OPENCLAW_GATEWAY_TOKEN="\$GATEWAY_TOKEN"
 exec openclaw node run --tls --host "\$GATEWAY_HOST"
 `;
 
