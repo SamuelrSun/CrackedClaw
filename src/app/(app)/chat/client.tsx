@@ -518,9 +518,9 @@ export default function ChatPageClient({
     });
   }, [completeStep]);
 
-  const handleWorkflowSelect = useCallback((workflowId: string) => {
+  const handleWorkflowSelect = useCallback((workflowTitle: string) => {
     // Send workflow selection as message
-    setInput(`I'd like to use the "${workflowId}" workflow`);
+    handleSendRef.current(workflowTitle);
   }, []);
 
   const handleWorkflowCustom = useCallback(() => {

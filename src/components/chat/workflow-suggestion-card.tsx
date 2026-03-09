@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Sparkles, PenLine } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 interface WorkflowSuggestion {
   id: string;
@@ -11,15 +11,44 @@ interface WorkflowSuggestion {
 
 interface WorkflowSuggestionCardProps {
   suggestions: WorkflowSuggestion[];
-  onSelect: (id: string) => void;
+  onSelect: (title: string) => void;
   onCustom: () => void;
 }
+
+const DEFAULT_WORKFLOWS: WorkflowSuggestion[] = [
+  {
+    id: "job-tracker",
+    title: "🔍 Find and track job listings",
+    description:
+      "I'll search for relevant jobs on LinkedIn, track them in Google Sheets, and alert you to new postings",
+  },
+  {
+    id: "morning-briefing",
+    title: "☀️ Morning briefing",
+    description:
+      "Get a daily summary of your emails, calendar events, and any updates that need your attention",
+  },
+  {
+    id: "research-summarize",
+    title: "📚 Research & summarize",
+    description:
+      "Give me a topic and I'll research it, compile findings, and create a summary document",
+  },
+];
 
 export function WorkflowSuggestionCard({
   suggestions,
   onSelect,
-  onCustom,
 }: WorkflowSuggestionCardProps) {
+  const displaySuggestions =
+    suggestions && suggestions.length > 0
+      ? suggestions.map((s) => ({
+          id: s.id,
+          title: s.title,
+          description: s.description,
+        }))
+      : DEFAULT_WORKFLOWS;
+
   return (
     <div className="border border-[rgba(58,58,56,0.2)] rounded-none bg-white p-4 max-w-md">
       <div className="flex items-center gap-2 mb-3">
@@ -30,12 +59,12 @@ export function WorkflowSuggestionCard({
       </div>
 
       <div className="space-y-2">
-        {suggestions.map((suggestion) => (
+        {displaySuggestions.map((suggestion) => (
           <button
             key={suggestion.id}
-            onClick={() => onSelect(suggestion.id)}
+            onClick={() => onSelect(suggestion.title)}
             className={cn(
-              "w-full text-left p-3 border border-[rgba(58,58,56,0.2)] rounded-none",
+              "w-full text-left p-3 border border-[rgba(58,58,56,0.2)] rounded-none cursor-pointer",
               "hover:border-forest hover:bg-forest/[0.02] transition-colors",
               "group"
             )}
@@ -47,19 +76,6 @@ export function WorkflowSuggestionCard({
           </button>
         ))}
       </div>
-
-      <button
-        onClick={onCustom}
-        className={cn(
-          "w-full mt-3 py-2 px-3 flex items-center justify-center gap-2",
-          "border border-dashed border-[rgba(58,58,56,0.3)] rounded-none",
-          "text-grid/60 hover:text-forest hover:border-forest transition-colors",
-          "font-mono text-[10px] uppercase tracking-wide"
-        )}
-      >
-        <PenLine className="w-3 h-3" />
-        Or describe your own...
-      </button>
     </div>
   );
 }
