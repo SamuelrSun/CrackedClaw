@@ -1,8 +1,6 @@
 /**
  * Browser Session Manager
- * Routes browser commands through the user's paired local node.
- * This is how browser-only integrations (LinkedIn, WhatsApp, etc.) work:
- * the user is already logged in on their Mac — we just drive it remotely.
+ * Routes browser commands through the companion relay on the DO server.
  */
 
 import { getNodeStatus } from './status';
@@ -17,46 +15,51 @@ export interface BrowserCommand {
     fn?: string;
     [key: string]: unknown;
   };
-  profile?: string;  // 'chrome' to use user's real Chrome (already logged in)
+  profile?: string;
 }
 
 export interface BrowserResult {
   success: boolean;
   data?: unknown;
   error?: string;
-  screenshot?: string;  // base64
+  screenshot?: string;
 }
 
+const COMPANION_TOOLS_URL = 'https://companion.crackedclaw.com/api/tools/execute';
+
 /**
- * Send a browser command to the user's node.
- * Uses the 'chrome' profile by default so we operate in the user's real browser session.
+ * Send a browser command to the companion relay.
  */
 export async function sendBrowserCommand(
   userId: string,
   command: BrowserCommand
 ): Promise<BrowserResult> {
   const node = await getNodeStatus(userId);
-  
-  if (!node.isOnline || !node.gatewayUrl || !node.authToken) {
-    return { success: false, error: 'Node is offline. Please start OpenClaw on your local machine.' };
+
+  if (!node.isOnline) {
+    return { success: false, error: 'Node is offline. Please start crackedclaw-connect on your local machine.' };
+  }
+
+  const secret = process.env.DO_SERVER_SECRET;
+  if (!secret) {
+    return { success: false, error: 'DO_SERVER_SECRET not configured' };
   }
 
   try {
-    const res = await fetch(`${node.gatewayUrl}/tools/invoke`, {
+    const res = await fetch(COMPANION_TOOLS_URL, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${node.authToken}`,
+        Authorization: `Bearer ${secret}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         tool: 'browser',
+        nodeId: node.nodeId,
         params: {
           action: command.action,
           profile: command.profile || 'chrome',
           url: command.url,
           request: command.request,
-          target: 'node',
-          node: node.nodeId,
         },
       }),
       signal: AbortSignal.timeout(30000),
@@ -64,7 +67,7 @@ export async function sendBrowserCommand(
 
     if (!res.ok) {
       const text = await res.text();
-      return { success: false, error: `Node error: ${text}` };
+      return { success: false, error: `Companion error: ${text}` };
     }
 
     const data = await res.json();
@@ -76,11 +79,10 @@ export async function sendBrowserCommand(
 
 /**
  * Start a browser session for a specific integration.
- * Navigates to the service's login URL in the user's browser.
  */
 export async function startIntegrationSession(
   userId: string,
-  integrationSlug: string,
+  _integrationSlug: string,
   loginUrl: string
 ): Promise<BrowserResult> {
   return sendBrowserCommand(userId, {
@@ -91,7 +93,7 @@ export async function startIntegrationSession(
 }
 
 /**
- * Take a snapshot of the current browser state (for debugging/verification).
+ * Take a snapshot of the current browser state.
  */
 export async function getSnapshot(userId: string): Promise<BrowserResult> {
   return sendBrowserCommand(userId, { action: 'snapshot' });

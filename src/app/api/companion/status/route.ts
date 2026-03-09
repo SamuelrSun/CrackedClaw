@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-const RELAY_STATUS_URL = 'http://127.0.0.1:3201/status';
+const RELAY_STATUS_URL = 'https://companion.crackedclaw.com/api/companion/status';
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch relay status
+    // Fetch relay status from companion server
     const relayRes = await fetch(RELAY_STATUS_URL, {
       next: { revalidate: 0 },
     }).catch(() => null);
@@ -25,7 +25,8 @@ export async function GET(req: NextRequest) {
     const connected = status.connected?.includes(orgId) ?? false;
 
     return NextResponse.json({ connected, token: orgId });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

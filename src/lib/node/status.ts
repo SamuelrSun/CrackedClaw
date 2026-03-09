@@ -1,10 +1,9 @@
 /**
  * Node Status Service
- * Checks if the user's locally paired OpenClaw node is online
- * and what capabilities it exposes (browser, files, notifications, etc.)
+ * Checks if the user's locally paired node is online via the companion relay.
  */
 
-import { getOrganization } from '@/lib/supabase/data';
+import { createClient } from '@/lib/supabase/server';
 
 export interface NodeStatus {
   isOnline: boolean;
@@ -12,77 +11,58 @@ export interface NodeStatus {
   nodeName?: string;
   connectedAt?: string;
   lastSeen?: string;
-  capabilities: string[];   // ['browser', 'files', 'notifications', 'camera', 'screen']
+  capabilities: string[];
   hasBrowser: boolean;
-  gatewayUrl?: string;
-  authToken?: string;
 }
 
+const COMPANION_STATUS_URL = 'https://companion.crackedclaw.com/api/companion/status';
+
 export async function getNodeStatus(userId: string): Promise<NodeStatus> {
+  const offline: NodeStatus = { isOnline: false, capabilities: [], hasBrowser: false };
+
   try {
-    const org = await getOrganization(userId);
-    if (!org?.openclaw_gateway_url || !org?.openclaw_auth_token) {
-      return { isOnline: false, capabilities: [], hasBrowser: false };
-    }
+    const supabase = await createClient();
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('owner_id', userId)
+      .single();
 
-    const gatewayUrl = org.openclaw_gateway_url;
-    const authToken = org.openclaw_auth_token;
+    if (!org) return offline;
 
-    // Base offline status - still includes gatewayUrl and authToken for command generation
-    const offline: NodeStatus = { 
-      isOnline: false, 
-      capabilities: [], 
-      hasBrowser: false,
-      gatewayUrl,
-      authToken,
+    const res = await fetch(COMPANION_STATUS_URL, {
+      headers: { 'x-org-id': org.id },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!res.ok) return offline;
+
+    const data = await res.json();
+    const nodes: Array<{
+      id: string;
+      name?: string;
+      displayName?: string;
+      connected?: boolean;
+      lastSeen?: string;
+      connectedAt?: string;
+      capabilities?: string[];
+    }> = data.nodes || [];
+
+    const online = nodes.find(n => n.connected);
+    if (!online) return offline;
+
+    const caps: string[] = online.capabilities || ['browser', 'files'];
+    return {
+      isOnline: true,
+      nodeId: online.id,
+      nodeName: online.displayName || online.name || 'Your Mac',
+      lastSeen: online.lastSeen,
+      connectedAt: online.connectedAt,
+      capabilities: caps,
+      hasBrowser: caps.includes('browser'),
     };
-
-    try {
-      // Extract instance ID from gateway URL (pattern: i-{id}.crackedclaw.com)
-      const instanceMatch = gatewayUrl.match(/i-([a-f0-9]+)\./);
-      if (!instanceMatch) return offline;
-      const instanceId = `oc-${instanceMatch[1]}`;
-      
-      const provisioningUrl = process.env.PROVISIONING_API_URL || 'http://164.92.75.153:3100';
-      const res = await fetch(`${provisioningUrl}/instances/${instanceId}/nodes/status`, {
-        signal: AbortSignal.timeout(8000),
-      });
-
-      if (!res.ok) return offline;
-
-      const data = await res.json();
-      const nodes: Array<{
-        id: string;
-        name?: string;
-        displayName?: string;
-        connected?: boolean;
-        status?: string;
-        lastSeen?: string;
-        connectedAt?: string;
-        capabilities?: string[];
-      }> = data.nodes || [];
-      
-      const online = nodes.find(n => n.connected);
-
-      if (!online) return offline;
-
-      const caps: string[] = online.capabilities || ['browser', 'files'];
-      return {
-        isOnline: true,
-        nodeId: online.id,
-        nodeName: online.displayName || online.name || 'Your Mac',
-        lastSeen: online.lastSeen,
-        connectedAt: online.connectedAt,
-        capabilities: caps,
-        hasBrowser: caps.includes('browser') || true, // nodes always have browser via OpenClaw
-        gatewayUrl,
-        authToken,
-      };
-    } catch {
-      return offline;
-    }
   } catch {
-    return { isOnline: false, capabilities: [], hasBrowser: false };
+    return offline;
   }
 }
 

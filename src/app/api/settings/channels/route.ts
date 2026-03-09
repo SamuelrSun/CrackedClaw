@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getInstanceConfig, updateInstanceConfig } from "@/lib/provisioning-client";
+
+const DEFAULT_CHANNELS = {
+  slack: { enabled: false, connected: false },
+  discord: { enabled: false, connected: false },
+  telegram: { enabled: false, connected: false },
+  whatsapp: { enabled: false, connected: false },
+};
 
 /**
  * GET /api/settings/channels
@@ -15,47 +21,16 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's organization
     const { data: org } = await supabase
       .from("organizations")
-      .select("*")
+      .select("settings")
       .eq("owner_id", user.id)
       .single();
 
-    if (!org?.openclaw_instance_id) {
-      // Return defaults - all disconnected
-      return NextResponse.json({
-        channels: {
-          slack: { enabled: false, connected: false },
-          discord: { enabled: false, connected: false },
-          telegram: { enabled: false, connected: false },
-          whatsapp: { enabled: false, connected: false },
-        },
-      });
-    }
+    const settings = (org?.settings as Record<string, unknown>) || {};
+    const channels = (settings.channels as typeof DEFAULT_CHANNELS) || DEFAULT_CHANNELS;
 
-    // Get config from provisioning API
-    const configResult = await getInstanceConfig(org.openclaw_instance_id);
-
-    if (!configResult.success) {
-      return NextResponse.json({
-        channels: {
-          slack: { enabled: false, connected: false },
-          discord: { enabled: false, connected: false },
-          telegram: { enabled: false, connected: false },
-          whatsapp: { enabled: false, connected: false },
-        },
-      });
-    }
-
-    return NextResponse.json({
-      channels: configResult.config?.channels || {
-        slack: { enabled: false, connected: false },
-        discord: { enabled: false, connected: false },
-        telegram: { enabled: false, connected: false },
-        whatsapp: { enabled: false, connected: false },
-      },
-    });
+    return NextResponse.json({ channels });
   } catch (error) {
     console.error("Get channels error:", error);
     return NextResponse.json({
@@ -81,55 +56,51 @@ export async function PUT(request: NextRequest) {
     const { channel, token, enabled } = body;
 
     if (!channel) {
-      return NextResponse.json({
-        error: "Channel is required",
-      }, { status: 400 });
+      return NextResponse.json({ error: "Channel is required" }, { status: 400 });
     }
 
     const validChannels = ["slack", "discord", "telegram", "whatsapp"];
     if (!validChannels.includes(channel)) {
-      return NextResponse.json({
-        error: "Invalid channel",
-      }, { status: 400 });
+      return NextResponse.json({ error: "Invalid channel" }, { status: 400 });
     }
 
-    // Get user's organization
     const { data: org } = await supabase
       .from("organizations")
-      .select("*")
+      .select("settings")
       .eq("owner_id", user.id)
       .single();
 
-    if (!org?.openclaw_instance_id) {
-      return NextResponse.json({
-        error: "No instance provisioned",
-      }, { status: 400 });
+    if (!org) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
 
-    // Build channels config update
-    const channelsUpdate: Record<string, { enabled: boolean; token?: string }> = {
+    const currentSettings = (org.settings as Record<string, unknown>) || {};
+    const currentChannels = (currentSettings.channels as Record<string, unknown>) || {};
+
+    const newChannels = {
+      ...currentChannels,
       [channel]: {
         enabled: enabled ?? true,
+        connected: enabled ?? true,
         ...(token && { token }),
       },
     };
 
-    // Update via provisioning API
-    const updateResult = await updateInstanceConfig(org.openclaw_instance_id, {
-      channels: channelsUpdate,
-    });
+    const { error: updateError } = await supabase
+      .from("organizations")
+      .update({
+        settings: { ...currentSettings, channels: newChannels },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("owner_id", user.id);
 
-    if (!updateResult.success) {
+    if (updateError) {
       return NextResponse.json({
-        error: updateResult.error || "Failed to update channel",
+        error: updateError.message || "Failed to update channel",
       }, { status: 500 });
     }
 
-    return NextResponse.json({
-      success: true,
-      channel,
-      connected: enabled ?? true,
-    });
+    return NextResponse.json({ success: true, channel, connected: enabled ?? true });
   } catch (error) {
     console.error("Update channel error:", error);
     return NextResponse.json({
@@ -155,42 +126,42 @@ export async function DELETE(request: NextRequest) {
     const channel = searchParams.get("channel");
 
     if (!channel) {
-      return NextResponse.json({
-        error: "Channel is required",
-      }, { status: 400 });
+      return NextResponse.json({ error: "Channel is required" }, { status: 400 });
     }
 
-    // Get user's organization
     const { data: org } = await supabase
       .from("organizations")
-      .select("*")
+      .select("settings")
       .eq("owner_id", user.id)
       .single();
 
-    if (!org?.openclaw_instance_id) {
-      return NextResponse.json({
-        error: "No instance provisioned",
-      }, { status: 400 });
+    if (!org) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
 
-    // Disable channel via provisioning API
-    const updateResult = await updateInstanceConfig(org.openclaw_instance_id, {
-      channels: {
-        [channel]: { enabled: false },
-      },
-    });
+    const currentSettings = (org.settings as Record<string, unknown>) || {};
+    const currentChannels = (currentSettings.channels as Record<string, unknown>) || {};
 
-    if (!updateResult.success) {
+    const newChannels = {
+      ...currentChannels,
+      [channel]: { enabled: false, connected: false },
+    };
+
+    const { error: updateError } = await supabase
+      .from("organizations")
+      .update({
+        settings: { ...currentSettings, channels: newChannels },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("owner_id", user.id);
+
+    if (updateError) {
       return NextResponse.json({
-        error: updateResult.error || "Failed to disconnect channel",
+        error: updateError.message || "Failed to disconnect channel",
       }, { status: 500 });
     }
 
-    return NextResponse.json({
-      success: true,
-      channel,
-      connected: false,
-    });
+    return NextResponse.json({ success: true, channel, connected: false });
   } catch (error) {
     console.error("Disconnect channel error:", error);
     return NextResponse.json({

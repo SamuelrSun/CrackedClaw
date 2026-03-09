@@ -4,7 +4,7 @@ import { browserTool } from './browser';
 import { fileReadTool, fileWriteTool } from './files';
 import { webSearchTool, webFetchTool } from './web';
 import { memorySearchTool, memoryAddTool } from './memory';
-import { sendEmailTool, readCalendarTool, createEventTool } from './integrations';
+import { readEmailsTool, sendEmailTool, readCalendarTool, createEventTool } from './integrations';
 
 export const ALL_TOOLS: ToolDefinition[] = [
   execTool,
@@ -15,6 +15,7 @@ export const ALL_TOOLS: ToolDefinition[] = [
   webFetchTool,
   memorySearchTool,
   memoryAddTool,
+  readEmailsTool,
   sendEmailTool,
   readCalendarTool,
   createEventTool,
@@ -43,6 +44,7 @@ export {
   webFetchTool,
   memorySearchTool,
   memoryAddTool,
+  readEmailsTool,
   sendEmailTool,
   readCalendarTool,
   createEventTool,

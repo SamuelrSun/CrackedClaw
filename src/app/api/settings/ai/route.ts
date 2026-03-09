@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getInstanceConfig, updateInstanceConfig } from "@/lib/provisioning-client";
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/settings/ai
- * Get current AI settings for the user's instance
+ * Get current AI settings for the user's organization
  */
 export async function GET() {
   try {
@@ -24,30 +23,12 @@ export async function GET() {
       .eq("owner_id", user.id)
       .single();
 
-    if (!org?.openclaw_instance_id) {
-      return NextResponse.json({
-        model: "claude-sonnet-4",
-        using_default_key: true,
-        has_custom_key: false,
-      });
-    }
-
-    // Get config from provisioning API
-    const configResult = await getInstanceConfig(org.openclaw_instance_id);
-
-    if (!configResult.success) {
-      // Return defaults on error
-      return NextResponse.json({
-        model: "claude-sonnet-4",
-        using_default_key: true,
-        has_custom_key: false,
-      });
-    }
+    const settings = (org?.settings as Record<string, unknown>) || {};
 
     return NextResponse.json({
-      model: configResult.config?.model || "claude-sonnet-4",
-      using_default_key: configResult.config?.using_default_key ?? true,
-      has_custom_key: !configResult.config?.using_default_key,
+      model: (settings.model as string) || "claude-sonnet-4",
+      using_default_key: (settings.using_default_key as boolean) ?? true,
+      has_custom_key: !((settings.using_default_key as boolean) ?? true),
     });
   } catch (error) {
     console.error("Get AI settings error:", error);
@@ -59,7 +40,7 @@ export async function GET() {
 
 /**
  * PUT /api/settings/ai
- * Update AI settings for the user's instance
+ * Update AI settings for the user's organization
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -73,19 +54,6 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { model, ai_api_key, use_default_key } = body;
 
-    // Get user's organization
-    const { data: org } = await supabase
-      .from("organizations")
-      .select("*")
-      .eq("owner_id", user.id)
-      .single();
-
-    if (!org?.openclaw_instance_id) {
-      return NextResponse.json({
-        error: "No instance provisioned",
-      }, { status: 400 });
-    }
-
     // Validate: custom key mode requires a key
     if (use_default_key === false && !ai_api_key) {
       return NextResponse.json(
@@ -94,34 +62,50 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Build config update
-    const configUpdate: Record<string, unknown> = {};
-    
+    // Get user's organization
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("*")
+      .eq("owner_id", user.id)
+      .single();
+
+    if (!org) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+
+    const currentSettings = (org.settings as Record<string, unknown>) || {};
+
+    // Build settings update
+    const newSettings: Record<string, unknown> = { ...currentSettings };
+
     if (model) {
-      configUpdate.model = model;
-    }
-    
-    if (use_default_key) {
-      // Clear custom key, use default
-      configUpdate.ai_api_key = null;
-    } else if (ai_api_key) {
-      // Set custom key
-      configUpdate.ai_api_key = ai_api_key;
+      newSettings.model = model;
     }
 
-    // Update via provisioning API
-    const updateResult = await updateInstanceConfig(org.openclaw_instance_id, configUpdate);
+    if (use_default_key === true) {
+      newSettings.using_default_key = true;
+      delete newSettings.ai_api_key;
+    } else if (use_default_key === false && ai_api_key) {
+      newSettings.using_default_key = false;
+      newSettings.ai_api_key = ai_api_key;
+    }
 
-    if (!updateResult.success) {
+    // Save to Supabase
+    const { error: updateError } = await supabase
+      .from("organizations")
+      .update({ settings: newSettings, updated_at: new Date().toISOString() })
+      .eq("id", org.id);
+
+    if (updateError) {
       return NextResponse.json({
-        error: updateResult.error || "Failed to update settings",
+        error: updateError.message || "Failed to update settings",
       }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
-      model: updateResult.config?.model || model,
-      using_default_key: updateResult.config?.using_default_key ?? use_default_key,
+      model: (newSettings.model as string) || model,
+      using_default_key: (newSettings.using_default_key as boolean) ?? true,
     });
   } catch (error) {
     console.error("Update AI settings error:", error);

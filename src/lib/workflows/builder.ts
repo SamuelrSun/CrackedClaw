@@ -3,7 +3,7 @@
  * Takes natural language → structured workflow using AI.
  */
 
-import { sendGatewayMessage } from '@/lib/gateway-client';
+import Anthropic from '@anthropic-ai/sdk';
 
 export interface WorkflowStep {
   id: string;
@@ -52,40 +52,34 @@ Output ONLY valid JSON matching this schema:
   ],
   "requiredIntegrations": ["list", "of", "slugs"],
   "estimatedDuration": "~30 seconds"
-}
-
-Examples of triggers:
-- "every morning at 9am" → type: schedule, cronExpression: "0 9 * * *"
-- "whenever a new email arrives" → type: event
-- "run it manually" → type: manual
-- "when a webhook fires" → type: webhook
-
-Map service names to slugs: Gmail/Google → google, Slack → slack, Notion → notion, LinkedIn → linkedin, GitHub → github, Linear → linear, etc.`;
+}`;
 
 /**
  * Build a structured workflow from a natural language prompt.
- * Falls back to a sensible default if AI parsing fails.
  */
 export async function buildWorkflowFromPrompt(
   prompt: string,
-  gatewayUrl: string,
-  authToken: string
+  _gatewayUrl?: string,
+  _authToken?: string
 ): Promise<BuiltWorkflow> {
   try {
-    const response = await sendGatewayMessage(
-      gatewayUrl,
-      authToken,
-      `Build a workflow for: "${prompt}"`,
-      null,
-      { systemPrompt: BUILDER_SYSTEM_PROMPT }
-    );
+    const client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    });
 
-    // Extract JSON from response text
-    const responseText = response.content || '';
+    const message = await client.messages.create({
+      model: process.env.DEFAULT_MODEL || 'claude-sonnet-4-5',
+      max_tokens: 1024,
+      system: BUILDER_SYSTEM_PROMPT,
+      messages: [
+        { role: 'user', content: `Build a workflow for: "${prompt}"` },
+      ],
+    });
+
+    const responseText = message.content[0]?.type === 'text' ? message.content[0].text : '';
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      // Validate required fields
       if (parsed.name && parsed.steps && parsed.trigger) {
         return parsed as BuiltWorkflow;
       }
@@ -94,18 +88,15 @@ export async function buildWorkflowFromPrompt(
     console.error('Workflow builder AI failed:', e);
   }
 
-  // Fallback: parse heuristically
   return buildFallbackWorkflow(prompt);
 }
 
 function buildFallbackWorkflow(prompt: string): BuiltWorkflow {
   const lower = prompt.toLowerCase();
-  
-  // Detect trigger
+
   const isScheduled = /every|morning|daily|weekly|nightly|hourly|at \d|monday|9am|8am/.test(lower);
   const cronExpr = /morning|9am/.test(lower) ? '0 9 * * *' : /evening|5pm/.test(lower) ? '0 17 * * *' : '0 9 * * 1-5';
-  
-  // Detect integrations
+
   const integrations: string[] = [];
   if (/gmail|email|inbox/.test(lower)) integrations.push('google');
   if (/slack/.test(lower)) integrations.push('slack');

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { provisionInstance, getInstanceStatus } from "@/lib/provisioning-client";
 import { createInitialState } from "@/lib/onboarding/state-machine";
 
 /**
@@ -17,9 +16,8 @@ function generateWorkspaceName(): string {
 
 /**
  * POST /api/organizations/provision
- * Provision a new OpenClaw instance for the user's organization.
- * organization_name is now optional — auto-generated if omitted.
- * Also accepts: user_display_name, agent_name, use_case for onboarding context.
+ * "Provision" an organization — in the serverless architecture this just means
+ * creating the org record in Supabase with default settings. No instance needed.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -35,25 +33,28 @@ export async function POST(request: NextRequest) {
     const user_display_name: string | undefined = body.user_display_name;
     const agent_name: string | undefined = body.agent_name;
     const use_case: string | undefined = body.use_case;
-    // force_new=true means always create a new org (for workspace switcher "Create New Workspace")
     const force_new: boolean = body.force_new === true;
 
     let organizationId!: string;
     let isNewOrganization = false;
 
     if (!force_new) {
-      // Legacy: check if user already has an unprovisioned org to reuse
+      // Check if user already has an org
       const { data: existingOrg } = await supabase
         .from("organizations")
         .select("*")
         .eq("owner_id", user.id)
-        .is("openclaw_instance_id", null)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (existingOrg) {
+        // Already has an org — mark as active and return success
         organizationId = existingOrg.id;
+        await supabase
+          .from("organizations")
+          .update({ openclaw_status: "running", updated_at: new Date().toISOString() })
+          .eq("id", organizationId);
       } else {
         isNewOrganization = true;
       }
@@ -62,27 +63,23 @@ export async function POST(request: NextRequest) {
     }
 
     if (isNewOrganization) {
-
-      // Generate a unique slug: base + user id suffix to avoid collisions
       const baseSlug = organization_name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "org";
       const uniqueSlug = `${baseSlug}-${user.id.slice(0, 8)}`;
 
-      // Create new organization
       const { data: newOrg, error: createError } = await supabase
         .from("organizations")
         .insert({
           name: organization_name,
           slug: uniqueSlug,
           owner_id: user.id,
-          openclaw_status: "provisioning",
+          openclaw_status: "running",
+          settings: {},
         })
         .select()
         .single();
 
       if (createError || !newOrg) {
-        console.error("Failed to create organization:", createError);
         const errMsg = createError?.message || "Failed to create organization";
-        // Slug collision fallback: try with full timestamp
         if (errMsg.includes("unique") || errMsg.includes("duplicate")) {
           const fallbackSlug = `${baseSlug}-${Date.now()}`;
           const { data: retryOrg, error: retryError } = await supabase
@@ -91,12 +88,12 @@ export async function POST(request: NextRequest) {
               name: organization_name,
               slug: fallbackSlug,
               owner_id: user.id,
-              openclaw_status: "provisioning",
+              openclaw_status: "running",
+              settings: {},
             })
             .select()
             .single();
           if (retryError || !retryOrg) {
-            console.error("Retry org creation failed:", retryError);
             return NextResponse.json({ error: "Failed to create organization: " + (retryError?.message || "unknown") }, { status: 500 });
           }
           organizationId = retryOrg.id;
@@ -106,66 +103,19 @@ export async function POST(request: NextRequest) {
       } else {
         organizationId = newOrg.id;
       }
-      // Update profile with organization_id
+
       await supabase
         .from("profiles")
         .update({ organization_id: organizationId })
         .eq("id", user.id);
     }
 
-    // Call provisioning API
-    const provisionResult = await provisionInstance(organizationId, organization_name, { user_display_name, agent_name, use_case });
-
-    if (!provisionResult.success || !provisionResult.instance) {
-      // Update status to failed
-      await supabase
-        .from("organizations")
-        .update({ openclaw_status: "failed" })
-        .eq("id", organizationId);
-
-      return NextResponse.json({
-        error: provisionResult.error || "Failed to provision instance",
-      }, { status: 500 });
-    }
-
     const now = new Date().toISOString();
-
-    // Update organization with instance details
-    const { error: updateError } = await supabase
-      .from("organizations")
-      .update({
-        openclaw_instance_id: provisionResult.instance.id,
-        openclaw_gateway_url: provisionResult.instance.gateway_url,
-        openclaw_auth_token: provisionResult.instance.auth_token,
-        openclaw_status: provisionResult.instance.status || "provisioning",
-        updated_at: now,
-      })
-      .eq("id", organizationId);
-
-    if (updateError) {
-      console.error("Failed to update organization with instance details:", updateError);
-    }
-
-    // Also save to user_gateways for consistency
-    await supabase
-      .from("user_gateways")
-      .upsert({
-        user_id: user.id,
-        gateway_url: provisionResult.instance.gateway_url,
-        auth_token: provisionResult.instance.auth_token,
-        name: `${organization_name} (Cloud)`,
-        status: "connected",
-        created_at: now,
-        updated_at: now,
-      }, {
-        onConflict: "user_id",
-      });
 
     // Initialize onboarding state for new users
     if (isNewOrganization) {
       const initialState = createInitialState(user.id);
 
-      // Merge pre-auth landing chat context into initial state
       const gatheredContext = {
         ...initialState.gathered_context,
         ...(use_case ? { use_case, source: "landing_chat" } : {}),
@@ -175,9 +125,8 @@ export async function POST(request: NextRequest) {
         ...(user_display_name ? ["user_name_provided" as const] : []),
         ...(agent_name ? ["agent_name_provided" as const] : []),
       ];
-      
-      // Create onboarding state record
-      const { error: onboardingError } = await supabase
+
+      await supabase
         .from("onboarding_state")
         .upsert({
           user_id: user.id,
@@ -190,17 +139,9 @@ export async function POST(request: NextRequest) {
           user_display_name: user_display_name ?? initialState.user_display_name,
           created_at: now,
           updated_at: now,
-        }, {
-          onConflict: "user_id",
-        });
+        }, { onConflict: "user_id" });
 
-      if (onboardingError) {
-        console.error("Failed to create onboarding state:", onboardingError);
-        // Non-fatal, continue
-      }
-
-      // Create initial welcome conversation
-      const { data: welcomeConvo, error: convoError } = await supabase
+      const { data: welcomeConvo } = await supabase
         .from("conversations")
         .insert({
           user_id: user.id,
@@ -213,11 +154,7 @@ export async function POST(request: NextRequest) {
         .select()
         .single();
 
-      if (convoError) {
-        console.error("Failed to create welcome conversation:", convoError);
-        // Non-fatal, continue
-      } else if (welcomeConvo) {
-        // Add initial welcome message
+      if (welcomeConvo) {
         await supabase
           .from("messages")
           .insert({
@@ -235,24 +172,22 @@ export async function POST(request: NextRequest) {
       success: true,
       organization_id: organizationId,
       instance: {
-        id: provisionResult.instance.id,
-        gateway_url: provisionResult.instance.gateway_url,
-        status: provisionResult.instance.status,
+        id: organizationId,
+        gateway_url: null,
+        status: "running",
       },
       onboarding_initialized: isNewOrganization,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("Provision error (full):", msg, error);
-    return NextResponse.json({
-      error: "Internal server error: " + msg,
-    }, { status: 500 });
+    console.error("Provision error:", msg, error);
+    return NextResponse.json({ error: "Internal server error: " + msg }, { status: 500 });
   }
 }
 
 /**
  * GET /api/organizations/provision
- * Get current organization's OpenClaw instance status
+ * Get current organization status
  */
 export async function GET() {
   try {
@@ -263,7 +198,6 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's organization
     const { data: org } = await supabase
       .from("organizations")
       .select("*")
@@ -274,45 +208,14 @@ export async function GET() {
       return NextResponse.json({ organization: null });
     }
 
-    // If instance exists, check its status
-    if (org.openclaw_instance_id) {
-      const statusResult = await getInstanceStatus(org.openclaw_instance_id);
-      
-      if (statusResult.success && statusResult.instance) {
-        // Normalize status: provisioning API may return "stopped" even when running
-        // Always keep as "running" if instance exists and gateway URL is set
-        const normalizedStatus = org.openclaw_gateway_url ? "running" : statusResult.instance.status;
-        if (normalizedStatus !== org.openclaw_status) {
-          await supabase
-            .from("organizations")
-            .update({
-              openclaw_status: normalizedStatus,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", org.id);
-        }
-
-        return NextResponse.json({
-          organization: {
-            id: org.id,
-            name: org.name,
-            plan: org.plan,
-            openclaw_instance_id: org.openclaw_instance_id,
-            openclaw_gateway_url: org.openclaw_gateway_url,
-            openclaw_status: normalizedStatus,
-          },
-        });
-      }
-    }
-
     return NextResponse.json({
       organization: {
         id: org.id,
         name: org.name,
         plan: org.plan,
-        openclaw_instance_id: org.openclaw_instance_id,
-        openclaw_gateway_url: org.openclaw_gateway_url,
-        openclaw_status: org.openclaw_status,
+        openclaw_instance_id: null,
+        openclaw_gateway_url: null,
+        openclaw_status: "running",
       },
     });
   } catch (error) {
@@ -325,61 +228,8 @@ export async function GET() {
 
 /**
  * DELETE /api/organizations/provision
- * Delete the organization's OpenClaw instance
+ * No-op in serverless architecture — organizations can't be "deleted" this way.
  */
 export async function DELETE() {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get user's organization
-    const { data: org } = await supabase
-      .from("organizations")
-      .select("*")
-      .eq("owner_id", user.id)
-      .single();
-
-    if (!org || !org.openclaw_instance_id) {
-      return NextResponse.json({ error: "No instance to delete" }, { status: 400 });
-    }
-
-    // Import deleteInstance dynamically to avoid issues
-    const { deleteInstance } = await import("@/lib/provisioning-client");
-    const deleteResult = await deleteInstance(org.openclaw_instance_id);
-
-    if (!deleteResult.success) {
-      return NextResponse.json({
-        error: deleteResult.error || "Failed to delete instance",
-      }, { status: 500 });
-    }
-
-    // Clear instance details from organization
-    await supabase
-      .from("organizations")
-      .update({
-        openclaw_instance_id: null,
-        openclaw_gateway_url: null,
-        openclaw_auth_token: null,
-        openclaw_status: "not_provisioned",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", org.id);
-
-    // Also clear from user_gateways
-    await supabase
-      .from("user_gateways")
-      .delete()
-      .eq("user_id", user.id);
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Delete instance error:", error);
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : "Internal server error",
-    }, { status: 500 });
-  }
+  return NextResponse.json({ success: true, message: "No instance to delete in serverless mode" });
 }
