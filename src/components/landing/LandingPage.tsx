@@ -53,60 +53,6 @@ function getUseCaseResponse(useCase: string, userName: string): string {
 
 function uid() { return Math.random().toString(36).slice(2); }
 
-// ─── Natural language name parser ────────────────────────────────────────────
-// Handles casual/abbreviated input: "im Sam and u can be sophia", "Sam / Nova", etc.
-function parseNames(raw: string): { uName: string; aName: string } {
-  const text = raw.trim();
-
-  // Explicit slash: "Sam / Nova"
-  if (text.includes("/")) {
-    const [a, b] = text.split("/").map((s) => s.trim());
-    return { uName: cleanName(a) || "friend", aName: cleanName(b) || "Claude" };
-  }
-
-  // Normalize common abbreviations
-  const norm = text
-    .replace(/u/gi, "you")
-    .replace(/ur/gi, "your")
-    .replace(/im/gi, "I'm")
-    .replace(/can b/gi, "can be");
-
-  // Extract agent name — word after "be/go by/call yourself/you're/you are"
-  const agentMatch = norm.match(
-    /(?:you\s+(?:can\s+)?(?:be|go\s+by)|call\s+(?:yourself|you)|name\s+you|you're|you\s+are)\s+([a-zA-Z][a-zA-Z\-]{0,20})/i
-  );
-  const aName = agentMatch ? agentMatch[1] : "";
-
-  // Extract user name — word after "I'm / my name is / call me"
-  const userMatch = norm.match(
-    /(?:i'?m|my\s+name\s+is|name\s+is|call\s+me)\s+([a-zA-Z][a-zA-Z\-]{0,20})/i
-  );
-  let uName = userMatch ? userMatch[1] : "";
-
-  // Fallback: first non-filler word
-  if (!uName) {
-    const skip = new Set(["and","you","can","be","my","name","is","call","want","please","hey","hi","hello","the","a","an"]);
-    const words = norm.split(/[\s,]+/).filter((w) => /^[a-zA-Z]{2,}$/.test(w));
-    uName = words.find((w) => !skip.has(w.toLowerCase())) || words[0] || "";
-  }
-
-  return {
-    uName: capitalize(uName) || "friend",
-    aName: capitalize(aName) || "Claude",
-  };
-}
-
-function cleanName(s: string): string {
-  return s
-    .replace(/^(i'?m|my name is|call (me|yourself|you)|you can be|you'?re|you are|and you|and|be)\s+/gi, "")
-    .replace(/[^a-zA-Z\-]/g, " ")
-    .trim()
-    .split(/\s+/)[0] || "";
-}
-
-function capitalize(s: string): string {
-  return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
-}
 
 // ─── Typing animation hook ────────────────────────────────────────────────────
 
@@ -311,14 +257,30 @@ export default function LandingPage() {
     setMessages((prev) => [...prev, { id: uid(), role: "user", content: trimmed }]);
 
     if (step === "name_capture") {
-      const { uName, aName } = parseNames(trimmed);
-      setUserName(uName);
-      setAgentName(aName);
-      localStorage.setItem(PRE_AUTH_KEY, JSON.stringify({ userName: uName, agentName: aName, useCase: "" }));
-      setTimeout(() => {
-        setStep("use_case");
-        pushAiMessage(`Nice to meet you, ${uName}! I'll go by ${aName} from here.\n\nSo — what does your day-to-day look like? What would you love to hand off?`);
-      }, 300);
+      // Disable input while AI parses the names
+      setAiTyping(true);
+      fetch("/api/parse-names", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: trimmed }),
+      })
+        .then((r) => r.json())
+        .then((parsed) => {
+          const uName = parsed.userName || trimmed.split(/\s+/)[0];
+          const aName = parsed.agentName || "Claude";
+          setUserName(uName);
+          setAgentName(aName);
+          localStorage.setItem(PRE_AUTH_KEY, JSON.stringify({ userName: uName, agentName: aName, useCase: "" }));
+          setStep("use_case");
+          pushAiMessage(`Nice to meet you, ${uName}! I'll go by ${aName} from here.\n\nSo — what does your day-to-day look like? What would you love to hand off?`);
+        })
+        .catch(() => {
+          // Fallback: just use first word as name
+          const uName = trimmed.split(/\s+/)[0].replace(/[^a-zA-Z]/g, "") || "friend";
+          setUserName(uName);
+          setStep("use_case");
+          pushAiMessage(`Nice to meet you, ${uName}! What does your day-to-day look like? What would you love to hand off?`);
+        });
     } else if (step === "use_case") {
       setUseCase(trimmed);
       const stored = localStorage.getItem(PRE_AUTH_KEY);
