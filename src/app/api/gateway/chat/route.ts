@@ -155,7 +155,23 @@ export async function POST(request: NextRequest) {
 
     // Send message through gateway
     try {
-      const systemPrompt = isOnboarding ? undefined : await buildSystemPromptForUser(user.id, message);
+      let systemPrompt: string | undefined;
+      if (isOnboarding) {
+        // Even during onboarding, inject connected integrations so agent knows what's already set up
+        const supabaseForIntegrations = await createClient();
+        const { data: connectedIntegrations } = await supabaseForIntegrations
+          .from('user_integrations')
+          .select('provider')
+          .eq('user_id', user.id)
+          .eq('status', 'connected');
+        if (connectedIntegrations && connectedIntegrations.length > 0) {
+          const providers = connectedIntegrations.map((i: { provider: string }) => i.provider);
+          onboardingPrompt = (onboardingPrompt || '') + '\n\nALREADY CONNECTED INTEGRATIONS (do NOT ask to connect these again, just USE them):\n' + providers.map(p => `- ${p}`).join('\n');
+        }
+        systemPrompt = undefined;
+      } else {
+        systemPrompt = await buildSystemPromptForUser(user.id, message);
+      }
       const response = await sendGatewayMessage(gatewayUrl, authToken, fullMessage, activeConversationId, { systemPrompt });
 
       if (response.error) {

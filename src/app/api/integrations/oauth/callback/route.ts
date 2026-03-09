@@ -208,6 +208,32 @@ export async function GET(request: NextRequest) {
     // Mark flow as completed
     await updateOAuthFlowStatus(state, 'completed');
 
+    // Update onboarding state if user is in onboarding
+    try {
+      const { createClient } = await import('@/lib/supabase/server');
+      const supabase = await createClient();
+      const { data: onboardingRow } = await supabase
+        .from('onboarding_state')
+        .select('completed_steps, phase')
+        .eq('user_id', user_id)
+        .single();
+      
+      if (onboardingRow && onboardingRow.phase !== 'complete') {
+        const steps: string[] = onboardingRow.completed_steps || [];
+        const stepKey = `integration_${provider}`;
+        if (!steps.includes(stepKey)) {
+          steps.push(stepKey);
+          await supabase
+            .from('onboarding_state')
+            .update({ completed_steps: steps })
+            .eq('user_id', user_id);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to update onboarding state:', e);
+      // Non-critical, continue
+    }
+
     // Get account name for display
     const accountName = userInfo?.email || userInfo?.name || userInfo?.teamName || 'Connected';
 
