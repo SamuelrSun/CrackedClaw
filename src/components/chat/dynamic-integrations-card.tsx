@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Check, Loader2, X } from "lucide-react";
 import type { ResolvedIntegration } from "@/lib/integrations/resolver";
+import { IntegrationIcon } from "@/components/integrations/integration-icon";
 
 interface DynamicIntegrationsCardProps {
   services: string[];
@@ -231,7 +232,7 @@ export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegr
           <div key={card.resolved.slug} className="border border-[rgba(58,58,56,0.2)] bg-gray-100 p-3 max-w-sm">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="text-lg flex-shrink-0">{card.resolved.icon}</span>
+                <IntegrationIcon provider={card.resolved.slug} size={24} />
                 <div className="min-w-0">
                   <p className="font-header font-bold text-sm truncate">{card.resolved.name}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">

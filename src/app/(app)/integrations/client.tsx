@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Integration, IntegrationAccount } from "@/types/integration";
 import { IntegrationGridSkeleton } from "@/components/skeletons/integration-skeleton";
 import type { ResolvedIntegration } from "@/lib/integrations/resolver";
+import { IntegrationIcon } from "@/components/integrations/integration-icon";
 
 interface IntegrationsPageClientProps {
   initialIntegrations: Integration[];
@@ -234,7 +235,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
               <div key={card.resolved.slug} className="border border-[rgba(58,58,56,0.2)] bg-paper p-4">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl">{card.resolved.icon}</span>
+                    <IntegrationIcon provider={card.resolved.slug} size={28} />
                     <div>
                       <p className="font-header font-bold text-sm">{card.resolved.name}</p>
                       <p className="font-mono text-[9px] text-grid/40 uppercase">{card.resolved.category}</p>
@@ -286,7 +287,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
             const needsNode = getNeedsNode(integration);
 
             return (
-              <Card key={integration.id} label={integration.icon} accentColor={integration.status === "connected" ? "#9EFFBF" : undefined} bordered={false}>
+              <Card key={integration.id} label={<IntegrationIcon provider={integration.slug || ""} size={20} />} accentColor={integration.status === "connected" ? "#9EFFBF" : undefined} bordered={false}>
                 <div className="mt-2">
                   <div className="flex items-center justify-between">
                     <h3 className="font-header text-lg font-bold tracking-tight">{integration.name}</h3>

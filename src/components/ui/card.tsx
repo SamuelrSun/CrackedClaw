@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
-import { HTMLAttributes } from "react";
+import { HTMLAttributes, ReactNode } from "react";
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
-  label?: string;
+  label?: ReactNode;
   accentColor?: string;
   bordered?: boolean;
 }
@@ -22,9 +22,13 @@ export function Card({ className, label, accentColor, bordered = true, children,
           {accentColor && (
             <div className="w-0.5 h-4" style={{ backgroundColor: accentColor }} />
           )}
-          <span className="font-mono text-[10px] uppercase tracking-wide text-grid/60">
-            {label}
-          </span>
+          {typeof label === "string" ? (
+            <span className="font-mono text-[10px] uppercase tracking-wide text-grid/60">
+              {label}
+            </span>
+          ) : (
+            label
+          )}
         </div>
       )}
       {children}
