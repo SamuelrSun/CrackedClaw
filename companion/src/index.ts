@@ -32,4 +32,4 @@ program
     await new Promise(() => {});
   });
 
-program.parse();
+program.parse(process.argv);
