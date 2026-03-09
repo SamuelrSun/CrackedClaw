@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
   if (!isValidProvider(provider)) {
     return new NextResponse(
-      `Invalid provider. Supported: google, slack, notion`,
+      `Invalid provider. Supported: ${Object.keys(require('@/lib/oauth/providers').OAUTH_PROVIDERS).join(', ')}` as string,
       { status: 400 }
     );
   }
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     if (!isValidProvider(provider)) {
       return errorResponse(
-        `Invalid provider. Supported: google, slack, notion`,
+        `Invalid provider. Supported: ${Object.keys(require('@/lib/oauth/providers').OAUTH_PROVIDERS).join(', ')}` as string,
         400
       );
     }

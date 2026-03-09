@@ -1,9 +1,10 @@
 /**
  * OAuth Provider Configurations
- * Supports Google, Slack, and Notion OAuth flows
+ * Supports Google, Slack, Notion, GitHub, Microsoft, Linear, Discord, Zoom,
+ * Twitter/X, HubSpot, Jira, Figma, and Reddit OAuth flows
  */
 
-export type OAuthProvider = 'google' | 'slack' | 'notion';
+export type OAuthProvider = 'google' | 'slack' | 'notion' | 'github' | 'microsoft' | 'linear' | 'discord' | 'zoom' | 'twitter' | 'hubspot' | 'jira' | 'figma' | 'reddit';
 
 export interface ProviderConfig {
   name: string;
@@ -12,9 +13,7 @@ export interface ProviderConfig {
   clientIdEnvVar: string;
   clientSecretEnvVar: string;
   defaultScopes: string[];
-  // Notion uses Basic auth for token exchange
   useBasicAuth?: boolean;
-  // Additional auth params required by the provider
   additionalAuthParams?: Record<string, string>;
 }
 
@@ -56,10 +55,116 @@ export const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
     tokenUrl: 'https://api.notion.com/v1/oauth/token',
     clientIdEnvVar: 'NOTION_CLIENT_ID',
     clientSecretEnvVar: 'NOTION_CLIENT_SECRET',
-    defaultScopes: [], // Notion doesn't use traditional scopes
+    defaultScopes: [],
     useBasicAuth: true,
     additionalAuthParams: {
       owner: 'user',
+    },
+  },
+  github: {
+    name: 'GitHub',
+    authUrl: 'https://github.com/login/oauth/authorize',
+    tokenUrl: 'https://github.com/login/oauth/access_token',
+    clientIdEnvVar: 'GITHUB_CLIENT_ID',
+    clientSecretEnvVar: 'GITHUB_CLIENT_SECRET',
+    defaultScopes: ['repo', 'read:user', 'user:email', 'read:org'],
+  },
+  microsoft: {
+    name: 'Microsoft 365',
+    authUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+    tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+    clientIdEnvVar: 'MICROSOFT_CLIENT_ID',
+    clientSecretEnvVar: 'MICROSOFT_CLIENT_SECRET',
+    defaultScopes: [
+      'openid',
+      'profile',
+      'email',
+      'Mail.Read',
+      'Calendars.Read',
+      'Files.Read',
+      'offline_access',
+    ],
+  },
+  linear: {
+    name: 'Linear',
+    authUrl: 'https://linear.app/oauth/authorize',
+    tokenUrl: 'https://api.linear.app/oauth/token',
+    clientIdEnvVar: 'LINEAR_CLIENT_ID',
+    clientSecretEnvVar: 'LINEAR_CLIENT_SECRET',
+    defaultScopes: ['read', 'write', 'issues:create'],
+  },
+  discord: {
+    name: 'Discord',
+    authUrl: 'https://discord.com/api/oauth2/authorize',
+    tokenUrl: 'https://discord.com/api/oauth2/token',
+    clientIdEnvVar: 'DISCORD_CLIENT_ID',
+    clientSecretEnvVar: 'DISCORD_CLIENT_SECRET',
+    defaultScopes: ['identify', 'email', 'guilds', 'messages.read'],
+    useBasicAuth: true,
+  },
+  zoom: {
+    name: 'Zoom',
+    authUrl: 'https://zoom.us/oauth/authorize',
+    tokenUrl: 'https://zoom.us/oauth/token',
+    clientIdEnvVar: 'ZOOM_CLIENT_ID',
+    clientSecretEnvVar: 'ZOOM_CLIENT_SECRET',
+    defaultScopes: ['meeting:read', 'user:read', 'recording:read'],
+    useBasicAuth: true,
+  },
+  twitter: {
+    name: 'Twitter/X',
+    authUrl: 'https://twitter.com/i/oauth2/authorize',
+    tokenUrl: 'https://api.twitter.com/2/oauth2/token',
+    clientIdEnvVar: 'TWITTER_CLIENT_ID',
+    clientSecretEnvVar: 'TWITTER_CLIENT_SECRET',
+    defaultScopes: ['tweet.read', 'users.read', 'offline.access'],
+    useBasicAuth: true,
+    additionalAuthParams: {
+      code_challenge_method: 'plain',
+    },
+  },
+  hubspot: {
+    name: 'HubSpot',
+    authUrl: 'https://app.hubspot.com/oauth/authorize',
+    tokenUrl: 'https://api.hubapi.com/oauth/v1/token',
+    clientIdEnvVar: 'HUBSPOT_CLIENT_ID',
+    clientSecretEnvVar: 'HUBSPOT_CLIENT_SECRET',
+    defaultScopes: [
+      'crm.objects.contacts.read',
+      'crm.objects.deals.read',
+      'crm.objects.companies.read',
+    ],
+  },
+  jira: {
+    name: 'Jira',
+    authUrl: 'https://auth.atlassian.com/authorize',
+    tokenUrl: 'https://auth.atlassian.com/oauth/token',
+    clientIdEnvVar: 'JIRA_CLIENT_ID',
+    clientSecretEnvVar: 'JIRA_CLIENT_SECRET',
+    defaultScopes: ['read:jira-work', 'read:jira-user', 'read:me'],
+    additionalAuthParams: {
+      audience: 'api.atlassian.com',
+      prompt: 'consent',
+    },
+  },
+  figma: {
+    name: 'Figma',
+    authUrl: 'https://www.figma.com/oauth',
+    tokenUrl: 'https://www.figma.com/api/oauth/token',
+    clientIdEnvVar: 'FIGMA_CLIENT_ID',
+    clientSecretEnvVar: 'FIGMA_CLIENT_SECRET',
+    defaultScopes: ['file_read'],
+  },
+  reddit: {
+    name: 'Reddit',
+    authUrl: 'https://www.reddit.com/api/v1/authorize',
+    tokenUrl: 'https://www.reddit.com/api/v1/access_token',
+    clientIdEnvVar: 'REDDIT_CLIENT_ID',
+    clientSecretEnvVar: 'REDDIT_CLIENT_SECRET',
+    defaultScopes: ['identity', 'read', 'history'],
+    useBasicAuth: true,
+    additionalAuthParams: {
+      duration: 'permanent',
     },
   },
 };
@@ -101,5 +206,5 @@ export function getCallbackUrl(): string {
  * Validate provider string
  */
 export function isValidProvider(provider: string): provider is OAuthProvider {
-  return ['google', 'slack', 'notion'].includes(provider);
+  return provider in OAUTH_PROVIDERS;
 }

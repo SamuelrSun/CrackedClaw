@@ -138,6 +138,19 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
       "google": "google",
       "slack": "slack",
       "notion": "notion",
+      "github": "github",
+      "microsoft": "microsoft",
+      "microsoft-365": "microsoft",
+      "outlook": "microsoft",
+      "linear": "linear",
+      "discord": "discord",
+      "zoom": "zoom",
+      "twitter": "twitter",
+      "x": "twitter",
+      "hubspot": "hubspot",
+      "jira": "jira",
+      "figma": "figma",
+      "reddit": "reddit",
     };
     
     const provider = SLUG_TO_PROVIDER[integration.slug?.toLowerCase() || ""] 
