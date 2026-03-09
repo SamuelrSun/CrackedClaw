@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Call provisioning API
-    const provisionResult = await provisionInstance(organizationId, organization_name);
+    const provisionResult = await provisionInstance(organizationId, organization_name, { user_display_name, agent_name, use_case });
 
     if (!provisionResult.success || !provisionResult.instance) {
       // Update status to failed

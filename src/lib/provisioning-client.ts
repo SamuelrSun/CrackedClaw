@@ -52,9 +52,16 @@ export function isProvisioningConfigured(): boolean {
   return !!PROVISIONING_API_URL;
 }
 
+export interface UserContext {
+  user_display_name?: string;
+  agent_name?: string;
+  use_case?: string;
+}
+
 export async function provisionInstance(
   organizationId: string,
-  organizationName: string
+  organizationName: string,
+  context?: UserContext
 ): Promise<ProvisionResponse> {
   if (!isProvisioningConfigured()) {
     return { success: false, error: "Provisioning API not configured" };
@@ -67,6 +74,7 @@ export async function provisionInstance(
       body: JSON.stringify({
         organization_id: organizationId,
         organization_name: organizationName,
+        ...(context || {}),
       }),
     });
 
