@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { Integration, IntegrationAccount } from "@/types/integration";
 import { IntegrationGridSkeleton } from "@/components/skeletons/integration-skeleton";
 import type { ResolvedIntegration } from "@/lib/integrations/resolver";
 import { IntegrationIcon } from "@/components/integrations/integration-icon";
+import { INTEGRATIONS } from "@/lib/integrations/registry";
 
 interface IntegrationsPageClientProps {
   initialIntegrations: Integration[];
@@ -22,13 +23,40 @@ interface ResolvedCard {
   created: boolean;
 }
 
+
+const POPULAR_INTEGRATIONS = [
+  { id: 'google', slug: 'google-workspace' },
+  { id: 'slack', slug: 'slack' },
+  { id: 'notion', slug: 'notion' },
+  { id: 'github', slug: 'github' },
+  { id: 'microsoft', slug: 'microsoft' },
+  { id: 'linear', slug: 'linear' },
+  { id: 'telegram', slug: 'telegram' },
+  { id: 'discord', slug: 'discord' },
+  { id: 'whatsapp', slug: 'whatsapp' },
+  { id: 'imessage', slug: 'imessage' },
+  { id: 'zoom', slug: 'zoom' },
+  { id: 'twitter', slug: 'twitter' },
+  { id: 'hubspot', slug: 'hubspot' },
+  { id: 'jira', slug: 'jira' },
+  { id: 'figma', slug: 'figma' },
+];
+
 export default function IntegrationsPageClient({ initialIntegrations, isLoading = false }: IntegrationsPageClientProps) {
   const [items, setItems] = useState(initialIntegrations);
   const [query, setQuery] = useState("");
   const [resolving, setResolving] = useState(false);
   const [resolvedCards, setResolvedCards] = useState<ResolvedCard[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('dismissed_integrations');
+      if (stored) setDismissedIds(JSON.parse(stored));
+    } catch {}
+  }, []);
 
   const handleResolve = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,6 +186,78 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
     }, 1000);
   };
 
+
+  const dismissPopular = (id: string) => {
+    const next = [...dismissedIds, id];
+    setDismissedIds(next);
+    try { localStorage.setItem('dismissed_integrations', JSON.stringify(next)); } catch {}
+  };
+
+  const connectPopular = async (registryId: string) => {
+    const regEntry = INTEGRATIONS.find(r => r.id === registryId);
+    if (!regEntry) return;
+
+    // Check if already in items list
+    const existing = items.find(i =>
+      i.slug === registryId || i.slug === regEntry.id || i.id === registryId
+    );
+    if (existing) {
+      addAccount(existing.id);
+      return;
+    }
+
+    // Node-based: show instruction
+    if (regEntry.authType === 'browser-login') {
+      toast.info(
+        regEntry.name + ' requires a Node',
+        'Run: openclaw node run --tls --host crackedclaw.com'
+      );
+      return;
+    }
+
+    // Create integration then connect
+    try {
+      const res = await fetch('/api/integrations/create-dynamic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resolved: {
+            name: regEntry.name,
+            slug: regEntry.id,
+            icon: regEntry.icon,
+            authType: regEntry.authType === 'api-key' ? 'api_key' : regEntry.authType,
+            category: regEntry.category,
+            description: regEntry.description || '',
+            needsNode: false,
+          }
+        }),
+      });
+      const data = await res.json();
+      const integrationId = data.integration?.id;
+      if (!integrationId) {
+        toast.error('Error', 'Could not create integration');
+        return;
+      }
+      if (!data.existed) {
+        const newInt = {
+          id: integrationId,
+          name: regEntry.name,
+          slug: regEntry.id,
+          icon: regEntry.icon,
+          type: regEntry.authType === 'api-key' ? 'api_key' as const : 'oauth' as const,
+          status: 'disconnected' as const,
+          config: { needs_node: false },
+          accounts: [],
+          last_sync: null,
+        };
+        setItems(prev => [...prev, newInt]);
+      }
+      addAccount(integrationId);
+    } catch {
+      toast.error('Error', 'Failed to connect integration');
+    }
+  };
+
   const disconnectAccount = (integrationId: string, accountId: string) => {
     const integration = items.find(i => i.id === integrationId);
     const account = integration?.accounts.find(a => a.id === accountId);
@@ -200,6 +300,59 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
           </Button>
         </Link>
       </div>
+
+      {/* Popular Integrations Quick Connect */}
+      {(() => {
+        const connectedSlugs = new Set(items.map(i => i.slug));
+        const visible = POPULAR_INTEGRATIONS.filter(p =>
+          !dismissedIds.includes(p.id) && !connectedSlugs.has(p.id)
+        );
+        if (visible.length === 0) return null;
+        return (
+          <div className="mb-6 border border-[rgba(58,58,56,0.2)] bg-paper p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="font-mono text-[11px] uppercase tracking-wide text-grid font-semibold">📌 Quick Connect</p>
+                <p className="font-mono text-[9px] text-grid/40 mt-0.5">Popular integrations — click to connect, ✕ to dismiss</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {visible.map(p => {
+                const reg = INTEGRATIONS.find(r => r.id === p.id);
+                if (!reg) return null;
+                const needsNode = reg.authType === 'browser-login';
+                const isConnected = items.some(i => i.slug === p.id || i.id === p.id);
+                return (
+                  <div key={p.id} className="relative flex items-center gap-1.5 border border-[rgba(58,58,56,0.2)] bg-cream/50 px-2.5 py-1.5 pr-6 hover:border-forest/40 transition-colors group">
+                    <IntegrationIcon provider={p.id} size={16} />
+                    <span className="font-mono text-[10px] text-grid">{reg.name}</span>
+                    {needsNode && (
+                      <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-100 text-amber-700 px-1 py-0.5 border border-amber-200 leading-none">Node</span>
+                    )}
+                    {isConnected ? (
+                      <span className="text-forest text-xs">✓</span>
+                    ) : (
+                      <button
+                        onClick={() => connectPopular(p.id)}
+                        className="font-mono text-[9px] uppercase tracking-wide text-forest border border-forest/30 px-1.5 py-0.5 hover:bg-forest/10 transition-colors leading-none"
+                      >
+                        Connect
+                      </button>
+                    )}
+                    <button
+                      onClick={() => dismissPopular(p.id)}
+                      className="absolute top-0.5 right-0.5 text-grid/30 hover:text-grid/70 transition-colors text-[10px] leading-none w-4 h-4 flex items-center justify-center"
+                      title="Dismiss"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Dynamic integration search bar */}
       <form onSubmit={handleResolve} className="mb-6">

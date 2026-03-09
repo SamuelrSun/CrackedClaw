@@ -447,7 +447,21 @@ export const INTEGRATIONS: IntegrationConfig[] = [
     description: 'Customer support',
   },
 
-  // === Other ===
+  // === Design ===
+  {
+    id: 'figma',
+    name: 'Figma',
+    icon: 'Figma',
+    hasApi: true,
+    apiProvider: 'oauth',
+    browserFallback: true,
+    capabilities: ['files', 'projects', 'comments', 'components'],
+    authType: 'oauth',
+    category: 'other',
+    description: 'Collaborative design and prototyping',
+  },
+
+    // === Other ===
   {
     id: 'stripe',
     name: 'Stripe',
