@@ -89,7 +89,7 @@ export default function NodeSettingsPage() {
             <Step n={1} text="Install OpenClaw on your Mac (if not installed)" />
             <Step n={2} text="Open Terminal and run:" />
             <div className="bg-grid/5 border border-[rgba(58,58,56,0.1)] p-3 font-mono text-xs text-grid break-all">
-              openclaw node run --host crackedclaw.com
+              openclaw node run --tls --host crackedclaw.com
             </div>
             <Step n={3} text="Approve the pairing request that appears here" />
           </div>

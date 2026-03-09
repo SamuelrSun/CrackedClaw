@@ -117,7 +117,7 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
           </div>
           <div className="bg-amber-100 border border-amber-300 p-2">
             <code className="font-mono text-[10px] text-amber-900 break-all">
-              {gatewayHost ? `openclaw node run --host ${gatewayHost}` : "openclaw node run --host your-workspace.crackedclaw.com"}
+              {gatewayHost ? `openclaw node run --tls --host ${gatewayHost}` : "openclaw node run --tls --host your-workspace.crackedclaw.com"}
             </code>
           </div>
           <p className="font-mono text-[9px] text-amber-600 leading-relaxed">

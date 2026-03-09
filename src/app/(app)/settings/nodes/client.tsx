@@ -104,7 +104,7 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
   const token = organization?.openclaw_auth_token || "";
 
   const connectionCommand = `export OPENCLAW_GATEWAY_TOKEN="${showToken ? token : maskToken(token)}"
-openclaw node run --host ${host} --port ${port} --display-name "My MacBook"`;
+openclaw node run --tls --host ${host} --port ${port} --display-name "My MacBook"`;
 
   // Fetch pending nodes
   const fetchPendingNodes = useCallback(async () => {
@@ -154,7 +154,7 @@ openclaw node run --host ${host} --port ${port} --display-name "My MacBook"`;
   // Copy command to clipboard
   async function handleCopy() {
     const fullCommand = `export OPENCLAW_GATEWAY_TOKEN="${token}"
-openclaw node run --host ${host} --port ${port} --display-name "My MacBook"`;
+openclaw node run --tls --host ${host} --port ${port} --display-name "My MacBook"`;
     
     try {
       await navigator.clipboard.writeText(fullCommand);

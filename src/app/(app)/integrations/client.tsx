@@ -304,7 +304,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                   {needsNode && integration.status === "disconnected" && (
                     <div className="mt-3 p-2 bg-amber-50 border border-amber-200">
                       <p className="font-mono text-[9px] text-amber-700">
-                        Requires your local node. Run <code className="bg-amber-100 px-1">openclaw node run --host crackedclaw.com</code> to enable.
+                        Requires your local node. Run <code className="bg-amber-100 px-1">openclaw node run --tls --host crackedclaw.com</code> to enable.
                       </p>
                     </div>
                   )}
