@@ -33,11 +33,7 @@ interface PreAuthContext {
 const PRE_AUTH_KEY = "cc_pre_auth";
 const TYPING_SPEED_MS = 18;
 
-const GREETING_MESSAGE = `Hey there. I'm an AI agent that can do pretty much anything — and I mean that literally.
-
-Browse the web for you. Run automations. Connect your tools. Remember everything. Work while you sleep.
-
-I'm glad you're here. Let's make this official.
+const GREETING_MESSAGE = `Hey! I'm fresh out of the box and ready to get to work.
 
 What's your name — and what would you like to call me?`;
 
@@ -217,9 +213,9 @@ function AIBubble({ content, animate, onDone, showAuth, onAuthSuccess }: {
 
   return (
     <div className="flex flex-col gap-2 max-w-[88%]">
-      <div className="bg-forest text-white px-4 py-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap">
+      <div className="text-forest text-sm leading-relaxed whitespace-pre-wrap font-body">
         {displayed}
-        {typing && <span className="inline-block w-[2px] h-[13px] bg-white/70 ml-[1px] align-middle animate-[blink_0.75s_step-end_infinite]" />}
+        {typing && <span className="inline-block w-[2px] h-[13px] bg-forest/60 ml-[1px] align-middle animate-[blink_0.75s_step-end_infinite]" />}
       </div>
       {showAuth && !typing && onAuthSuccess && <AuthCard onSuccess={onAuthSuccess} />}
     </div>
@@ -239,12 +235,12 @@ function UserBubble({ content }: { content: string }) {
 function ProvisioningBubble() {
   return (
     <div className="flex flex-col gap-2 max-w-[88%]">
-      <div className="bg-forest text-white px-4 py-3 font-mono text-[12px] leading-relaxed flex items-center gap-2">
+      <div className="text-forest text-sm leading-relaxed flex items-center gap-2 font-body">
         <span>You&apos;re in. Setting everything up</span>
         <span className="flex gap-[3px] items-center">
-          <span className="w-[5px] h-[5px] bg-white/60 rounded-full animate-bounce [animation-delay:0ms]" />
-          <span className="w-[5px] h-[5px] bg-white/60 rounded-full animate-bounce [animation-delay:150ms]" />
-          <span className="w-[5px] h-[5px] bg-white/60 rounded-full animate-bounce [animation-delay:300ms]" />
+          <span className="w-[5px] h-[5px] bg-forest/40 rounded-full animate-bounce [animation-delay:0ms]" />
+          <span className="w-[5px] h-[5px] bg-forest/40 rounded-full animate-bounce [animation-delay:150ms]" />
+          <span className="w-[5px] h-[5px] bg-forest/40 rounded-full animate-bounce [animation-delay:300ms]" />
         </span>
       </div>
     </div>
