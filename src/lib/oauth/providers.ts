@@ -47,9 +47,14 @@ export const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
     clientSecretEnvVar: 'SLACK_CLIENT_SECRET',
     defaultScopes: [
       'channels:read',
+      'channels:history',
       'chat:write',
+      'files:read',
+      'files:write',
       'users:read',
       'users:read.email',
+      'reactions:read',
+      'reactions:write',
     ],
   },
   notion: {
@@ -70,7 +75,7 @@ export const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
     tokenUrl: 'https://github.com/login/oauth/access_token',
     clientIdEnvVar: 'GITHUB_CLIENT_ID',
     clientSecretEnvVar: 'GITHUB_CLIENT_SECRET',
-    defaultScopes: ['repo', 'read:user', 'user:email', 'read:org'],
+    defaultScopes: ['repo', 'read:user', 'user:email', 'read:org', 'gist', 'workflow'],
   },
   microsoft: {
     name: 'Microsoft 365',
@@ -94,7 +99,7 @@ export const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
     tokenUrl: 'https://api.linear.app/oauth/token',
     clientIdEnvVar: 'LINEAR_CLIENT_ID',
     clientSecretEnvVar: 'LINEAR_CLIENT_SECRET',
-    defaultScopes: ['read', 'write', 'issues:create'],
+    defaultScopes: ['read', 'write', 'issues:create', 'comments:create'],
   },
   discord: {
     name: 'Discord',
@@ -102,7 +107,7 @@ export const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
     tokenUrl: 'https://discord.com/api/oauth2/token',
     clientIdEnvVar: 'DISCORD_CLIENT_ID',
     clientSecretEnvVar: 'DISCORD_CLIENT_SECRET',
-    defaultScopes: ['identify', 'email', 'guilds', 'messages.read'],
+    defaultScopes: ['identify', 'email', 'guilds', 'guilds.members.read', 'messages.read'],
     useBasicAuth: true,
   },
   zoom: {
@@ -111,7 +116,7 @@ export const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
     tokenUrl: 'https://zoom.us/oauth/token',
     clientIdEnvVar: 'ZOOM_CLIENT_ID',
     clientSecretEnvVar: 'ZOOM_CLIENT_SECRET',
-    defaultScopes: ['meeting:read', 'user:read', 'recording:read'],
+    defaultScopes: ['meeting:read', 'meeting:write', 'user:read', 'recording:read'],
     useBasicAuth: true,
   },
   twitter: {
@@ -120,7 +125,7 @@ export const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
     tokenUrl: 'https://api.twitter.com/2/oauth2/token',
     clientIdEnvVar: 'TWITTER_CLIENT_ID',
     clientSecretEnvVar: 'TWITTER_CLIENT_SECRET',
-    defaultScopes: ['tweet.read', 'users.read', 'offline.access'],
+    defaultScopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access', 'dm.read', 'dm.write'],
     useBasicAuth: true,
     additionalAuthParams: {
       code_challenge_method: 'plain',
@@ -144,7 +149,7 @@ export const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
     tokenUrl: 'https://auth.atlassian.com/oauth/token',
     clientIdEnvVar: 'JIRA_CLIENT_ID',
     clientSecretEnvVar: 'JIRA_CLIENT_SECRET',
-    defaultScopes: ['read:jira-work', 'read:jira-user', 'read:me'],
+    defaultScopes: ['read:jira-work', 'write:jira-work', 'read:jira-user', 'read:me'],
     additionalAuthParams: {
       audience: 'api.atlassian.com',
       prompt: 'consent',
@@ -156,7 +161,7 @@ export const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
     tokenUrl: 'https://www.figma.com/api/oauth/token',
     clientIdEnvVar: 'FIGMA_CLIENT_ID',
     clientSecretEnvVar: 'FIGMA_CLIENT_SECRET',
-    defaultScopes: ['file_read'],
+    defaultScopes: ['file_read', 'file_dev_resources:read', 'file_dev_resources:write'],
   },
   reddit: {
     name: 'Reddit',
@@ -164,7 +169,7 @@ export const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
     tokenUrl: 'https://www.reddit.com/api/v1/access_token',
     clientIdEnvVar: 'REDDIT_CLIENT_ID',
     clientSecretEnvVar: 'REDDIT_CLIENT_SECRET',
-    defaultScopes: ['identity', 'read', 'history'],
+    defaultScopes: ['identity', 'read', 'history', 'submit', 'privatemessages'],
     useBasicAuth: true,
     additionalAuthParams: {
       duration: 'permanent',
