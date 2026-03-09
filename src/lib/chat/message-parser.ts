@@ -1,7 +1,17 @@
 import type { IntegrationProvider } from "@/components/chat/integration-connect-card";
+import type { WorkflowDef } from "@/components/workflows/workflow-visualizer";
+
+export interface FileAttachmentMeta {
+  name: string;
+  size: number;
+  mimeType: string;
+  url?: string;
+  id?: string;
+}
 
 export type ParsedSegment =
   | { type: "text"; content: string }
+  | { type: "file-attachment"; files: FileAttachmentMeta[]; message?: string }
   | { type: "integration-connect"; provider: IntegrationProvider }
   | { type: "scan-trigger"; provider: string }
   | { type: "integration-status"; provider: string; status: "connected" | "error"; accountName?: string }
@@ -12,7 +22,9 @@ export type ParsedSegment =
   | { type: "integrations-resolve"; services: string[] }
   | { type: "skill-suggest"; skillId: string; reason: string }
   | { type: "inline-task"; taskName: string; status: "running" | "complete" | "failed"; details?: string }
-  | { type: "browser-preview"; url: string; status: "browsing" | "waiting-login" | "complete" | "error"; message?: string };
+  | { type: "workflow-preview"; workflow: WorkflowDef }
+  | { type: "browser-preview"; url: string; status: "browsing" | "waiting-login" | "complete" | "error"; message?: string }
+  | { type: "email-composer"; to: string[]; cc?: string[]; bcc?: string[]; subject: string; body: string; integration: 'google' | 'microsoft' };
 
 const PATTERNS = {
   inlineTask: /\[\[task:([^:]+):([^:]+)(?::([^\]]+))?\]\]/g,
@@ -26,6 +38,8 @@ const PATTERNS = {
   contextSummary: /\[\[context:summary:(\{.*?\})\]\]/g,
   welcome: /\[\[welcome:([^,\]]+),([^\]]+)\]\]/g,
   browserPreview: /\[\[browser:([^:]+):([^:]+)(?::([^\]]+))?\]\]/g,
+  emailComposer: /\[\[email:(\{[^\]]*\})\]\]/g,
+  fileAttachment: /\[Attached files:([^\]]+)\]/g,
 };
 
 interface MatchInfo {
@@ -35,6 +49,59 @@ interface MatchInfo {
 }
 
 const WORKFLOW_PLACEHOLDER = "[[__WORKFLOW_SUGGEST__]]";
+const WORKFLOW_PREVIEW_PLACEHOLDER = "[[__WORKFLOW_PREVIEW__]]";
+
+/** Extract [[workflow:{...}]] builder preview tags */
+function extractWorkflowPreviews(content: string): {
+  content: string;
+  previews: Array<{ workflow: import("@/components/workflows/workflow-visualizer").WorkflowDef }>;
+} {
+  const TAG_START = "[[workflow:";
+  const previews: Array<{ workflow: import("@/components/workflows/workflow-visualizer").WorkflowDef }> = [];
+  const allMatches: Array<{ index: number; length: number; payload: string }> = [];
+  let searchFrom = 0;
+  while (true) {
+    const start = content.indexOf(TAG_START, searchFrom);
+    if (start === -1) break;
+    const payloadStart = start + TAG_START.length;
+    // Only handle [[workflow:{...}]] (not [[workflow:suggest:...]])
+    if (content[payloadStart] !== "{") { searchFrom = payloadStart; continue; }
+    let depth = 2;
+    let pos = payloadStart;
+    while (pos < content.length && depth > 0) {
+      if (content[pos] === "[") depth++;
+      else if (content[pos] === "]") depth--;
+      if (depth > 0) pos++;
+    }
+    if (depth === 0) {
+      const payload = content.slice(payloadStart, pos - 1);
+      allMatches.push({ index: start, length: pos + 1 - start, payload });
+    }
+    searchFrom = pos + 1;
+  }
+
+  if (allMatches.length === 0) return { content, previews };
+
+  for (const m of allMatches) {
+    try {
+      const wf = JSON.parse(m.payload);
+      if (wf && wf.name && wf.trigger && wf.steps) {
+        previews.push({ workflow: wf });
+      }
+    } catch { /* skip invalid */ }
+  }
+
+  if (previews.length === 0) return { content, previews };
+
+  let result = content;
+  for (let i = allMatches.length - 1; i >= 0; i--) {
+    const m = allMatches[i];
+    const replacement = i === 0 ? WORKFLOW_PREVIEW_PLACEHOLDER : "";
+    result = result.slice(0, m.index) + replacement + result.slice(m.index + m.length);
+  }
+  return { content: result, previews };
+}
+
 
 
 /** Strip [[action:...]] tags from content — these are internal directives, not for display */
@@ -118,9 +185,22 @@ function extractWorkflowSuggestions(content: string): {
 
 export function parseMessageContent(content: string): ParsedSegment[] {
   const cleanContent = stripActionTags(content);
-  const { content: processedContent, suggestions: workflowSuggestions } = extractWorkflowSuggestions(cleanContent);
+  const { content: afterPreviews, previews: workflowPreviews } = extractWorkflowPreviews(cleanContent);
+  const { content: processedContent, suggestions: workflowSuggestions } = extractWorkflowSuggestions(afterPreviews);
 
   const matches: MatchInfo[] = [];
+
+  // Workflow preview placeholder (builder)
+  if (workflowPreviews.length > 0) {
+    const idx = processedContent.indexOf(WORKFLOW_PREVIEW_PLACEHOLDER);
+    if (idx !== -1) {
+      matches.push({
+        index: idx,
+        length: WORKFLOW_PREVIEW_PLACEHOLDER.length,
+        segment: { type: "workflow-preview", workflow: workflowPreviews[0].workflow },
+      });
+    }
+  }
 
   // Workflow suggestions placeholder
   if (workflowSuggestions.length > 0) {
@@ -279,6 +359,82 @@ export function parseMessageContent(content: string): ParsedSegment[] {
     }
   }
 
+
+  // Email composer - bracket-aware extraction for [[email:{...}]]
+  {
+    const EMAIL_TAG = "[[email:";
+    let eSearch = 0;
+    while (true) {
+      const eStart = processedContent.indexOf(EMAIL_TAG, eSearch);
+      if (eStart === -1) break;
+      const payloadStart = eStart + EMAIL_TAG.length;
+      if (processedContent[payloadStart] !== "{") { eSearch = payloadStart; continue; }
+      let depth = 1;
+      let pos = payloadStart + 1;
+      while (pos < processedContent.length && depth > 0) {
+        if (processedContent[pos] === "{") depth++;
+        else if (processedContent[pos] === "}") depth--;
+        pos++;
+      }
+      // now pos points after the closing }
+      if (depth === 0 && processedContent[pos] === "]" && processedContent[pos + 1] === "]") {
+        const payload = processedContent.slice(payloadStart, pos);
+        const totalLen = pos + 2 - eStart;
+        try {
+          const data = JSON.parse(payload);
+          if (data.to && data.subject && data.integration) {
+            matches.push({
+              index: eStart,
+              length: totalLen,
+              segment: {
+                type: "email-composer",
+                to: Array.isArray(data.to) ? data.to : [data.to],
+                cc: data.cc,
+                bcc: data.bcc,
+                subject: data.subject,
+                body: data.body || "",
+                integration: data.integration,
+              },
+            });
+          }
+        } catch { /* skip */ }
+        eSearch = eStart + totalLen;
+      } else {
+        eSearch = payloadStart;
+      }
+    }
+  }
+
+  // File attachments - parse [Attached files: name (size, type)\nUser message: ...]
+  // This is prepended to user messages when files are attached
+  const fileAttachPattern = /^\[Attached files:([^\]]+)\]\nUser message: ([\s\S]*)/;
+  const fileAttachMatch = processedContent.match(fileAttachPattern);
+  if (fileAttachMatch) {
+    const filesStr = fileAttachMatch[1];
+    const userMsg = fileAttachMatch[2].trim();
+    const fileLines = filesStr.split(/,(?=[^)]*\()/).map((s: string) => s.trim()).filter(Boolean);
+    const parsedFiles = fileLines.map((line: string) => {
+      const m2 = line.match(/^(.+?)\s+\(([\d.]+\s*[KMGB]+),\s*([^)]+)\)$/);
+      if (m2) {
+        const sizeStr = m2[2].trim();
+        let sizeBytes = 0;
+        const sizeNum = parseFloat(sizeStr);
+        if (sizeStr.includes('MB')) sizeBytes = sizeNum * 1024 * 1024;
+        else if (sizeStr.includes('KB')) sizeBytes = sizeNum * 1024;
+        else sizeBytes = sizeNum;
+        return { name: m2[1].trim(), size: sizeBytes, mimeType: m2[3].trim() };
+      }
+      return { name: line.trim(), size: 0, mimeType: 'application/octet-stream' };
+    });
+    if (parsedFiles.length > 0) {
+      matches.push({
+        index: 0,
+        length: fileAttachMatch[0].length,
+        segment: { type: 'file-attachment' as const, files: parsedFiles, message: userMsg || undefined },
+      });
+    }
+  }
+
   // Welcome
   PATTERNS.welcome.lastIndex = 0;
   while ((match = PATTERNS.welcome.exec(processedContent)) !== null) {
@@ -342,6 +498,7 @@ export function hasRichContent(content: string): boolean {
     PATTERNS.integrationsResolve.test(content) ||
     PATTERNS.skillSuggest.test(content) ||
     PATTERNS.inlineTask.test(content) ||
-    PATTERNS.browserPreview.test(content)
+    PATTERNS.browserPreview.test(content) ||
+    /\[\[email:\{/.test(content)
   );
 }

@@ -83,11 +83,18 @@ export default function WorkflowsPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="font-header text-3xl font-bold tracking-tight mb-1">Workflows</h1>
-        <p className="font-mono text-[10px] uppercase tracking-wide text-grid/50">
-          Automate anything — just describe it
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="font-header text-3xl font-bold tracking-tight mb-1">Workflows</h1>
+          <p className="font-mono text-[10px] uppercase tracking-wide text-grid/50">
+            Automate anything — just describe it
+          </p>
+        </div>
+        <Link href="/workflows/builder">
+          <button className="px-4 py-2 font-mono text-[10px] uppercase tracking-wide bg-[#1A3C2B] text-white hover:bg-[#1A3C2B]/80 transition-colors flex items-center gap-2">
+            <span>✨</span> Create with AI
+          </button>
+        </Link>
       </div>
 
       {/* Prompt-driven creation */}

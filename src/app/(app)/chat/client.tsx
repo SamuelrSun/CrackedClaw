@@ -34,6 +34,18 @@ import { useNodeStatus } from "@/hooks/use-node-status";
 import { MemoryPanel, type MemoryInsights } from "@/components/chat/memory-panel";
 import { BrowserPopup } from "@/components/chat/browser-popup";
 import { BrowserPreviewCard } from "@/components/chat/browser-preview-card";
+import { LinkedContextBadge } from "@/components/chat/linked-context-badge";
+import { ConversationContextMenu } from "@/components/chat/conversation-context-menu";
+import { ConversationPickerModal } from "@/components/chat/conversation-picker-modal";
+import { FileUploadButton, uploadFiles } from "@/components/chat/file-upload-button";
+import type { UploadedFile } from "@/components/chat/file-upload-button";
+import { FilePreview } from "@/components/chat/file-preview";
+import { FileMessageCard } from "@/components/chat/file-message-card";
+import type { FileAttachmentMeta } from "@/lib/chat/message-parser";
+import { VoiceInputButton } from "@/components/chat/voice-input-button";
+import { VoiceOutputButton } from "@/components/chat/voice-output-button";
+import { EmailComposerCard } from "@/components/chat/email-composer-card";
+import type { EmailDraft } from "@/lib/email/gmail-client";
 
 interface ToolCallInfo {
   tool: string;
@@ -127,6 +139,8 @@ interface RichMessageProps {
   onOpenMemory?: (insights: MemoryInsights, source: string) => void;
   gatewayHost?: string;
   onOpenBrowser?: (url: string, control?: boolean) => void;
+  onSendEmail?: (email: EmailDraft) => Promise<void>;
+  onSaveDraftEmail?: (email: EmailDraft) => Promise<void>;
 }
 
 function RichMessage({
@@ -139,11 +153,27 @@ function RichMessage({
   onOpenMemory,
   gatewayHost,
   onOpenBrowser,
+  onSendEmail,
+  onSaveDraftEmail,
 }: RichMessageProps) {
   return (
     <div className="space-y-3">
       {segments.map((segment, idx) => {
         switch (segment.type) {
+          case "file-attachment":
+            return (
+              <FileMessageCard
+                key={idx}
+                files={(segment.files as FileAttachmentMeta[]).map(f => ({
+                  id: f.id,
+                  name: f.name,
+                  size: f.size,
+                  mimeType: f.mimeType,
+                  url: f.url,
+                }))}
+                message={segment.message}
+              />
+            );
           case "text":
             return (
               <div key={idx} className="prose prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-headings:font-header prose-headings:text-forest prose-strong:text-forest prose-code:text-xs prose-code:bg-grid/10 prose-code:px-1 prose-code:rounded prose-pre:bg-grid/10 prose-pre:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
@@ -226,6 +256,24 @@ function RichMessage({
                 onOpenPopup={() => onOpenBrowser?.(segment.url, false)}
                 onTakeControl={() => onOpenBrowser?.(segment.url, true)}
                 onIgnore={() => {}}
+              />
+            );
+          case "email-composer":
+            return (
+              <EmailComposerCard
+                key={idx}
+                to={segment.to}
+                cc={segment.cc}
+                bcc={segment.bcc}
+                subject={segment.subject}
+                body={segment.body}
+                integration={segment.integration}
+                onSend={async (email) => {
+                  if (onSendEmail) await onSendEmail(email);
+                }}
+                onSaveDraft={async (email) => {
+                  if (onSaveDraftEmail) await onSaveDraftEmail(email);
+                }}
               />
             );
           case "scan-trigger":
@@ -462,6 +510,44 @@ function ReconnectionBanner({
   return null;
 }
 
+function parseFileAttachment(content: string): { files: Array<{name: string; size: number; mimeType: string}>; message: string } | null {
+  const PREFIX = "[Attached files:";
+  const SEP = "]\nUser message: ";
+  if (!content.startsWith(PREFIX)) return null;
+  const closeIdx = content.indexOf(SEP);
+  if (closeIdx === -1) return null;
+  const filesStr = content.slice(PREFIX.length, closeIdx);
+  const message = content.slice(closeIdx + SEP.length).trim();
+  const files = filesStr.split(",").map(s => s.trim()).filter(Boolean).map(line => {
+    const parenOpen = line.lastIndexOf("(");
+    const parenClose = line.lastIndexOf(")");
+    if (parenOpen !== -1 && parenClose !== -1) {
+      const name = line.slice(0, parenOpen).trim();
+      const meta = line.slice(parenOpen + 1, parenClose);
+      const parts = meta.split(",").map(s => s.trim());
+      const sizeStr = parts[0] || "0";
+      const mimeType = parts[1] || "application/octet-stream";
+      const sizeNum = parseFloat(sizeStr);
+      const sizeBytes = sizeStr.includes("MB") ? sizeNum * 1024 * 1024 : sizeStr.includes("KB") ? sizeNum * 1024 : sizeNum;
+      return { name, size: sizeBytes, mimeType };
+    }
+    return { name: line, size: 0, mimeType: "application/octet-stream" };
+  });
+  return { files, message };
+}
+
+function UserMessageContent({ content }: { content: string }) {
+  const parsed = parseFileAttachment(content);
+  if (parsed) {
+    return (
+      <div>
+        <FileMessageCard files={parsed.files} message={parsed.message || undefined} />
+      </div>
+    );
+  }
+  return <p className="whitespace-pre-wrap">{content}</p>;
+}
+
 export default function ChatPageClient({ 
   initialConversations, 
   initialMessages, 
@@ -487,6 +573,10 @@ export default function ChatPageClient({
   const [browserMode, setBrowserMode] = useState<"watching" | "control" | "paused">("watching");
   const [browserNovncUrl, setBrowserNovncUrl] = useState<string>("");
   const [browserCurrentUrl, setBrowserCurrentUrl] = useState<string | undefined>(undefined);
+  const [attachedFiles, setAttachedFiles] = useState<UploadedFile[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [linkedConversations, setLinkedConversations] = useState<Array<{id: string; title: string; link_type: string; link_id: string}>>([]);
+  const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const prevSubagentCountRef = { current: 0 };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastFailedMessage = useRef<string | null>(null);
@@ -696,8 +786,28 @@ export default function ChatPageClient({
   };
 
   const handleSend = async (messageOverride?: string) => {
-    const messageToSend = messageOverride || input.trim();
-    if (!messageToSend || isLoading) return;
+    const baseMessage = messageOverride || input.trim();
+    if (!baseMessage && attachedFiles.length === 0) return;
+    if (isLoading) return;
+
+    // Upload pending files first
+    let uploadedFiles = attachedFiles;
+    if (attachedFiles.some(f => f.status === "pending")) {
+      setAttachedFiles(prev => prev.map(f => f.status === "pending" ? { ...f, status: "uploading" as const, uploadProgress: 0 } : f));
+      uploadedFiles = await uploadFiles(
+        attachedFiles,
+        conversationId || undefined,
+        (id, progress) => setAttachedFiles(prev => prev.map(f => f.id === id ? { ...f, uploadProgress: progress } : f))
+      );
+      setAttachedFiles(uploadedFiles);
+    }
+
+    // Build message with file references
+    const filePrefix = uploadedFiles.length > 0
+      ? `[Attached files: ${uploadedFiles.map(f => `${f.name} (${(f.size / (1024*1024)).toFixed(1)} MB, ${f.type})`).join(", ")}]
+User message: `
+      : "";
+    const messageToSend = filePrefix + (baseMessage || "(see attached files)");
 
     const userMessage: StreamingMessage = {
       id: "msg_" + Date.now(),
@@ -709,6 +819,7 @@ export default function ChatPageClient({
     if (!messageOverride) {
       setMessages((prev) => [...prev, userMessage]);
       setInput("");
+      setAttachedFiles([]);
     }
 
     setIsLoading(true);
@@ -934,6 +1045,50 @@ export default function ChatPageClient({
     } catch { /* ignore */ }
   };
 
+  const loadLinkedConversations = async (convoId: string) => {
+    try {
+      const res = await fetch(`/api/conversations/${convoId}/context`);
+      if (res.ok) {
+        const data = await res.json();
+        setLinkedConversations(data.linked_conversations || []);
+      }
+    } catch { /* ignore */ }
+  };
+
+  // Load linked convos when active conversation changes
+  useEffect(() => {
+    if (conversationId) {
+      loadLinkedConversations(conversationId);
+    } else {
+      setLinkedConversations([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
+
+  const handleLinkConversations = async (selectedIds: string[], linkType: string) => {
+    if (!conversationId) return;
+    await Promise.all(
+      selectedIds.map((targetId) =>
+        fetch(`/api/conversations/${conversationId}/context`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target_id: targetId, link_type: linkType }),
+        })
+      )
+    );
+    await loadLinkedConversations(conversationId);
+  };
+
+  const handleUnlinkConversation = async (targetId: string) => {
+    if (!conversationId) return;
+    await fetch(`/api/conversations/${conversationId}/context`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_id: targetId }),
+    });
+    await loadLinkedConversations(conversationId);
+  };
+
   handleSendRef.current = handleSend;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -1045,16 +1200,27 @@ export default function ChatPageClient({
         <div className="flex-1 overflow-y-auto">
           {conversations.length > 0 ? (
             conversations.map((convo) => (
-              <button
+              <div
                 key={convo.id}
-                onClick={() => loadConversation(convo.id)}
                 className={cn(
-                  "w-full text-left px-4 py-3 border-b border-[rgba(58,58,56,0.1)] transition-colors",
+                  "relative group flex items-center border-b border-[rgba(58,58,56,0.1)] transition-colors",
                   activeConvo === convo.id ? "bg-forest/5 border-l-2 border-l-forest" : "hover:bg-forest/[0.02]"
                 )}
               >
-                <span className="text-sm font-medium truncate block">{convo.title || "New conversation"}</span>
-              </button>
+                <button
+                  onClick={() => loadConversation(convo.id)}
+                  className="flex-1 text-left px-4 py-3 min-w-0"
+                >
+                  <span className="text-sm font-medium truncate block">{convo.title || "New conversation"}</span>
+                </button>
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity pr-2 flex-shrink-0">
+                  <ConversationContextMenu
+                    conversationId={convo.id}
+                    conversationTitle={convo.title}
+                    onLinksChanged={() => conversationId === convo.id && loadLinkedConversations(convo.id)}
+                  />
+                </div>
+              </div>
             ))
           ) : (
             <div className="px-4 py-8 text-center">
@@ -1081,9 +1247,55 @@ export default function ChatPageClient({
       </aside>
 
       {/* Chat Area */}
-      <div className="flex-1 flex flex-col relative">
+      <div
+        className="flex-1 flex flex-col relative"
+        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragOver(false);
+          if (e.dataTransfer.files.length > 0) {
+            const toAdd: UploadedFile[] = [];
+            Array.from(e.dataTransfer.files).slice(0, 5 - attachedFiles.length).forEach(f => {
+              const uf: UploadedFile = {
+                id: `file-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                file: f, name: f.name, size: f.size,
+                type: f.type || 'application/octet-stream',
+                status: 'pending',
+                previewUrl: f.type.startsWith('image/') ? URL.createObjectURL(f) : undefined,
+              };
+              toAdd.push(uf);
+            });
+            if (toAdd.length) setAttachedFiles(prev => [...prev, ...toAdd]);
+          }
+        }}
+      >
+        {/* Drag overlay */}
+        {isDragOver && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-forest/10 border-2 border-dashed border-forest pointer-events-none">
+            <div className="text-center">
+              <div className="text-4xl mb-2">📎</div>
+              <p className="font-mono text-sm text-forest font-medium">Drop files here</p>
+            </div>
+          </div>
+        )}
         {/* Chat header with Tasks button */}
         <div className="flex items-center justify-end px-4 py-1.5 border-b border-[rgba(58,58,56,0.1)] bg-[#F5F3EF]/50">
+          {conversationId && (
+            <button
+              onClick={() => setLinkPickerOpen(true)}
+              className="relative flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-grid/50 hover:text-[#1A3C2B] border border-transparent hover:border-[rgba(26,60,43,0.2)] transition-all rounded-none"
+              title="Link conversations"
+            >
+              <span>🔗</span>
+              <span>Link</span>
+              {linkedConversations.length > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-forest/20 text-forest font-mono text-[9px] ml-0.5">
+                  {linkedConversations.length}
+                </span>
+              )}
+            </button>
+          )}
           <button
             onClick={() => setShowSubagentPanel((v) => !v)}
             className="relative flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-grid/50 hover:text-[#1A3C2B] border border-transparent hover:border-[rgba(26,60,43,0.2)] transition-all rounded-none"
@@ -1113,6 +1325,16 @@ export default function ChatPageClient({
           onRetry={forceReconnect}
           onCancel={cancelReconnect}
         />
+
+        {/* Linked Context Badge */}
+        {linkedConversations.length > 0 && conversationId && (
+          <LinkedContextBadge
+            linkedConversations={linkedConversations}
+            conversationId={conversationId}
+            onEdit={() => setLinkPickerOpen(true)}
+            onUnlink={handleUnlinkConversation}
+          />
+        )}
 
         {/* Node Disconnect Banner */}
         {nodeWasOnline && !nodeIsOnline && !nodeBannerDismissed && !nodeLoading && (
@@ -1197,13 +1419,48 @@ export default function ChatPageClient({
                           setBrowserMode(control ? "control" : "watching");
                           setBrowserPopupOpen(true);
                         }}
+                        onSendEmail={async (email) => {
+                          try {
+                            const res = await fetch('/api/email/send', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(email),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error || 'Send failed');
+                            toast.success('✅ Email sent!', `Message ID: ${data.messageId || 'sent'}`);
+                          } catch (err) {
+                            toast.error('Failed to send email', String(err));
+                            throw err;
+                          }
+                        }}
+                        onSaveDraftEmail={async (email) => {
+                          try {
+                            const res = await fetch('/api/email/draft', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(email),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error || 'Save failed');
+                            toast.success('💾 Draft saved!');
+                          } catch (err) {
+                            toast.error('Failed to save draft', String(err));
+                          }
+                        }}
                       />
                     ) : msg.role === "user" ? (
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      <UserMessageContent content={msg.content} />
                     ) : (
-                      <div className="prose prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-headings:font-header prose-headings:text-forest prose-strong:text-forest prose-code:text-xs prose-code:bg-grid/10 prose-code:px-1 prose-code:rounded prose-pre:bg-grid/10 prose-pre:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-
+                      <div className="relative group">
+                        <div className="prose prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-headings:font-header prose-headings:text-forest prose-strong:text-forest prose-code:text-xs prose-code:bg-grid/10 prose-code:px-1 prose-code:rounded prose-pre:bg-grid/10 prose-pre:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
+                        {msg.content.length >= 20 && (
+                          <div className="flex justify-end mt-1">
+                            <VoiceOutputButton text={msg.content} />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1298,7 +1555,17 @@ export default function ChatPageClient({
               </button>
             </div>
           )}
-          <div className="flex gap-2">
+          {/* File preview strip */}
+          <FilePreview
+            files={attachedFiles}
+            onRemove={(id) => setAttachedFiles(prev => prev.filter(f => f.id !== id))}
+          />
+          <div className="flex gap-2 items-center">
+            <FileUploadButton
+              onFilesSelected={setAttachedFiles}
+              currentFiles={attachedFiles}
+              disabled={!gateway || isLoading || isReconnecting}
+            />
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -1306,12 +1573,18 @@ export default function ChatPageClient({
               placeholder={
                 isReconnecting 
                   ? "Reconnecting to gateway..." 
-                  : gateway 
-                    ? (isInOnboarding ? "Say hello to get started..." : "Message your assistant...") 
-                    : "Connect gateway to chat..."
+                  : attachedFiles.length > 0
+                    ? "Add a message about these files..."
+                    : gateway 
+                      ? (isInOnboarding ? "Say hello to get started..." : "Message your assistant...") 
+                      : "Connect gateway to chat..."
               }
               disabled={!gateway || isLoading || isReconnecting}
               className="flex-1 bg-white border border-[rgba(58,58,56,0.2)] rounded-none px-4 py-2.5 text-sm outline-none focus:border-forest transition-colors placeholder:text-grid/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <VoiceInputButton
+              onTranscript={(text) => setInput(text)}
+              disabled={!gateway || isLoading || isReconnecting}
             />
             <div
               className="relative group"
@@ -1328,13 +1601,24 @@ export default function ChatPageClient({
               <Button 
                 variant="solid" 
                 onClick={() => handleSend()}
-                disabled={!gateway || !input.trim() || isLoading || isReconnecting}
+                disabled={!gateway || (!input.trim() && attachedFiles.length === 0) || isLoading || isReconnecting}
               >
                 {isLoading ? "..." : "Send"}
               </Button>
             </div>
           </div>
         </div>
+
+        {/* Conversation Picker Modal for linking */}
+        {conversationId && (
+          <ConversationPickerModal
+            isOpen={linkPickerOpen}
+            onClose={() => setLinkPickerOpen(false)}
+            currentConversationId={conversationId}
+            onLink={handleLinkConversations}
+            alreadyLinkedIds={linkedConversations.map((l) => l.id)}
+          />
+        )}
 
         {/* Memory Panel */}
         <MemoryPanel

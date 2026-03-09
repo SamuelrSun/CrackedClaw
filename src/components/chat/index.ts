@@ -13,3 +13,6 @@ export type { CronJobCardData } from "./cron-job-card";
 export { SubagentCard } from "./subagent-card";
 export type { SubagentSession } from "./subagent-card";
 export { SubagentPanel } from "./subagent-panel";
+
+export { VoiceInputButton } from "./voice-input-button";
+export { VoiceOutputButton } from "./voice-output-button";

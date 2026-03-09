@@ -201,7 +201,15 @@ Scanning principles:
 - Always ask consent first
 - Scope appropriately: sample recent data, don't fetch everything
 - Extract: contacts, topics, communication style, patterns, automation opportunities
-- For ANY integration you don't have a native adapter for: use browser or API creatively`;
+- For ANY integration you don't have a native adapter for: use browser or API creatively
+## EMAIL DRAFTING
+When the user asks you to draft or send an email, output a rich email card using this syntax:
+[[email:{"to":["recipient@email.com"],"subject":"Subject here","body":"<p>Email body with HTML formatting</p>","integration":"google"}]]
+This renders an interactive email card the user can edit and send with one click.
+- Always include the integration field ("google" or "microsoft" based on their connected account)
+- Use HTML in the body for formatting (paragraphs, lists, bold, etc.)
+- Do NOT also write out the email as plain text — the card IS the email
+- The user can edit all fields before sending`;
 
 export function buildSystemPrompt(ctx: SystemPromptContext): string {
   const parts = [CORE_PROMPT];
@@ -348,4 +356,90 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
   } catch { /* skills table may not exist yet */ }
 
   return buildSystemPrompt(ctx);
+}
+
+/**
+ * Fetch context summaries from conversations linked to the given conversation.
+ * Returns a formatted string to inject into the system prompt, or null if none.
+ */
+export async function buildLinkedContextSummary(
+  userId: string,
+  conversationId: string
+): Promise<string | null> {
+  try {
+    const supabase = await createClient();
+
+    // Get links for this conversation (both directions)
+    const { data: links } = await supabase
+      .from("conversation_links")
+      .select("source_conversation_id, target_conversation_id, link_type")
+      .or(
+        `source_conversation_id.eq.${conversationId},target_conversation_id.eq.${conversationId}`
+      );
+
+    if (!links || links.length === 0) return null;
+
+    const linkedIds = links.map((l: { source_conversation_id: string; target_conversation_id: string }) =>
+      l.source_conversation_id === conversationId
+        ? l.target_conversation_id
+        : l.source_conversation_id
+    );
+
+    if (linkedIds.length === 0) return null;
+
+    // Fetch each linked conversation's recent messages
+    const summaries: string[] = [];
+
+    for (const linkedId of linkedIds) {
+      const { data: convo } = await supabase
+        .from("conversations")
+        .select("id, title, updated_at")
+        .eq("id", linkedId)
+        .eq("user_id", userId)
+        .single();
+
+      if (!convo) continue;
+
+      const { data: msgs } = await supabase
+        .from("messages")
+        .select("role, content, created_at")
+        .eq("conversation_id", linkedId)
+        .order("created_at", { ascending: false })
+        .limit(8);
+
+      if (!msgs || msgs.length === 0) continue;
+
+      const dateLabel = convo.updated_at
+        ? new Date(convo.updated_at).toLocaleDateString("en-US", {
+            month: "numeric",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          })
+        : "";
+
+      const excerpt = msgs
+        .reverse()
+        .map((m: { role: string; content: string }) => {
+          const prefix = m.role === "user" ? "User" : "AI";
+          const text =
+            m.content.length > 300
+              ? m.content.slice(0, 300) + "..."
+              : m.content;
+          return `${prefix}: ${text}`;
+        })
+        .join("\n");
+
+      summaries.push(`[${convo.title} - ${dateLabel}]:\n${excerpt}`);
+    }
+
+    if (summaries.length === 0) return null;
+
+    return (
+      "SHARED CONTEXT FROM LINKED CONVERSATIONS:\n" + summaries.join("\n\n---\n\n")
+    );
+  } catch (err) {
+    console.error("Failed to build linked context summary:", err);
+    return null;
+  }
 }

@@ -10,7 +10,7 @@ import type { GatewayError } from "@/types/gateway";
 import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
 import { processAgentResponse } from "@/lib/memory/service";
 import { incrementUsage } from "@/lib/usage/tracker";
-import { buildSystemPromptForUser } from "@/lib/gateway/system-prompt";
+import { buildSystemPromptForUser, buildLinkedContextSummary } from "@/lib/gateway/system-prompt";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -200,7 +200,14 @@ export async function POST(request: NextRequest) {
 
       try {
         // Build the messages array: system + history + current user message
-        const systemPrompt = isOnboarding ? undefined : await buildSystemPromptForUser(user.id, message);
+        let systemPrompt = isOnboarding ? undefined : await buildSystemPromptForUser(user.id, message);
+        // Inject linked conversation context
+        if (!isOnboarding && systemPrompt && capturedConvoId) {
+          const linkedCtx = await buildLinkedContextSummary(user.id, capturedConvoId);
+          if (linkedCtx) {
+            systemPrompt = systemPrompt + "\n\n" + linkedCtx;
+          }
+        }
         const messagesArray: Array<{ role: string; content: string }> = [];
         if (systemPrompt) {
           messagesArray.push({ role: "system", content: systemPrompt });

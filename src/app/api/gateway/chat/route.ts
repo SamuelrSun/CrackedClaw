@@ -10,7 +10,7 @@ import type { GatewayError } from "@/types/gateway";
 import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
 import { processAgentResponse } from "@/lib/memory/service";
 import { incrementUsage } from "@/lib/usage/tracker";
-import { buildSystemPromptForUser } from "@/lib/gateway/system-prompt";
+import { buildSystemPromptForUser, buildLinkedContextSummary } from "@/lib/gateway/system-prompt";
 
 export const dynamic = 'force-dynamic';
 
@@ -196,6 +196,13 @@ export async function POST(request: NextRequest) {
         systemPrompt = undefined;
       } else {
         systemPrompt = await buildSystemPromptForUser(user.id, message);
+        // Inject linked conversation context
+        if (activeConversationId) {
+          const linkedCtx = await buildLinkedContextSummary(user.id, activeConversationId);
+          if (linkedCtx) {
+            systemPrompt = systemPrompt + "\n\n" + linkedCtx;
+          }
+        }
       }
       const response = await sendGatewayMessage(gatewayUrl, authToken, fullMessage, activeConversationId, { systemPrompt });
 
