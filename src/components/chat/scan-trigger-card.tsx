@@ -84,7 +84,7 @@ export function ScanTriggerCard({ provider, scope = "full", onComplete, onAgentS
             <span className="text-sm text-forest">
               {status === "agent"
                 ? `Agent is scanning ${providerLabel} using browser...`
-                : `Scanning your ${providerLabel}...`}
+                : `Learning about you via ${providerLabel}...`}
             </span>
           </>
         )}
