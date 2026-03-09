@@ -17,7 +17,7 @@ const PATTERNS = {
   integrationConnect: /\[\[integration:(google|slack|notion)\]\]/g,
   integrationStatus: /\[\[integration-status:(\w+):(connected|error)(?::([^\]]+))?\]\]/g,
   subagentProgress: /\[\[subagent:progress:(\{.*?\})\]\]/g,
-  workflowSuggest: /\[\[workflow:suggest:(\{.*?\})\]\]/g,
+  workflowSuggest: /\[\[workflow:suggest:([^\]]+)\]\]/g,
   contextSummary: /\[\[context:summary:(\{.*?\})\]\]/g,
   welcome: /\[\[welcome:([^,\]]+),([^\]]+)\]\]/g,
 };
@@ -28,26 +28,98 @@ interface MatchInfo {
   segment: ParsedSegment;
 }
 
+const WORKFLOW_PLACEHOLDER = "[[__WORKFLOW_SUGGEST__]]";
+
+/**
+ * Pre-process content: collect all [[workflow:suggest:...]] tags (any format),
+ * replace first occurrence with a placeholder, remove the rest.
+ */
+function extractWorkflowSuggestions(content: string): {
+  content: string;
+  suggestions: Array<{ id: string; title: string; description: string }>;
+} {
+  const suggestions: Array<{ id: string; title: string; description: string }> = [];
+  const regex = /\[\[workflow:suggest:([^\]]+)\]\]/g;
+  let match: RegExpExecArray | null;
+
+  const allMatches: Array<{ index: number; length: number; payload: string }> = [];
+  while ((match = regex.exec(content)) !== null) {
+    allMatches.push({ index: match.index, length: match[0].length, payload: match[1] });
+  }
+
+  if (allMatches.length === 0) return { content, suggestions };
+
+  for (let i = 0; i < allMatches.length; i++) {
+    const payload = allMatches[i].payload;
+    if (!payload.startsWith("{")) {
+      // New format: TITLE:DESCRIPTION
+      const colonIdx = payload.indexOf(":");
+      if (colonIdx !== -1) {
+        const title = payload.slice(0, colonIdx).trim();
+        const description = payload.slice(colonIdx + 1).trim();
+        if (title) suggestions.push({ id: `workflow-${i}`, title, description });
+      }
+    } else {
+      // Old JSON format
+      try {
+        const data = JSON.parse(payload);
+        if (data.suggestions) {
+          for (let j = 0; j < data.suggestions.length; j++) {
+            const s = data.suggestions[j];
+            suggestions.push({ id: s.id || `workflow-${i}-${j}`, title: s.name || s.title || "", description: s.description || "" });
+          }
+        } else if (data.name || data.title) {
+          suggestions.push({ id: data.id || `workflow-${i}`, title: data.name || data.title, description: data.description || "" });
+        }
+      } catch { /* skip */ }
+    }
+  }
+
+  if (suggestions.length === 0) return { content, suggestions };
+
+  // Replace tags working backwards to preserve indices
+  let result = content;
+  for (let i = allMatches.length - 1; i >= 0; i--) {
+    const m = allMatches[i];
+    const replacement = i === 0 ? WORKFLOW_PLACEHOLDER : "";
+    result = result.slice(0, m.index) + replacement + result.slice(m.index + m.length);
+  }
+
+  return { content: result, suggestions };
+}
+
 export function parseMessageContent(content: string): ParsedSegment[] {
+  const { content: processedContent, suggestions: workflowSuggestions } = extractWorkflowSuggestions(content);
+
   const matches: MatchInfo[] = [];
 
-  // Find all integration connect patterns
+  // Workflow suggestions placeholder
+  if (workflowSuggestions.length > 0) {
+    const idx = processedContent.indexOf(WORKFLOW_PLACEHOLDER);
+    if (idx !== -1) {
+      matches.push({
+        index: idx,
+        length: WORKFLOW_PLACEHOLDER.length,
+        segment: { type: "workflow-suggest", suggestions: workflowSuggestions },
+      });
+    }
+  }
+
   let match: RegExpExecArray | null;
-  
-  while ((match = PATTERNS.integrationConnect.exec(content)) !== null) {
+
+  // Integration connect
+  PATTERNS.integrationConnect.lastIndex = 0;
+  while ((match = PATTERNS.integrationConnect.exec(processedContent)) !== null) {
     matches.push({
       index: match.index,
       length: match[0].length,
-      segment: {
-        type: "integration-connect",
-        provider: match[1] as IntegrationProvider,
-      },
+      segment: { type: "integration-connect", provider: match[1] as IntegrationProvider },
     });
   }
 
-  // Find all integration status patterns
+  // Integration status
   PATTERNS.integrationStatus.lastIndex = 0;
-  while ((match = PATTERNS.integrationStatus.exec(content)) !== null) {
+  while ((match = PATTERNS.integrationStatus.exec(processedContent)) !== null) {
     matches.push({
       index: match.index,
       length: match[0].length,
@@ -60,45 +132,22 @@ export function parseMessageContent(content: string): ParsedSegment[] {
     });
   }
 
-  // Find all subagent progress patterns
+  // Subagent progress
   PATTERNS.subagentProgress.lastIndex = 0;
-  while ((match = PATTERNS.subagentProgress.exec(content)) !== null) {
+  while ((match = PATTERNS.subagentProgress.exec(processedContent)) !== null) {
     try {
       const data = JSON.parse(match[1]);
       matches.push({
         index: match.index,
         length: match[0].length,
-        segment: {
-          type: "subagent-progress",
-          agents: data.agents || [],
-        },
+        segment: { type: "subagent-progress", agents: data.agents || [] },
       });
-    } catch {
-      // Invalid JSON, skip
-    }
+    } catch { /* skip */ }
   }
 
-  // Find all workflow suggest patterns
-  PATTERNS.workflowSuggest.lastIndex = 0;
-  while ((match = PATTERNS.workflowSuggest.exec(content)) !== null) {
-    try {
-      const data = JSON.parse(match[1]);
-      matches.push({
-        index: match.index,
-        length: match[0].length,
-        segment: {
-          type: "workflow-suggest",
-          suggestions: data.suggestions || [],
-        },
-      });
-    } catch {
-      // Invalid JSON, skip
-    }
-  }
-
-  // Find all context summary patterns
+  // Context summary
   PATTERNS.contextSummary.lastIndex = 0;
-  while ((match = PATTERNS.contextSummary.exec(content)) !== null) {
+  while ((match = PATTERNS.contextSummary.exec(processedContent)) !== null) {
     try {
       const data = JSON.parse(match[1]);
       matches.push({
@@ -110,14 +159,12 @@ export function parseMessageContent(content: string): ParsedSegment[] {
           source: data.source || "your data",
         },
       });
-    } catch {
-      // Invalid JSON, skip
-    }
+    } catch { /* skip */ }
   }
 
-  // Find all integrations:resolve patterns
+  // Integrations resolve
   PATTERNS.integrationsResolve.lastIndex = 0;
-  while ((match = PATTERNS.integrationsResolve.exec(content)) !== null) {
+  while ((match = PATTERNS.integrationsResolve.exec(processedContent)) !== null) {
     const services = match[1].split(",").map(s => s.trim()).filter(Boolean);
     if (services.length > 0) {
       matches.push({
@@ -128,9 +175,9 @@ export function parseMessageContent(content: string): ParsedSegment[] {
     }
   }
 
-  // Find all skill:suggest patterns
+  // Skill suggest
   PATTERNS.skillSuggest.lastIndex = 0;
-  while ((match = PATTERNS.skillSuggest.exec(content)) !== null) {
+  while ((match = PATTERNS.skillSuggest.exec(processedContent)) !== null) {
     matches.push({
       index: match.index,
       length: match[0].length,
@@ -142,9 +189,9 @@ export function parseMessageContent(content: string): ParsedSegment[] {
     });
   }
 
-  // Find all welcome patterns
+  // Welcome
   PATTERNS.welcome.lastIndex = 0;
-  while ((match = PATTERNS.welcome.exec(content)) !== null) {
+  while ((match = PATTERNS.welcome.exec(processedContent)) !== null) {
     matches.push({
       index: match.index,
       length: match[0].length,
@@ -156,36 +203,26 @@ export function parseMessageContent(content: string): ParsedSegment[] {
     });
   }
 
-  // Sort matches by index
+  // Sort by position
   matches.sort((a, b) => a.index - b.index);
 
-  // Build result array with text segments between matches
   const result: ParsedSegment[] = [];
   let lastIndex = 0;
 
   for (const m of matches) {
-    // Add text before this match
     if (m.index > lastIndex) {
-      const textContent = content.slice(lastIndex, m.index).trim();
-      if (textContent) {
-        result.push({ type: "text", content: textContent });
-      }
+      const textContent = processedContent.slice(lastIndex, m.index).trim();
+      if (textContent) result.push({ type: "text", content: textContent });
     }
-    
-    // Add the matched segment
     result.push(m.segment);
     lastIndex = m.index + m.length;
   }
 
-  // Add remaining text after last match
-  if (lastIndex < content.length) {
-    const textContent = content.slice(lastIndex).trim();
-    if (textContent) {
-      result.push({ type: "text", content: textContent });
-    }
+  if (lastIndex < processedContent.length) {
+    const textContent = processedContent.slice(lastIndex).trim();
+    if (textContent) result.push({ type: "text", content: textContent });
   }
 
-  // If no matches found, return entire content as text
   if (result.length === 0 && content.trim()) {
     result.push({ type: "text", content: content.trim() });
   }
@@ -194,6 +231,15 @@ export function parseMessageContent(content: string): ParsedSegment[] {
 }
 
 export function hasRichContent(content: string): boolean {
+  PATTERNS.integrationConnect.lastIndex = 0;
+  PATTERNS.integrationStatus.lastIndex = 0;
+  PATTERNS.subagentProgress.lastIndex = 0;
+  PATTERNS.workflowSuggest.lastIndex = 0;
+  PATTERNS.contextSummary.lastIndex = 0;
+  PATTERNS.welcome.lastIndex = 0;
+  PATTERNS.integrationsResolve.lastIndex = 0;
+  PATTERNS.skillSuggest.lastIndex = 0;
+
   return (
     PATTERNS.integrationConnect.test(content) ||
     PATTERNS.integrationStatus.test(content) ||

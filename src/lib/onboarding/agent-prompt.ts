@@ -38,8 +38,9 @@ import {
  * [[context:summary:{json}]] - Shows context findings summary
  *   Example: [[context:summary:{"emails":42,"meetings":12,"contacts":8}]]
  * 
- * [[workflow:suggest:{json}]] - Renders workflow suggestion cards
- *   Example: [[workflow:suggest:{"id":"email-summary","name":"Daily Digest"}]]
+ * [[workflow:suggest:TITLE:DESCRIPTION]] - Renders a workflow suggestion card
+ *   Output one tag per suggestion on its own line
+ *   Example: [[workflow:suggest:Daily Email Digest:Every morning I'll summarize your important emails]]
  * 
  * [[action:complete_onboarding]] - Signals to end onboarding and go to dashboard
  */
@@ -67,7 +68,7 @@ Special syntax you can output:
 - [[welcome:userName,agentName]] - Trigger welcome animation
 - [[subagent:progress:{json}]] - Show scanning progress
 - [[context:summary:{json}]] - Show context summary
-- [[workflow:suggest:{json}]] - Show workflow suggestions
+- [[workflow:suggest:TITLE:DESCRIPTION]] - Show a workflow suggestion card (output one per suggestion, all on separate lines)
 - [[action:complete_onboarding]] - End onboarding
 `;
 
@@ -167,36 +168,36 @@ Want me to set that up now, or is there something else you'd like to automate fi
   workflow_setup: `
 ## Current Phase: Workflow Setup
 
-Your goal: Help the user create their first automation or suggest workflows.
+Your goal: Suggest 3 CONTEXTUAL workflows tailored to this specific user based on what they told you about their work, tools, and goals.
+
+IMPORTANT: Generate suggestions based on the ACTUAL conversation. Think about what tools they use, what their job is, what they mentioned wanting to automate. Do NOT use generic placeholders.
+
+Format for each suggestion — use EXACTLY this syntax, one per line:
+[[workflow:suggest:TITLE:DESCRIPTION]]
+
+- TITLE: short action-oriented name (5-8 words max)
+- DESCRIPTION: one sentence describing what it does for THEM specifically
 
 Steps:
-1. If you have context: Suggest 2-3 specific workflows based on their work
-2. Output [[workflow:suggest:{...}]] for each suggestion
-3. Ask which interests them OR what they'd like to automate
-4. If they pick one: Walk through setup (or say it's created)
-5. If they skip: That's fine, they can create workflows later
+1. Reflect on what the user told you about their work and tools
+2. Generate 3 specific workflow suggestions tailored to them
+3. Output all 3 using [[workflow:suggest:TITLE:DESCRIPTION]] syntax (no JSON, no code blocks)
+4. Ask which one they'd like to start with, or if they have something else in mind
+5. After they pick one or skip: output [[action:complete_onboarding]]
 
-Example with context:
-"Based on what I learned about your work, here are some things I could automate:
+Example (for a user who mentioned Gmail and LinkedIn sales outreach):
+"Based on what you've told me, here are 3 automations I can set up for you:
 
-[[workflow:suggest:{"id":"email-digest","name":"Daily Email Summary","description":"Morning digest of important emails"}]]
+[[workflow:suggest:Daily LinkedIn outreach digest:Every morning, I'll summarize new connection requests and messages so you can respond fast]]
+[[workflow:suggest:Auto-log sales emails to CRM:When you send or receive sales emails in Gmail, I'll log them and update your pipeline]]
+[[workflow:suggest:Follow-up reminder system:I'll watch your sent emails and remind you to follow up if you don't hear back in 3 days]]
 
-[[workflow:suggest:{"id":"meeting-prep","name":"Meeting Prep","description":"Get context 15 min before each meeting"}]]
+Which of these would be most valuable to start with?"
 
-Which of these would be most helpful? Or tell me something else you'd like automated!"
-
-Example without context:
-"What's something repetitive you do that you'd love to hand off? Some examples:
-- Summarize my emails each morning
-- Remind me about follow-ups
-- Organize my meeting notes
-
-What sounds useful?"
-
-After creating a workflow (or skipping):
+After they pick or skip:
 "[[action:complete_onboarding]]
 
-You're all set! Head to your dashboard to explore OpenClaw. I'm always here if you need me."
+You're all set! I'm ready to help whenever you need me."
 `,
 
   complete: `
