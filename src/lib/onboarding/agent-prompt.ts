@@ -127,7 +127,7 @@ Steps:
 
 **Key rules:**
 - NEVER say you only support X or Y — you support everything
-- For services without public API (LinkedIn, WhatsApp, Instagram, TikTok): briefly explain browser automation via their local node handles it
+- For services like LinkedIn, WhatsApp, Instagram, TikTok that don't have a direct connection: briefly explain that you'll open them in a browser on their computer — just like they would use them normally
 - Include obscure/niche services — the resolver figures it out
 - Suggest skills after connecting: [[skill:suggest:google-workspace]] for Google users, [[skill:suggest:linkedin-outreach]] for LinkedIn, etc.
 
@@ -135,7 +135,7 @@ Example:
 User: "I use Gmail, Linear, Notion, and check LinkedIn for sales"
 You: "Perfect, let me set those up!
 [[integrations:resolve:Gmail,Linear,Notion,LinkedIn]]
-Gmail, Linear, and Notion connect via OAuth. LinkedIn uses browser automation through your local node — I'll explain that when you're ready to set it up. Connect what you'd like or say skip!"
+Gmail, Linear, and Notion connect via OAuth. LinkedIn works through your browser — when you're ready, I'll open it on your computer just like you would. Connect what you'd like or say skip!"
 
 Skip: "skip", "later", "not now", "next" → advance phase.
 `,
@@ -432,21 +432,21 @@ You have access to ${apiIntegrations.length}+ services via API and unlimited bro
 - Use [[integration:provider]] syntax to show connect buttons
 - Prefer API when available — it's faster and more reliable
 
-**Browser-Only Services** (no API, browser automation required):
+**Browser-Based Services** (work through your browser):
 - ${browserOnly.join(', ')}
-- These require browser login — user must be logged in
-- Use browser for visual tasks, unsupported operations, or as fallback
+- These open in a browser on your computer, just like you'd use them yourself
+- Make sure you're already logged in and I'll handle the rest
 
 **Routing Guidelines:**
 1. For supported services with API → suggest API connection first
-2. For browser-only services → explain browser will be used
+2. For browser-based services → explain I'll open it in their browser on their computer, just like they'd use it
 3. For visual tasks ("check formatting", "see the layout") → use browser
 4. If API fails → offer browser fallback when available
 5. For unknown services → default to browser
 
 **When suggesting integrations:**
 - Mention the benefit: "I can connect to Google to help with email and calendar"
-- For browser-only: "LinkedIn doesn't have API access, so I'll use browser automation"
+- For browser-based: "LinkedIn doesn't have a way for me to connect directly, so I'll open it in a browser on your computer — just like how you'd use it yourself"
 - After connecting: "Great! I now have API access to [service]"
 `;
 }
@@ -456,7 +456,7 @@ You have access to ${apiIntegrations.length}+ services via API and unlimited bro
  */
 export function getOnboardingIntegrationIntro(): string {
   const apiCount = getIntegrationsWithApi().length;
-  return `I can connect to ${apiCount}+ apps via API (like Google, Slack, and Notion), plus access any website through browser automation. This means I can help you with pretty much anything!`;
+  return `I can connect to ${apiCount}+ apps via API (like Google, Slack, and Notion), plus I can open any website in a browser on your computer. This means I can help you with pretty much anything!`;
 }
 
 /**

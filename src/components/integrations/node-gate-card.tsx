@@ -70,19 +70,19 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
         <div>
           <p className="font-header font-bold text-sm">{integrationName}</p>
           <span className="font-mono text-[9px] uppercase tracking-wide bg-amber-200 text-amber-800 px-2 py-0.5">
-            Browser Automation · Requires Node
+            Works through your browser
           </span>
         </div>
         <div className="ml-auto flex items-center gap-1.5">
           <div className={`w-2 h-2 rounded-full ${nodeStatus?.isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
           <span className="font-mono text-[9px] text-amber-700">
-            {nodeStatus === null ? 'Checking...' : nodeStatus.isOnline ? `Node: ${nodeStatus.nodeName || 'Online'}` : 'Node Offline'}
+            {nodeStatus === null ? 'Checking...' : nodeStatus.isOnline ? `Connected: ${nodeStatus.nodeName || 'Your Mac'}` : 'Not connected yet'}
           </span>
         </div>
       </div>
 
       <p className="font-mono text-[10px] text-amber-800 mb-4">
-        {integrationName} doesn&apos;t have a public API — OpenClaw uses browser automation through your local node to access it. Your existing login session is used, so no credentials are stored on our servers.
+        I'll open {integrationName} in a browser on your computer — just like you'd use it yourself. Your existing login is used, so nothing is stored on our servers.
       </p>
 
       {nodeStatus?.isOnline ? (
@@ -101,12 +101,12 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="font-mono text-[10px] font-bold text-amber-800">To enable {integrationName}, connect your node:</p>
+          <p className="font-mono text-[10px] font-bold text-amber-800">Here's how to set that up:</p>
           <div className="space-y-2">
             {[
               { n: 1, text: 'Install OpenClaw on your Mac' },
-              { n: 2, text: 'Open Terminal and run:' },
-              { n: 3, text: 'Approve the pairing request in Settings → Nodes' },
+              { n: 2, text: 'Open the Terminal app on your Mac (search "Terminal" in Spotlight — ⌘+Space) and paste:' },
+              { n: 3, text: 'Leave that window open — that\'s it! I can only do things you ask me to.' },
             ].map(step => (
               <div key={step.n} className="flex items-start gap-2">
                 <span className="font-mono text-[9px] bg-amber-200 text-amber-800 w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0">{step.n}</span>
@@ -119,6 +119,9 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
               openclaw node run --host crackedclaw.com
             </code>
           </div>
+          <p className="font-mono text-[9px] text-amber-600 leading-relaxed">
+            I&apos;m not monitoring your screen or accessing anything without your permission. Your data stays on your device and the connection is encrypted.
+          </p>
           <button
             onClick={checkNodeStatus}
             className="w-full py-1.5 font-mono text-[10px] uppercase tracking-wide border border-amber-400 text-amber-700 hover:bg-amber-100 transition-colors"

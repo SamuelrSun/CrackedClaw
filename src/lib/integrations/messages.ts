@@ -89,7 +89,7 @@ export function getBrowserRequiredMessage(
     return `${reasonFormatted.charAt(0).toUpperCase() + reasonFormatted.slice(1).trim()} — I'll need to use the browser for that. Let me open ${name}.`;
   }
   
-  return `${name} requires browser access (no API available). ${integration?.authType === 'browser-login' ? "Make sure you're logged in, and " : ''}I'll handle it from there.`;
+  return `I'll need to open ${name} in your browser for this — just make sure you're logged in and I'll take care of the rest.`;
 }
 
 /**
@@ -144,12 +144,12 @@ export function getMethodExplanation(method: 'api' | 'browser', integrationId?: 
   
   if (name) {
     if (!integration?.hasApi) {
-      return `Using browser automation for ${name} (no API available).`;
+      return `Opening ${name} in your browser to handle this.`;
     }
-    return `Using browser automation for ${name} — needed for visual tasks.`;
+    return `Opening ${name} in your browser for this — needed to see the page directly.`;
   }
   
-  return 'Using browser automation — I can see and interact with the page directly.';
+  return 'Opening this in your browser — I can see and interact with the page just like you would.';
 }
 
 /**
@@ -159,7 +159,7 @@ export function getCapabilityMessage(integrationId: string): string {
   const integration = getIntegration(integrationId);
   
   if (!integration) {
-    return 'I can access this through your browser.';
+    return 'I can open this in a browser on your computer.';
   }
   
   const caps = integration.capabilities.slice(0, 4);
@@ -171,7 +171,7 @@ export function getCapabilityMessage(integrationId: string): string {
     return `With ${integration.name}, I can help with ${capList}.`;
   }
   
-  return `Through ${integration.name}, I can handle ${capList} via browser.`;
+  return `Through ${integration.name}, I can handle ${capList} by opening it in your browser.`;
 }
 
 /**
@@ -221,7 +221,7 @@ export function getSuggestionMessage(task: string): {
   return {
     message: hasApi 
       ? `For that, I'd recommend connecting ${names}. They have great API support.`
-      : `${names} would work well for this. I'll use browser automation.`,
+      : `${names} would work well for this — I'll open it in your browser.`,
     integrations: suggestions.slice(0, 5),
   };
 }
@@ -267,9 +267,9 @@ export function getIntegrationHelpMessage(): string {
 - Google, Microsoft, Slack, Notion, GitHub, and many more
 - Just click "Connect" and authorize
 
-**Browser Access** (universal, visual):  
+**Browser Access** (works through your browser):  
 - LinkedIn, WhatsApp, Instagram, or any website
-- I see and interact with the page like you would
+- I open it on your computer and use it just like you would
 
 Need help setting something up? Just ask!`;
 }

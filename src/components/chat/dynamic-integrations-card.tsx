@@ -53,24 +53,25 @@ function NodeRequiredModal({ name, onClose }: { name: string; onClose: () => voi
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
-          <h3 className="font-header font-bold text-forest text-base">Your computer needs to be connected</h3>
+          <h3 className="font-header font-bold text-forest text-base">Let me use your browser for this</h3>
           <button onClick={onClose} className="text-grid/40 hover:text-grid mt-0.5">
             <X className="w-4 h-4" />
           </button>
         </div>
         <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
-          <strong className="text-forest">{name}</strong> does not have a public API, so your agent
-          needs to control a browser on your computer to use it — just like you would yourself.
+          <strong className="text-forest">{name}</strong> doesn't have a way for me to connect directly, so I'll open it in a browser on your computer — just like you'd use it yourself.
         </p>
-        <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
-          To set this up, open a terminal on your Mac and run:
-        </p>
+        <div className="space-y-2">
+          <p className="font-mono text-[11px] text-grid/70 font-bold">Here&apos;s how to set that up:</p>
+          <p className="font-mono text-[10px] text-grid/60">1. Open the <strong>Terminal</strong> app on your Mac — search &quot;Terminal&quot; in Spotlight (⌘+Space)</p>
+          <p className="font-mono text-[10px] text-grid/60">2. Paste this and press Enter:</p>
+        </div>
         <code className="block bg-forest/5 border border-[rgba(58,58,56,0.15)] px-3 py-2 font-mono text-[11px] text-forest">
           openclaw node run
         </code>
-        <p className="font-mono text-[11px] text-grid/50 leading-relaxed">
-          Keep that running in the background and your agent will be able to control your browser automatically.
-          You will see your computer appear in Settings → Devices once it is connected.
+        <p className="font-mono text-[10px] text-grid/60">3. Leave that window open in the background — that&apos;s it!</p>
+        <p className="font-mono text-[10px] text-grid/50 leading-relaxed mt-1">
+          I can only do things you ask me to. I&apos;m not monitoring your screen or accessing anything without your permission. Your data stays on your device and the connection is encrypted.
         </p>
         <button
           onClick={onClose}
@@ -235,7 +236,7 @@ export function DynamicIntegrationsCard({ services }: DynamicIntegrationsCardPro
                   <div className="flex items-center gap-1.5 mt-0.5">
                     {card.resolved.needsNode ? (
                       <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 border border-amber-200">
-                        Needs your computer
+                        Uses your browser
                       </span>
                     ) : (
                       <span className="font-mono text-[8px] uppercase tracking-wide text-grid/40">
