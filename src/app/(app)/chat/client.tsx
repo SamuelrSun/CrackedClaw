@@ -416,6 +416,7 @@ export default function ChatPageClient({
   hasGateway: initialHasGateway = false,
   initialConversationId,
 }: ChatPageClientProps) {
+  const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
   const [activeConvo, setActiveConvo] = useState(initialConversationId || initialConversations[0]?.id || "");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<StreamingMessage[]>(initialMessages as StreamingMessage[]);
@@ -648,7 +649,16 @@ export default function ChatPageClient({
               ),
             }));
           } else if (chunk.type === "done") {
-            if (chunk.conversation_id) setConversationId(chunk.conversation_id);
+            if (chunk.conversation_id) {
+              const isNew = !conversations.find((c) => c.id === chunk.conversation_id);
+              setConversationId(chunk.conversation_id);
+              if (isNew) {
+                await refreshConversations(chunk.conversation_id);
+              } else {
+                // Update preview: refresh list to get updated title/preview
+                refreshConversations(chunk.conversation_id);
+              }
+            }
             updateMsg((m) => ({ ...m, isStreaming: false }));
             setActiveAgentTasks([]);
             setRetryCount(0);
@@ -718,7 +728,13 @@ export default function ChatPageClient({
       setMessages((prev) => [...prev, assistantMessage]);
       setRetryCount(0);
       lastFailedMessage.current = null;
-      if (data.conversation_id) setConversationId(data.conversation_id);
+      if (data.conversation_id) {
+        const isNew = !conversations.find((c) => c.id === data.conversation_id);
+        setConversationId(data.conversation_id);
+        if (isNew || data.is_onboarding) {
+          await refreshConversations(data.conversation_id);
+        }
+      }
       if (data.is_onboarding) refreshOnboardingState();
     } catch (err) {
       console.error("Fallback chat error:", err);
@@ -745,6 +761,27 @@ export default function ChatPageClient({
       setRetryCount(0);
       handleSend(lastFailedMessage.current);
     }
+  };
+
+
+  const handleNewConversation = () => {
+    setActiveConvo("");
+    setConversationId(null);
+    setMessages([]);
+    setError(null);
+  };
+
+  // Fetch and update conversation list after a conversation is created/updated
+  const refreshConversations = async (newConvId?: string) => {
+    try {
+      const res = await fetch('/api/conversations');
+      if (res.ok) {
+        const data = await res.json();
+        const convos: Conversation[] = data.conversations || [];
+        setConversations(convos);
+        if (newConvId) setActiveConvo(newConvId);
+      }
+    } catch { /* ignore */ }
   };
 
   handleSendRef.current = handleSend;
@@ -835,7 +872,7 @@ export default function ChatPageClient({
           </div>
           <h2 className="font-header text-xl font-bold mb-2">No Gateway Connected</h2>
           <p className="text-sm text-grid/60 mb-6">
-            Connect your personal OpenClaw instance to start chatting. Your gateway runs locally and keeps your data private.
+            Connect your personal gateway instance to start chatting. Your gateway runs locally and keeps your data private.
           </p>
           <Link href="/settings">
             <Button variant="solid">Connect in Settings</Button>
@@ -853,11 +890,11 @@ export default function ChatPageClient({
           <span className="font-mono text-[10px] uppercase tracking-wide text-grid/60">
             Conversations
           </span>
-          <Button variant="solid" size="sm">New</Button>
+          <Button variant="solid" size="sm" onClick={handleNewConversation}>New</Button>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {initialConversations.length > 0 ? (
-            initialConversations.map((convo) => (
+          {conversations.length > 0 ? (
+            conversations.map((convo) => (
               <button
                 key={convo.id}
                 onClick={() => loadConversation(convo.id)}
@@ -954,7 +991,7 @@ export default function ChatPageClient({
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-mono text-[10px] uppercase tracking-wide text-grid/40">
-                      {msg.role === "user" ? "You" : (onboardingState?.agent_name || "OpenClaw")}
+                      {msg.role === "user" ? "You" : (onboardingState?.agent_name || "Assistant")}
                     </span>
                     <span className="font-mono text-[9px] text-grid/30">{msg.timestamp}</span>
                   </div>
@@ -1011,7 +1048,7 @@ export default function ChatPageClient({
                 <p className="text-sm text-grid/50 max-w-sm">
                   {isInOnboarding 
                     ? "Let's get you set up. Type 'hello' to begin!"
-                    : "Ask OpenClaw anything — summarize emails, draft responses, research topics, or get help with tasks."}
+                    : "Ask your assistant anything — summarize emails, draft responses, research topics, or get help with tasks."}
                 </p>
               </div>
             </div>
@@ -1022,7 +1059,7 @@ export default function ChatPageClient({
             <div className="max-w-[70%] mr-auto px-1">
               <div className="flex items-center gap-2 mb-1">
                 <span className="font-mono text-[10px] uppercase tracking-wide text-grid/40">
-                  {onboardingState?.agent_name || "OpenClaw"}
+                  {onboardingState?.agent_name || "Assistant"}
                 </span>
               </div>
               <span className="font-mono text-[11px] text-grid/40 italic animate-pulse">
@@ -1058,7 +1095,7 @@ export default function ChatPageClient({
                 isReconnecting 
                   ? "Reconnecting to gateway..." 
                   : gateway 
-                    ? (isInOnboarding ? "Say hello to get started..." : "Message OpenClaw...") 
+                    ? (isInOnboarding ? "Say hello to get started..." : "Message your assistant...") 
                     : "Connect gateway to chat..."
               }
               disabled={!gateway || isLoading || isReconnecting}
