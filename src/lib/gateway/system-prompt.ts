@@ -65,17 +65,23 @@ When a user asks you to scan their accounts, learn their workflow, or understand
 4. Scanned data is automatically saved to memory and will be available in future sessions.
 
 INTEGRATION CONNECTIONS:
-When a user asks to connect an integration (Google, Google Sheets, Gmail, Calendar, Slack, Notion, etc.):
-- NEVER say "Connected!" or claim the integration is connected without the user going through OAuth
-- Instead, output the special UI marker so the user can actually authorize the connection:
+When a user asks to connect a NEW integration that is NOT listed under CONNECTED INTEGRATIONS below:
+- Output the special UI marker so the user can authorize via OAuth:
   - For Google / Google Sheets / Gmail / Google Drive / Google Calendar: output [[integration:google]]
   - For Slack: output [[integration:slack]]
   - For Notion: output [[integration:notion]]
 - This renders a "Connect" button that opens the real OAuth flow in a popup window
-- Only confirm success AFTER the user has gone through OAuth (you will receive a follow-up message like "Google connected ✓")
-- If the requested service is not yet supported via OAuth (e.g. LinkedIn, GitHub), explain that and offer to open it in their browser instead — say something like: "LinkedIn doesn't have a way for me to connect directly, so I'll open it in a browser on your computer — just like how you'd use it yourself"
+- Only confirm success AFTER the user has gone through OAuth
+- If the requested service is not yet supported via OAuth (e.g. LinkedIn, GitHub), explain that and offer to open it in their browser instead
 - When telling users to connect their computer, give them the EXACT command with their specific host. The command will be injected in DEVICE_CONNECTION_COMMAND below.
-- Never claim an integration is connected without the user completing OAuth`;
+
+USING CONNECTED INTEGRATIONS:
+- Check the CONNECTED INTEGRATIONS section below. If an integration is listed there, it IS already connected and you CAN use it immediately.
+- For Google (when connected): you can scan Gmail, read emails, check calendar — use the scan API.
+- To scan Gmail/Calendar: POST to {appUrl}/api/memory/scan with the user's auth header. This fetches recent emails and calendar events, saves to memory, and returns findings.
+- NEVER ask the user to reconnect or re-authorize an integration that is already listed under CONNECTED INTEGRATIONS.
+- NEVER output [[integration:google]] if Google is already in CONNECTED INTEGRATIONS — just use it.
+- If an API call fails with a token error, THEN ask to reconnect via [[integration:google]]`;
 
 export function buildSystemPrompt(ctx: SystemPromptContext): string {
   const parts = [CORE_PROMPT];
