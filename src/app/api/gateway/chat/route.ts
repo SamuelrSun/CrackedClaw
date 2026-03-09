@@ -3,8 +3,9 @@ import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
 import { createClient } from "@/lib/supabase/server";
 import { logActivity, incrementTokenUsage, getOrganization } from "@/lib/supabase/data";
 import { sendGatewayMessage } from "@/lib/gateway-client";
-import { getOnboardingPrompt, parseOnboardingActions, extractUserName, extractAgentName } from "@/lib/onboarding/agent-prompt";
-import { toOnboardingState, type OnboardingStateRow, type OnboardingStep } from "@/types/onboarding";
+import { getOnboardingPrompt } from "@/lib/onboarding/agent-prompt";
+import { toOnboardingState, type OnboardingStateRow } from "@/types/onboarding";
+import { processOnboardingResponse } from "@/lib/onboarding/process-response";
 import type { GatewayError } from "@/types/gateway";
 import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
 import { processAgentResponse } from "@/lib/memory/service";
@@ -228,125 +229,5 @@ export async function POST(request: NextRequest) {
     }
   } catch {
     return errorResponse("Invalid request body", 400);
-  }
-}
-
-/**
- * Process the AI response and update onboarding state accordingly
- */
-async function processOnboardingResponse(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-  userMessage: string,
-  assistantResponse: string,
-  currentState: ReturnType<typeof toOnboardingState>
-) {
-  const updates: Record<string, unknown> = {};
-  const now = new Date().toISOString();
-
-  // Helper to safely add to completed_steps
-  const addCompletedStep = (step: OnboardingStep) => {
-    const currentSteps = (updates.completed_steps as OnboardingStep[]) || [...currentState.completed_steps];
-    if (!currentSteps.includes(step)) {
-      updates.completed_steps = [...currentSteps, step];
-    }
-  };
-
-  // Extract names from user message if in welcome phase
-  if (currentState.phase === "welcome") {
-    // Check for user name
-    if (!currentState.user_display_name) {
-      const userName = extractUserName(userMessage);
-      if (userName) {
-        updates.user_display_name = userName;
-        addCompletedStep("user_name_provided");
-      }
-    }
-    // Check for agent name
-    else if (!currentState.agent_name) {
-      const agentName = extractAgentName(userMessage);
-      if (agentName) {
-        updates.agent_name = agentName;
-        addCompletedStep("agent_name_provided");
-      }
-    }
-  }
-
-  // Parse special actions from response
-  const actions = parseOnboardingActions(assistantResponse);
-  
-  for (const action of actions) {
-    switch (action.type) {
-      case "welcome": {
-        // Welcome animation triggered - check if we should advance phase
-        const completedSteps = (updates.completed_steps as OnboardingStep[]) || currentState.completed_steps;
-        if (completedSteps.includes("user_name_provided") && completedSteps.includes("agent_name_provided")) {
-          // Advance to integrations phase after welcome
-          updates.phase = "integrations";
-        }
-        break;
-      }
-
-      case "integration":
-        // User clicked connect - mark step in progress
-        // We'll track the connection when OAuth completes
-        break;
-
-      case "action":
-        if (action.payload === "complete_onboarding") {
-          updates.phase = "complete";
-          // Also update profile
-          await supabase
-            .from("profiles")
-            .update({
-              onboarding_completed: true,
-              onboarding_completed_at: now,
-              updated_at: now,
-            })
-            .eq("id", userId);
-        }
-        break;
-
-      case "context":
-        // Context gathering results
-        try {
-          const contextData = JSON.parse(action.payload);
-          updates.gathered_context = {
-            ...currentState.gathered_context,
-            ...contextData,
-          };
-          addCompletedStep("context_scan_completed");
-        } catch {
-          // Invalid JSON
-        }
-        break;
-
-      case "workflow":
-        // Workflow suggestions
-        try {
-          const workflowData = JSON.parse(action.payload);
-          if (workflowData.suggestions) {
-            updates.suggested_workflows = workflowData.suggestions;
-          }
-          addCompletedStep("workflow_suggested");
-        } catch {
-          // Invalid JSON
-        }
-        break;
-    }
-  }
-
-  // Apply updates if any
-  if (Object.keys(updates).length > 0) {
-    updates.updated_at = now;
-    
-    const { error } = await supabase
-      .from("onboarding_state")
-      .update(updates)
-      .eq("user_id", userId);
-
-    if (error) {
-      console.error("Failed to update onboarding state:", error);
-    }
   }
 }

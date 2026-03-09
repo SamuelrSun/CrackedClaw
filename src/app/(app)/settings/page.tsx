@@ -3,12 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import SettingsPageClient from "./client";
 
+export const metadata = { title: "Settings — CrackedClaw" };
+
 export default async function SettingsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {
-    redirect("/login");
+    redirect(`/login?next=/settings`);
   }
 
   const [tokenUsage, teamData, organization] = await Promise.all([

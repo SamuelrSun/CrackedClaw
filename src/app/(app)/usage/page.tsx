@@ -4,9 +4,11 @@ import { UsageClient } from './client';
 
 export const dynamic = 'force-dynamic';
 
+export const metadata = { title: "Usage — CrackedClaw" };
+
 export default async function UsagePage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user) redirect(`/login?next=/usage`);
   return <UsageClient />;
 }

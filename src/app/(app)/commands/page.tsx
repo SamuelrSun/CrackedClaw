@@ -4,6 +4,8 @@ import CommandsPageClient from "./client";
 
 export const dynamic = 'force-dynamic';
 
+export const metadata = { title: "Commands — CrackedClaw" };
+
 export default async function CommandsPage() {
   const supabase = await createClient();
   const {
@@ -11,7 +13,7 @@ export default async function CommandsPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login");
+    redirect(`/login?next=/commands`);
   }
 
   return <CommandsPageClient />;

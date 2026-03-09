@@ -32,7 +32,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
       </div>
       
       <h1 className="font-header text-4xl font-bold text-forest mb-4">
-        Welcome to OpenClaw Cloud
+        Welcome to CrackedClaw
       </h1>
       
       <p className="font-body text-lg text-grid/70 max-w-md mx-auto mb-8">

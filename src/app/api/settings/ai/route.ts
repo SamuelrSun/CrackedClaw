@@ -86,6 +86,14 @@ export async function PUT(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Validate: custom key mode requires a key
+    if (use_default_key === false && !ai_api_key) {
+      return NextResponse.json(
+        { error: "API key is required when not using the default key" },
+        { status: 400 }
+      );
+    }
+
     // Build config update
     const configUpdate: Record<string, unknown> = {};
     

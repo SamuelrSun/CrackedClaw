@@ -85,7 +85,15 @@ export async function getIntegrations(): Promise<Integration[]> {
 
     // Merge: update static integrations with real connection status
     const merged = staticData.map((i): Integration => {
-      const provider = i.slug?.replace('-workspace', '').replace('-', '') || i.name?.toLowerCase()
+      const SLUG_TO_PROVIDER: Record<string, string> = {
+        'google-workspace': 'google',
+        'google-drive': 'google',
+        'google-calendar': 'google',
+        'google-meet': 'google',
+        'microsoft-teams': 'microsoft',
+        'microsoft-365': 'microsoft',
+      };
+      const provider = (i.slug && SLUG_TO_PROVIDER[i.slug]) || i.slug?.replace(/-/g, '') || i.name?.toLowerCase()
       const connected = connectedMap[provider] || connectedMap[i.name?.toLowerCase()] || []
       const isConnected = connected.length > 0
 
@@ -149,13 +157,19 @@ export async function getIntegrations(): Promise<Integration[]> {
 }
 
 // Fetch conversations - returns empty array if none
-export async function getConversations(): Promise<Conversation[]> {
+export async function getConversations(userId?: string): Promise<Conversation[]> {
   try {
     const supabase = await createClient()
-    const { data, error } = await supabase
+    let convoQuery = supabase
       .from('conversations')
       .select('*')
       .order('updated_at', { ascending: false })
+
+    if (userId) {
+      convoQuery = convoQuery.eq('user_id', userId)
+    }
+
+    const { data, error } = await convoQuery
 
     if (error || !data) {
       console.error('Failed to fetch conversations:', error)
@@ -175,7 +189,7 @@ export async function getConversations(): Promise<Conversation[]> {
 }
 
 // Fetch messages - returns empty array if none
-export async function getMessages(conversationId?: string): Promise<Message[]> {
+export async function getMessages(conversationId?: string, userId?: string): Promise<Message[]> {
   try {
     const supabase = await createClient()
     let query = supabase
@@ -185,6 +199,9 @@ export async function getMessages(conversationId?: string): Promise<Message[]> {
 
     if (conversationId) {
       query = query.eq('conversation_id', conversationId)
+    }
+    if (userId) {
+      query = query.eq('user_id', userId)
     }
 
     const { data, error } = await query
@@ -1543,24 +1560,11 @@ export async function getTeamMembersWithInvitations(userId: string): Promise<{
       .single();
 
     if (!userMembership) {
-      // User is not part of any team, create a default org for them
-      const orgId = userId; // Use user ID as org ID for simplicity
-      
-      // Create owner membership
-      await supabase.from("team_members").insert({
-        org_id: orgId,
-        user_id: userId,
-        email: "",
-        name: "",
-        role: "owner",
-        accepted_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      });
-      
+      // User is not part of any team - return empty state
       return {
         members: [],
         invitations: [],
-        currentUserRole: "owner",
+        currentUserRole: "member",
       };
     }
 

@@ -38,13 +38,13 @@ export async function uploadFile(params: {
   buffer: Buffer;
   mode: 'temp' | 'memory';
   conversationId?: string;
-}): Promise<{ file: FileRecord; error?: string }> {
+}): Promise<{ file: FileRecord | null; error?: string }> {
   const { userId, fileName, mimeType, buffer, mode, conversationId } = params;
 
   // Validate
   const validation = validateFile(fileName, mimeType, buffer.length, mode);
   if (!validation.valid) {
-    return { file: null as unknown as FileRecord, error: validation.error };
+    return { file: null, error: validation.error };
   }
 
   const supabase = await createClient();
@@ -59,7 +59,7 @@ export async function uploadFile(params: {
   if (uploadError) {
     // Bucket may not exist yet — return helpful error
     return {
-      file: null as unknown as FileRecord,
+      file: null,
       error: `Storage upload failed: ${uploadError.message}. Ensure the '${bucket}' bucket exists in Supabase Storage.`,
     };
   }
@@ -96,7 +96,7 @@ export async function uploadFile(params: {
     .single();
 
   if (dbError) {
-    return { file: null as unknown as FileRecord, error: `DB error: ${dbError.message}` };
+    return { file: null, error: `DB error: ${dbError.message}` };
   }
 
   // For memory files with extractable text, store chunks immediately

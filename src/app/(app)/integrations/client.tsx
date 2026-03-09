@@ -40,6 +40,11 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
       });
+      if (res.status === 401) {
+        toast.error("Authentication required", "Please sign in to connect integrations");
+        window.location.href = "/login";
+        return;
+      }
       const data = await res.json();
       if (data.resolved?.length) {
         setResolvedCards(data.resolved.map((r: ResolvedIntegration) => ({ resolved: r, creating: false, created: false })));

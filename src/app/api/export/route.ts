@@ -33,13 +33,13 @@ export async function GET(request: NextRequest) {
 
     // Fetch requested data
     if (type === "conversations" || type === "all") {
-      const conversations = await getConversations();
+      const conversations = await getConversations(user!.id);
       const filtered = filterByDateRange(conversations, from, to);
       
       // Get messages for each conversation
       const conversationsWithMessages: ConversationWithMessages[] = await Promise.all(
         filtered.map(async (conv) => {
-          const messages = await getMessages(conv.id);
+          const messages = await getMessages(conv.id, user!.id);
           return {
             ...conv,
             messages,
@@ -69,8 +69,8 @@ export async function GET(request: NextRequest) {
     if (type === "all") {
       // Always return ZIP bundle for "all"
       content = await createZipExport(exportData);
-      contentType = "application/json";
-      filename = `openclaw-export-${timestamp}.json`;
+      contentType = "application/zip";
+      filename = `openclaw-export-${timestamp}.zip`;
     } else if (format === "markdown") {
       if (type === "conversations" && exportData.conversations) {
         content = exportToMarkdown(exportData.conversations);
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
 
 // POST endpoint to get export metadata (counts, estimated size)
 export async function POST(request: NextRequest) {
-  const { error } = await requireApiAuth();
+  const { user, error } = await requireApiAuth();
   if (error) return error;
 
   try {
@@ -132,14 +132,14 @@ export async function POST(request: NextRequest) {
     let estimatedSize = 0;
 
     if (types.includes("conversations")) {
-      const conversations = await getConversations();
+      const conversations = await getConversations(user!.id);
       const filtered = filterByDateRange(conversations, from, to);
       counts.conversations = filtered.length;
       
       // Estimate message count
       let messageCount = 0;
       for (const conv of filtered.slice(0, 10)) {
-        const messages = await getMessages(conv.id);
+        const messages = await getMessages(conv.id, user!.id);
         messageCount += messages.length;
       }
       const avgMessages = filtered.length > 0 ? messageCount / Math.min(10, filtered.length) : 0;

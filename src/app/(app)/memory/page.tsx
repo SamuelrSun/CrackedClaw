@@ -4,10 +4,12 @@ import { MemoryClient } from './client';
 
 export const dynamic = 'force-dynamic';
 
+export const metadata = { title: "Memory — CrackedClaw" };
+
 export default async function MemoryPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user) redirect(`/login?next=/memory`);
 
   const { data: memories } = await supabase
     .from('user_memory')

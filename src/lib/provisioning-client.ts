@@ -2,7 +2,10 @@
  * OpenClaw Provisioning API Client
  */
 
-const PROVISIONING_API_URL = process.env.PROVISIONING_API_URL || "http://164.92.75.153:3100";
+const PROVISIONING_API_URL = process.env.PROVISIONING_API_URL;
+if (!PROVISIONING_API_URL) {
+  throw new Error("PROVISIONING_API_URL environment variable is required");
+}
 
 export interface ProvisionedInstance {
   id: string;

@@ -101,8 +101,6 @@ export async function POST(request: NextRequest) {
       } else {
         organizationId = newOrg.id;
       }
-      organizationId = newOrg.id;
-
       // Update profile with organization_id
       await supabase
         .from("profiles")
@@ -134,7 +132,7 @@ export async function POST(request: NextRequest) {
         openclaw_instance_id: provisionResult.instance.id,
         openclaw_gateway_url: provisionResult.instance.gateway_url,
         openclaw_auth_token: provisionResult.instance.auth_token,
-        openclaw_status: "running", // normalize: instance is up even if API reports "stopped"
+        openclaw_status: provisionResult.instance.status || "provisioning",
         updated_at: now,
       })
       .eq("id", organizationId);

@@ -10,7 +10,6 @@ import { useGateway } from "@/hooks/use-gateway";
 import { Search, Command } from "lucide-react";
 
 const navLinks = [
-  { href: "/", label: "Dashboard" },
   { href: "/commands", label: "Commands" },
   { href: "/chat", label: "Chat" },
   { href: "/memory", label: "Memory" },
@@ -35,10 +34,10 @@ export function Header() {
       <div className="flex items-center h-14 px-6">
         <Link href="/" className="flex items-center gap-3 mr-8">
           <div className="w-8 h-8 bg-forest rounded-none flex items-center justify-center">
-            <span className="text-white font-header text-sm font-bold">OC</span>
+            <span className="text-white font-header text-sm font-bold">CC</span>
           </div>
           <span className="font-header text-sm font-bold tracking-tight text-forest">
-            OpenClaw
+            CrackedClaw
           </span>
         </Link>
 

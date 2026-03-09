@@ -82,7 +82,12 @@ function getErrorMessage(error: { message: string }): string {
 /**
  * Determine redirect path after successful auth
  */
-async function getRedirectPath(): Promise<string> {
+async function getRedirectPath(nextUrl?: string | null): Promise<string> {
+  // If a ?next= param is present, redirect there after login
+  if (nextUrl && nextUrl.startsWith("/")) {
+    return nextUrl;
+  }
+
   // First check localStorage (fast)
   if (checkOnboardingComplete()) {
     return "/";
@@ -108,7 +113,7 @@ async function getRedirectPath(): Promise<string> {
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isSignUp, setIsSignUp] = useState(true);
+  const [isSignUp, setIsSignUp] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -247,7 +252,8 @@ function LoginContent() {
           return;
         }
 
-        const redirectPath = await getRedirectPath();
+        const nextUrl = searchParams.get("next");
+        const redirectPath = await getRedirectPath(nextUrl);
         router.push(redirectPath);
         router.refresh();
       }
@@ -269,10 +275,10 @@ function LoginContent() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="w-12 h-12 bg-forest mx-auto mb-4 flex items-center justify-center">
-            <span className="text-white font-header text-lg font-bold">OC</span>
+            <span className="text-white font-header text-lg font-bold">CC</span>
           </div>
           <h1 className="font-header text-xl font-bold text-forest mb-2">
-            Welcome to OpenClaw
+            Welcome to CrackedClaw
           </h1>
           <p className="font-mono text-[11px] text-grid/60 uppercase tracking-wide">
             AI Agent Management Dashboard
@@ -384,6 +390,7 @@ function LoginContent() {
                 touched={form.touched.password}
                 placeholder="••••••••"
                 disabled={loading}
+                autoComplete={isSignUp ? "new-password" : "current-password"}
               />
               {!isSignUp && (
                 <div className="mt-1.5 text-right">
@@ -441,7 +448,7 @@ function LoginContent() {
         </div>
 
         <p className="font-mono text-[9px] text-grid/40 text-center mt-6 uppercase tracking-wide">
-          By signing in, you agree to our terms of service
+          By signing in, you agree to our <a href="/terms" className="underline hover:text-forest transition-colors">terms of service</a>
         </p>
       </div>
     </div>
@@ -455,7 +462,7 @@ export default function LoginPage() {
         <div className="w-full max-w-sm">
           <div className="text-center">
             <div className="w-12 h-12 bg-forest mx-auto mb-4 flex items-center justify-center">
-              <span className="text-white font-header text-lg font-bold">OC</span>
+              <span className="text-white font-header text-lg font-bold">CC</span>
             </div>
             <p className="font-mono text-[11px] text-grid/60 uppercase tracking-wide">
               Loading...

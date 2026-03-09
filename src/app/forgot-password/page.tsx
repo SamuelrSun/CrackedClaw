@@ -12,6 +12,17 @@ export default function ForgotPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // JS validation (no browser-native required validation)
+    if (!email.trim()) {
+      setError("Email address is required");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -43,7 +54,7 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="w-12 h-12 bg-forest mx-auto mb-4 flex items-center justify-center">
-            <span className="text-white font-header text-lg font-bold">OC</span>
+            <span className="text-white font-header text-lg font-bold">CC</span>
           </div>
           <h1 className="font-header text-xl font-bold text-forest mb-2">
             Reset Password
@@ -90,9 +101,9 @@ export default function ForgotPasswordPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 border border-[rgba(58,58,56,0.2)] bg-white font-mono text-sm text-forest focus:outline-none focus:border-forest transition-colors"
+                    className={`w-full px-3 py-2 border bg-white font-mono text-sm text-forest focus:outline-none transition-colors ${error ? "border-coral focus:border-coral" : "border-[rgba(58,58,56,0.2)] focus:border-forest"}`}
                     placeholder="you@example.com"
+                    autoComplete="email"
                   />
                 </div>
 

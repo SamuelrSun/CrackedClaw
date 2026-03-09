@@ -181,9 +181,24 @@ export async function fetchUserInfo(
       }
       
       case 'notion': {
-        // Notion token response includes owner info directly
-        // This should be called with the full token response
-        return null; // Handled separately in callback
+        // Notion user info is obtained via their users/me endpoint
+        const response = await fetch(
+          'https://api.notion.com/v1/users/me',
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Notion-Version': '2022-06-28',
+            },
+          }
+        );
+        if (!response.ok) return null;
+        const data = await response.json();
+        return {
+          id: data.id,
+          email: data.person?.email,
+          name: data.name,
+          picture: data.avatar_url,
+        };
       }
       
       default:
