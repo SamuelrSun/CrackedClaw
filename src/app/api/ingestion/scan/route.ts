@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiAuth } from '@/lib/api-auth';
-import { runScopedScan } from '@/lib/ingestion/engine';
+import { runScopedScan, isAgentScanNeeded, isNodeScanNeeded } from '@/lib/ingestion/engine';
+import { INTEGRATIONS } from '@/lib/integrations/registry';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -37,21 +38,41 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const insights = await runScopedScan(user.id, provider, scope as 'full' | 'quick');
+    const result = await runScopedScan(user.id, provider, scope as 'full' | 'quick');
 
-    const summary = [
-      `Scanned ${insights.meta.emailsScanned} emails and ${insights.meta.eventsScanned} calendar events.`,
-      insights.topics.length > 0 ? `Top topics: ${insights.topics.slice(0, 5).join(', ')}.` : '',
-      `Writing style: ${insights.writingStyle.tone}, avg ${insights.writingStyle.avgLength} words/email.`,
-      insights.schedulePatterns.busiestDays.length > 0
-        ? `Busiest days: ${insights.schedulePatterns.busiestDays.join(', ')}, ~${insights.schedulePatterns.avgMeetingsPerWeek} meetings/week.`
-        : '',
-      insights.automationOpportunities.length > 0
-        ? `Found ${insights.automationOpportunities.length} automation opportunities.`
-        : '',
-    ].filter(Boolean).join(' ');
+    // ── Agent scan fallback ──────────────────────────────────────────────────
+    if (isAgentScanNeeded(result)) {
+      return NextResponse.json(result); // { needsAgentScan: true, provider, capabilities, authType }
+    }
 
-    return NextResponse.json({ insights, summary, memoriesSaved: true });
+    // ── Node scan needed (messaging providers) ─────────────────────────────
+    if (isNodeScanNeeded(result)) {
+      return NextResponse.json(result); // { needsNode: true, provider, instructions, capabilities }
+    }
+
+    // ── Native scan completed ────────────────────────────────────────────────
+    const { insights, metadata } = result;
+
+    const summaryParts: string[] = [
+      `Scanned ${metadata.itemsScanned} items from ${provider} in ${(metadata.timeMs / 1000).toFixed(1)}s.`,
+    ];
+    if (insights.topics && insights.topics.length > 0) {
+      summaryParts.push(`Top topics: ${insights.topics.slice(0, 5).join(', ')}.`);
+    }
+    if (insights.writingStyle) {
+      summaryParts.push(`Writing tone: ${insights.writingStyle.tone}.`);
+    }
+    if (insights.automationOpportunities && insights.automationOpportunities.length > 0) {
+      summaryParts.push(`Found ${insights.automationOpportunities.length} automation opportunities.`);
+    }
+
+    return NextResponse.json({
+      insights,
+      summary: summaryParts.join(' '),
+      memoriesSaved: true,
+      provider,
+      scope,
+    });
   } catch (err) {
     console.error('Ingestion scan error:', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });

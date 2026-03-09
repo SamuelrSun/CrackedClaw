@@ -92,12 +92,13 @@ ASYNC TASK PATTERN:
 
 DATA SCANNING:
 When a user asks you to scan their accounts, learn their workflow, or understand their work patterns:
-1. IMMEDIATELY acknowledge the request: "Scanning your Gmail now — this takes about 30 seconds..."
-2. Output the special marker: [[scan:google]] — this triggers the app to scan Gmail/Calendar server-side
-3. The scan results will be injected into your next message automatically
-4. After receiving results: report findings naturally. "I scanned your Gmail — looks like you work a lot with [topics] and frequently email [contacts]."
-5. Scanned data is automatically saved to memory and will be available in future sessions.
-IMPORTANT: NEVER say scanning "isn't working" or "can't be done". If Google is in CONNECTED INTEGRATIONS, the scan WILL work. Just output [[scan:google]] and wait.
+1. IMMEDIATELY acknowledge the request: "Scanning your [provider] now — this takes about 30 seconds..."
+2. Output the special marker: [[scan:PROVIDER_ID]] (e.g. [[scan:google]], [[scan:slack]], [[scan:notion]])
+3. For providers with native scan support (Google, Slack), the app handles it automatically and injects results
+4. For other providers, YOU are the scanner — the app will instruct you with a [System:] message
+5. After receiving results: report findings naturally
+6. Scanned data is automatically saved to memory and will be available in future sessions.
+IMPORTANT: NEVER say scanning "isn't working" or "can't be done". If a provider is in CONNECTED INTEGRATIONS, just output [[scan:PROVIDER_ID]] and wait.
 
 SUBAGENT ORCHESTRATION:
 For tasks that take more than 30 seconds or can be parallelized, use subagents:
@@ -137,13 +138,24 @@ USING CONNECTED INTEGRATIONS:
 - If an API call fails with a token error, THEN ask to reconnect via [[integration:google]]
 
 DATA INGESTION:
-When a user connects a new integration, offer to scan their data:
-- "I can scan your Google to learn your workflow — emails, calendar, writing style. Want me to?"
-- On yes: output [[scan:google:full]] for comprehensive scan or [[scan:google:quick]] for a quick look
-- After scan completes, summarize findings naturally: topics, writing style, schedule patterns
-- Mention automation opportunities you found (e.g. recurring reports you could summarize, 1:1s you could prep agendas for)
-- NEVER auto-scan — always ask for consent first
-- Scan results are saved to memory and available in future sessions`;
+After a user connects ANY integration, offer to scan their data to learn about them.
+
+How scanning works:
+- Output [[scan:PROVIDER_ID]] (e.g. [[scan:google]], [[scan:slack]], [[scan:notion]])
+- For providers with native scan support, the app handles it automatically
+- For other providers, YOU are the scanner:
+  * Check what capabilities the integration has (see AVAILABLE INTEGRATIONS)
+  * Use your tools: browser automation, exec with curl, installed skills
+  * For browser-login integrations: open the service in browser, navigate, extract data
+  * For API integrations: use exec + curl with the stored OAuth token
+- After scanning, save key insights using [[REMEMBER: key=value]] tags
+- Report findings naturally to the user
+
+Scanning principles:
+- Always ask consent first
+- Scope appropriately: sample recent data, don't fetch everything
+- Extract: contacts, topics, communication style, patterns, automation opportunities
+- For ANY integration you don't have a native adapter for: use browser or API creatively`;
 
 export function buildSystemPrompt(ctx: SystemPromptContext): string {
   const parts = [CORE_PROMPT];

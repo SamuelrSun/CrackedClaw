@@ -190,7 +190,7 @@ export const INTEGRATIONS: IntegrationConfig[] = [
     capabilities: ['messages', 'groups', 'channels', 'bots'],
     authType: 'api-key',
     category: 'communication',
-    description: 'Messaging with bots',
+    description: 'Messaging with bots — requires connected Mac node for scanning',
   },
   {
     id: 'whatsapp',
@@ -201,7 +201,18 @@ export const INTEGRATIONS: IntegrationConfig[] = [
     capabilities: ['messages', 'groups', 'status'],
     authType: 'browser-login',
     category: 'communication',
-    description: 'Personal and business messaging',
+    description: 'Personal and business messaging — requires connected Mac node for scanning',
+  },
+  {
+    id: 'imessage',
+    name: 'iMessage',
+    icon: 'MessageCircle',
+    hasApi: false,
+    browserFallback: false,
+    capabilities: ['messages', 'contacts'],
+    authType: 'browser-login',
+    category: 'communication',
+    description: 'Requires connected Mac node with Messages.app',
   },
   {
     id: 'zoom',
