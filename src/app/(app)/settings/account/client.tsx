@@ -25,9 +25,6 @@ interface DeletionInfo {
   is_owner: boolean;
   has_other_members: boolean;
   member_count?: number;
-  instance_id?: string;
-  instance_status?: string;
-  can_delete_instance: boolean;
   dataToDelete: string[];
 }
 
@@ -42,10 +39,8 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmText, setConfirmText] = useState("");
-  const [deleteInstanceChecked, setDeleteInstanceChecked] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch deletion info when modal opens
   useEffect(() => {
     if (showDeleteModal) {
       fetchDeletionInfo();
@@ -57,9 +52,7 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
     setError(null);
     try {
       const res = await fetch("/api/account/delete");
-      if (!res.ok) {
-        throw new Error("Failed to fetch account info");
-      }
+      if (!res.ok) throw new Error("Failed to fetch account info");
       const data = await res.json();
       setDeletionInfo(data);
     } catch (err) {
@@ -75,12 +68,6 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
       return;
     }
 
-    // If there's an instance and user hasn't checked the box
-    if (deletionInfo?.instance_id && deletionInfo?.can_delete_instance && !deleteInstanceChecked) {
-      setError("Please confirm you want to delete the CrackedClaw instance");
-      return;
-    }
-
     setDeleting(true);
     setError(null);
 
@@ -88,18 +75,12 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
       const res = await fetch("/api/account/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          confirmDeleteInstance: deleteInstanceChecked,
-        }),
+        body: JSON.stringify({}),
       });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete account");
 
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to delete account");
-      }
-
-      // Success - sign out and redirect to home
       const supabase = createClient();
       await supabase.auth.signOut();
       window.location.href = "/";
@@ -119,7 +100,6 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      {/* Header */}
       <div className="mb-6">
         <Link 
           href="/settings"
@@ -164,21 +144,15 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-grid/40" />
                 <div>
-                  <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50 block">
-                    Email
-                  </span>
+                  <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50 block">Email</span>
                   <span className="font-mono text-xs text-forest">{user.email}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-grid/40" />
                 <div>
-                  <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50 block">
-                    Member Since
-                  </span>
-                  <span className="font-mono text-xs text-forest">
-                    {formatDate(user.created_at)}
-                  </span>
+                  <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50 block">Member Since</span>
+                  <span className="font-mono text-xs text-forest">{formatDate(user.created_at)}</span>
                 </div>
               </div>
             </div>
@@ -192,13 +166,10 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
               <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-coral flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <h4 className="font-header font-bold text-coral mb-1">
-                    Delete Account
-                  </h4>
+                  <h4 className="font-header font-bold text-coral mb-1">Delete Account</h4>
                   <p className="font-mono text-[11px] text-grid/60 mb-4">
-                    Once you delete your account, there is no going back. Please be certain.
-                    This will permanently delete all your data including conversations, 
-                    memory entries, workflows, and integrations.
+                    Once you delete your account, there is no going back. This will permanently delete
+                    all your data including conversations, memory entries, workflows, and integrations.
                   </p>
                   <Button 
                     variant="ghost"
@@ -220,7 +191,6 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white w-full max-w-lg mx-4 border border-grid/20 shadow-xl">
-            {/* Modal Header */}
             <div className="p-4 border-b border-grid/10 bg-coral/5">
               <div className="flex items-center gap-2 text-coral">
                 <AlertTriangle className="w-5 h-5" />
@@ -228,7 +198,6 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
               </div>
             </div>
 
-            {/* Modal Body */}
             <div className="p-4 max-h-[60vh] overflow-y-auto">
               {loading ? (
                 <div className="text-center py-8">
@@ -241,7 +210,6 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
                 </div>
               ) : deletionInfo ? (
                 <div className="space-y-4">
-                  {/* What will be deleted */}
                   <div>
                     <h3 className="font-header font-bold text-sm mb-2">
                       The following will be permanently deleted:
@@ -256,40 +224,15 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
                     </ul>
                   </div>
 
-                  {/* Instance warning for team owners */}
-                  {deletionInfo.has_other_members && deletionInfo.instance_id && (
+                  {deletionInfo.has_other_members && (
                     <div className="p-3 bg-amber-50 border border-amber-300">
                       <p className="font-mono text-[11px] text-amber-800">
-                        <strong>Note:</strong> Your organization has {deletionInfo.member_count} other 
-                        member(s). Ownership will be transferred to another team member. 
-                        The CrackedClaw instance will remain active for them.
+                        <strong>Note:</strong> Your organization has {deletionInfo.member_count} other
+                        member(s). Ownership will be transferred to another team member.
                       </p>
                     </div>
                   )}
 
-                  {/* Instance deletion checkbox for solo owners */}
-                  {deletionInfo.can_delete_instance && deletionInfo.instance_id && (
-                    <div className="p-3 bg-coral/10 border border-coral/30">
-                      <label className="flex items-start gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={deleteInstanceChecked}
-                          onChange={(e) => setDeleteInstanceChecked(e.target.checked)}
-                          className="mt-1 w-4 h-4 border-coral accent-coral"
-                        />
-                        <div>
-                          <span className="font-mono text-[11px] text-coral font-bold block">
-                            Also delete my CrackedClaw cloud instance
-                          </span>
-                          <span className="font-mono text-[10px] text-grid/60">
-                            Instance ID: {deletionInfo.instance_id}
-                          </span>
-                        </div>
-                      </label>
-                    </div>
-                  )}
-
-                  {/* Confirmation input */}
                   <div>
                     <label className="font-mono text-[11px] text-grid/70 block mb-2">
                       Type <strong className="text-coral">DELETE</strong> to confirm:
@@ -305,7 +248,6 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
                     />
                   </div>
 
-                  {/* Error message */}
                   {error && (
                     <div className="p-3 bg-coral/10 border border-coral/30 text-coral font-mono text-[11px]">
                       {error}
@@ -315,7 +257,6 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
               ) : null}
             </div>
 
-            {/* Modal Footer */}
             <div className="p-4 border-t border-grid/10 flex justify-end gap-2">
               <Button
                 variant="ghost"
@@ -323,7 +264,6 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
                 onClick={() => {
                   setShowDeleteModal(false);
                   setConfirmText("");
-                  setDeleteInstanceChecked(false);
                   setError(null);
                 }}
                 disabled={deleting}

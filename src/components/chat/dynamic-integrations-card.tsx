@@ -101,11 +101,8 @@ function NodeRequiredModal({ name, onClose, gatewayHost }: { name: string; onClo
   };
 
   const handleCopy = async () => {
-    const token = nodeStatus?.authToken || "";
-    const host = nodeStatus?.gatewayUrl ? parseGatewayHost(nodeStatus.gatewayUrl) : gatewayHost || "your-workspace.crackedclaw.com";
-    const fullCommand = token 
-      ? `curl -sL "https://crackedclaw.com/api/node/setup?token=${token}" | bash`
-      : `openclaw node run --tls --host ${host}`;
+    const token = nodeStatus?.authToken || "YOUR_TOKEN";
+    const fullCommand = `crackedclaw-connect --token ${token} --server wss://companion.crackedclaw.com/api/companion/ws`;
     
     try {
       await navigator.clipboard.writeText(fullCommand);
@@ -121,8 +118,8 @@ function NodeRequiredModal({ name, onClose, gatewayHost }: { name: string; onClo
     : (gatewayHost || "your-workspace.crackedclaw.com");
 
   const maskedCommand = nodeStatus?.authToken
-    ? `curl -sL "https://crackedclaw.com/api/node/setup?token=${nodeStatus.authToken}" | bash`
-    : `curl -sL "https://crackedclaw.com/api/node/setup?token=YOUR_TOKEN" | bash`;
+    ? `crackedclaw-connect --token ${nodeStatus.authToken} --server wss://companion.crackedclaw.com/api/companion/ws`
+    : `crackedclaw-connect --token YOUR_TOKEN --server wss://companion.crackedclaw.com/api/companion/ws`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -200,7 +197,7 @@ function NodeRequiredModal({ name, onClose, gatewayHost }: { name: string; onClo
           <>
             <div className="space-y-2">
               <p className="font-mono text-[11px] text-grid/70 font-bold">Here&apos;s how to set that up:</p>
-              <p className="font-mono text-[10px] text-grid/60">1. Install OpenClaw (npm install -g openclaw)</p>
+              <p className="font-mono text-[10px] text-grid/60">1. Download CrackedClaw Connect from crackedclaw.com/connect</p>
               <p className="font-mono text-[10px] text-grid/60">2. Open <strong>Terminal</strong> on your Mac and paste the command below:</p>
             </div>
             

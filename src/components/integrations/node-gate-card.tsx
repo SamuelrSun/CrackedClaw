@@ -68,11 +68,8 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
   };
 
   const handleCopy = async () => {
-    const token = nodeStatus?.authToken || "";
-    const host = nodeStatus?.gatewayUrl ? parseGatewayHost(nodeStatus.gatewayUrl) : gatewayHost || "your-workspace.crackedclaw.com";
-    const fullCommand = token 
-      ? `curl -sL "https://crackedclaw.com/api/node/setup?token=${token}" | bash`
-      : `openclaw node run --tls --host ${host}`;
+    const token = nodeStatus?.authToken || "YOUR_TOKEN";
+    const fullCommand = `crackedclaw-connect --token ${token} --server wss://companion.crackedclaw.com/api/companion/ws`;
     
     try {
       await navigator.clipboard.writeText(fullCommand);
@@ -113,8 +110,8 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
     : (gatewayHost || "your-workspace.crackedclaw.com");
 
   const maskedCommand = nodeStatus?.authToken
-    ? `curl -sL "https://crackedclaw.com/api/node/setup?token=${nodeStatus.authToken}" | bash`
-    : `curl -sL "https://crackedclaw.com/api/node/setup?token=YOUR_TOKEN" | bash`;
+    ? `crackedclaw-connect --token ${nodeStatus.authToken} --server wss://companion.crackedclaw.com/api/companion/ws`
+    : `crackedclaw-connect --token YOUR_TOKEN --server wss://companion.crackedclaw.com/api/companion/ws`;
 
   return (
     <div className="border border-amber-200 bg-amber-50 p-4 max-w-md">
@@ -244,7 +241,7 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
           </div>
           
           <p className="font-mono text-[9px] text-amber-600 leading-relaxed">
-            This one-liner installs OpenClaw (if needed), registers your device, and starts the connection. Your auth token is embedded. Nothing is stored on our servers — your data stays on your device.
+            This connects your computer to CrackedClaw. Your auth token is embedded in the command. Nothing is stored on our servers — your data stays on your device.
           </p>
         </div>
       )}

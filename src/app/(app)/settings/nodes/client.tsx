@@ -103,8 +103,7 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
   const { host, port } = parseGatewayUrl(organization?.openclaw_gateway_url || null);
   const token = organization?.openclaw_auth_token || "";
 
-  const portFlag = port && port !== "443" ? ` --port ${port}` : "";
-  const connectionCommand = `OPENCLAW_GATEWAY_TOKEN=${showToken ? token : maskToken(token)} openclaw node run --tls --host ${host}${portFlag}`;
+  const connectionCommand = `crackedclaw-connect --token ${showToken ? token : maskToken(token)} --server wss://companion.crackedclaw.com/api/companion/ws`;
 
   // Fetch pending nodes
   const fetchPendingNodes = useCallback(async () => {
@@ -153,8 +152,7 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
 
   // Copy command to clipboard
   async function handleCopy() {
-    const pFlag = port && port !== "443" ? ` --port ${port}` : "";
-    const fullCommand = `OPENCLAW_GATEWAY_TOKEN=${token} openclaw node run --tls --host ${host}${pFlag}`;
+    const fullCommand = `crackedclaw-connect --token ${token} --server wss://companion.crackedclaw.com/api/companion/ws`;
     
     try {
       await navigator.clipboard.writeText(fullCommand);
@@ -253,7 +251,7 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
               Nodes
             </h1>
             <p className="font-mono text-[10px] uppercase tracking-wide text-grid/50 mt-1">
-              Connect and manage your Mac devices
+              Connect your Mac via CrackedClaw Connect
             </p>
           </div>
           <Button
@@ -275,7 +273,7 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
             <div className="flex items-center gap-2 mb-4">
               <Monitor className="w-4 h-4 text-mint" />
               <span className="font-mono text-[11px] text-grid/60">
-                Run this command on your Mac to connect it as a node
+                Run this command on your Mac to connect it as a device
               </span>
             </div>
 
@@ -283,18 +281,18 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
             <div className="grid grid-cols-2 gap-4 p-4 border border-[rgba(58,58,56,0.1)] bg-forest/5">
               <div>
                 <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50 block mb-1">
-                  Gateway Host
+                  Server
                 </span>
                 <span className="font-mono text-xs text-forest">
-                  {host}
+                  companion.crackedclaw.com
                 </span>
               </div>
               <div>
                 <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50 block mb-1">
-                  Port
+                  Protocol
                 </span>
                 <span className="font-mono text-xs text-forest">
-                  {port}
+                  WSS (encrypted)
                 </span>
               </div>
             </div>
@@ -333,13 +331,13 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
             {/* Install instructions link */}
             <div className="pt-2 border-t border-[rgba(58,58,56,0.1)]">
               <a
-                href="https://docs.openclaw.io/installation"
+                href="https://crackedclaw.com/connect"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-forest hover:text-mint transition-colors"
               >
                 <ExternalLink className="w-3 h-3" />
-                Don&apos;t have the OpenClaw CLI? View installation instructions
+                Download CrackedClaw Connect
               </a>
             </div>
           </div>

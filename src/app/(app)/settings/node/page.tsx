@@ -86,12 +86,12 @@ export default function NodeSettingsPage() {
         <div className="border border-[rgba(58,58,56,0.2)] bg-paper p-4">
           <p className="font-mono text-[10px] uppercase tracking-wide text-grid/40 mb-3">Connect your node</p>
           <div className="space-y-3">
-            <Step n={1} text="Install OpenClaw on your Mac (if not installed)" />
+            <Step n={1} text="Download CrackedClaw Connect from crackedclaw.com/connect" />
             <Step n={2} text="Open Terminal and run:" />
             <div className="bg-grid/5 border border-[rgba(58,58,56,0.1)] p-3 font-mono text-xs text-grid break-all">
-              openclaw node run --tls --host crackedclaw.com
+              crackedclaw-connect --token YOUR_TOKEN --server wss://companion.crackedclaw.com/api/companion/ws
             </div>
-            <Step n={3} text="Approve the pairing request that appears here" />
+            <Step n={3} text="Your token is available in Settings → Connect" />
           </div>
           <button
             onClick={fetchStatus}

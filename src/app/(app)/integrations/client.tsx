@@ -222,8 +222,8 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
     // Node-based: show instruction
     if (regEntry.authType === 'browser-login') {
       toast.info(
-        regEntry.name + ' requires a Node',
-        'Run: openclaw node run --tls --host crackedclaw.com'
+        regEntry.name + ' uses browser automation',
+        "I'll open it in a browser — you log in, then I take over. No CLI needed."
       );
       return;
     }
@@ -470,7 +470,9 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                   {needsNode && integration.status === "disconnected" && (
                     <div className="mt-3 p-2 bg-amber-50 border border-amber-200">
                       <p className="font-mono text-[9px] text-amber-700">
-                        Requires your local node. Run <code className="bg-amber-100 px-1">openclaw node run --tls --host crackedclaw.com</code> to enable.
+                        Uses browser automation. Connect via{' '}
+                        <a href="/settings/connect" className="underline">Settings → Connect</a>{' '}
+                        or run: <code className="bg-amber-100 px-1">crackedclaw-connect --token YOUR_TOKEN --server wss://companion.crackedclaw.com/api/companion/ws</code>
                       </p>
                     </div>
                   )}
