@@ -89,7 +89,7 @@ export function IntegrationConnectCard({
             {config.name}
           </h4>
           <p className="text-xs text-grid/60 mt-0.5">
-            {status === "connected" ? "Connected ✓" : config.description}
+            {config.description}
           </p>
         </div>
       </div>
