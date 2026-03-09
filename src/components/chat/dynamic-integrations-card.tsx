@@ -335,29 +335,8 @@ export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegr
         // Node not connected — show setup instructions
         setNodeModal(resolved.name);
       } else {
-        // Node is connected — open the service in user's browser so they can log in
-        setCards(prev => prev.map((c, idx) => idx === index ? { ...c, status: "adding" } : c));
-        try {
-          const loginUrls: Record<string, string> = {
-            linkedin: "https://www.linkedin.com/login",
-            twitter: "https://twitter.com/login",
-            facebook: "https://www.facebook.com/login",
-            instagram: "https://www.instagram.com/accounts/login/",
-          };
-          const url = loginUrls[resolved.slug] || `https://${resolved.slug}.com`;
-          const res = await fetch("/api/node/browser", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ command: { action: "navigate", url, profile: "openclaw" } }),
-          });
-          if (res.ok) {
-            setCards(prev => prev.map((c, idx) => idx === index ? { ...c, status: "added" } : c));
-          } else {
-            setCards(prev => prev.map((c, idx) => idx === index ? { ...c, status: "idle" } : c));
-          }
-        } catch {
-          setCards(prev => prev.map((c, idx) => idx === index ? { ...c, status: "idle" } : c));
-        }
+        // Node is connected — mark as ready. The assistant will open the browser when needed.
+        setCards(prev => prev.map((c, idx) => idx === index ? { ...c, status: "added" } : c));
       }
       return;
     }
@@ -462,7 +441,7 @@ export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegr
                   className="flex-shrink-0 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-grid text-paper hover:bg-grid/80 transition-colors"
                 >
                   {(card.resolved.needsNode || card.resolved.authType === "browser") && nodeOnline
-                    ? "Log In"
+                    ? "Ready ✓"
                     : "Connect"}
                 </button>
               )}
