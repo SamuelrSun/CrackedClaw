@@ -3,6 +3,7 @@ import type { IntegrationProvider } from "@/components/chat/integration-connect-
 export type ParsedSegment =
   | { type: "text"; content: string }
   | { type: "integration-connect"; provider: IntegrationProvider }
+  | { type: "scan-trigger"; provider: string }
   | { type: "integration-status"; provider: string; status: "connected" | "error"; accountName?: string }
   | { type: "subagent-progress"; agents: Array<{ name: string; status: "scanning" | "complete" | "error"; source: string }> }
   | { type: "workflow-suggest"; suggestions: Array<{ id: string; title: string; description: string }> }
@@ -15,6 +16,7 @@ const PATTERNS = {
   integrationsResolve: /\[\[integrations:resolve:([^\]]+)\]\]/g,
   skillSuggest: /\[\[skill:suggest:([^,\]]+)(?:,([^\]]+))?\]\]/g,
   integrationConnect: /\[\[integration:(google|slack|notion)\]\]/g,
+  scanTrigger: /\[\[scan:(google|slack|notion)\]\]/g,
   integrationStatus: /\[\[integration-status:(\w+):(connected|error)(?::([^\]]+))?\]\]/g,
   subagentProgress: /\[\[subagent:progress:(\{.*?\})\]\]/g,
   workflowSuggest: /\[\[workflow:suggest:/g,
@@ -131,6 +133,17 @@ export function parseMessageContent(content: string): ParsedSegment[] {
   let match: RegExpExecArray | null;
 
   // Integration connect
+
+  // Parse [[scan:provider]] triggers
+  PATTERNS.scanTrigger.lastIndex = 0;
+  while ((match = PATTERNS.scanTrigger.exec(processedContent)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      segment: { type: "scan-trigger", provider: match[1] },
+    });
+  }
+
   PATTERNS.integrationConnect.lastIndex = 0;
   while ((match = PATTERNS.integrationConnect.exec(processedContent)) !== null) {
     matches.push({

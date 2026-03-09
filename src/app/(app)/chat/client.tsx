@@ -15,6 +15,7 @@ import { ConversationListSkeleton } from "@/components/skeletons/list-skeleton";
 import { ChatSkeleton } from "@/components/skeletons/chat-skeleton";
 import { parseMessageContent, type ParsedSegment } from "@/lib/chat/message-parser";
 import { DynamicIntegrationsCard } from "@/components/chat/dynamic-integrations-card";
+import { ScanTriggerCard } from "@/components/chat/scan-trigger-card";
 import { SkillSuggestCard } from "@/components/chat/skill-suggest-card";
 import {
   IntegrationConnectCard,
@@ -189,6 +190,14 @@ function RichMessage({
                 key={idx}
                 skillId={segment.skillId}
                 reason={segment.reason}
+              />
+            );
+          case "scan-trigger":
+            return (
+              <ScanTriggerCard
+                key={idx}
+                provider={segment.provider}
+
               />
             );
           default:
