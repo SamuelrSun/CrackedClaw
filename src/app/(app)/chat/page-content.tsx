@@ -30,6 +30,7 @@ export default function ChatPage() {
         if (convRes.ok) {
           const convData = await convRes.json();
           const convos = convData.conversations || [];
+          let initialConvoSet = false;
           setConversations(convos);
           
           // Check for onboarding state to find the welcome conversation
@@ -43,12 +44,13 @@ export default function ChatPage() {
             if (onboardingData.state && onboardingData.state.phase !== 'complete') {
               // User is in onboarding - find the welcome conversation
               const welcomeConvo = convos.find((c: Conversation) => 
-                c.title === "Welcome to CrackedClaw" || 
+                c.title === "Welcome to CrackedClaw" || c.title === "Welcome to OpenClaw" || 
                 c.title?.toLowerCase().includes("welcome")
               );
               
               if (welcomeConvo) {
                 setInitialConversationId(welcomeConvo.id);
+                initialConvoSet = true;
                 
                 // Fetch messages for the welcome conversation
                 try {
@@ -61,6 +63,21 @@ export default function ChatPage() {
                   // Continue without messages
                 }
               }
+            }
+          }
+          
+          // If no messages loaded yet (onboarding complete or no welcome convo), load the most recent conversation
+          if (convos.length > 0 && !initialConvoSet) {
+            const latestConvo = convos[0]; // already sorted by updated_at desc
+            setInitialConversationId(latestConvo.id);
+            try {
+              const msgRes = await fetch(`/api/conversations/${latestConvo.id}/messages`);
+              if (msgRes.ok) {
+                const msgData = await msgRes.json();
+                setMessages(msgData.messages || []);
+              }
+            } catch {
+              // Continue without messages
             }
           }
         }
