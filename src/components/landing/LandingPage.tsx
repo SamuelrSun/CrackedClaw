@@ -53,6 +53,67 @@ function getUseCaseResponse(useCase: string, userName: string): string {
 
 function uid() { return Math.random().toString(36).slice(2); }
 
+// ─── Natural language name parser ─────────────────────────────────────────────
+// Handles: "Sam / Sophia", "I'm Sam, call yourself Nova", "Sam and you're Aria", etc.
+function parseNames(raw: string): { uName: string; aName: string } {
+  const text = raw.trim();
+
+  // Explicit slash separator: "Sam / Nova"
+  if (text.includes("/")) {
+    const [a, b] = text.split("/").map((s) => s.trim());
+    return { uName: extractName(a), aName: extractName(b) || "Claude" };
+  }
+
+  // Look for agent name patterns first (more specific)
+  const agentPatterns = [
+    /(?:you(?:\s+can)?\s+(?:be|go by|call yourself|are)|call you|i['']?ll call you|name you)\s+([A-Za-z][A-Za-z\s\-]{0,20}?)(?:[,\.!]|$)/i,
+    /(?:and\s+)?you(?:'re|\s+are)?\s+([A-Z][a-zA-Z\-]{1,20})/,
+  ];
+  let aName = "";
+  for (const pat of agentPatterns) {
+    const m = text.match(pat);
+    if (m?.[1]) { aName = m[1].trim().split(/\s+/)[0]; break; }
+  }
+
+  // Look for user name patterns
+  const userPatterns = [
+    /i['']?m\s+([A-Z][a-zA-Z\-]{1,20})/i,
+    /my\s+name\s+is\s+([A-Z][a-zA-Z\-]{1,20})/i,
+    /(?:^|,\s*)([A-Z][a-zA-Z\-]{1,20})(?:\s+(?:and|,))/i,
+    /^([A-Z][a-zA-Z\-]{1,20})$/i,
+  ];
+  let uName = "";
+  for (const pat of userPatterns) {
+    const m = text.match(pat);
+    if (m?.[1] && m[1].toLowerCase() !== "and" && m[1].toLowerCase() !== "you") {
+      uName = m[1].trim();
+      break;
+    }
+  }
+
+  // Fallback: if no patterns matched, split on comma or "and"
+  if (!uName) {
+    const parts = text.split(/,|and/i).map((s) => s.trim()).filter(Boolean);
+    uName = extractName(parts[0]) || text.split(/\s+/)[0];
+    if (!aName && parts[1]) aName = extractName(parts[1]);
+  }
+
+  return { uName: capitalize(uName) || "friend", aName: capitalize(aName) || "Claude" };
+}
+
+// Strip filler words and possessives, return the core name
+function extractName(s: string): string {
+  return s
+    .replace(/^(i['']?m|my name is|call (me|yourself|you)|you can be|you('re| are)|and you|and)/gi, "")
+    .replace(/[^A-Za-z\-]/g, " ")
+    .trim()
+    .split(/\s+/)[0] || "";
+}
+
+function capitalize(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
+}
+
 // ─── Typing animation hook ────────────────────────────────────────────────────
 
 function useTypewriter(text: string, active: boolean, onDone: () => void) {
@@ -160,12 +221,13 @@ export default function LandingPage() {
   const [useCase, setUseCase] = useState("");
   const [provisionError, setProvisionError] = useState<string | null>(null);
 
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
-  // Scroll to bottom on new messages
+  // Scroll chat container to bottom — does NOT scroll the page
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = chatScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages, currentAiText]);
 
   // ── Hero typewriter chain ──────────────────────────────────────────────────
@@ -255,9 +317,7 @@ export default function LandingPage() {
     setMessages((prev) => [...prev, { id: uid(), role: "user", content: trimmed }]);
 
     if (step === "name_capture") {
-      const parts = trimmed.split(/[\/,]/).map((s) => s.trim()).filter(Boolean);
-      const uName = parts[0] || trimmed;
-      const aName = parts[1] || "Claude";
+      const { uName, aName } = parseNames(trimmed);
       setUserName(uName);
       setAgentName(aName);
       localStorage.setItem(PRE_AUTH_KEY, JSON.stringify({ userName: uName, agentName: aName, useCase: "" }));
@@ -358,24 +418,20 @@ export default function LandingPage() {
             )}
 
             {/* Content */}
-            <div className="max-h-[55vh] overflow-y-auto scroll-smooth" style={{ scrollbarWidth: "none" }}>
+            <div ref={chatScrollRef} className="max-h-[55vh] overflow-y-auto" style={{ scrollbarWidth: "none" }}>
               {/* Hero copy — always visible at top */}
               <div className="text-center mb-8">
                 {/* Small label */}
                 <p className="font-mono text-[11px] text-grid/50 uppercase tracking-widest mb-4 min-h-[16px]">
                   {smallTw.out}
-                  {stageSmall && !smallTw.done && (
-                    <span className="inline-block w-[7px] h-[11px] bg-forest/40 ml-[1px] align-middle animate-[blink_0.9s_step-end_infinite]" />
-                  )}
+
                 </p>
 
                 {/* Big heading */}
                 {stageBig && (
                   <h1 className="font-header text-4xl md:text-5xl font-bold text-forest leading-tight mb-5 min-h-[60px]">
                     {bigTw.out}
-                    {!bigTw.done && (
-                      <span className="inline-block w-[3px] h-[44px] bg-forest ml-[2px] align-middle animate-[blink_0.9s_step-end_infinite]" />
-                    )}
+
                   </h1>
                 )}
 
@@ -383,9 +439,7 @@ export default function LandingPage() {
                 {stageSub && (
                   <p className="text-base text-grid/60 leading-relaxed max-w-xl mx-auto font-body min-h-[48px]">
                     {subTw.out}
-                    {!subTw.done && (
-                      <span className="inline-block w-[8px] h-[14px] bg-mint ml-[1px] align-middle animate-[blink_0.9s_step-end_infinite]" />
-                    )}
+
                   </p>
                 )}
               </div>
@@ -437,7 +491,7 @@ export default function LandingPage() {
                 </p>
               )}
 
-              <div ref={chatBottomRef} />
+              <div />
             </div>
 
             {/* Fade bottom */}
