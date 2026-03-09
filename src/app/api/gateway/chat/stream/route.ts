@@ -84,9 +84,34 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (stateRow && stateRow.phase !== "complete") {
-        isOnboarding = true;
-        onboardingState = toOnboardingState(stateRow as OnboardingStateRow);
-        onboardingPrompt = getOnboardingPrompt(onboardingState);
+        // Onboarding is conversation-scoped — only apply to the Welcome conversation
+        let isWelcomeConversation = false;
+
+        if (activeConversationId) {
+          const { data: convo } = await supabase
+            .from("conversations")
+            .select("title")
+            .eq("id", activeConversationId)
+            .single();
+          isWelcomeConversation =
+            convo?.title === "Welcome to CrackedClaw" ||
+            convo?.title === "Welcome to OpenClaw";
+        } else {
+          // No conversation yet — only start onboarding if no welcome convo exists
+          const { data: existingWelcome } = await supabase
+            .from("conversations")
+            .select("id")
+            .eq("user_id", user.id)
+            .in("title", ["Welcome to CrackedClaw", "Welcome to OpenClaw"])
+            .limit(1);
+          isWelcomeConversation = !existingWelcome || existingWelcome.length === 0;
+        }
+
+        if (isWelcomeConversation) {
+          isOnboarding = true;
+          onboardingState = toOnboardingState(stateRow as OnboardingStateRow);
+          onboardingPrompt = getOnboardingPrompt(onboardingState);
+        }
       }
     } catch (e) {
       console.error("Failed to get onboarding state:", e);
@@ -98,7 +123,7 @@ export async function POST(request: NextRequest) {
         .insert({
           user_id: user.id,
           title: isOnboarding
-            ? "Welcome to OpenClaw"
+            ? "Welcome to CrackedClaw"
             : message.length > 50
             ? message.substring(0, 47) + "..."
             : message,

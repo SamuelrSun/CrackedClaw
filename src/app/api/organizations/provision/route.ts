@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
         .from("conversations")
         .insert({
           user_id: user.id,
-          title: "Welcome to OpenClaw",
+          title: "Welcome to CrackedClaw",
           summary: "Your onboarding conversation",
           is_pinned: false,
           created_at: now,
