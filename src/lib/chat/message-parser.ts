@@ -30,6 +30,12 @@ interface MatchInfo {
 
 const WORKFLOW_PLACEHOLDER = "[[__WORKFLOW_SUGGEST__]]";
 
+
+/** Strip [[action:...]] tags from content — these are internal directives, not for display */
+function stripActionTags(content: string): string {
+  return content.replace(/\[\[action:[^\]]+\]\]/g, "").trim();
+}
+
 /**
  * Pre-process content: collect all [[workflow:suggest:...]] tags (any format),
  * replace first occurrence with a placeholder, remove the rest.
@@ -105,7 +111,8 @@ function extractWorkflowSuggestions(content: string): {
 }
 
 export function parseMessageContent(content: string): ParsedSegment[] {
-  const { content: processedContent, suggestions: workflowSuggestions } = extractWorkflowSuggestions(content);
+  const cleanContent = stripActionTags(content);
+  const { content: processedContent, suggestions: workflowSuggestions } = extractWorkflowSuggestions(cleanContent);
 
   const matches: MatchInfo[] = [];
 

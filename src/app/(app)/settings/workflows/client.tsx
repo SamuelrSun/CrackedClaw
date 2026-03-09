@@ -58,6 +58,7 @@ export default function WorkflowsSettingsClient() {
   // Per-job action state
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Load gateway config
   useEffect(() => {
@@ -267,7 +268,8 @@ export default function WorkflowsSettingsClient() {
               {jobs.map(job => (
                 <div
                   key={job.id}
-                  className="bg-white p-4 flex items-start gap-3"
+                  onClick={() => setSelectedId(job.id)}
+                  className={`p-4 flex items-start gap-3 cursor-pointer transition-colors ${selectedId === job.id ? "bg-forest/5 border-l-2 border-l-forest" : "bg-white hover:bg-forest/[0.02]"}`}
                 >
                   <Clock className="w-4 h-4 text-grid/40 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">

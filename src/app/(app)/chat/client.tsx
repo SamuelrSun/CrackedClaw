@@ -563,6 +563,48 @@ export default function ChatPageClient({
     }
   }, [completeOnboarding, toast]);
 
+
+  // Integration polling: detect when user connects integration in another tab during onboarding
+  useEffect(() => {
+    if (!isInOnboarding) return;
+    
+    let prevConnected: Set<string> = new Set();
+    let initialized = false;
+    
+    const checkIntegrations = async () => {
+      try {
+        const res = await fetch("/api/integrations/status");
+        if (!res.ok) return;
+        const data = await res.json();
+        const connected: string[] = data.connected || [];
+        const connectedSet = new Set(connected);
+        
+        if (!initialized) {
+          prevConnected = connectedSet;
+          initialized = true;
+          return;
+        }
+        
+        // Find newly connected integrations
+        for (const provider of Array.from(connectedSet)) {
+          if (!prevConnected.has(provider)) {
+            const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
+            // Inject system message and auto-send to agent
+            const systemNote = `${providerName} connected ✓`;
+            handleSendRef.current(systemNote);
+          }
+        }
+        prevConnected = connectedSet;
+      } catch {
+        // ignore polling errors
+      }
+    };
+    
+    const interval = setInterval(checkIntegrations, 7000);
+    checkIntegrations(); // init baseline
+    return () => clearInterval(interval);
+  }, [isInOnboarding]);
+
   const handleSend = async (messageOverride?: string) => {
     const messageToSend = messageOverride || input.trim();
     if (!messageToSend || isLoading) return;
