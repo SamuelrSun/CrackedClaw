@@ -446,14 +446,14 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
       {isLoading ? (
         <IntegrationGridSkeleton count={6} />
       ) : hasIntegrations ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-[rgba(58,58,56,0.2)]">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {items.map((integration) => {
             const accountCount = integration.accounts.length;
             const badgeText = integration.status === "connected" ? accountCount + " Connected" : "Disconnected";
             const needsNode = getNeedsNode(integration);
 
             return (
-              <Card key={integration.id} label={<IntegrationIcon provider={integration.slug || ""} size={36} />} accentColor={integration.status === "connected" ? "#9EFFBF" : undefined} bordered={false}>
+              <Card key={integration.id} label={<IntegrationIcon provider={integration.slug || ""} size={36} />} accentColor={integration.status === "connected" ? "#9EFFBF" : undefined} bordered={true}>
                 <div className="mt-2">
                   <div className="flex items-center justify-between">
                     <h3 className="font-header text-sm font-medium tracking-tight text-grid/70">{integration.name}</h3>
