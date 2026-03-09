@@ -19,19 +19,38 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
 
+    // Map slugs to OAuth providers (e.g. google-sheets -> google)
+    const SLUG_TO_PROVIDER: Record<string, string> = {
+      "google-sheets": "google",
+      "google-drive": "google",
+      "google-calendar": "google",
+      "google-docs": "google",
+      "gmail": "google",
+      "google-workspace": "google",
+    };
+
+    // Get unique providers to check
+    const providersToCheck = Array.from(new Set(slugs.map(s => SLUG_TO_PROVIDER[s] || s)));
+
+    // Check user_integrations (where OAuth connections are actually stored)
     const { data, error: dbErr } = await supabase
-      .from("integrations")
-      .select("slug, status")
+      .from("user_integrations")
+      .select("provider, status")
       .eq("user_id", user.id)
-      .in("slug", slugs);
+      .eq("status", "connected")
+      .in("provider", providersToCheck);
 
     if (dbErr) {
       console.error("status-by-slugs error:", dbErr.message);
       return jsonResponse({ connected: [] });
     }
 
-    // Consider "connected" or "disconnected" (record exists) both as "added"
-    const connected = (data || []).map((r: { slug: string }) => r.slug);
+    // Map back: if google is connected, mark all google-* slugs as connected
+    const connectedProviders = new Set((data || []).map((r: { provider: string }) => r.provider));
+    const connected = slugs.filter(slug => {
+      const provider = SLUG_TO_PROVIDER[slug] || slug;
+      return connectedProviders.has(provider);
+    });
 
     return jsonResponse({ connected });
   } catch {
