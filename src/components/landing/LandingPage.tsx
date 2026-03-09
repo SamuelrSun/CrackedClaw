@@ -332,11 +332,8 @@ export default function LandingPage() {
   }, []);
 
   function handleAuthSuccess() {
-    const stored = localStorage.getItem(PRE_AUTH_KEY);
-    const ctx: PreAuthContext = stored ? JSON.parse(stored) : { userName, agentName, useCase };
-    localStorage.setItem(PRE_AUTH_KEY, JSON.stringify(ctx));
-    setStep("provisioning");
-    triggerProvision(ctx);
+    // Redirect to /provision — session cookies are now set, provisioning will work
+    window.location.href = "/provision?source=landing";
   }
 
   const showInput = heroReady && step === "chatting" && !aiTyping;

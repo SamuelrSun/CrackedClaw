@@ -179,10 +179,11 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${origin}${next}`);
       }
 
-      // Landing chat OAuth — provision server-side then go straight to chat
+      // Landing chat OAuth — session is now set in response cookies.
+      // Redirect to /provision which handles provisioning client-side (session is available there).
       if (source === "landing") {
-        const chatUrl = await provisionForNewUser(origin, ctx);
-        return NextResponse.redirect(chatUrl);
+        const ctxEncoded = ctx ? `&ctx=${encodeURIComponent(ctx)}` : "";
+        return NextResponse.redirect(`${origin}/provision?source=landing${ctxEncoded}`);
       }
 
       const redirectTo = await getPostAuthRedirect(origin, source);
