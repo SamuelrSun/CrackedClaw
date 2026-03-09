@@ -823,14 +823,14 @@ export default function ChatPageClient({
     setMessages([]);
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/gateway/messages?conversation_id=${convoId}`);
+      const res = await fetch(`/api/conversations/${convoId}/messages`);
       if (res.ok) {
         const data = await res.json();
-        const loaded = (data.messages || []).map((m: { id?: string; role: string; content: string; created_at?: string }) => ({
+        const loaded = (data.messages || []).map((m: { id?: string; role: string; content: string; timestamp?: string; created_at?: string }) => ({
           id: m.id || crypto.randomUUID(),
           role: m.role as "user" | "assistant",
           content: m.content,
-          timestamp: m.created_at ? new Date(m.created_at).toLocaleTimeString() : "",
+          timestamp: m.timestamp || (m.created_at ? new Date(m.created_at).toLocaleTimeString() : ""),
           toolCalls: [],
         }));
         setMessages(loaded);
