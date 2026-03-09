@@ -38,9 +38,14 @@ export async function getNodeStatus(userId: string): Promise<NodeStatus> {
     };
 
     try {
-      const res = await fetch(`${gatewayUrl}/api/nodes/status`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-        signal: AbortSignal.timeout(5000),
+      // Extract instance ID from gateway URL (pattern: i-{id}.crackedclaw.com)
+      const instanceMatch = gatewayUrl.match(/i-([a-f0-9]+)\./);
+      if (!instanceMatch) return offline;
+      const instanceId = `oc-${instanceMatch[1]}`;
+      
+      const provisioningUrl = process.env.PROVISIONING_API_URL || 'http://164.92.75.153:3100';
+      const res = await fetch(`${provisioningUrl}/instances/${instanceId}/nodes/status`, {
+        signal: AbortSignal.timeout(8000),
       });
 
       if (!res.ok) return offline;
@@ -57,7 +62,7 @@ export async function getNodeStatus(userId: string): Promise<NodeStatus> {
         capabilities?: string[];
       }> = data.nodes || [];
       
-      const online = nodes.find(n => n.connected || n.status === 'connected');
+      const online = nodes.find(n => n.connected);
 
       if (!online) return offline;
 

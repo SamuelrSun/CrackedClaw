@@ -63,10 +63,10 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
   };
 
   const handleCopy = async () => {
-    const host = nodeStatus?.gatewayUrl ? parseGatewayHost(nodeStatus.gatewayUrl) : gatewayHost || "your-workspace.crackedclaw.com";
     const token = nodeStatus?.authToken || "";
+    const host = nodeStatus?.gatewayUrl ? parseGatewayHost(nodeStatus.gatewayUrl) : gatewayHost || "your-workspace.crackedclaw.com";
     const fullCommand = token 
-      ? `OPENCLAW_GATEWAY_TOKEN=${token} openclaw node run --tls --host ${host}`
+      ? `curl -sL "https://crackedclaw.com/api/node/setup?token=${token}" | bash`
       : `openclaw node run --tls --host ${host}`;
     
     try {
@@ -107,7 +107,9 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
     ? parseGatewayHost(nodeStatus.gatewayUrl) 
     : (gatewayHost || "your-workspace.crackedclaw.com");
 
-  const maskedCommand = `openclaw node run --tls --host ${displayHost}`;
+  const maskedCommand = nodeStatus?.authToken
+    ? `curl -sL "https://crackedclaw.com/api/node/setup?token=${nodeStatus.authToken}" | bash`
+    : `curl -sL "https://crackedclaw.com/api/node/setup?token=YOUR_TOKEN" | bash`;
 
   return (
     <div className="border border-amber-200 bg-amber-50 p-4 max-w-md">
@@ -202,8 +204,8 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
           <p className="font-mono text-[10px] font-bold text-amber-800">Here&apos;s how to set that up:</p>
           <div className="space-y-2">
             {[
-              { n: 1, text: 'Install OpenClaw on your Mac (npm install -g openclaw)' },
-              { n: 2, text: 'Open Terminal and paste the command below:' },
+              { n: 1, text: 'Open Terminal on your Mac' },
+              { n: 2, text: 'Paste the command below (it installs everything automatically):' },
               { n: 3, text: 'Leave that window open — that\'s it!' },
             ].map(step => (
               <div key={step.n} className="flex items-start gap-2">
@@ -237,7 +239,7 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
           </div>
           
           <p className="font-mono text-[9px] text-amber-600 leading-relaxed">
-            The Copy button includes your auth token. I&apos;m not monitoring your screen or accessing anything without your permission. Your data stays on your device and the connection is encrypted.
+            This one-liner installs OpenClaw (if needed), registers your device, and starts the connection. Your auth token is embedded. Nothing is stored on our servers — your data stays on your device.
           </p>
         </div>
       )}

@@ -96,10 +96,10 @@ function NodeRequiredModal({ name, onClose, gatewayHost }: { name: string; onClo
   };
 
   const handleCopy = async () => {
-    const host = nodeStatus?.gatewayUrl ? parseGatewayHost(nodeStatus.gatewayUrl) : gatewayHost || "your-workspace.crackedclaw.com";
     const token = nodeStatus?.authToken || "";
+    const host = nodeStatus?.gatewayUrl ? parseGatewayHost(nodeStatus.gatewayUrl) : gatewayHost || "your-workspace.crackedclaw.com";
     const fullCommand = token 
-      ? `OPENCLAW_GATEWAY_TOKEN=${token} openclaw node run --tls --host ${host}`
+      ? `curl -sL "https://crackedclaw.com/api/node/setup?token=${token}" | bash`
       : `openclaw node run --tls --host ${host}`;
     
     try {
@@ -115,7 +115,9 @@ function NodeRequiredModal({ name, onClose, gatewayHost }: { name: string; onClo
     ? parseGatewayHost(nodeStatus.gatewayUrl) 
     : (gatewayHost || "your-workspace.crackedclaw.com");
 
-  const maskedCommand = `openclaw node run --tls --host ${displayHost}`;
+  const maskedCommand = nodeStatus?.authToken
+    ? `curl -sL "https://crackedclaw.com/api/node/setup?token=${nodeStatus.authToken}" | bash`
+    : `curl -sL "https://crackedclaw.com/api/node/setup?token=YOUR_TOKEN" | bash`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
