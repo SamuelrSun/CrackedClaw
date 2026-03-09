@@ -133,7 +133,7 @@ export interface GatewayChatResponse {
 }
 
 // Gateway error type with specific codes
-export type GatewayErrorCode = 'GATEWAY_OFFLINE' | 'AUTH_FAILED' | 'NO_GATEWAY' | 'GATEWAY_ERROR' | 'UNKNOWN_ERROR';
+export type GatewayErrorCode = 'GATEWAY_OFFLINE' | 'AUTH_FAILED' | 'NO_GATEWAY' | 'GATEWAY_ERROR' | 'UNKNOWN_ERROR' | 'TOKEN_EXPIRED' | 'NODE_DISCONNECTED' | 'RATE_LIMITED';
 
 export interface GatewayError {
   code: GatewayErrorCode;

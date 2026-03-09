@@ -25,6 +25,8 @@ import {
   OnboardingWelcomeAnimation,
 } from "@/components/chat";
 import { ActiveAgentsPanel } from "@/components/chat/active-agents-panel";
+import { ChatError } from "@/components/chat/chat-error";
+import { useNodeStatus } from "@/hooks/use-node-status";
 
 interface ToolCallInfo {
   tool: string;
@@ -448,6 +450,15 @@ export default function ChatPageClient({
     forceReconnect,
     cancelReconnect,
   } = useGateway();
+
+  const {
+    isOnline: nodeIsOnline,
+    nodeName,
+    wasOnline: nodeWasOnline,
+    bannerDismissed: nodeBannerDismissed,
+    dismissBanner: dismissNodeBanner,
+    loading: nodeLoading,
+  } = useNodeStatus(30000);
   
   const { 
     onboardingState, 
@@ -955,25 +966,25 @@ export default function ChatPageClient({
           onCancel={cancelReconnect}
         />
 
-        {/* Error Banner */}
-        {error && (
-          <div className="bg-[#FF6B6B]/10 border-b border-[#FF6B6B]/30 px-4 py-3 flex items-center justify-between">
+        {/* Node Disconnect Banner */}
+        {nodeWasOnline && !nodeIsOnline && !nodeBannerDismissed && !nodeLoading && (
+          <div className="bg-[#F4D35E]/10 border-b border-[#F4D35E]/30 px-4 py-2 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-[#FF6B6B]">⚠️</span>
-              <span className="text-sm text-[#FF6B6B]">{error.message}</span>
+              <div className="w-2 h-2 rounded-full bg-[#F4D35E]" />
+              <span className="text-sm text-[#B8860B]">
+                💻 Your computer disconnected. Browser features are paused.
+              </span>
             </div>
-            <div className="flex gap-2">
-              {lastFailedMessage.current && (
-                <button
-                  onClick={handleRetryLastMessage}
-                  className="text-xs font-mono uppercase tracking-wide text-[#FF6B6B] hover:text-[#FF4444] px-2 py-1 bg-[#FF6B6B]/10 hover:bg-[#FF6B6B]/20 transition-colors"
-                >
-                  Retry
-                </button>
-              )}
+            <div className="flex items-center gap-3">
+              <a
+                href="/settings/nodes"
+                className="text-xs font-mono uppercase tracking-wide text-[#B8860B] hover:text-[#8B6914] underline"
+              >
+                Reconnect
+              </a>
               <button
-                onClick={dismissError}
-                className="text-[#FF6B6B]/60 hover:text-[#FF6B6B] text-sm"
+                onClick={dismissNodeBanner}
+                className="text-[#B8860B]/60 hover:text-[#B8860B] text-xs"
               >
                 Dismiss
               </button>
@@ -1062,6 +1073,17 @@ export default function ChatPageClient({
             </div>
           )}
           
+          {/* Inline error message as chat bubble */}
+          {error && !isLoading && (
+            <ChatError
+              code={error.code}
+              message={error.message}
+              timestamp={new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              onRetry={lastFailedMessage.current ? handleRetryLastMessage : undefined}
+              onDismiss={dismissError}
+            />
+          )}
+
           {/* Loading indicator */}
           {isLoading && (
             <div className="max-w-[70%] mr-auto px-1">
@@ -1104,13 +1126,26 @@ export default function ChatPageClient({
               disabled={!gateway || isLoading || isReconnecting}
               className="flex-1 bg-white border border-[rgba(58,58,56,0.2)] rounded-none px-4 py-2.5 text-sm outline-none focus:border-forest transition-colors placeholder:text-grid/30 disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            <Button 
-              variant="solid" 
-              onClick={() => handleSend()}
-              disabled={!gateway || !input.trim() || isLoading || isReconnecting}
+            <div
+              className="relative group"
+              title={
+                !gateway
+                  ? "Connect a gateway in Settings to send messages"
+                  : gatewayStatus === "disconnected" || gatewayStatus === "error"
+                  ? "Gateway is offline — reconnecting..."
+                  : isReconnecting
+                  ? "Reconnecting to gateway..."
+                  : undefined
+              }
             >
-              {isLoading ? "..." : "Send"}
-            </Button>
+              <Button 
+                variant="solid" 
+                onClick={() => handleSend()}
+                disabled={!gateway || !input.trim() || isLoading || isReconnecting}
+              >
+                {isLoading ? "..." : "Send"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

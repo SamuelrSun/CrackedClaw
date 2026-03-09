@@ -13,7 +13,7 @@ import { validateUrl, validateRequired, composeValidators } from "@/lib/validati
 import type { GatewayConnection, GatewayTestResult } from "@/types/gateway";
 import { useGateway } from "@/hooks/use-gateway";
 import type { Organization } from "@/lib/supabase/data";
-import { Sparkles, Radio, ArrowRight, Monitor } from "lucide-react";
+import { Sparkles, Radio, ArrowRight, Monitor, Brain, Clock } from "lucide-react";
 
 
 interface SyncResult {
@@ -915,6 +915,25 @@ export default function SettingsPageClient({
           </div>
         </Card>
 
+
+        {/* Memory */}
+        <Card label="Memory" accentColor="#9EFFBF" bordered={false}>
+          <div className="mt-2 space-y-3">
+            <div className="flex items-center gap-2">
+              <Brain className="w-5 h-5 text-mint" />
+              <span className="font-mono text-[11px] text-grid/60">
+                View and manage what your AI remembers about you
+              </span>
+            </div>
+            <Link href="/settings/memory">
+              <Button variant="ghost" size="sm" className="w-full justify-between">
+                Manage Memory
+                <ArrowRight className="w-3 h-3" />
+              </Button>
+            </Link>
+          </div>
+        </Card>
+
         {/* Devices */}
         <Card label="Devices" accentColor="#9EFFBF" bordered={false}>
           <DevicesInlineSection />
@@ -998,7 +1017,25 @@ export default function SettingsPageClient({
           </div>
         </Card>
 
-        {/* Export Data */}
+        {/* Workflows */}
+        <Card label="Workflows" accentColor="#9EFFBF" bordered={false}>
+          <div className="mt-2 space-y-3">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-mint" />
+              <span className="font-mono text-[11px] text-grid/60">
+                Schedule recurring cron jobs via your gateway
+              </span>
+            </div>
+            <Link href="/settings/workflows">
+              <Button variant="ghost" size="sm" className="w-full justify-between">
+                Manage Workflows
+                <ArrowRight className="w-3 h-3" />
+              </Button>
+            </Link>
+          </div>
+        </Card>
+
+                {/* Export Data */}
         <Card label="Export Data" accentColor="#9EFFBF" bordered={false}>
           <div className="mt-2 space-y-3">
             <p className="font-mono text-[11px] text-grid/60">

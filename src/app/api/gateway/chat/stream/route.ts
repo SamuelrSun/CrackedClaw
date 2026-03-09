@@ -142,22 +142,53 @@ export async function POST(request: NextRequest) {
       fullMessage = `${workflowContext}\n\n${fullMessage}`;
     }
 
+    // Load conversation history (last 50 messages, excluding the one we just saved)
+    let previousMessages: Array<{ role: string; content: string }> = [];
+    if (activeConversationId) {
+      try {
+        const { data: historyRows } = await supabase
+          .from("messages")
+          .select("role, content")
+          .eq("conversation_id", activeConversationId)
+          .order("created_at", { ascending: false })
+          .limit(51); // 51 so we can drop the last user message we just inserted
+        if (historyRows && historyRows.length > 0) {
+          // Drop the most recent message (the user message we just saved) and reverse to oldest-first
+          previousMessages = historyRows.slice(1).reverse() as Array<{ role: string; content: string }>;
+        }
+      } catch (e) {
+        console.error("Failed to load conversation history:", e);
+        // Fall back gracefully — previousMessages stays empty
+      }
+    }
+
     const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
     const writer = writable.getWriter();
 
     const capturedGatewayUrl = gatewayUrl;
     const capturedAuthToken = authToken;
     const capturedConvoId = activeConversationId;
+    const capturedPreviousMessages = previousMessages;
 
     (async () => {
       let fullContent = "";
 
       try {
+        // Build the messages array: system + history + current user message
         const systemPrompt = isOnboarding ? undefined : await buildSystemPromptForUser(user.id, message);
+        const messagesArray: Array<{ role: string; content: string }> = [];
+        if (systemPrompt) {
+          messagesArray.push({ role: "system", content: systemPrompt });
+        }
+        // Add history (already excludes current message)
+        messagesArray.push(...capturedPreviousMessages);
+        // Add current user message (using fullMessage which may include onboarding prompt)
+        messagesArray.push({ role: "user", content: fullMessage });
+
         const result = await streamGatewayMessage(
           capturedGatewayUrl,
           capturedAuthToken,
-          fullMessage,
+          messagesArray,
           capturedConvoId,
           async (chunk: StreamChunk) => {
             if (chunk.type === "token" && chunk.text) {
@@ -170,7 +201,6 @@ export async function POST(request: NextRequest) {
               await writer.write(encode(chunk));
             } catch { /* writer closed */ }
           },
-          { systemPrompt }
         );
 
         if (result.fullContent && !fullContent) {

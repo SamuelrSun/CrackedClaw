@@ -257,12 +257,12 @@ export interface StreamChunk {
 export async function streamGatewayMessage(
   url: string,
   token: string,
-  message: string,
+  messages: Array<{ role: string; content: string }>,
   conversationId?: string | null,
   onChunk?: (chunk: StreamChunk) => void,
-  options: FetchOptions & { systemPrompt?: string } = {}
+  options: FetchOptions = {}
 ): Promise<{ fullContent: string; error?: string }> {
-  const { timeout = 120000, systemPrompt } = options;
+  const { timeout = 120000 } = options;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
   const baseUrl = url.replace(/\/$/, "");
@@ -279,12 +279,7 @@ export async function streamGatewayMessage(
       },
       body: JSON.stringify({
         model: "openclaw:main",
-        messages: systemPrompt
-          ? [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: message },
-            ]
-          : [{ role: "user", content: message }],
+        messages,
         stream: true,
         user: conversationId || undefined,
       }),
