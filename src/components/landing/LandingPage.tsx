@@ -6,13 +6,18 @@ import AuthCard from "@/components/landing/AuthCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Step = "greeting" | "name_capture" | "use_case" | "token_offer" | "auth" | "provisioning";
+type Step = "chatting" | "auth" | "provisioning";
 
 interface ChatMessage {
   id: string;
   role: "ai" | "user";
   content: string;
   isAuthCard?: boolean;
+}
+
+interface ApiMessage {
+  role: "user" | "assistant";
+  content: string;
 }
 
 interface PreAuthContext {
@@ -22,36 +27,25 @@ interface PreAuthContext {
 }
 
 const PRE_AUTH_KEY = "cc_pre_auth";
-const CHAR_SPEED = 22;
-
-// ─── AI message copy ─────────────────────────────────────────────────────────
+const CHAR_SPEED = 20;
 
 const HERO_SMALL = "Hey there!";
 const HERO_BIG = "I'm your intelligent personal assistant, here to do whatever you need.";
 const HERO_SUB = "I'm fresh out of the box and excited to meet you! First — what's your name, and what would you like to call me?";
 
-function getUseCaseResponse(useCase: string, userName: string): string {
-  const lower = useCase.toLowerCase();
-  let opener = "";
-  if (/email|inbox|gmail|message/.test(lower)) {
-    opener = `I'll own your inbox — drafting replies, filtering noise, nothing slips through.`;
-  } else if (/research|find|look up|search|data/.test(lower)) {
-    opener = `Research is one of my favourite things. I'll dig through anything and hand you exactly what you need.`;
-  } else if (/schedule|calendar|meeting|appointment/.test(lower)) {
-    opener = `Calendar wrangling? I've got it. You focus on the work that matters.`;
-  } else if (/code|build|app|dev|engineer|software/.test(lower)) {
-    opener = `Dev work, automation, scripts — right at home. We'll make a good team.`;
-  } else if (/social|twitter|linkedin|content|post|write/.test(lower)) {
-    opener = `Content and social? I can draft, schedule, monitor — the whole thing.`;
-  } else if (/sales|outreach|lead|customer|crm/.test(lower)) {
-    opener = `Sales outreach, follow-ups, lead research — I can run a lot of that quietly for you.`;
-  } else {
-    opener = `Perfect. I already have a few ideas for where to start, ${userName}.`;
-  }
-  return `${opener}\n\nHere's the deal: 500,000 tokens, on me, so we can hit the ground running. Just make an account and I'll apply them the moment you're in.`;
-}
-
 function uid() { return Math.random().toString(36).slice(2); }
+
+// Strip <data>...</data> tags and [SHOW_AUTH] marker from display text
+function stripMeta(text: string): string {
+  let out = text;
+  // Remove <data>...</data> blocks (may span lines)
+  while (out.includes("<data>") && out.includes("</data>")) {
+    const start = out.indexOf("<data>");
+    const end = out.indexOf("</data>") + "</data>".length;
+    out = out.slice(0, start) + out.slice(end);
+  }
+  return out.replace("[SHOW_AUTH]", "").trim();
+}
 
 
 // ─── Typing animation hook ────────────────────────────────────────────────────
@@ -145,16 +139,15 @@ export default function LandingPage() {
   const [stageSmall, setStageSmall] = useState(false);
   const [stageBig, setStageBig] = useState(false);
   const [stageSub, setStageSub] = useState(false);
-  const [heroReady, setHeroReady] = useState(false); // input appears
+  const [heroReady, setHeroReady] = useState(false);
 
   // Chat state
-  const [step, setStep] = useState<Step>("greeting");
+  const [step, setStep] = useState<Step>("chatting");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [apiHistory, setApiHistory] = useState<ApiMessage[]>([]);
   const [input, setInput] = useState("");
   const [aiTyping, setAiTyping] = useState(false);
-  const [currentAiText, setCurrentAiText] = useState("");
-  const [currentAiActive, setCurrentAiActive] = useState(false);
-  const [currentAiIsAuthCard, setCurrentAiIsAuthCard] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
 
   const [userName, setUserName] = useState("");
   const [agentName, setAgentName] = useState("Your Agent");
@@ -164,30 +157,18 @@ export default function LandingPage() {
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
-  // Scroll chat container to bottom — does NOT scroll the page
+  // Scroll chat container to bottom
   useEffect(() => {
     const el = chatScrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, currentAiText]);
+  }, [messages, streamingText]);
 
   // ── Hero typewriter chain ──────────────────────────────────────────────────
 
-  // Small text ("Hey there!") — starts immediately
-  const smallTw = useTypewriter(HERO_SMALL, stageSmall, () => {
-    setTimeout(() => setStageBig(true), 200);
-  });
+  const smallTw = useTypewriter(HERO_SMALL, stageSmall, () => setTimeout(() => setStageBig(true), 200));
+  const bigTw = useTypewriter(HERO_BIG, stageBig, () => setTimeout(() => setStageSub(true), 150));
+  const subTw = useTypewriter(HERO_SUB, stageSub, () => setTimeout(() => setHeroReady(true), 300));
 
-  // Big text
-  const bigTw = useTypewriter(HERO_BIG, stageBig, () => {
-    setTimeout(() => setStageSub(true), 150);
-  });
-
-  // Sub text
-  const subTw = useTypewriter(HERO_SUB, stageSub, () => {
-    setTimeout(() => setHeroReady(true), 300);
-  });
-
-  // Start the chain
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
@@ -202,7 +183,6 @@ export default function LandingPage() {
             const ctx: PreAuthContext = JSON.parse(stored);
             setUserName(ctx.userName);
             setAgentName(ctx.agentName || "Your Agent");
-            setUseCase(ctx.useCase);
             setStep("provisioning");
             triggerProvision(ctx);
             return;
@@ -216,81 +196,118 @@ export default function LandingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── AI inline chat (after hero) ────────────────────────────────────────────
-
-  const onAiDone = useCallback(() => {
-    setCurrentAiActive(false);
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: uid(),
-        role: "ai",
-        content: currentAiText,
-        isAuthCard: currentAiIsAuthCard,
-      },
-    ]);
-    setCurrentAiText("");
-    setAiTyping(false);
-
-    if (step === "token_offer") {
-      setTimeout(() => {
-        pushAiMessage("Perfect. Here's how we make it official 👇", true);
-        setStep("auth");
-      }, 500);
+  useEffect(() => {
+    if (heroReady && step === "chatting" && messages.length === 0) {
+      // no-op: input is now shown, user types first
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, currentAiText, currentAiIsAuthCard]);
+  }, [heroReady, step, messages.length]);
 
-  function pushAiMessage(text: string, isAuthCard = false) {
+  // ── Streaming AI response ──────────────────────────────────────────────────
+
+  const streamAiResponse = useCallback(async (history: ApiMessage[]) => {
     setAiTyping(true);
-    setCurrentAiIsAuthCard(isAuthCard);
-    setCurrentAiText(text);
-    setCurrentAiActive(true);
-  }
+    setStreamingText("");
+
+    try {
+      const res = await fetch("/api/landing-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: history }),
+      });
+
+      if (!res.ok || !res.body) throw new Error("Stream failed");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6).trim();
+          if (data === "[DONE]") continue;
+          try {
+            const evt = JSON.parse(data);
+            if (evt.type === "content_block_delta" && evt.delta?.text) {
+              fullText += evt.delta.text;
+              // Strip the <data> tag from display
+              const display = stripMeta(fullText);
+              setStreamingText(display);
+            }
+          } catch { /* skip malformed */ }
+        }
+      }
+
+      // Parse metadata from the full response
+      const dataMatch = fullText.match(/<data>([\s\S]*?)<\/data>/);
+      if (dataMatch) {
+        try {
+          const parsed = JSON.parse(dataMatch[1]);
+          if (parsed.userName) { setUserName(parsed.userName); }
+          if (parsed.agentName) { setAgentName(parsed.agentName); }
+          // Store whatever we know
+          const existing = localStorage.getItem(PRE_AUTH_KEY);
+          const prev = existing ? JSON.parse(existing) : {};
+          localStorage.setItem(PRE_AUTH_KEY, JSON.stringify({
+            ...prev,
+            ...(parsed.userName ? { userName: parsed.userName } : {}),
+            ...(parsed.agentName ? { agentName: parsed.agentName } : {}),
+          }));
+        } catch { /* ignore */ }
+      }
+
+      const showAuth = fullText.includes("[SHOW_AUTH]");
+      const cleanText = stripMeta(fullText);
+
+      // Commit streamed message to history
+      setMessages((prev) => [
+        ...prev,
+        { id: uid(), role: "ai", content: cleanText, isAuthCard: showAuth },
+      ]);
+      setApiHistory((prev) => [...prev, { role: "assistant", content: cleanText }]);
+      setStreamingText("");
+      setAiTyping(false);
+
+      if (showAuth) setStep("auth");
+
+    } catch (err) {
+      console.error("Stream error:", err);
+      setStreamingText("");
+      setAiTyping(false);
+      setMessages((prev) => [
+        ...prev,
+        { id: uid(), role: "ai", content: "Something went wrong — please refresh and try again." },
+      ]);
+    }
+  }, []);
 
   // ── User submit ────────────────────────────────────────────────────────────
 
   function handleSubmit() {
     const trimmed = input.trim();
-    if (!trimmed || aiTyping) return;
+    if (!trimmed || aiTyping || step !== "chatting") return;
     setInput("");
-    setMessages((prev) => [...prev, { id: uid(), role: "user", content: trimmed }]);
 
-    if (step === "name_capture") {
-      // Disable input while AI parses the names
-      setAiTyping(true);
-      fetch("/api/parse-names", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: trimmed }),
-      })
-        .then((r) => r.json())
-        .then((parsed) => {
-          const uName = parsed.userName || trimmed.split(/\s+/)[0];
-          const aName = parsed.agentName || "Claude";
-          setUserName(uName);
-          setAgentName(aName);
-          localStorage.setItem(PRE_AUTH_KEY, JSON.stringify({ userName: uName, agentName: aName, useCase: "" }));
-          setStep("use_case");
-          pushAiMessage(`Nice to meet you, ${uName}! I'll go by ${aName} from here.\n\nSo — what does your day-to-day look like? What would you love to hand off?`);
-        })
-        .catch(() => {
-          // Fallback: just use first word as name
-          const uName = trimmed.split(/\s+/)[0].replace(/[^a-zA-Z]/g, "") || "friend";
-          setUserName(uName);
-          setStep("use_case");
-          pushAiMessage(`Nice to meet you, ${uName}! What does your day-to-day look like? What would you love to hand off?`);
-        });
-    } else if (step === "use_case") {
-      setUseCase(trimmed);
-      const stored = localStorage.getItem(PRE_AUTH_KEY);
-      const ctx = stored ? JSON.parse(stored) : { userName, agentName };
-      localStorage.setItem(PRE_AUTH_KEY, JSON.stringify({ ...ctx, useCase: trimmed }));
-      setTimeout(() => {
-        setStep("token_offer");
-        pushAiMessage(getUseCaseResponse(trimmed, userName));
-      }, 300);
-    }
+    const userMsg: ChatMessage = { id: uid(), role: "user", content: trimmed };
+    setMessages((prev) => [...prev, userMsg]);
+
+    // Update use case context in localStorage
+    const existing = localStorage.getItem(PRE_AUTH_KEY);
+    const prev = existing ? JSON.parse(existing) : {};
+    localStorage.setItem(PRE_AUTH_KEY, JSON.stringify({ ...prev, useCase: trimmed }));
+    setUseCase(trimmed);
+
+    const newHistory: ApiMessage[] = [...apiHistory, { role: "user", content: trimmed }];
+    setApiHistory(newHistory);
+    streamAiResponse(newHistory);
   }
 
   // ── Provisioning ───────────────────────────────────────────────────────────
@@ -320,34 +337,14 @@ export default function LandingPage() {
   }, []);
 
   function handleAuthSuccess() {
-    const ctx = { userName, agentName, useCase };
+    const stored = localStorage.getItem(PRE_AUTH_KEY);
+    const ctx: PreAuthContext = stored ? JSON.parse(stored) : { userName, agentName, useCase };
     localStorage.setItem(PRE_AUTH_KEY, JSON.stringify(ctx));
     setStep("provisioning");
     triggerProvision(ctx);
   }
 
-  // Input placeholder text based on step
-  const inputPlaceholder =
-    step === "name_capture" ? "Your name / what to call me  (e.g. Sam / Nova)" :
-    step === "use_case" ? "Tell me what you do..." : "";
-
-  const showInput = heroReady && (step === "name_capture" || step === "use_case") && !aiTyping;
-
-  // Activate name_capture once hero is ready
-  useEffect(() => {
-    if (heroReady && step === "greeting") setStep("name_capture");
-  }, [heroReady, step]);
-
-  // ── Current AI bubble (typing in progress) ────────────────────────────────
-  function CurrentAiBubble() {
-    const { out } = useTypewriter(currentAiText, currentAiActive, onAiDone);
-    return (
-      <div className="text-forest text-[15px] leading-relaxed whitespace-pre-wrap font-body mt-6">
-        {out}
-        <span className="inline-block w-[2px] h-[15px] bg-forest/50 ml-[1px] align-middle animate-[blink_0.75s_step-end_infinite]" />
-      </div>
-    );
-  }
+  const showInput = heroReady && step === "chatting" && !aiTyping;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -426,14 +423,29 @@ export default function LandingPage() {
                 </div>
               ))}
 
-              {/* Current AI typing */}
-              {aiTyping && currentAiActive && <CurrentAiBubble />}
+              {/* Streaming AI response */}
+              {aiTyping && streamingText && (
+                <div className="mb-6">
+                  <p className="font-mono text-[9px] text-grid/35 uppercase tracking-widest mb-1">{agentName}</p>
+                  <div className="text-forest text-[15px] leading-relaxed whitespace-pre-wrap font-body">
+                    {streamingText}
+                    <span className="inline-block w-[2px] h-[15px] bg-forest/40 ml-[1px] align-middle animate-[blink_0.75s_step-end_infinite]" />
+                  </div>
+                </div>
+              )}
+              {aiTyping && !streamingText && (
+                <div className="mb-6 flex gap-[4px] items-center">
+                  <span className="w-[5px] h-[5px] bg-forest/25 rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="w-[5px] h-[5px] bg-forest/25 rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="w-[5px] h-[5px] bg-forest/25 rounded-full animate-bounce [animation-delay:300ms]" />
+                </div>
+              )}
 
               {/* Provisioning */}
               {step === "provisioning" && (
-                <div className="text-forest text-[15px] leading-relaxed font-body mt-6 flex items-center gap-2">
+                <div className="text-forest text-[15px] leading-relaxed font-body mt-2 flex items-center gap-2">
                   <span>Setting everything up for you</span>
-                  <span className="flex gap-[3px] items-center">
+                  <span className="flex gap-[3px] items-center ml-1">
                     <span className="w-[5px] h-[5px] bg-forest/30 rounded-full animate-bounce [animation-delay:0ms]" />
                     <span className="w-[5px] h-[5px] bg-forest/30 rounded-full animate-bounce [animation-delay:150ms]" />
                     <span className="w-[5px] h-[5px] bg-forest/30 rounded-full animate-bounce [animation-delay:300ms]" />
