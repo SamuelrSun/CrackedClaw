@@ -43,7 +43,7 @@ export async function GET(req: Request) {
   }
 
   const authToken = org.openclaw_auth_token;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://crackedclaw.com';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.crackedclaw.com';
 
   const script = `#!/usr/bin/env bash
 set -e
@@ -119,7 +119,7 @@ DISPLAY_NAME=\$(hostname -s 2>/dev/null || echo "User Node")
 echo "🔗 Registering device with your workspace..."
 
 # Step 4: Pre-register device with CrackedClaw
-HTTP_STATUS=\$(curl -sf -o /tmp/openclaw-pair-response.json -w "%{http_code}" -X POST "\$APP_URL/api/node/pre-pair" \\
+HTTP_STATUS=\$(curl -sL --post301 --post302 --post307 -o /tmp/openclaw-pair-response.json -w "%{http_code}" -X POST "\$APP_URL/api/node/pre-pair" \\
   -H "Content-Type: application/json" \\
   -H "X-Gateway-Token: \$GATEWAY_TOKEN" \\
   -d "{
