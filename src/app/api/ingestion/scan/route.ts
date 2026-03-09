@@ -53,6 +53,85 @@ export async function POST(request: NextRequest) {
     // ── Native scan completed ────────────────────────────────────────────────
     const { insights, metadata } = result;
 
+    // ── Persist insights to memory ───────────────────────────────────────────
+    const { saveMemory } = await import('@/lib/memory/service');
+    const memoryPromises: Promise<void>[] = [];
+
+    if (insights.topics && insights.topics.length > 0) {
+      memoryPromises.push(
+        saveMemory(user.id, `${provider}_topics`, insights.topics.join(', '), {
+          category: 'context',
+          source: 'scan',
+          importance: 3,
+        })
+      );
+    }
+
+    if (insights.contacts && insights.contacts.length > 0) {
+      const topContacts = insights.contacts.slice(0, 10).map(c => c.name).join(', ');
+      memoryPromises.push(
+        saveMemory(user.id, `${provider}_top_contacts`, topContacts, {
+          category: 'contact',
+          source: 'scan',
+          importance: 3,
+        })
+      );
+    }
+
+    if (insights.writingStyle) {
+      memoryPromises.push(
+        saveMemory(user.id, `${provider}_writing_tone`, insights.writingStyle.tone, {
+          category: 'preference',
+          source: 'scan',
+          importance: 4,
+        })
+      );
+      if (insights.writingStyle.patterns && insights.writingStyle.patterns.length > 0) {
+        memoryPromises.push(
+          saveMemory(user.id, `${provider}_writing_patterns`, insights.writingStyle.patterns.join('; '), {
+            category: 'preference',
+            source: 'scan',
+            importance: 3,
+          })
+        );
+      }
+    }
+
+    if (insights.automationOpportunities && insights.automationOpportunities.length > 0) {
+      memoryPromises.push(
+        saveMemory(user.id, `${provider}_automation_opportunities`, insights.automationOpportunities.join('; '), {
+          category: 'context',
+          source: 'scan',
+          importance: 3,
+        })
+      );
+    }
+
+    if (insights.schedulePatterns) {
+      const sp = insights.schedulePatterns;
+      if (sp.busiestDays && sp.busiestDays.length > 0) {
+        memoryPromises.push(
+          saveMemory(user.id, `${provider}_busiest_days`, sp.busiestDays.join(', '), {
+            category: 'schedule',
+            source: 'scan',
+            importance: 3,
+          })
+        );
+      }
+    }
+
+    // Save raw scan metadata
+    memoryPromises.push(
+      saveMemory(user.id, `${provider}_last_scan`, new Date().toISOString(), {
+        category: 'context',
+        source: 'scan',
+        importance: 1,
+      })
+    );
+
+    // Run all saves in parallel; don't block response on failures
+    await Promise.allSettled(memoryPromises);
+
     const summaryParts: string[] = [
       `Scanned ${metadata.itemsScanned} items from ${provider} in ${(metadata.timeMs / 1000).toFixed(1)}s.`,
     ];

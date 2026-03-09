@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface ScanTriggerCardProps {
   provider: string;
@@ -13,6 +14,7 @@ interface ScanTriggerCardProps {
 export function ScanTriggerCard({ provider, scope = "full", onComplete, onAgentScanNeeded }: ScanTriggerCardProps) {
   const [status, setStatus] = useState<"scanning" | "agent" | "complete" | "error">("scanning");
   const [summary, setSummary] = useState<string>("");
+  const toast = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -30,6 +32,7 @@ export function ScanTriggerCard({ provider, scope = "full", onComplete, onAgentS
         if (!res.ok) {
           setStatus("error");
           setSummary("Scan failed — try reconnecting the integration.");
+          toast.error(`${provider} scan failed`, "Try reconnecting the integration.");
           return;
         }
 
@@ -47,7 +50,6 @@ export function ScanTriggerCard({ provider, scope = "full", onComplete, onAgentS
           if (onAgentScanNeeded) {
             onAgentScanNeeded(agentMessage);
           } else if (onComplete) {
-            // Fallback: surface the message so chat can send it
             onComplete(agentMessage);
           }
           return;
@@ -58,20 +60,26 @@ export function ScanTriggerCard({ provider, scope = "full", onComplete, onAgentS
         const summaryText = data.summary || `Scanned ${provider} successfully.`;
         setSummary(summaryText);
 
+        // Show toast notification
+        const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1);
+        toast.success(`✓ ${providerLabel} scan complete`, summaryText);
+
+        // Auto-inject summary message into chat
         if (onComplete) {
-          onComplete(data.summary || summaryText);
+          onComplete(summaryText);
         }
       } catch {
         if (!cancelled) {
           setStatus("error");
           setSummary("Network error during scan.");
+          toast.error(`${provider} scan failed`, "Network error during scan.");
         }
       }
     }
 
     runScan();
     return () => { cancelled = true; };
-  }, [provider, scope, onComplete, onAgentScanNeeded]);
+  }, [provider, scope]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1);
 

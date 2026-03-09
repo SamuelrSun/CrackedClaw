@@ -118,6 +118,7 @@ interface RichMessageProps {
   onWorkflowSelect: (id: string) => void;
   onWorkflowCustom: () => void;
   onWelcomeComplete: () => void;
+  onScanComplete?: (summary: string) => void;
   gatewayHost?: string;
 }
 
@@ -127,6 +128,7 @@ function RichMessage({
   onWorkflowSelect,
   onWorkflowCustom,
   onWelcomeComplete,
+  onScanComplete,
   gatewayHost,
 }: RichMessageProps) {
   return (
@@ -198,7 +200,7 @@ function RichMessage({
               <ScanTriggerCard
                 key={idx}
                 provider={segment.provider}
-
+                onComplete={onScanComplete}
               />
             );
           default:
@@ -1112,6 +1114,7 @@ export default function ChatPageClient({
                         onWorkflowSelect={handleWorkflowSelect}
                         onWorkflowCustom={handleWorkflowCustom}
                         onWelcomeComplete={handleWelcomeComplete}
+                        onScanComplete={(summary) => handleSendRef.current(`[System] Scan complete: ${summary}`)}
                         gatewayHost={gatewayHost}
                       />
                     ) : msg.role === "user" ? (
