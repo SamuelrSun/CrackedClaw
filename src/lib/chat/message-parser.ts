@@ -11,7 +11,8 @@ export type ParsedSegment =
   | { type: "welcome"; userName: string; agentName: string }
   | { type: "integrations-resolve"; services: string[] }
   | { type: "skill-suggest"; skillId: string; reason: string }
-  | { type: "inline-task"; taskName: string; status: "running" | "complete" | "failed"; details?: string };
+  | { type: "inline-task"; taskName: string; status: "running" | "complete" | "failed"; details?: string }
+  | { type: "browser-preview"; url: string; status: "browsing" | "waiting-login" | "complete" | "error"; message?: string };
 
 const PATTERNS = {
   inlineTask: /\[\[task:([^:]+):([^:]+)(?::([^\]]+))?\]\]/g,
@@ -24,6 +25,7 @@ const PATTERNS = {
   workflowSuggest: /\[\[workflow:suggest:/g,
   contextSummary: /\[\[context:summary:(\{.*?\})\]\]/g,
   welcome: /\[\[welcome:([^,\]]+),([^\]]+)\]\]/g,
+  browserPreview: /\[\[browser:([^:]+):([^:]+)(?::([^\]]+))?\]\]/g,
 };
 
 interface MatchInfo {
@@ -258,6 +260,25 @@ export function parseMessageContent(content: string): ParsedSegment[] {
     }
   }
 
+  // Browser preview
+  PATTERNS.browserPreview.lastIndex = 0;
+  while ((match = PATTERNS.browserPreview.exec(processedContent)) !== null) {
+    const bStatus = match[2].trim() as "browsing" | "waiting-login" | "complete" | "error";
+    const validStatuses = ["browsing", "waiting-login", "complete", "error"];
+    if (validStatuses.includes(bStatus)) {
+      matches.push({
+        index: match.index,
+        length: match[0].length,
+        segment: {
+          type: "browser-preview",
+          url: match[1].trim(),
+          status: bStatus,
+          message: match[3]?.trim(),
+        },
+      });
+    }
+  }
+
   // Welcome
   PATTERNS.welcome.lastIndex = 0;
   while ((match = PATTERNS.welcome.exec(processedContent)) !== null) {
@@ -309,6 +330,7 @@ export function hasRichContent(content: string): boolean {
   PATTERNS.integrationsResolve.lastIndex = 0;
   PATTERNS.skillSuggest.lastIndex = 0;
   PATTERNS.inlineTask.lastIndex = 0;
+  PATTERNS.browserPreview.lastIndex = 0;
 
   return (
     PATTERNS.integrationConnect.test(content) ||
@@ -319,6 +341,7 @@ export function hasRichContent(content: string): boolean {
     PATTERNS.welcome.test(content) ||
     PATTERNS.integrationsResolve.test(content) ||
     PATTERNS.skillSuggest.test(content) ||
-    PATTERNS.inlineTask.test(content)
+    PATTERNS.inlineTask.test(content) ||
+    PATTERNS.browserPreview.test(content)
   );
 }

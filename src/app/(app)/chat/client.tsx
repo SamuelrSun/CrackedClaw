@@ -32,6 +32,8 @@ import type { SubagentSession } from "@/components/chat/subagent-card";
 import { ChatError } from "@/components/chat/chat-error";
 import { useNodeStatus } from "@/hooks/use-node-status";
 import { MemoryPanel, type MemoryInsights } from "@/components/chat/memory-panel";
+import { BrowserPopup } from "@/components/chat/browser-popup";
+import { BrowserPreviewCard } from "@/components/chat/browser-preview-card";
 
 interface ToolCallInfo {
   tool: string;
@@ -124,6 +126,7 @@ interface RichMessageProps {
   onScanComplete?: (summary: string) => void;
   onOpenMemory?: (insights: MemoryInsights, source: string) => void;
   gatewayHost?: string;
+  onOpenBrowser?: (url: string, control?: boolean) => void;
 }
 
 function RichMessage({
@@ -135,6 +138,7 @@ function RichMessage({
   onScanComplete,
   onOpenMemory,
   gatewayHost,
+  onOpenBrowser,
 }: RichMessageProps) {
   return (
     <div className="space-y-3">
@@ -210,6 +214,18 @@ function RichMessage({
                 taskName={segment.taskName}
                 status={segment.status}
                 details={segment.details}
+              />
+            );
+          case "browser-preview":
+            return (
+              <BrowserPreviewCard
+                key={idx}
+                currentUrl={segment.url}
+                status={segment.status}
+                message={segment.message}
+                onOpenPopup={() => onOpenBrowser?.(segment.url, false)}
+                onTakeControl={() => onOpenBrowser?.(segment.url, true)}
+                onIgnore={() => {}}
               />
             );
           case "scan-trigger":
@@ -467,6 +483,10 @@ export default function ChatPageClient({
   const [inlineSubagents, setInlineSubagents] = useState<SubagentSession[]>([]);
   const [memoryPanelOpen, setMemoryPanelOpen] = useState(false);
   const [memoryPanelData, setMemoryPanelData] = useState<{ insights?: MemoryInsights; source?: string }>({});
+  const [browserPopupOpen, setBrowserPopupOpen] = useState(false);
+  const [browserMode, setBrowserMode] = useState<"watching" | "control" | "paused">("watching");
+  const [browserNovncUrl, setBrowserNovncUrl] = useState<string>("");
+  const [browserCurrentUrl, setBrowserCurrentUrl] = useState<string | undefined>(undefined);
   const prevSubagentCountRef = { current: 0 };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastFailedMessage = useRef<string | null>(null);
@@ -1172,6 +1192,11 @@ export default function ChatPageClient({
                         onScanComplete={(summary) => handleSendRef.current(`[System] Scan complete: ${summary}`)}
                         onOpenMemory={handleOpenMemory}
                         gatewayHost={gatewayHost}
+                        onOpenBrowser={(url, control) => {
+                          setBrowserCurrentUrl(url);
+                          setBrowserMode(control ? "control" : "watching");
+                          setBrowserPopupOpen(true);
+                        }}
                       />
                     ) : msg.role === "user" ? (
                       <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -1317,6 +1342,21 @@ export default function ChatPageClient({
           onClose={() => setMemoryPanelOpen(false)}
           source={memoryPanelData.source}
           insights={memoryPanelData.insights}
+        />
+
+        {/* Browser Popup */}
+        <BrowserPopup
+          isOpen={browserPopupOpen}
+          onClose={() => setBrowserPopupOpen(false)}
+          novncUrl={browserNovncUrl}
+          currentUrl={browserCurrentUrl}
+          mode={browserMode}
+          onTakeControl={() => setBrowserMode("control")}
+          onReleaseControl={() => setBrowserMode("watching")}
+          onStop={() => {
+            setBrowserPopupOpen(false);
+            setBrowserMode("watching");
+          }}
         />
       </div>
     </div>
