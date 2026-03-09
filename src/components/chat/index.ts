@@ -9,3 +9,7 @@ export { ChatError } from "./chat-error";
 
 export { CronJobCard } from "./cron-job-card";
 export type { CronJobCardData } from "./cron-job-card";
+
+export { SubagentCard } from "./subagent-card";
+export type { SubagentSession } from "./subagent-card";
+export { SubagentPanel } from "./subagent-panel";

@@ -26,6 +26,7 @@ import {
   OnboardingWelcomeAnimation,
 } from "@/components/chat";
 import { ActiveAgentsPanel } from "@/components/chat/active-agents-panel";
+import { SubagentPanel } from "@/components/chat/subagent-panel";
 import { ChatError } from "@/components/chat/chat-error";
 import { useNodeStatus } from "@/hooks/use-node-status";
 
@@ -440,7 +441,10 @@ export default function ChatPageClient({
   const [error, setError] = useState<GatewayError | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
   const [retryCount, setRetryCount] = useState(0);
-  const [activeAgentTasks, setActiveAgentTasks] = useState<Array<{id: string, label: string, startedAt: number}>>([]);
+  const [activeAgentTasks, setActiveAgentTasks] = useState<Array<{id: string, label: string, startedAt: number}>>([]); 
+  const [showSubagentPanel, setShowSubagentPanel] = useState(false); 
+  const [subagentCount, setSubagentCount] = useState(0); 
+  const prevSubagentCountRef = { current: 0 };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastFailedMessage = useRef<string | null>(null);
   const handleSendRef = useRef<(messageOverride?: string) => Promise<void>>(async () => {});
@@ -1001,6 +1005,22 @@ export default function ChatPageClient({
 
       {/* Chat Area */}
       <div className="flex-1 flex flex-col relative">
+        {/* Chat header with Tasks button */}
+        <div className="flex items-center justify-end px-4 py-1.5 border-b border-[rgba(58,58,56,0.1)] bg-[#F5F3EF]/50">
+          <button
+            onClick={() => setShowSubagentPanel((v) => !v)}
+            className="relative flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-grid/50 hover:text-[#1A3C2B] border border-transparent hover:border-[rgba(26,60,43,0.2)] transition-all rounded-none"
+          >
+            <span>🔄</span>
+            <span>Tasks</span>
+            {subagentCount > 0 && (
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#1A3C2B] text-white font-mono text-[9px] ml-0.5">
+                {subagentCount}
+              </span>
+            )}
+          </button>
+        </div>
+
         {/* Onboarding Progress Bar */}
         {isInOnboarding && currentPhase && (
           <OnboardingProgress phase={currentPhase} />
@@ -1148,6 +1168,18 @@ export default function ChatPageClient({
         </div>
 
         <ActiveAgentsPanel tasks={activeAgentTasks} />
+
+        {/* Subagent Dashboard Panel */}
+        <SubagentPanel
+          isOpen={showSubagentPanel}
+          onClose={() => setShowSubagentPanel(false)}
+          onSubagentCountChange={(count) => {
+            if (count > subagentCount) {
+              setShowSubagentPanel(true);
+            }
+            setSubagentCount(count);
+          }}
+        />
 
         {/* Input */}
         <div className="border-t border-[rgba(58,58,56,0.2)] p-4">
