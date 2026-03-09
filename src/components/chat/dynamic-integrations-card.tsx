@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Check, Loader2, X } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Check, Copy, Loader2, Monitor, RefreshCw, X } from "lucide-react";
 import type { ResolvedIntegration } from "@/lib/integrations/resolver";
 import { IntegrationIcon } from "@/components/integrations/integration-icon";
 
@@ -14,6 +14,13 @@ interface CardState {
   resolved: ResolvedIntegration;
   status: "idle" | "adding" | "added" | "error" | "needs_key";
   apiKeyValue?: string;
+}
+
+interface NodeStatus {
+  isOnline: boolean;
+  nodeName?: string;
+  gatewayUrl?: string;
+  authToken?: string;
 }
 
 function openOAuthPopup(provider: string): Promise<boolean> {
@@ -47,11 +54,73 @@ function openOAuthPopup(provider: string): Promise<boolean> {
   });
 }
 
+// Parse gateway URL to extract host
+function parseGatewayHost(url: string | null): string {
+  if (!url) return "your-workspace.crackedclaw.com";
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname;
+  } catch {
+    return "your-workspace.crackedclaw.com";
+  }
+}
+
 function NodeRequiredModal({ name, onClose, gatewayHost }: { name: string; onClose: () => void; gatewayHost?: string }) {
+  const [nodeStatus, setNodeStatus] = useState<NodeStatus | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [checking, setChecking] = useState(false);
+
+  const checkNodeStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/node/status');
+      if (res.ok) {
+        const data = await res.json();
+        setNodeStatus(data);
+      }
+    } catch {
+      setNodeStatus({ isOnline: false });
+    }
+  }, []);
+
+  useEffect(() => {
+    checkNodeStatus();
+    // Poll every 3 seconds
+    const interval = setInterval(checkNodeStatus, 3000);
+    return () => clearInterval(interval);
+  }, [checkNodeStatus]);
+
+  const handleRefresh = async () => {
+    setChecking(true);
+    await checkNodeStatus();
+    setTimeout(() => setChecking(false), 500);
+  };
+
+  const handleCopy = async () => {
+    const host = nodeStatus?.gatewayUrl ? parseGatewayHost(nodeStatus.gatewayUrl) : gatewayHost || "your-workspace.crackedclaw.com";
+    const token = nodeStatus?.authToken || "";
+    const fullCommand = token 
+      ? `OPENCLAW_GATEWAY_TOKEN=${token} openclaw node run --tls --host ${host}`
+      : `openclaw node run --tls --host ${host}`;
+    
+    try {
+      await navigator.clipboard.writeText(fullCommand);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
+  const displayHost = nodeStatus?.gatewayUrl 
+    ? parseGatewayHost(nodeStatus.gatewayUrl) 
+    : (gatewayHost || "your-workspace.crackedclaw.com");
+
+  const maskedCommand = `openclaw node run --tls --host ${displayHost}`;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="bg-paper border border-[rgba(58,58,56,0.2)] p-6 max-w-sm w-full mx-4 space-y-4"
+        className="bg-paper border border-[rgba(58,58,56,0.2)] p-6 max-w-md w-full mx-4 space-y-4"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -60,27 +129,111 @@ function NodeRequiredModal({ name, onClose, gatewayHost }: { name: string; onClo
             <X className="w-4 h-4" />
           </button>
         </div>
+        
         <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
-          <strong className="text-forest">{name}</strong> doesn't have a way for me to connect directly, so I'll open it in a browser on your computer — just like you'd use it yourself.
+          <strong className="text-forest">{name}</strong> doesn&apos;t have a way for me to connect directly, so I&apos;ll open it in a browser on your computer — just like you&apos;d use it yourself.
         </p>
-        <div className="space-y-2">
-          <p className="font-mono text-[11px] text-grid/70 font-bold">Here&apos;s how to set that up:</p>
-          <p className="font-mono text-[10px] text-grid/60">1. Open the <strong>Terminal</strong> app on your Mac — search &quot;Terminal&quot; in Spotlight (⌘+Space)</p>
-          <p className="font-mono text-[10px] text-grid/60">2. Paste this and press Enter:</p>
+
+        {/* Live Connection Status Indicator */}
+        <div className="p-3 border border-[rgba(58,58,56,0.15)] bg-forest/5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {nodeStatus === null ? (
+                <>
+                  <Loader2 className="w-4 h-4 text-grid/50 animate-spin" />
+                  <span className="font-mono text-[10px] text-grid/60">Checking connection...</span>
+                </>
+              ) : nodeStatus.isOnline ? (
+                <>
+                  <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center">
+                    <Check className="w-2 h-2 text-white" />
+                  </div>
+                  <span className="font-mono text-[10px] text-green-700">
+                    ✅ Connected — ready to go!
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div className="relative w-3 h-3">
+                    <div className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-75" />
+                    <div className="relative w-3 h-3 rounded-full bg-amber-500" />
+                  </div>
+                  <span className="font-mono text-[10px] text-amber-700">
+                    ⏳ Waiting for connection...
+                  </span>
+                </>
+              )}
+            </div>
+            <button 
+              onClick={handleRefresh}
+              disabled={checking}
+              className="p-1 hover:bg-forest/10 rounded transition-colors"
+              title="Check connection"
+            >
+              <RefreshCw className={`w-3 h-3 text-grid/50 ${checking ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+          {nodeStatus?.isOnline && nodeStatus.nodeName && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <Monitor className="w-3 h-3 text-green-600" />
+              <span className="font-mono text-[9px] text-green-700">{nodeStatus.nodeName}</span>
+            </div>
+          )}
         </div>
-        <code className="block bg-forest/5 border border-[rgba(58,58,56,0.15)] px-3 py-2 font-mono text-[11px] text-forest">
-          {gatewayHost ? `openclaw node run --tls --host ${gatewayHost}` : "openclaw node run"}
-        </code>
-        <p className="font-mono text-[10px] text-grid/60">3. Leave that window open in the background — that&apos;s it!</p>
-        <p className="font-mono text-[10px] text-grid/50 leading-relaxed mt-1">
-          I can only do things you ask me to. I&apos;m not monitoring your screen or accessing anything without your permission. Your data stays on your device and the connection is encrypted.
-        </p>
-        <button
-          onClick={onClose}
-          className="w-full py-2 font-mono text-[10px] uppercase tracking-wide bg-forest text-white hover:bg-forest/90 transition-colors"
-        >
-          Got it
-        </button>
+
+        {nodeStatus?.isOnline ? (
+          <button
+            onClick={onClose}
+            className="w-full py-2 font-mono text-[10px] uppercase tracking-wide bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+          >
+            <Check className="w-3 h-3" />
+            All Set — Close
+          </button>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <p className="font-mono text-[11px] text-grid/70 font-bold">Here&apos;s how to set that up:</p>
+              <p className="font-mono text-[10px] text-grid/60">1. Install OpenClaw (npm install -g openclaw)</p>
+              <p className="font-mono text-[10px] text-grid/60">2. Open <strong>Terminal</strong> on your Mac and paste the command below:</p>
+            </div>
+            
+            {/* Command box with Copy button */}
+            <div className="relative bg-forest/5 border border-[rgba(58,58,56,0.15)] p-3">
+              <code className="font-mono text-[11px] text-forest break-all pr-16">
+                {maskedCommand}
+              </code>
+              <button
+                onClick={handleCopy}
+                className="absolute top-2 right-2 px-2 py-1 bg-forest/10 hover:bg-forest/20 text-forest font-mono text-[9px] uppercase tracking-wide transition-colors flex items-center gap-1"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-3 h-3" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
+            
+            <p className="font-mono text-[10px] text-grid/60">3. Leave that window open in the background — that&apos;s it!</p>
+            
+            <p className="font-mono text-[10px] text-grid/50 leading-relaxed">
+              The Copy button includes your auth token. I can only do things you ask me to. Your data stays on your device and the connection is encrypted.
+            </p>
+            
+            <button
+              onClick={onClose}
+              className="w-full py-2 font-mono text-[10px] uppercase tracking-wide bg-forest text-white hover:bg-forest/90 transition-colors"
+            >
+              Got it
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

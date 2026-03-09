@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Check, Copy, Loader2, Monitor, RefreshCw } from "lucide-react";
 
 interface NodeStatus {
   isOnline: boolean;
   nodeName?: string;
   lastSeen?: string;
+  gatewayUrl?: string;
+  authToken?: string;
 }
 
 interface NodeGateCardProps {
@@ -16,18 +19,25 @@ interface NodeGateCardProps {
   onLaunch?: () => void;
 }
 
+// Parse gateway URL to extract host
+function parseGatewayHost(url: string | null): string {
+  if (!url) return "your-workspace.crackedclaw.com";
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname;
+  } catch {
+    return "your-workspace.crackedclaw.com";
+  }
+}
+
 export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLaunch, gatewayHost }: NodeGateCardProps) {
   const [nodeStatus, setNodeStatus] = useState<NodeStatus | null>(null);
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [checking, setChecking] = useState(false);
 
-  useEffect(() => {
-    checkNodeStatus();
-    const interval = setInterval(checkNodeStatus, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const checkNodeStatus = async () => {
+  const checkNodeStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/node/status');
       if (res.ok) {
@@ -36,6 +46,35 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
       }
     } catch {
       setNodeStatus({ isOnline: false });
+    }
+  }, []);
+
+  useEffect(() => {
+    checkNodeStatus();
+    // Poll every 3 seconds for faster feedback
+    const interval = setInterval(checkNodeStatus, 3000);
+    return () => clearInterval(interval);
+  }, [checkNodeStatus]);
+
+  const handleRefresh = async () => {
+    setChecking(true);
+    await checkNodeStatus();
+    setTimeout(() => setChecking(false), 500);
+  };
+
+  const handleCopy = async () => {
+    const host = nodeStatus?.gatewayUrl ? parseGatewayHost(nodeStatus.gatewayUrl) : gatewayHost || "your-workspace.crackedclaw.com";
+    const token = nodeStatus?.authToken || "";
+    const fullCommand = token 
+      ? `OPENCLAW_GATEWAY_TOKEN=${token} openclaw node run --tls --host ${host}`
+      : `openclaw node run --tls --host ${host}`;
+    
+    try {
+      await navigator.clipboard.writeText(fullCommand);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
     }
   };
 
@@ -64,26 +103,74 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
     }
   };
 
+  const displayHost = nodeStatus?.gatewayUrl 
+    ? parseGatewayHost(nodeStatus.gatewayUrl) 
+    : (gatewayHost || "your-workspace.crackedclaw.com");
+
+  const maskedCommand = `openclaw node run --tls --host ${displayHost}`;
+
   return (
-    <div className="border border-amber-200 bg-amber-50 p-4">
+    <div className="border border-amber-200 bg-amber-50 p-4 max-w-md">
+      {/* Header */}
       <div className="flex items-center gap-2 mb-3">
         <span className="text-2xl">{integrationIcon}</span>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="font-header font-bold text-sm">{integrationName}</p>
           <span className="font-mono text-[9px] uppercase tracking-wide bg-amber-200 text-amber-800 px-2 py-0.5">
             Works through your browser
           </span>
         </div>
-        <div className="ml-auto flex items-center gap-1.5">
-          <div className={`w-2 h-2 rounded-full ${nodeStatus?.isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
-          <span className="font-mono text-[9px] text-amber-700">
-            {nodeStatus === null ? 'Checking...' : nodeStatus.isOnline ? `Connected: ${nodeStatus.nodeName || 'Your Mac'}` : 'Not connected yet'}
-          </span>
+      </div>
+
+      {/* Live Connection Status Indicator */}
+      <div className="mb-4 p-3 border border-amber-200 bg-white/50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {nodeStatus === null ? (
+              <>
+                <Loader2 className="w-4 h-4 text-amber-600 animate-spin" />
+                <span className="font-mono text-[10px] text-amber-700">Checking connection...</span>
+              </>
+            ) : nodeStatus.isOnline ? (
+              <>
+                <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center">
+                  <Check className="w-2 h-2 text-white" />
+                </div>
+                <span className="font-mono text-[10px] text-green-700">
+                  ✅ Connected — ready to go!
+                </span>
+              </>
+            ) : (
+              <>
+                <div className="relative w-3 h-3">
+                  <div className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-75" />
+                  <div className="relative w-3 h-3 rounded-full bg-amber-500" />
+                </div>
+                <span className="font-mono text-[10px] text-amber-700">
+                  ⏳ Waiting for connection...
+                </span>
+              </>
+            )}
+          </div>
+          <button 
+            onClick={handleRefresh}
+            disabled={checking}
+            className="p-1 hover:bg-amber-100 rounded transition-colors"
+            title="Check connection"
+          >
+            <RefreshCw className={`w-3 h-3 text-amber-600 ${checking ? 'animate-spin' : ''}`} />
+          </button>
         </div>
+        {nodeStatus?.isOnline && nodeStatus.nodeName && (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <Monitor className="w-3 h-3 text-green-600" />
+            <span className="font-mono text-[9px] text-green-700">{nodeStatus.nodeName}</span>
+          </div>
+        )}
       </div>
 
       <p className="font-mono text-[10px] text-amber-800 mb-4">
-        I'll open {integrationName} in a browser on your computer — just like you'd use it yourself. Your existing login is used, so nothing is stored on our servers.
+        I&apos;ll open {integrationName} in a browser on your computer — just like you&apos;d use it yourself. Your existing login is used, so nothing is stored on our servers.
       </p>
 
       {nodeStatus?.isOnline ? (
@@ -91,23 +178,33 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
           <button
             onClick={launchSession}
             disabled={launching}
-            className="w-full py-2 font-mono text-[11px] uppercase tracking-wide bg-amber-700 text-white hover:bg-amber-800 transition-colors disabled:opacity-50"
+            className="w-full py-2 font-mono text-[11px] uppercase tracking-wide bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {launching ? 'Launching...' : `Open ${integrationName} in Browser`}
+            {launching ? (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Launching...
+              </>
+            ) : (
+              <>
+                <Check className="w-3 h-3" />
+                Open {integrationName} in Browser
+              </>
+            )}
           </button>
           {error && <p className="font-mono text-[10px] text-red-600">{error}</p>}
-          <p className="font-mono text-[9px] text-amber-600 text-center">
+          <p className="font-mono text-[9px] text-green-600 text-center">
             Will open in your Chrome browser on {nodeStatus.nodeName || 'your Mac'}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="font-mono text-[10px] font-bold text-amber-800">Here's how to set that up:</p>
+          <p className="font-mono text-[10px] font-bold text-amber-800">Here&apos;s how to set that up:</p>
           <div className="space-y-2">
             {[
-              { n: 1, text: 'Install OpenClaw on your Mac' },
-              { n: 2, text: 'Open the Terminal app on your Mac (search "Terminal" in Spotlight — ⌘+Space) and paste:' },
-              { n: 3, text: 'Leave that window open — that\'s it! I can only do things you ask me to.' },
+              { n: 1, text: 'Install OpenClaw on your Mac (npm install -g openclaw)' },
+              { n: 2, text: 'Open Terminal and paste the command below:' },
+              { n: 3, text: 'Leave that window open — that\'s it!' },
             ].map(step => (
               <div key={step.n} className="flex items-start gap-2">
                 <span className="font-mono text-[9px] bg-amber-200 text-amber-800 w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0">{step.n}</span>
@@ -115,20 +212,33 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
               </div>
             ))}
           </div>
-          <div className="bg-amber-100 border border-amber-300 p-2">
-            <code className="font-mono text-[10px] text-amber-900 break-all">
-              {gatewayHost ? `openclaw node run --tls --host ${gatewayHost}` : "openclaw node run --tls --host your-workspace.crackedclaw.com"}
+          
+          {/* Command box with Copy button */}
+          <div className="relative bg-amber-100 border border-amber-300 p-3">
+            <code className="font-mono text-[10px] text-amber-900 break-all pr-16">
+              {maskedCommand}
             </code>
+            <button
+              onClick={handleCopy}
+              className="absolute top-2 right-2 px-2 py-1 bg-amber-200 hover:bg-amber-300 text-amber-800 font-mono text-[9px] uppercase tracking-wide transition-colors flex items-center gap-1"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3 h-3" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3 h-3" />
+                  Copy
+                </>
+              )}
+            </button>
           </div>
+          
           <p className="font-mono text-[9px] text-amber-600 leading-relaxed">
-            I&apos;m not monitoring your screen or accessing anything without your permission. Your data stays on your device and the connection is encrypted.
+            The Copy button includes your auth token. I&apos;m not monitoring your screen or accessing anything without your permission. Your data stays on your device and the connection is encrypted.
           </p>
-          <button
-            onClick={checkNodeStatus}
-            className="w-full py-1.5 font-mono text-[10px] uppercase tracking-wide border border-amber-400 text-amber-700 hover:bg-amber-100 transition-colors"
-          >
-            Check Again
-          </button>
         </div>
       )}
     </div>
