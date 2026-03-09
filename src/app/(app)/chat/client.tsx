@@ -1273,7 +1273,7 @@ User message: `
 
       {/* Chat Area */}
       <div
-        className="flex-1 flex flex-col relative"
+        className="flex-1 flex flex-col relative overflow-hidden"
         onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false); }}
         onDrop={(e) => {
@@ -1388,7 +1388,7 @@ User message: `
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
           {messages.length > 0 ? (
             messages.map((msg) => {
               const segments = parseMessageContent(msg.content);
