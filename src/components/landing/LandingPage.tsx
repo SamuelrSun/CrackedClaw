@@ -53,59 +53,53 @@ function getUseCaseResponse(useCase: string, userName: string): string {
 
 function uid() { return Math.random().toString(36).slice(2); }
 
-// ─── Natural language name parser ─────────────────────────────────────────────
-// Handles: "Sam / Sophia", "I'm Sam, call yourself Nova", "Sam and you're Aria", etc.
+// ─── Natural language name parser ────────────────────────────────────────────
+// Handles casual/abbreviated input: "im Sam and u can be sophia", "Sam / Nova", etc.
 function parseNames(raw: string): { uName: string; aName: string } {
   const text = raw.trim();
 
-  // Explicit slash separator: "Sam / Nova"
+  // Explicit slash: "Sam / Nova"
   if (text.includes("/")) {
     const [a, b] = text.split("/").map((s) => s.trim());
-    return { uName: extractName(a), aName: extractName(b) || "Claude" };
+    return { uName: cleanName(a) || "friend", aName: cleanName(b) || "Claude" };
   }
 
-  // Look for agent name patterns first (more specific)
-  const agentPatterns = [
-    /(?:you(?:\s+can)?\s+(?:be|go by|call yourself|are)|call you|i['']?ll call you|name you)\s+([A-Za-z][A-Za-z\s\-]{0,20}?)(?:[,\.!]|$)/i,
-    /(?:and\s+)?you(?:'re|\s+are)?\s+([A-Z][a-zA-Z\-]{1,20})/,
-  ];
-  let aName = "";
-  for (const pat of agentPatterns) {
-    const m = text.match(pat);
-    if (m?.[1]) { aName = m[1].trim().split(/\s+/)[0]; break; }
-  }
+  // Normalize common abbreviations
+  const norm = text
+    .replace(/u/gi, "you")
+    .replace(/ur/gi, "your")
+    .replace(/im/gi, "I'm")
+    .replace(/can b/gi, "can be");
 
-  // Look for user name patterns
-  const userPatterns = [
-    /i['']?m\s+([A-Z][a-zA-Z\-]{1,20})/i,
-    /my\s+name\s+is\s+([A-Z][a-zA-Z\-]{1,20})/i,
-    /(?:^|,\s*)([A-Z][a-zA-Z\-]{1,20})(?:\s+(?:and|,))/i,
-    /^([A-Z][a-zA-Z\-]{1,20})$/i,
-  ];
-  let uName = "";
-  for (const pat of userPatterns) {
-    const m = text.match(pat);
-    if (m?.[1] && m[1].toLowerCase() !== "and" && m[1].toLowerCase() !== "you") {
-      uName = m[1].trim();
-      break;
-    }
-  }
+  // Extract agent name — word after "be/go by/call yourself/you're/you are"
+  const agentMatch = norm.match(
+    /(?:you\s+(?:can\s+)?(?:be|go\s+by)|call\s+(?:yourself|you)|name\s+you|you're|you\s+are)\s+([a-zA-Z][a-zA-Z\-]{0,20})/i
+  );
+  const aName = agentMatch ? agentMatch[1] : "";
 
-  // Fallback: if no patterns matched, split on comma or "and"
+  // Extract user name — word after "I'm / my name is / call me"
+  const userMatch = norm.match(
+    /(?:i'?m|my\s+name\s+is|name\s+is|call\s+me)\s+([a-zA-Z][a-zA-Z\-]{0,20})/i
+  );
+  let uName = userMatch ? userMatch[1] : "";
+
+  // Fallback: first non-filler word
   if (!uName) {
-    const parts = text.split(/,|and/i).map((s) => s.trim()).filter(Boolean);
-    uName = extractName(parts[0]) || text.split(/\s+/)[0];
-    if (!aName && parts[1]) aName = extractName(parts[1]);
+    const skip = new Set(["and","you","can","be","my","name","is","call","want","please","hey","hi","hello","the","a","an"]);
+    const words = norm.split(/[\s,]+/).filter((w) => /^[a-zA-Z]{2,}$/.test(w));
+    uName = words.find((w) => !skip.has(w.toLowerCase())) || words[0] || "";
   }
 
-  return { uName: capitalize(uName) || "friend", aName: capitalize(aName) || "Claude" };
+  return {
+    uName: capitalize(uName) || "friend",
+    aName: capitalize(aName) || "Claude",
+  };
 }
 
-// Strip filler words and possessives, return the core name
-function extractName(s: string): string {
+function cleanName(s: string): string {
   return s
-    .replace(/^(i['']?m|my name is|call (me|yourself|you)|you can be|you('re| are)|and you|and)/gi, "")
-    .replace(/[^A-Za-z\-]/g, " ")
+    .replace(/^(i'?m|my name is|call (me|yourself|you)|you can be|you'?re|you are|and you|and|be)\s+/gi, "")
+    .replace(/[^a-zA-Z\-]/g, " ")
     .trim()
     .split(/\s+/)[0] || "";
 }
