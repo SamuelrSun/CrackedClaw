@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { Session } from "@supabase/supabase-js";
 import AuthCard from "@/components/landing/AuthCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -179,36 +178,16 @@ export default function LandingPage() {
       return;
     }
 
+    // If already signed in, go straight to chat — no need to show onboarding
     const supabase = createClient();
-
-    // Handle auth state changes — fires reliably after OAuth redirects
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: string, session: Session | null) => {
-        if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session) {
-          const stored = localStorage.getItem(PRE_AUTH_KEY);
-          if (stored) {
-            try {
-              const ctx: PreAuthContext = JSON.parse(stored);
-              setUserName(ctx.userName);
-              setAgentName(ctx.agentName || "Your Agent");
-              setStep("provisioning");
-              triggerProvision(ctx);
-              return;
-            } catch { localStorage.removeItem(PRE_AUTH_KEY); }
-          }
-          // Signed in but no pre-auth context — go straight to app
-          window.location.href = "/chat";
-        }
+    supabase.auth.getSession().then(({ data: { session: s } }: { data: { session: import("@supabase/supabase-js").Session | null } }) => {
+      const session = s;
+      if (session) {
+        window.location.href = "/chat";
+      } else {
+        setTimeout(() => setStageSmall(true), 500);
       }
-    );
-
-    // Also check immediately in case session already exists (page reload, direct visit)
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
-      if (session) return; // onAuthStateChange fires INITIAL_SESSION, handles redirect
-      setTimeout(() => setStageSmall(true), 500);
     });
-
-    return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

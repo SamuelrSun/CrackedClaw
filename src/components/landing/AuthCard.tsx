@@ -55,7 +55,12 @@ export default function AuthCard({ onSuccess }: { onSuccess: () => void }) {
     const supabase = createClient();
     const { error: oauthErr } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: `${window.location.origin}/auth/callback?source=landing` },
+      options: {
+        redirectTo: (() => {
+          const ctx = localStorage.getItem("cc_pre_auth") || "{}";
+          return `${window.location.origin}/auth/callback?source=landing&ctx=${encodeURIComponent(ctx)}`;
+        })(),
+      },
     });
     if (oauthErr) { setError(getFriendlyError(oauthErr.message)); setOauthLoading(null); }
   }
