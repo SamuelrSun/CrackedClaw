@@ -12,6 +12,7 @@ export interface SystemPromptContext {
   secretNames?: string[]; // names only, never values
   skillsPrompt?: string;
   fileContext?: string;
+  gatewayHost?: string; // e.g. "i-35adeb3e.crackedclaw.com" for node run command
 }
 
 const CORE_PROMPT = `You are a proactive AI agent. Your job is to DO things for the user — never tell them to do things you can do yourself.
@@ -73,6 +74,7 @@ When a user asks to connect an integration (Google, Google Sheets, Gmail, Calend
 - This renders a "Connect" button that opens the real OAuth flow in a popup window
 - Only confirm success AFTER the user has gone through OAuth (you will receive a follow-up message like "Google connected ✓")
 - If the requested service is not yet supported via OAuth (e.g. LinkedIn, GitHub), explain that and offer to open it in their browser instead — say something like: "LinkedIn doesn't have a way for me to connect directly, so I'll open it in a browser on your computer — just like how you'd use it yourself"
+- When telling users to connect their computer, give them the EXACT command with their specific host. The command will be injected in DEVICE_CONNECTION_COMMAND below.
 - Never claim an integration is connected without the user completing OAuth`;
 
 export function buildSystemPrompt(ctx: SystemPromptContext): string {
@@ -109,6 +111,10 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
 
   if (ctx.fileContext) {
     parts.push('\nRELEVANT FILES (from your memory):\n' + ctx.fileContext);
+  }
+
+  if (ctx.gatewayHost) {
+    parts.push(`\nDEVICE CONNECTION COMMAND:\nWhen a user needs to connect their computer (for browser-based services like LinkedIn, Instagram, etc.), tell them to:\n1. Open the Terminal app on their Mac (press ⌘+Space and search "Terminal")\n2. Paste this exact command and press Enter:\n\`\`\`\nopenclaw node run --host ${ctx.gatewayHost}\n\`\`\`\n3. Leave that window open in the background — that\'s it!\n\nAdd this reassurance: "This just lets me interact with apps when you ask me to. I\'m not monitoring your screen or accessing anything without your permission. The connection is encrypted and secure."`);
   }
 
   if (ctx.skillsPrompt) {
@@ -165,6 +171,22 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
         ctx.secretNames = secrets.map((s: { name: string }) => s.name);
       }
     } catch { /* table may not exist yet */ }
+
+    // Get gateway host for node run command
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('openclaw_gateway_url')
+      .eq('owner_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    
+    if (org?.openclaw_gateway_url) {
+      try {
+        const url = new URL(org.openclaw_gateway_url);
+        ctx.gatewayHost = url.hostname;
+      } catch { /* invalid URL */ }
+    }
 
   } catch (err) {
     console.error('Failed to build system prompt context:', err);

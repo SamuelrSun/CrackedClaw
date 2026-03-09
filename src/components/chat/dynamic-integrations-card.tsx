@@ -6,6 +6,7 @@ import type { ResolvedIntegration } from "@/lib/integrations/resolver";
 
 interface DynamicIntegrationsCardProps {
   services: string[];
+  gatewayHost?: string;
 }
 
 interface CardState {
@@ -45,7 +46,7 @@ function openOAuthPopup(provider: string): Promise<boolean> {
   });
 }
 
-function NodeRequiredModal({ name, onClose }: { name: string; onClose: () => void }) {
+function NodeRequiredModal({ name, onClose, gatewayHost }: { name: string; onClose: () => void; gatewayHost?: string }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
@@ -67,7 +68,7 @@ function NodeRequiredModal({ name, onClose }: { name: string; onClose: () => voi
           <p className="font-mono text-[10px] text-grid/60">2. Paste this and press Enter:</p>
         </div>
         <code className="block bg-forest/5 border border-[rgba(58,58,56,0.15)] px-3 py-2 font-mono text-[11px] text-forest">
-          openclaw node run
+          {gatewayHost ? `openclaw node run --host ${gatewayHost}` : "openclaw node run"}
         </code>
         <p className="font-mono text-[10px] text-grid/60">3. Leave that window open in the background — that&apos;s it!</p>
         <p className="font-mono text-[10px] text-grid/50 leading-relaxed mt-1">
@@ -84,7 +85,7 @@ function NodeRequiredModal({ name, onClose }: { name: string; onClose: () => voi
   );
 }
 
-export function DynamicIntegrationsCard({ services }: DynamicIntegrationsCardProps) {
+export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegrationsCardProps) {
   const [cards, setCards] = useState<CardState[]>([]);
   const [loading, setLoading] = useState(true);
   const [nodeModal, setNodeModal] = useState<string | null>(null);
@@ -224,7 +225,7 @@ export function DynamicIntegrationsCard({ services }: DynamicIntegrationsCardPro
 
   return (
     <>
-      {nodeModal && <NodeRequiredModal name={nodeModal} onClose={() => setNodeModal(null)} />}
+      {nodeModal && <NodeRequiredModal name={nodeModal} onClose={() => setNodeModal(null)} gatewayHost={gatewayHost} />}
       <div className="flex flex-col gap-2 my-2">
         {cards.map((card, i) => (
           <div key={card.resolved.slug} className="border border-[rgba(58,58,56,0.2)] bg-gray-100 p-3 max-w-sm">

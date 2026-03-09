@@ -104,6 +104,7 @@ interface ChatPageClientProps {
   initialConversations: Conversation[];
   initialMessages: Message[];
   hasGateway?: boolean;
+  gatewayHost?: string;
   initialConversationId?: string;
 }
 
@@ -113,6 +114,7 @@ interface RichMessageProps {
   onWorkflowSelect: (id: string) => void;
   onWorkflowCustom: () => void;
   onWelcomeComplete: () => void;
+  gatewayHost?: string;
 }
 
 function RichMessage({
@@ -121,6 +123,7 @@ function RichMessage({
   onWorkflowSelect,
   onWorkflowCustom,
   onWelcomeComplete,
+  gatewayHost,
 }: RichMessageProps) {
   return (
     <div className="space-y-3">
@@ -175,6 +178,7 @@ function RichMessage({
               <DynamicIntegrationsCard
                 key={idx}
                 services={segment.services}
+                gatewayHost={gatewayHost}
               />
             );
           case "skill-suggest":
@@ -414,6 +418,7 @@ export default function ChatPageClient({
   initialConversations, 
   initialMessages, 
   hasGateway: initialHasGateway = false,
+  gatewayHost,
   initialConversationId,
 }: ChatPageClientProps) {
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
@@ -1025,6 +1030,7 @@ export default function ChatPageClient({
                         onWorkflowSelect={handleWorkflowSelect}
                         onWorkflowCustom={handleWorkflowCustom}
                         onWelcomeComplete={handleWelcomeComplete}
+                        gatewayHost={gatewayHost}
                       />
                     ) : msg.role === "user" ? (
                       <p className="whitespace-pre-wrap">{msg.content}</p>

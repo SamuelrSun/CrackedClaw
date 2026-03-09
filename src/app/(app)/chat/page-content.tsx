@@ -11,6 +11,7 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasGateway, setHasGateway] = useState(false);
+  const [gatewayHost, setGatewayHost] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [initialConversationId, setInitialConversationId] = useState<string | undefined>();
 
@@ -73,6 +74,12 @@ export default function ChatPage() {
         if (gwRes.ok) {
           const gwData = await gwRes.json();
           setHasGateway(!!gwData.gateway);
+          if (gwData.gateway?.gateway_url) {
+            try {
+              const url = new URL(gwData.gateway.gateway_url);
+              setGatewayHost(url.hostname);
+            } catch {}
+          }
         }
       } catch (err) {
         console.error('Failed to load chat data:', err);
@@ -129,6 +136,7 @@ export default function ChatPage() {
       initialMessages={messages}
       hasGateway={hasGateway}
       initialConversationId={initialConversationId}
+      gatewayHost={gatewayHost}
     />
   );
 }
