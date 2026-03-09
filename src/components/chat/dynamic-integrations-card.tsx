@@ -75,10 +75,15 @@ function NodeRequiredModal({ name, onClose, gatewayHost }: { name: string; onClo
       const res = await fetch('/api/node/status');
       if (res.ok) {
         const data = await res.json();
-        setNodeStatus(data);
+        // Only update if status actually changed to avoid flickering
+        setNodeStatus(prev => {
+          if (!prev) return data;
+          if (prev.isOnline !== data.isOnline || prev.nodeName !== data.nodeName) return data;
+          return prev;
+        });
       }
     } catch {
-      setNodeStatus({ isOnline: false });
+      setNodeStatus(prev => prev?.isOnline ? prev : { isOnline: false });
     }
   }, []);
 
@@ -298,6 +303,29 @@ export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegr
     resolve();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Poll node status and update node-gated cards when connected
+  useEffect(() => {
+    const hasNodeCards = cards.some(c => (c.resolved.needsNode || c.resolved.authType === "browser") && c.status === "idle");
+    if (!hasNodeCards) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/node/status');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.isOnline) {
+            setCards(prev => prev.map(c => 
+              (c.resolved.needsNode || c.resolved.authType === "browser") && c.status === "idle"
+                ? { ...c, status: "added" as const }
+                : c
+            ));
+          }
+        }
+      } catch { /* ignore */ }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [cards]);
 
   const handleConnect = async (index: number) => {
     const card = cards[index];

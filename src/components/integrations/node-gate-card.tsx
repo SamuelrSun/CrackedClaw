@@ -42,10 +42,15 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
       const res = await fetch('/api/node/status');
       if (res.ok) {
         const data = await res.json();
-        setNodeStatus(data);
+        // Only update if status actually changed to prevent flickering
+        setNodeStatus(prev => {
+          if (!prev) return data;
+          if (prev.isOnline !== data.isOnline || prev.nodeName !== data.nodeName) return data;
+          return prev;
+        });
       }
     } catch {
-      setNodeStatus({ isOnline: false });
+      setNodeStatus(prev => prev?.isOnline ? prev : { isOnline: false });
     }
   }, []);
 
