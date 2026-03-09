@@ -163,7 +163,9 @@ export function DynamicIntegrationsCard({ services }: DynamicIntegrationsCardPro
     setCards(prev => prev.map((c, i) => i === index ? { ...c, status: "adding" } : c));
     try {
       const knownOauth = ["google", "slack", "notion", "github", "discord", "linear", "airtable", "hubspot"];
-      const provider = knownOauth.includes(resolved.slug) ? resolved.slug : null;
+      // Use oauthProvider (for sub-services like google-sheets -> google) or fall back to slug
+      const oauthSlug = resolved.oauthProvider || resolved.slug;
+      const provider = knownOauth.includes(oauthSlug) ? oauthSlug : null;
 
       if (provider) {
         const success = await openOAuthPopup(provider);
@@ -224,7 +226,7 @@ export function DynamicIntegrationsCard({ services }: DynamicIntegrationsCardPro
       {nodeModal && <NodeRequiredModal name={nodeModal} onClose={() => setNodeModal(null)} />}
       <div className="flex flex-col gap-2 my-2">
         {cards.map((card, i) => (
-          <div key={card.resolved.slug} className="border border-[rgba(58,58,56,0.2)] bg-paper p-3 max-w-sm">
+          <div key={card.resolved.slug} className="border border-[rgba(58,58,56,0.2)] bg-gray-100 p-3 max-w-sm">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-lg flex-shrink-0">{card.resolved.icon}</span>

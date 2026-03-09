@@ -10,6 +10,8 @@ import { getIntegration, INTEGRATIONS } from './registry';
 export interface ResolvedIntegration {
   name: string;
   slug: string;
+  /** The OAuth provider slug to use when initiating OAuth (may differ from slug for sub-services like google-sheets -> google) */
+  oauthProvider?: string;
   icon: string;
   authType: 'oauth' | 'api_key' | 'browser' | 'hybrid';
   needsNode: boolean;
@@ -57,6 +59,14 @@ const KNOWN_SERVICES: Record<string, Partial<ResolvedIntegration>> = {
   copper: { name: 'Copper', icon: '🟠', authType: 'oauth', category: 'crm', description: 'Google-native CRM', capabilities: ['contacts', 'opportunities'] },
   height: { name: 'Height', icon: '📐', authType: 'oauth', category: 'productivity', description: 'Project management', capabilities: ['tasks', 'projects'] },
   notion: { name: 'Notion', icon: '📝', authType: 'oauth', category: 'productivity', description: 'Docs & databases', capabilities: ['pages', 'databases', 'search'] },
+  // Google sub-services — all connect via the 'google' OAuth provider
+  gmail: { name: 'Gmail', icon: '📧', authType: 'oauth', oauthProvider: 'google', category: 'communication', description: 'Google email', capabilities: ['email', 'labels', 'drafts'] },
+  'google-sheets': { name: 'Google Sheets', icon: '📊', authType: 'oauth', oauthProvider: 'google', category: 'productivity', description: 'Spreadsheets', capabilities: ['sheets', 'data', 'formulas'] },
+  'google-drive': { name: 'Google Drive', icon: '💾', authType: 'oauth', oauthProvider: 'google', category: 'productivity', description: 'Cloud storage', capabilities: ['files', 'folders', 'sharing'] },
+  'google-docs': { name: 'Google Docs', icon: '📄', authType: 'oauth', oauthProvider: 'google', category: 'productivity', description: 'Documents', capabilities: ['docs', 'comments', 'collaboration'] },
+  'google-calendar': { name: 'Google Calendar', icon: '📅', authType: 'oauth', oauthProvider: 'google', category: 'productivity', description: 'Calendar', capabilities: ['events', 'scheduling', 'reminders'] },
+  'google-meet': { name: 'Google Meet', icon: '🎥', authType: 'oauth', oauthProvider: 'google', category: 'communication', description: 'Video meetings', capabilities: ['meetings', 'recordings'] },
+  sheets: { name: 'Google Sheets', icon: '📊', authType: 'oauth', oauthProvider: 'google', category: 'productivity', description: 'Spreadsheets', capabilities: ['sheets', 'data', 'formulas'] },
   figma: { name: 'Figma', icon: '🎨', authType: 'oauth', category: 'developer', description: 'Collaborative design', capabilities: ['files', 'comments', 'components'] },
   vercel: { name: 'Vercel', icon: '▲', authType: 'oauth', category: 'developer', description: 'Frontend deployment', capabilities: ['deployments', 'projects', 'domains'] },
   render: { name: 'Render', icon: '🎨', authType: 'api_key', apiKeyLabel: 'API Key', category: 'developer', description: 'Cloud platform', capabilities: ['services', 'deployments'] },
@@ -122,6 +132,7 @@ export function resolveIntegration(serviceName: string): ResolvedIntegration {
       authType: known.authType || 'oauth',
       needsNode: known.needsNode || false,
       oauthScopes: known.oauthScopes,
+      oauthProvider: known.oauthProvider,
       apiKeyLabel: known.apiKeyLabel,
       loginUrl: known.loginUrl,
       category: known.category || 'other',

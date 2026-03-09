@@ -128,9 +128,9 @@ function RichMessage({
         switch (segment.type) {
           case "text":
             return (
-              <p key={idx} className="whitespace-pre-wrap">
-                {segment.content}
-              </p>
+              <div key={idx} className="prose prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-headings:font-header prose-headings:text-forest prose-strong:text-forest prose-code:text-xs prose-code:bg-grid/10 prose-code:px-1 prose-code:rounded prose-pre:bg-grid/10 prose-pre:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+                <ReactMarkdown>{segment.content}</ReactMarkdown>
+              </div>
             );
           case "integration-connect":
             return (
@@ -628,10 +628,12 @@ export default function ChatPageClient({
           try { chunk = JSON.parse(jsonStr); } catch { continue; }
 
           if (chunk.type === "token" && chunk.text) {
+            setIsLoading(false);
             updateMsg((m) => ({ ...m, content: m.content + chunk.text! }));
           } else if (chunk.type === "thinking" && chunk.text) {
             // Optionally show thinking
           } else if (chunk.type === "tool_start" && chunk.tool) {
+            setIsLoading(false);
             const label = getToolLabel(chunk.tool, chunk.input);
             const toolCall: ToolCallInfo = { tool: chunk.tool, status: "running", label };
             updateMsg((m) => ({ ...m, toolCalls: [...(m.toolCalls || []), toolCall] }));
@@ -1057,11 +1059,6 @@ export default function ChatPageClient({
           {/* Loading indicator */}
           {isLoading && (
             <div className="max-w-[70%] mr-auto px-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-mono text-[10px] uppercase tracking-wide text-grid/40">
-                  {onboardingState?.agent_name || "Assistant"}
-                </span>
-              </div>
               <span className="font-mono text-[11px] text-grid/40 italic animate-pulse">
                 {retryCount > 0 ? `Retrying (${retryCount}/3)...` : "Thinking..."}
               </span>

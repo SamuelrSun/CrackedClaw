@@ -59,7 +59,7 @@ export function IntegrationConnectCard({
 
   if (status === "loading") {
     return (
-      <div className="border border-[rgba(58,58,56,0.2)] rounded-none bg-white p-4 max-w-sm">
+      <div className="border border-[rgba(58,58,56,0.2)] rounded-none bg-gray-100 p-4 max-w-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 border border-[rgba(58,58,56,0.2)] flex items-center justify-center text-forest animate-pulse bg-grid/10" />
           <div className="flex-1 h-8 bg-grid/10 animate-pulse rounded" />
@@ -69,7 +69,7 @@ export function IntegrationConnectCard({
   }
 
   return (
-    <div className="border border-[rgba(58,58,56,0.2)] rounded-none bg-white p-4 max-w-sm">
+    <div className="border border-[rgba(58,58,56,0.2)] rounded-none bg-gray-100 p-4 max-w-sm">
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 border border-[rgba(58,58,56,0.2)] flex items-center justify-center text-forest">
           {config.icon}
