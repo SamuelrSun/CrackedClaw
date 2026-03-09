@@ -38,9 +38,15 @@ const PROVIDER_DOMAINS: Record<string, string> = {
   confluence: "atlassian.com",
 };
 
-export function getIntegrationLogoUrl(slugOrProvider: string, size: number = 32): string {
+export function getIntegrationLogoUrl(slugOrProvider: string, size: number = 64): string {
   const domain = PROVIDER_DOMAINS[slugOrProvider.toLowerCase()] || `${slugOrProvider.toLowerCase()}.com`;
-  return `https://www.google.com/s2/favicons?domain=${domain}&sz=${size}`;
+  // Clearbit serves high-res logos (up to 256px), with Google favicon as fallback
+  return `https://logo.clearbit.com/${domain}?size=${size}`;
+}
+
+export function getIntegrationLogoFallbackUrl(slugOrProvider: string): string {
+  const domain = PROVIDER_DOMAINS[slugOrProvider.toLowerCase()] || `${slugOrProvider.toLowerCase()}.com`;
+  return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
 }
 
 export function getIntegrationDomain(slugOrProvider: string): string | undefined {
