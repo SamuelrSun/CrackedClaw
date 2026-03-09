@@ -761,6 +761,29 @@ export default function ChatPageClient({
     lastFailedMessage.current = null;
   };
 
+  const loadConversation = async (convoId: string) => {
+    if (convoId === activeConvo) return;
+    setActiveConvo(convoId);
+    setConversationId(convoId);
+    setMessages([]);
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/gateway/messages?conversation_id=${convoId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const loaded = (data.messages || []).map((m: { id?: string; role: string; content: string; created_at?: string }) => ({
+          id: m.id || crypto.randomUUID(),
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          timestamp: m.created_at ? new Date(m.created_at).toLocaleTimeString() : "",
+          toolCalls: [],
+        }));
+        setMessages(loaded);
+      }
+    } catch { /* ignore */ }
+    setIsLoading(false);
+  };
+
   // Show skeleton loading state while checking gateway
   if (gatewayLoading) {
     return (
@@ -837,19 +860,13 @@ export default function ChatPageClient({
             initialConversations.map((convo) => (
               <button
                 key={convo.id}
-                onClick={() => setActiveConvo(convo.id)}
+                onClick={() => loadConversation(convo.id)}
                 className={cn(
                   "w-full text-left px-4 py-3 border-b border-[rgba(58,58,56,0.1)] transition-colors",
-                  activeConvo === convo.id ? "bg-forest/5" : "hover:bg-forest/[0.02]"
+                  activeConvo === convo.id ? "bg-forest/5 border-l-2 border-l-forest" : "hover:bg-forest/[0.02]"
                 )}
               >
-                <div className="flex justify-between items-baseline">
-                  <span className="text-sm font-medium truncate">{convo.title}</span>
-                  <span className="font-mono text-[9px] text-grid/40 ml-2 whitespace-nowrap">
-                    {convo.timestamp}
-                  </span>
-                </div>
-                <p className="text-xs text-grid/50 mt-0.5 truncate">{convo.lastMessage}</p>
+                <span className="text-sm font-medium truncate block">{convo.title || "New conversation"}</span>
               </button>
             ))
           ) : (
