@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, PanelRightOpen } from "lucide-react";
+import type { MemoryInsights } from "./memory-panel";
 
 interface Insight {
   icon: string;
@@ -31,14 +32,29 @@ interface ContextSummaryCardProps {
   insights: Insight[];
   source: string;
   rawInsights?: RawInsights;
+  onOpenMemory?: (insights: MemoryInsights, source: string) => void;
 }
 
 export function ContextSummaryCard({
   insights,
   source,
   rawInsights,
+  onOpenMemory,
 }: ContextSummaryCardProps) {
   const [expanded, setExpanded] = useState(false);
+
+  const handleOpenPanel = () => {
+    if (!onOpenMemory) return;
+    const memInsights: MemoryInsights = {
+      topics: rawInsights?.topics,
+      contacts: rawInsights?.contacts?.map((c) => ({ name: c.name, frequency: c.frequency })),
+      writingStyle: rawInsights?.writingStyle
+        ? { tone: rawInsights.writingStyle.tone, openingPatterns: rawInsights.writingStyle.patterns }
+        : undefined,
+      automationOpportunities: rawInsights?.automationOpportunities,
+    };
+    onOpenMemory(memInsights, source);
+  };
 
   return (
     <div className="border border-[rgba(58,58,56,0.2)] rounded-none bg-white max-w-sm">
@@ -122,8 +138,19 @@ export function ContextSummaryCard({
         </div>
       )}
 
-      {/* Footer link */}
-      <div className="border-t border-[rgba(58,58,56,0.12)] px-4 py-2 flex justify-end">
+      {/* Footer */}
+      <div className="border-t border-[rgba(58,58,56,0.12)] px-4 py-2 flex items-center justify-between">
+        {onOpenMemory && rawInsights ? (
+          <button
+            onClick={handleOpenPanel}
+            className="flex items-center gap-1 text-[10px] font-mono text-forest/50 hover:text-forest transition-colors"
+          >
+            <PanelRightOpen className="w-2.5 h-2.5" />
+            Open in panel
+          </button>
+        ) : (
+          <span />
+        )}
         <Link
           href="/settings/memory"
           className="flex items-center gap-1 text-[10px] font-mono text-forest/50 hover:text-forest transition-colors"

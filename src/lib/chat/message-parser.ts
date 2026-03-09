@@ -7,7 +7,7 @@ export type ParsedSegment =
   | { type: "integration-status"; provider: string; status: "connected" | "error"; accountName?: string }
   | { type: "subagent-progress"; agents: Array<{ name: string; status: "scanning" | "complete" | "error"; source: string }> }
   | { type: "workflow-suggest"; suggestions: Array<{ id: string; title: string; description: string }> }
-  | { type: "context-summary"; insights: Array<{ icon: string; text: string }>; source: string }
+  | { type: "context-summary"; insights: Array<{ icon: string; text: string }>; source: string; rawInsights?: Record<string, unknown> }
   | { type: "welcome"; userName: string; agentName: string }
   | { type: "integrations-resolve"; services: string[] }
   | { type: "skill-suggest"; skillId: string; reason: string }
@@ -207,6 +207,7 @@ export function parseMessageContent(content: string): ParsedSegment[] {
           type: "context-summary",
           insights: data.insights || [],
           source: data.source || "your data",
+          rawInsights: data.rawInsights,
         },
       });
     } catch { /* skip */ }

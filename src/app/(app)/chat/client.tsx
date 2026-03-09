@@ -31,6 +31,7 @@ import { InlineTaskCard } from "@/components/chat/inline-task-card";
 import type { SubagentSession } from "@/components/chat/subagent-card";
 import { ChatError } from "@/components/chat/chat-error";
 import { useNodeStatus } from "@/hooks/use-node-status";
+import { MemoryPanel, type MemoryInsights } from "@/components/chat/memory-panel";
 
 interface ToolCallInfo {
   tool: string;
@@ -121,6 +122,7 @@ interface RichMessageProps {
   onWorkflowCustom: () => void;
   onWelcomeComplete: () => void;
   onScanComplete?: (summary: string) => void;
+  onOpenMemory?: (insights: MemoryInsights, source: string) => void;
   gatewayHost?: string;
 }
 
@@ -131,6 +133,7 @@ function RichMessage({
   onWorkflowCustom,
   onWelcomeComplete,
   onScanComplete,
+  onOpenMemory,
   gatewayHost,
 }: RichMessageProps) {
   return (
@@ -177,6 +180,8 @@ function RichMessage({
                 key={idx}
                 insights={segment.insights}
                 source={segment.source}
+                rawInsights={segment.rawInsights}
+                onOpenMemory={onOpenMemory}
               />
             );
           case "welcome":
@@ -257,6 +262,7 @@ function OnboardingProgress({ phase }: { phase: string }) {
             />
           ))}
         </div>
+
       </div>
     </div>
   );
@@ -459,6 +465,8 @@ export default function ChatPageClient({
   const [showSubagentPanel, setShowSubagentPanel] = useState(false); 
   const [subagentCount, setSubagentCount] = useState(0); 
   const [inlineSubagents, setInlineSubagents] = useState<SubagentSession[]>([]);
+  const [memoryPanelOpen, setMemoryPanelOpen] = useState(false);
+  const [memoryPanelData, setMemoryPanelData] = useState<{ insights?: MemoryInsights; source?: string }>({});
   const prevSubagentCountRef = { current: 0 };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastFailedMessage = useRef<string | null>(null);
@@ -580,6 +588,11 @@ export default function ChatPageClient({
       // Continue anyway
     }
   }, [updatePhase]);
+
+  const handleOpenMemory = useCallback((insights: MemoryInsights, source: string) => {
+    setMemoryPanelData({ insights, source });
+    setMemoryPanelOpen(true);
+  }, []);
 
   // Handle skip onboarding
   const handleSkipOnboarding = useCallback(async () => {
@@ -1157,6 +1170,7 @@ export default function ChatPageClient({
                         onWorkflowCustom={handleWorkflowCustom}
                         onWelcomeComplete={handleWelcomeComplete}
                         onScanComplete={(summary) => handleSendRef.current(`[System] Scan complete: ${summary}`)}
+                        onOpenMemory={handleOpenMemory}
                         gatewayHost={gatewayHost}
                       />
                     ) : msg.role === "user" ? (
@@ -1296,6 +1310,14 @@ export default function ChatPageClient({
             </div>
           </div>
         </div>
+
+        {/* Memory Panel */}
+        <MemoryPanel
+          isOpen={memoryPanelOpen}
+          onClose={() => setMemoryPanelOpen(false)}
+          source={memoryPanelData.source}
+          insights={memoryPanelData.insights}
+        />
       </div>
     </div>
   );
