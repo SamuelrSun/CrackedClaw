@@ -103,8 +103,6 @@ export function IntegrationConnectCard({
             "bg-forest text-white hover:bg-forest/90 cursor-pointer",
           status === "connecting" &&
             "bg-forest/50 text-white cursor-wait",
-          status === "connected" &&
-            "bg-[#9EFFBF]/20 text-forest border-[#9EFFBF] cursor-default"
         )}
       >
         {status === "default" && "Connect"}
@@ -112,12 +110,6 @@ export function IntegrationConnectCard({
           <span className="flex items-center justify-center gap-2">
             <Loader2 className="w-3 h-3 animate-spin" />
             Connecting...
-          </span>
-        )}
-        {status === "connected" && (
-          <span className="flex items-center justify-center gap-2">
-            <Check className="w-3 h-3" />
-            Connected
           </span>
         )}
       </button>
