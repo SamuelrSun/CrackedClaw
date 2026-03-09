@@ -18,13 +18,13 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
 
-    // Check if already exists
+    // Check if already exists (by slug, which is unique per user after migration)
     const { data: existing } = await supabase
       .from('integrations')
-      .select('id')
+      .select('id, status')
       .eq('user_id', user.id)
       .eq('slug', resolved.slug)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       return jsonResponse({ message: 'Already exists', id: existing.id, existed: true });
@@ -50,8 +50,6 @@ export async function POST(request: NextRequest) {
           known_service: resolved.knownService,
         },
         accounts: [],
-        needs_node: resolved.needsNode,
-        is_dynamic: true,
       })
       .select()
       .single();
