@@ -20,6 +20,7 @@ export function DynamicIntegrationsCard({ services }: DynamicIntegrationsCardPro
   useEffect(() => {
     async function resolve() {
       try {
+        // Resolve integration metadata
         const res = await fetch("/api/integrations/resolve", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -27,7 +28,26 @@ export function DynamicIntegrationsCard({ services }: DynamicIntegrationsCardPro
         });
         const data = await res.json();
         const resolved: ResolvedIntegration[] = data.resolved || [];
-        setCards(resolved.map(r => ({ resolved: r, status: "idle" })));
+
+        // Check which slugs are already connected
+        const slugs = resolved.map(r => r.slug);
+        let connectedSlugs = new Set<string>();
+        try {
+          const statusRes = await fetch("/api/integrations/status-by-slugs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ slugs }),
+          });
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            connectedSlugs = new Set(statusData.connected || []);
+          }
+        } catch { /* ignore - default to idle */ }
+
+        setCards(resolved.map(r => ({
+          resolved: r,
+          status: connectedSlugs.has(r.slug) ? "added" : "idle",
+        })));
       } catch {
         setCards(services.map(name => ({
           resolved: {
