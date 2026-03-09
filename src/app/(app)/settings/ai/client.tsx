@@ -144,12 +144,12 @@ export default function AISettingsClient() {
                 )}
                 <div>
                   <span className="font-mono text-[11px] text-forest block">
-                    {useOwnKey ? "Using your API key" : "Using OpenClaw Cloud API"}
+                    {useOwnKey ? "Using your API key" : "Using CrackedClaw Cloud API"}
                   </span>
                   <span className="font-mono text-[10px] text-grid/50">
                     {useOwnKey
                       ? "Billed directly by Anthropic"
-                      : "Included in your OpenClaw subscription"}
+                      : "Included in your CrackedClaw subscription"}
                   </span>
                 </div>
               </div>

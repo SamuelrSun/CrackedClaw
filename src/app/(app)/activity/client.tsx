@@ -197,7 +197,7 @@ export default function ActivityPageClient({ initialActivities }: ActivityPageCl
             <p className="font-mono text-[10px] text-grid/40">
               {search || filterType !== 'all' || dateRange !== 'all'
                 ? 'Try adjusting your filters'
-                : 'Activity will appear here once you start using OpenClaw'}
+                : 'Activity will appear here once you start using CrackedClaw'}
             </p>
           </div>
         ) : (

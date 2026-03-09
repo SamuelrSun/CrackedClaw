@@ -453,7 +453,7 @@ export default function SettingsPageClient({
         body: JSON.stringify({
           gateway_url: gatewayUrl,
           auth_token: authToken,
-          name: gatewayName || "My OpenClaw",
+          name: gatewayName || "My CrackedClaw",
         }),
       });
       
@@ -694,7 +694,7 @@ export default function SettingsPageClient({
 
         {/* Gateway Connection - Only show if no cloud instance or for self-hosted */}
         {(!hasCloudInstance || !organization) && (
-          <Card label="Connect Your OpenClaw" accentColor="#9EFFBF" bordered={false} className="lg:col-span-2">
+          <Card label="Connect Your CrackedClaw" accentColor="#9EFFBF" bordered={false} className="lg:col-span-2">
             {gatewayLoading ? (
               <div className="mt-2">
                 <div className="h-20 bg-forest/5 animate-pulse" />
@@ -774,13 +774,13 @@ export default function SettingsPageClient({
               <div className="mt-2 space-y-4">
                 <div className="flex items-center justify-between mb-4">
                   <p className="font-mono text-[11px] text-grid/60">
-                    Connect your local OpenClaw agent to enable remote control from this dashboard.
+                    Connect your local CrackedClaw agent to enable remote control from this dashboard.
                   </p>
                   <Link 
                     href="/settings/tunnel-setup"
                     className="font-mono text-[10px] uppercase tracking-wide text-forest hover:text-mint transition-colors underline underline-offset-2 whitespace-nowrap ml-4"
                   >
-                    Need help exposing your OpenClaw?
+                    Need help exposing your CrackedClaw?
                   </Link>
                 </div>
                 
@@ -813,7 +813,7 @@ export default function SettingsPageClient({
                 
                 <Input
                   label="Name (optional)"
-                  placeholder="My OpenClaw"
+                  placeholder="My CrackedClaw"
                   value={gatewayName}
                   onChange={(e) => handleFieldChange("gatewayName", e.target.value, setGatewayName)}
                   onBlur={() => handleBlur("gatewayName")}

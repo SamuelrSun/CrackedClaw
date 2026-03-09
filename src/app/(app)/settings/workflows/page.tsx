@@ -1,7 +1,7 @@
 import WorkflowsSettingsClient from "./client";
 
 export const metadata = {
-  title: "Workflows - OpenClaw Cloud",
+  title: "Workflows - CrackedClaw",
 };
 
 export default function WorkflowsSettingsPage() {

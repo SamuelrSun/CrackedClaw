@@ -4,7 +4,7 @@
 
 const PROVISIONING_API_URL = process.env.PROVISIONING_API_URL;
 if (!PROVISIONING_API_URL) {
-  throw new Error("PROVISIONING_API_URL environment variable is required");
+  console.warn("[provisioning-client] PROVISIONING_API_URL is not set — provisioning features will be unavailable.");
 }
 
 export interface ProvisionedInstance {

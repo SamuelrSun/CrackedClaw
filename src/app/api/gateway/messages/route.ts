@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
 import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
-import { getOrganization } from "@/lib/supabase/data";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+// GET /api/gateway/messages?conversation_id=<id> - Read messages from Supabase
 export async function GET(request: NextRequest) {
   const { user, error } = await requireApiAuth();
   if (error) return error;
@@ -12,26 +13,33 @@ export async function GET(request: NextRequest) {
   if (!conversationId) return errorResponse("conversation_id required", 400);
 
   try {
-    const org = await getOrganization(user.id);
-    if (!org?.openclaw_gateway_url || !org?.openclaw_auth_token) {
+    const supabase = await createClient();
+
+    // Verify the conversation belongs to this user
+    const { data: convo } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("id", conversationId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (!convo) return errorResponse("Conversation not found", 404);
+
+    const { data: messages, error: dbError } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true })
+      .limit(100);
+
+    if (dbError) {
+      console.error("Failed to fetch messages:", dbError);
       return jsonResponse({ messages: [] });
     }
 
-    const res = await fetch(
-      `${org.openclaw_gateway_url}/api/messages?conversation_id=${conversationId}&limit=100`,
-      {
-        headers: {
-          Authorization: `Bearer ${org.openclaw_auth_token}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    if (!res.ok) return jsonResponse({ messages: [] });
-
-    const data = await res.json();
-    return jsonResponse({ messages: data.messages || data || [] });
-  } catch {
+    return jsonResponse({ messages: messages || [] });
+  } catch (err) {
+    console.error("Failed to fetch messages:", err);
     return jsonResponse({ messages: [] });
   }
 }

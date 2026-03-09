@@ -386,7 +386,7 @@ export default function CommandsPageClient() {
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm">
               <strong>No gateway connected.</strong>{" "}
               <a href="/settings" className="underline">
-                Connect your OpenClaw gateway
+                Connect your CrackedClaw gateway
               </a>{" "}
               to run workflows.
             </div>

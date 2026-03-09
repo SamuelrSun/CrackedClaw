@@ -77,7 +77,7 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
 
     // If there's an instance and user hasn't checked the box
     if (deletionInfo?.instance_id && deletionInfo?.can_delete_instance && !deleteInstanceChecked) {
-      setError("Please confirm you want to delete the OpenClaw instance");
+      setError("Please confirm you want to delete the CrackedClaw instance");
       return;
     }
 
@@ -262,7 +262,7 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
                       <p className="font-mono text-[11px] text-amber-800">
                         <strong>Note:</strong> Your organization has {deletionInfo.member_count} other 
                         member(s). Ownership will be transferred to another team member. 
-                        The OpenClaw instance will remain active for them.
+                        The CrackedClaw instance will remain active for them.
                       </p>
                     </div>
                   )}
@@ -279,7 +279,7 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
                         />
                         <div>
                           <span className="font-mono text-[11px] text-coral font-bold block">
-                            Also delete my OpenClaw cloud instance
+                            Also delete my CrackedClaw cloud instance
                           </span>
                           <span className="font-mono text-[10px] text-grid/60">
                             Instance ID: {deletionInfo.instance_id}

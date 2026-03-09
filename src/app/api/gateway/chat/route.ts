@@ -178,11 +178,21 @@ export async function POST(request: NextRequest) {
       integrationIds = (integrations ?? []).map((i: { provider: string }) => i.provider);
     } catch { /* ignore */ }
 
+    // Check companion status
+    let companionConnected = false;
+    try {
+      const statusRes = await fetch('https://companion.crackedclaw.com/api/companion/status');
+      if (statusRes.ok) {
+        const companionStatus = await statusRes.json();
+        companionConnected = (companionStatus.connected || []).includes(user.id);
+      }
+    } catch { /* ignore - companion not available */ }
+
     const agentContext: AgentContext = {
       userId: user.id,
       orgId: '',
       conversationId: activeConversationId || '',
-      companionConnected: false,
+      companionConnected,
       integrations: integrationIds,
     };
 

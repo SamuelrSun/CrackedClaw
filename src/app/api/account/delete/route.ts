@@ -268,7 +268,7 @@ function getDataSummary(info: DeletionInfo): string[] {
     } else {
       items.push("Your organization");
       if (info.instance_id) {
-        items.push("Your OpenClaw cloud instance");
+        items.push("Your CrackedClaw cloud instance");
       }
     }
   }
