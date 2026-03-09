@@ -114,7 +114,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   }
 
   if (ctx.gatewayHost) {
-    parts.push(`\nDEVICE CONNECTION COMMAND:\nWhen a user needs to connect their computer (for browser-based services like LinkedIn, Instagram, etc.), tell them to:\n1. Open the Terminal app on their Mac (press ⌘+Space and search "Terminal")\n2. Paste this exact command and press Enter:\n\`\`\`\nopenclaw node run --tls --host ${ctx.gatewayHost}\n\`\`\`\n3. Leave that window open in the background — that\'s it!\n\nAdd this reassurance: "This just lets me interact with apps when you ask me to. I\'m not monitoring your screen or accessing anything without your permission. The connection is encrypted and secure."`);
+    parts.push(`\nDEVICE CONNECTION COMMAND:\nWhen a user needs to connect their computer (for browser-based services like LinkedIn, Instagram, etc.), tell them to copy the command from Settings → Devices. Do NOT include tokens or credentials in chat messages. Just say: "Go to Settings → Devices and copy the connection command. Then paste it in Terminal on your Mac."\n\nAdd this reassurance: "This just lets me interact with apps when you ask me to. I\'m not monitoring your screen or accessing anything without your permission. The connection is encrypted and secure."`);
   }
 
   if (ctx.skillsPrompt) {
