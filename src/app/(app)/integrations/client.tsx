@@ -235,7 +235,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
               <div key={card.resolved.slug} className="border border-[rgba(58,58,56,0.2)] bg-paper p-4">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <IntegrationIcon provider={card.resolved.slug} size={28} />
+                    <IntegrationIcon provider={card.resolved.slug} size={36} />
                     <div>
                       <p className="font-header font-bold text-sm">{card.resolved.name}</p>
                       <p className="font-mono text-[9px] text-grid/40 uppercase">{card.resolved.category}</p>
@@ -287,10 +287,10 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
             const needsNode = getNeedsNode(integration);
 
             return (
-              <Card key={integration.id} label={<IntegrationIcon provider={integration.slug || ""} size={20} />} accentColor={integration.status === "connected" ? "#9EFFBF" : undefined} bordered={false}>
+              <Card key={integration.id} label={<IntegrationIcon provider={integration.slug || ""} size={36} />} accentColor={integration.status === "connected" ? "#9EFFBF" : undefined} bordered={false}>
                 <div className="mt-2">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-header text-lg font-bold tracking-tight">{integration.name}</h3>
+                    <h3 className="font-header text-sm font-medium tracking-tight text-grid/70">{integration.name}</h3>
                     <div className="flex items-center gap-1">
                       {needsNode && (
                         <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 border border-amber-200">
