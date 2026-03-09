@@ -417,8 +417,8 @@ openclaw node run --host ${host} --port ${port} --display-name "My MacBook"`;
           </div>
         </Card>
 
-        {/* Section 3: Connected Nodes */}
-        <Card label="Connected Nodes" accentColor="#9EFFBF" bordered>
+        {/* Section 3: Connected Devices */}
+        <Card label="Connected Devices" accentColor="#9EFFBF" bordered>
           <div className="mt-2">
             {loadingConnected ? (
               <div className="space-y-3">

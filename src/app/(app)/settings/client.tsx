@@ -72,6 +72,76 @@ function getStatusColor(status: string): "active" | "pending" | "error" {
   }
 }
 
+
+function DevicesInlineSection() {
+  const [devices, setDevices] = useState<{ id: string; name: string; status: string; lastSeen: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/nodes/status")
+      .then(r => r.ok ? r.json() : { nodes: [] })
+      .then(d => setDevices(d.nodes || []))
+      .catch(() => setDevices([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="mt-2">
+        <div className="h-8 bg-grid/10 animate-pulse rounded" />
+      </div>
+    );
+  }
+
+  const connected = devices.filter(d => d.status === "connected");
+
+  return (
+    <div className="mt-2 space-y-3">
+      {connected.length > 0 ? (
+        <div className="space-y-2">
+          {connected.map(d => (
+            <div key={d.id} className="flex items-center gap-2">
+              <Monitor className="w-4 h-4 text-mint flex-shrink-0" />
+              <span className="font-mono text-[11px] text-forest flex-1 truncate">{d.name}</span>
+              <span className="font-mono text-[9px] uppercase tracking-wide text-mint bg-mint/10 px-2 py-0.5 border border-mint/30">
+                Connected
+              </span>
+            </div>
+          ))}
+          {devices.filter(d => d.status !== "connected").map(d => (
+            <div key={d.id} className="flex items-center gap-2 opacity-50">
+              <Monitor className="w-4 h-4 text-grid/40 flex-shrink-0" />
+              <span className="font-mono text-[11px] text-grid/60 flex-1 truncate">{d.name}</span>
+              <span className="font-mono text-[9px] uppercase tracking-wide text-grid/40">Offline</span>
+            </div>
+          ))}
+        </div>
+      ) : devices.length > 0 ? (
+        <div className="space-y-2">
+          {devices.map(d => (
+            <div key={d.id} className="flex items-center gap-2 opacity-50">
+              <Monitor className="w-4 h-4 text-grid/40 flex-shrink-0" />
+              <span className="font-mono text-[11px] text-grid/60 flex-1 truncate">{d.name}</span>
+              <span className="font-mono text-[9px] uppercase tracking-wide text-grid/40">Offline</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <Monitor className="w-4 h-4 text-grid/40" />
+          <span className="font-mono text-[11px] text-grid/40">No devices connected</span>
+        </div>
+      )}
+      <Link href="/settings/nodes">
+        <Button variant="ghost" size="sm" className="w-full justify-between">
+          {devices.length === 0 ? "Add a device" : "Manage devices"}
+          <ArrowRight className="w-3 h-3" />
+        </Button>
+      </Link>
+    </div>
+  );
+}
+
 export default function SettingsPageClient({ 
   initialTokenUsage, 
   initialTeamMembers,
@@ -845,22 +915,9 @@ export default function SettingsPageClient({
           </div>
         </Card>
 
-        {/* Nodes */}
-        <Card label="Nodes" accentColor="#9EFFBF" bordered={false}>
-          <div className="mt-2 space-y-3">
-            <div className="flex items-center gap-2">
-              <Monitor className="w-5 h-5 text-mint" />
-              <span className="font-mono text-[11px] text-grid/60">
-                Connect and manage your Mac devices
-              </span>
-            </div>
-            <Link href="/settings/nodes">
-              <Button variant="ghost" size="sm" className="w-full justify-between">
-                Manage Nodes
-                <ArrowRight className="w-3 h-3" />
-              </Button>
-            </Link>
-          </div>
+        {/* Devices */}
+        <Card label="Devices" accentColor="#9EFFBF" bordered={false}>
+          <DevicesInlineSection />
         </Card>
 
 {/* Billing */}

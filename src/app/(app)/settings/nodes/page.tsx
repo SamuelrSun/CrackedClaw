@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import NodesPageClient from "./client";
 
 export const metadata = {
-  title: "Node Management - OpenClaw Cloud",
+  title: "Device Management - OpenClaw Cloud",
 };
 
 export default async function NodesPage() {
