@@ -304,26 +304,23 @@ export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Poll node status and update node-gated cards when connected
+  // Track node online status for node-gated integrations
+  const [nodeOnline, setNodeOnline] = useState(false);
   useEffect(() => {
-    const hasNodeCards = cards.some(c => (c.resolved.needsNode || c.resolved.authType === "browser") && c.status === "idle");
+    const hasNodeCards = cards.some(c => c.resolved.needsNode || c.resolved.authType === "browser");
     if (!hasNodeCards) return;
     
-    const interval = setInterval(async () => {
+    const check = async () => {
       try {
         const res = await fetch('/api/node/status');
         if (res.ok) {
           const data = await res.json();
-          if (data.isOnline) {
-            setCards(prev => prev.map(c => 
-              (c.resolved.needsNode || c.resolved.authType === "browser") && c.status === "idle"
-                ? { ...c, status: "added" as const }
-                : c
-            ));
-          }
+          setNodeOnline(data.isOnline);
         }
       } catch { /* ignore */ }
-    }, 5000);
+    };
+    check();
+    const interval = setInterval(check, 5000);
     return () => clearInterval(interval);
   }, [cards]);
 
@@ -332,9 +329,36 @@ export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegr
     if (!card || card.status !== "idle") return;
     const { resolved } = card;
 
-    // Browser/node-gated: show "connect your computer" explanation
+    // Browser/node-gated integrations
     if (resolved.needsNode || resolved.authType === "browser") {
-      setNodeModal(resolved.name);
+      if (!nodeOnline) {
+        // Node not connected — show setup instructions
+        setNodeModal(resolved.name);
+      } else {
+        // Node is connected — open the service in user's browser so they can log in
+        setCards(prev => prev.map((c, idx) => idx === index ? { ...c, status: "adding" } : c));
+        try {
+          const loginUrls: Record<string, string> = {
+            linkedin: "https://www.linkedin.com/login",
+            twitter: "https://twitter.com/login",
+            facebook: "https://www.facebook.com/login",
+            instagram: "https://www.instagram.com/accounts/login/",
+          };
+          const url = loginUrls[resolved.slug] || `https://${resolved.slug}.com`;
+          const res = await fetch("/api/node/browser", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ command: { action: "navigate", url, profile: "openclaw" } }),
+          });
+          if (res.ok) {
+            setCards(prev => prev.map((c, idx) => idx === index ? { ...c, status: "added" } : c));
+          } else {
+            setCards(prev => prev.map((c, idx) => idx === index ? { ...c, status: "idle" } : c));
+          }
+        } catch {
+          setCards(prev => prev.map((c, idx) => idx === index ? { ...c, status: "idle" } : c));
+        }
+      }
       return;
     }
 
@@ -437,7 +461,9 @@ export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegr
                   onClick={() => handleConnect(i)}
                   className="flex-shrink-0 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-grid text-paper hover:bg-grid/80 transition-colors"
                 >
-                  Connect
+                  {(card.resolved.needsNode || card.resolved.authType === "browser") && nodeOnline
+                    ? "Log In"
+                    : "Connect"}
                 </button>
               )}
               {card.status === "adding" && <Loader2 className="flex-shrink-0 w-4 h-4 animate-spin text-grid/40" />}
