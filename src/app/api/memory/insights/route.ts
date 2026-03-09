@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireApiAuth, jsonResponse, errorResponse } from '@/lib/api-auth';
 import { createClient } from '@/lib/supabase/server';
+import { mem0GetAll, isMem0Enabled, type Mem0Memory } from '@/lib/memory/mem0-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,11 +10,64 @@ export async function GET(request: NextRequest) {
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
-  const source = searchParams.get('source');
+  const domain = searchParams.get('domain') ?? undefined;
 
+  // ─── Self-hosted pgvector memory (primary) ────────────────────────────────
+  if (isMem0Enabled()) {
+    try {
+      const memories: Mem0Memory[] = await mem0GetAll(user.id, domain);
+
+      // Group by domain
+      const domainGroups: Record<string, Mem0Memory[]> = {};
+      for (const m of memories) {
+        const d = m.domain ?? 'general';
+        if (!domainGroups[d]) domainGroups[d] = [];
+        domainGroups[d].push(m);
+      }
+
+      const insights: {
+        topics: string[];
+        contacts: { name: string; email?: string; frequency: number }[];
+        automationOpportunities: string[];
+        memoryCount: number;
+        domains: string[];
+      } = {
+        topics: [],
+        contacts: [],
+        automationOpportunities: [],
+        memoryCount: memories.length,
+        domains: Object.keys(domainGroups),
+      };
+
+      // Topics: use active domains
+      for (const d of Object.keys(domainGroups)) {
+        if (d !== 'general' && insights.topics.length < 10) {
+          insights.topics.push(d.replace(/_/g, ' '));
+        }
+      }
+
+      // Automation opportunities: pull from email + calendar domains
+      const automationCandidates = [
+        ...(domainGroups['email'] ?? []),
+        ...(domainGroups['calendar'] ?? []),
+      ].slice(0, 5);
+      for (const m of automationCandidates) {
+        if (m.memory && insights.automationOpportunities.length < 5) {
+          insights.automationOpportunities.push(m.memory);
+        }
+      }
+
+      return jsonResponse({ insights, source: 'pgvector', memories });
+    } catch (err) {
+      console.error('[memory] Failed to fetch insights, falling back to Supabase:', err);
+      // fall through
+    }
+  }
+
+  // ─── Supabase fallback (legacy user_memory table) ─────────────────────────
   const supabase = await createClient();
 
-  let query = supabase
+  const { data, error: dbError } = await supabase
     .from('user_memory')
     .select('key, value, category, tags, source')
     .eq('user_id', user.id)
@@ -21,19 +75,12 @@ export async function GET(request: NextRequest) {
     .order('updated_at', { ascending: false })
     .limit(200);
 
-  if (source) {
-    query = query.eq('source', source);
-  }
-
-  const { data, error: dbError } = await query;
-
   if (dbError) {
     return errorResponse('Failed to fetch memory', 500);
   }
 
   const entries = data || [];
 
-  // Group entries into structured insight categories
   const insights: {
     topics: string[];
     contacts: { name: string; email?: string; frequency: number }[];
@@ -54,7 +101,6 @@ export async function GET(request: NextRequest) {
     const value = entry.value || '';
     const category = entry.category || '';
 
-    // Topics
     if (category === 'fact' || key.includes('topic') || key.includes('subject')) {
       if (value && !insights.topics.includes(value) && insights.topics.length < 10) {
         insights.topics.push(value);
@@ -68,7 +114,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Contacts
     if (category === 'contact' || key.includes('contact') || key.includes('person')) {
       const name = key.replace(/^contact_?/i, '').replace(/_/g, ' ').trim();
       if (name && !insights.contacts.find((c) => c.name.toLowerCase() === name.toLowerCase())) {
@@ -81,7 +126,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Writing style
     if (category === 'preference' || key.includes('tone') || key.includes('style') || key.includes('writing')) {
       if (key.includes('tone')) writingStyle.tone = value;
       if (key.includes('length') || key.includes('avg')) {
@@ -96,7 +140,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Schedule patterns
     if (category === 'schedule' || key.includes('schedule') || key.includes('meeting') || key.includes('calendar')) {
       if (key.includes('busiest') || key.includes('busy_day')) {
         schedulePatterns.busiestDays = value.split(/[,;]/).map((d: string) => d.trim()).filter(Boolean);
@@ -110,7 +153,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Automation opportunities
     if (key.includes('automation') || key.includes('opportunity') || key.includes('automate')) {
       if (value && insights.automationOpportunities.length < 5) {
         insights.automationOpportunities.push(value);
@@ -128,5 +170,5 @@ export async function GET(request: NextRequest) {
     insights.schedulePatterns = schedulePatterns as typeof insights.schedulePatterns;
   }
 
-  return jsonResponse({ insights });
+  return jsonResponse({ insights, source: 'supabase' });
 }

@@ -1181,7 +1181,7 @@ User message: `
           </div>
 
           {/* Input Skeleton */}
-          <div className="border-t border-[rgba(58,58,56,0.2)] p-4">
+          <div className="flex-shrink-0 border-t border-[rgba(58,58,56,0.2)] p-4">
             <div className="flex gap-2">
               <Skeleton className="flex-1 h-10" />
               <Skeleton className="h-10 w-16" />
@@ -1572,7 +1572,7 @@ User message: `
         />
 
         {/* Input */}
-        <div className="border-t border-[rgba(58,58,56,0.2)] p-4">
+        <div className="flex-shrink-0 border-t border-[rgba(58,58,56,0.2)] p-4">
           {/* Skip onboarding option */}
           {isInOnboarding && (
             <div className="mb-2 flex justify-end">

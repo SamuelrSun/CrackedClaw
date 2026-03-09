@@ -104,7 +104,7 @@ export function MemoryPanel({ isOpen, onClose, source, insights: propInsights }:
           "flex-shrink-0 border-l border-[rgba(58,58,56,0.2)] bg-[#F5F3EF] flex flex-col",
           "transition-all duration-300 ease-in-out overflow-hidden"
         )}
-        style={{ width: isOpen ? 380 : 0, minWidth: isOpen ? 380 : 0 }}
+        style={{ width: isOpen ? 380 : 0, minWidth: isOpen ? 380 : 0, height: isOpen ? undefined : 0 }}
       >
         <div className="w-[380px] flex flex-col h-full">
           {/* Header */}

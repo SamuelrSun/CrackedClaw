@@ -92,3 +92,15 @@ body {
   50% { transform: translateX(150%); width: 60%; }
   100% { transform: translateX(300%); width: 40%; }
 }
+
+/* Agent panel entrance animation */
+@keyframes agentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

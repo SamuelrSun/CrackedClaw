@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth } from "@/lib/api-auth";
 import { createClient } from "@/lib/supabase/server";
-import { logActivity, incrementTokenUsage, getOrganization } from "@/lib/supabase/data";
-import { streamGatewayMessage, type StreamChunk } from "@/lib/gateway-client";
+import { logActivity, incrementTokenUsage } from "@/lib/supabase/data";
 import { getOnboardingPrompt } from "@/lib/onboarding/agent-prompt";
 import { toOnboardingState, type OnboardingStateRow } from "@/types/onboarding";
 import { processOnboardingResponse } from "@/lib/onboarding/process-response";
-import type { GatewayError } from "@/types/gateway";
 import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
 import { processAgentResponse } from "@/lib/memory/service";
 import { incrementUsage } from "@/lib/usage/tracker";
 import { buildSystemPromptForUser, buildLinkedContextSummary } from "@/lib/gateway/system-prompt";
+import { AgentRuntime } from "@/lib/agent/runtime";
+import { getTools } from "@/lib/agent/tools";
+import type { AgentContext, StreamEvent } from "@/lib/agent/runtime";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-function encode(chunk: StreamChunk): Uint8Array {
+function encode(chunk: StreamEvent | Record<string, unknown>): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(chunk)}\n\n`);
 }
 
@@ -31,47 +32,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
-    let gatewayUrl: string | null = null;
-    let authToken: string | null = null;
-
-    try {
-      const org = await getOrganization(user.id);
-      if (org?.openclaw_gateway_url && org?.openclaw_auth_token) {
-        gatewayUrl = org.openclaw_gateway_url;
-        authToken = org.openclaw_auth_token;
-      }
-    } catch (e) {
-      console.error("Failed to get organization:", e);
-    }
-
-    if (!gatewayUrl) {
-      try {
-        const supabase = await createClient();
-        const { data } = await supabase
-          .from("user_gateways")
-          .select("gateway_url, auth_token")
-          .eq("user_id", user.id)
-          .limit(1);
-        if (data && data.length > 0) {
-          gatewayUrl = data[0].gateway_url;
-          authToken = data[0].auth_token;
-        }
-      } catch (e) {
-        console.error("Failed to get user gateway:", e);
-      }
-    }
-
-    if (!gatewayUrl || !authToken) {
-      const err: GatewayError = {
-        code: "NO_GATEWAY",
-        message: "No OpenClaw gateway connected. Go to Settings to connect.",
-      };
-      return NextResponse.json({ error: err }, { status: 404 });
-    }
-
     const supabase = await createClient();
     let activeConversationId = conversation_id;
 
+    // Onboarding
     let isOnboarding = false;
     let onboardingState = null;
     let onboardingPrompt: string | null = null;
@@ -84,9 +48,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (stateRow && stateRow.phase !== "complete") {
-        // Onboarding is conversation-scoped — only apply to the Welcome conversation
         let isWelcomeConversation = false;
-
         if (activeConversationId) {
           const { data: convo } = await supabase
             .from("conversations")
@@ -94,10 +56,8 @@ export async function POST(request: NextRequest) {
             .eq("id", activeConversationId)
             .single();
           isWelcomeConversation =
-            convo?.title === "Welcome to CrackedClaw" ||
-            convo?.title === "Welcome to OpenClaw";
+            convo?.title === "Welcome to CrackedClaw" || convo?.title === "Welcome to OpenClaw";
         } else {
-          // No conversation yet — only start onboarding if no welcome convo exists
           const { data: existingWelcome } = await supabase
             .from("conversations")
             .select("id")
@@ -106,7 +66,6 @@ export async function POST(request: NextRequest) {
             .limit(1);
           isWelcomeConversation = !existingWelcome || existingWelcome.length === 0;
         }
-
         if (isWelcomeConversation) {
           isOnboarding = true;
           onboardingState = toOnboardingState(stateRow as OnboardingStateRow);
@@ -117,33 +76,25 @@ export async function POST(request: NextRequest) {
       console.error("Failed to get onboarding state:", e);
     }
 
+    // Create conversation
     if (!activeConversationId) {
-      const { data: newConvo, error: convoError } = await supabase
+      const { data: newConvo } = await supabase
         .from("conversations")
         .insert({
           user_id: user.id,
-          title: isOnboarding
-            ? "Welcome to CrackedClaw"
-            : message.length > 50
-            ? message.substring(0, 47) + "..."
-            : message,
+          title: isOnboarding ? "Welcome to CrackedClaw" : message.length > 50 ? message.substring(0, 47) + "..." : message,
         })
         .select()
         .single();
-
-      if (convoError) {
-        console.error("Failed to create conversation:", convoError);
-      } else {
-        activeConversationId = newConvo.id;
-      }
+      if (newConvo) activeConversationId = newConvo.id;
     }
 
+    // Save user message
     if (activeConversationId) {
-      try {
-        await supabase.from("messages").insert({ conversation_id: activeConversationId, role: "user", content: message });
-      } catch (e) { console.error("Failed to save user message:", e); }
+      try { await supabase.from("messages").insert({ conversation_id: activeConversationId, role: "user", content: message }); } catch(e) { console.error("Failed to save user message:", e); }
     }
 
+    // Workflow
     let workflowContext: string | null = null;
     if (!isOnboarding) {
       try {
@@ -155,20 +106,11 @@ export async function POST(request: NextRequest) {
         if (workflowMatch && workflowMatch.confidence >= 0.8) {
           workflowContext = buildWorkflowContext(workflowMatch.workflow);
         }
-      } catch (e) {
-        console.error("Failed to match workflows:", e);
-      }
+      } catch { /* ignore */ }
     }
 
-    let fullMessage = message;
-    if (isOnboarding && onboardingPrompt) {
-      fullMessage = `[SYSTEM PROMPT - FOLLOW THESE INSTRUCTIONS]\n${onboardingPrompt}\n\n[USER MESSAGE]\n${message}`;
-    } else if (workflowContext) {
-      fullMessage = `${workflowContext}\n\n${fullMessage}`;
-    }
-
-    // Load conversation history (last 50 messages, excluding the one we just saved)
-    let previousMessages: Array<{ role: string; content: string }> = [];
+    // History
+    let previousMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
     if (activeConversationId) {
       try {
         const { data: historyRows } = await supabase
@@ -176,115 +118,127 @@ export async function POST(request: NextRequest) {
           .select("role, content")
           .eq("conversation_id", activeConversationId)
           .order("created_at", { ascending: false })
-          .limit(51); // 51 so we can drop the last user message we just inserted
+          .limit(51);
         if (historyRows && historyRows.length > 0) {
-          // Drop the most recent message (the user message we just saved) and reverse to oldest-first
-          previousMessages = historyRows.slice(1).reverse() as Array<{ role: string; content: string }>;
+          previousMessages = (historyRows.slice(1).reverse() as Array<{ role: "user" | "assistant"; content: string }>);
         }
-      } catch (e) {
-        console.error("Failed to load conversation history:", e);
-        // Fall back gracefully — previousMessages stays empty
-      }
+      } catch { /* ignore */ }
     }
 
+    // System prompt
+    let systemPrompt: string;
+    if (isOnboarding) {
+      try {
+        const { data: connectedIntegrations } = await supabase
+          .from('user_integrations')
+          .select('provider')
+          .eq('user_id', user.id)
+          .eq('status', 'connected');
+        if (connectedIntegrations && connectedIntegrations.length > 0) {
+          const providers = connectedIntegrations.map((i: { provider: string }) => i.provider);
+          onboardingPrompt = (onboardingPrompt || '') + '\n\nALREADY CONNECTED INTEGRATIONS:\n' + providers.map(p => `- ${p}`).join('\n');
+        }
+      } catch { /* ignore */ }
+      systemPrompt = onboardingPrompt || 'You are a helpful assistant.';
+    } else {
+      systemPrompt = await buildSystemPromptForUser(user.id, message);
+      if (activeConversationId) {
+        const linkedCtx = await buildLinkedContextSummary(user.id, activeConversationId);
+        if (linkedCtx) systemPrompt += "\n\n" + linkedCtx;
+      }
+      if (workflowContext) systemPrompt += "\n\n" + workflowContext;
+    }
+
+    let userMessageContent = message;
+    if (isOnboarding && onboardingPrompt) {
+      userMessageContent = `[SYSTEM PROMPT - FOLLOW THESE INSTRUCTIONS]\n${onboardingPrompt}\n\n[USER MESSAGE]\n${message}`;
+    }
+
+    const messagesForRuntime: Array<{ role: "user" | "assistant"; content: string }> = [
+      ...previousMessages,
+      { role: "user", content: userMessageContent },
+    ];
+
+    // Agent context
+    let integrationIds: string[] = [];
+    try {
+      const { data: integrations } = await supabase
+        .from('user_integrations')
+        .select('provider')
+        .eq('user_id', user.id)
+        .eq('status', 'connected');
+      integrationIds = (integrations ?? []).map((i: { provider: string }) => i.provider);
+    } catch { /* ignore */ }
+
+    const agentContext: AgentContext = {
+      userId: user.id,
+      orgId: '',
+      conversationId: activeConversationId || '',
+      companionConnected: false,
+      integrations: integrationIds,
+    };
+
+    const capturedConvoId = activeConversationId;
+    const capturedOnboardingState = onboardingState;
+
+    // SSE stream
     const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
     const writer = writable.getWriter();
 
-    const capturedGatewayUrl = gatewayUrl;
-    const capturedAuthToken = authToken;
-    const capturedConvoId = activeConversationId;
-    const capturedPreviousMessages = previousMessages;
-
     (async () => {
-      let fullContent = "";
+      let fullContent = '';
+      let inputTokens = 0;
+      let outputTokens = 0;
 
       try {
-        // Build the messages array: system + history + current user message
-        let systemPrompt = isOnboarding ? undefined : await buildSystemPromptForUser(user.id, message);
-        // Inject linked conversation context
-        if (!isOnboarding && systemPrompt && capturedConvoId) {
-          const linkedCtx = await buildLinkedContextSummary(user.id, capturedConvoId);
-          if (linkedCtx) {
-            systemPrompt = systemPrompt + "\n\n" + linkedCtx;
-          }
-        }
-        const messagesArray: Array<{ role: string; content: string }> = [];
-        if (systemPrompt) {
-          messagesArray.push({ role: "system", content: systemPrompt });
-        }
-        // Add history (already excludes current message)
-        messagesArray.push(...capturedPreviousMessages);
-        // Add current user message (using fullMessage which may include onboarding prompt)
-        messagesArray.push({ role: "user", content: fullMessage });
+        const runtime = new AgentRuntime(process.env.ANTHROPIC_API_KEY!);
+        const tools = getTools(agentContext);
 
-        const result = await streamGatewayMessage(
-          capturedGatewayUrl,
-          capturedAuthToken,
-          messagesArray,
-          capturedConvoId,
-          async (chunk: StreamChunk) => {
-            if (chunk.type === "token" && chunk.text) {
-              fullContent += chunk.text;
-            }
-            if (chunk.type === "done") {
-              chunk.conversation_id = capturedConvoId || chunk.conversation_id;
-            }
-            try {
-              await writer.write(encode(chunk));
-            } catch { /* writer closed */ }
-          },
+        const stream = runtime.chatStream(
+          { model: 'claude-sonnet-4-20250514', systemPrompt, tools, maxTokens: 8192 },
+          messagesForRuntime,
+          agentContext,
         );
 
-        if (result.fullContent && !fullContent) {
-          fullContent = result.fullContent;
-        }
-
-        if (result.error && !fullContent) {
-          try {
-            await writer.write(encode({ type: "error", message: result.error }));
-          } catch { /* ignore */ }
+        for await (const event of stream) {
+          if (event.type === 'token') {
+            fullContent += event.text;
+          }
+          if (event.type === 'done') {
+            (event as Record<string, unknown>).conversation_id = capturedConvoId;
+          }
+          try { await writer.write(encode(event)); } catch { /* writer closed */ }
         }
       } catch (err) {
         console.error("Streaming error:", err);
         try {
-          await writer.write(
-            encode({ type: "error", message: err instanceof Error ? err.message : "Streaming failed" })
-          );
+          await writer.write(encode({ type: 'error', message: err instanceof Error ? err.message : 'Streaming failed' }));
         } catch { /* ignore */ }
       }
 
+      // Post-stream cleanup
       try {
-        // Process memory/secret markers and clean response
-        const cleanedContent = fullContent
-          ? await processAgentResponse(user.id, fullContent)
-          : fullContent;
+        const cleanedContent = fullContent ? await processAgentResponse(user.id, fullContent) : fullContent;
 
-        if (isOnboarding && onboardingState && cleanedContent) {
-          await processOnboardingResponse(supabase, user.id, message, cleanedContent, onboardingState);
+        if (isOnboarding && capturedOnboardingState && cleanedContent) {
+          await processOnboardingResponse(supabase, user.id, message, cleanedContent, capturedOnboardingState);
         }
 
         if (capturedConvoId && cleanedContent) {
-          try {
-            await supabase.from("messages").insert({ conversation_id: capturedConvoId, role: "assistant", content: cleanedContent });
-          } catch (e) { console.error("Failed to save assistant message:", e); }
-          try {
-            await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", capturedConvoId);
-          } catch (e) { console.error("Failed to update conversation:", e); }
+          try { await supabase.from("messages").insert({ conversation_id: capturedConvoId, role: "assistant", content: cleanedContent }); } catch(e) { console.error("Failed to save assistant message:", e); }
+          try { await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", capturedConvoId);
+          } catch { }
         }
 
-        await logActivity(
-          "Chat message sent",
-          message.length > 50 ? message.substring(0, 50) + "..." : message,
-          { conversation_id: capturedConvoId }
-        ).catch((e: unknown) => console.error("Failed to log activity:", e));
+        await logActivity("Chat message sent", message.length > 50 ? message.substring(0, 50) + "..." : message, { conversation_id: capturedConvoId })
+          .catch(e => console.error("Failed to log activity:", e));
 
-        const estimatedTokens = Math.ceil((message.length + (cleanedContent?.length ?? 0)) / 4);
-        incrementUsage(user.id, estimatedTokens, 0); // fire-and-forget
-        await incrementTokenUsage(estimatedTokens).catch((e: unknown) =>
-          console.error("Failed to track token usage:", e)
-        );
+        // Estimate tokens since streaming doesn't easily expose usage
+        const estimatedTokens = inputTokens + outputTokens || Math.ceil((message.length + (cleanedContent?.length ?? 0)) / 4);
+        incrementUsage(user.id, estimatedTokens, 0);
+        await incrementTokenUsage(estimatedTokens).catch((e: unknown) => console.error("Failed to track usage:", e));
       } catch (e) {
-        console.error("Post-stream DB error:", e);
+        console.error("Post-stream error:", e);
       }
 
       try { await writer.close(); } catch { /* ignore */ }
