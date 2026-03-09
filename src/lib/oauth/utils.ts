@@ -24,7 +24,8 @@ export function generateStateToken(): string {
 export function buildAuthorizationUrl(
   provider: OAuthProvider,
   state: string,
-  scopes?: string[]
+  scopes?: string[],
+  prompt?: string
 ): string | null {
   const config = OAUTH_PROVIDERS[provider];
   const credentials = getProviderCredentials(provider);
@@ -53,6 +54,11 @@ export function buildAuthorizationUrl(
     }
   }
   
+  // Add prompt param (e.g. "consent" to force account picker)
+  if (prompt) {
+    params.set("prompt", prompt);
+  }
+
   // Add provider-specific params
   if (config.additionalAuthParams) {
     Object.entries(config.additionalAuthParams).forEach(([key, value]) => {

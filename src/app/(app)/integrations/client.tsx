@@ -95,16 +95,66 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
   };
 
   const addAccount = (integrationId: string) => {
-    const mockEmail = "user" + Date.now() + "@example.com";
     const integration = items.find(i => i.id === integrationId);
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === integrationId
-          ? { ...item, status: "connected" as const, accounts: [...item.accounts, { id: String(item.accounts.length + 1), email: mockEmail, connectedAt: "Just now" } as IntegrationAccount], last_sync: "Just now" }
-          : item
-      )
+    if (!integration) return;
+
+    // Map integration slug/name to OAuth provider
+    const SLUG_TO_PROVIDER: Record<string, string> = {
+      "google-workspace": "google",
+      "google-sheets": "google",
+      "google-drive": "google",
+      "google-calendar": "google",
+      "google-docs": "google",
+      "gmail": "google",
+      "google": "google",
+      "slack": "slack",
+      "notion": "notion",
+    };
+    
+    const provider = SLUG_TO_PROVIDER[integration.slug?.toLowerCase() || ""] 
+      || SLUG_TO_PROVIDER[integration.name?.toLowerCase() || ""]
+      || integration.slug?.toLowerCase()
+      || integration.name?.toLowerCase();
+
+    if (!provider) {
+      toast.error("Error", "Could not determine provider for this integration");
+      return;
+    }
+
+    // Open OAuth popup with prompt=consent to force account selection
+    const width = 500, height = 600;
+    const left = window.screenX + (window.innerWidth - width) / 2;
+    const top = window.screenY + (window.innerHeight - height) / 2;
+    const popup = window.open(
+      `/api/integrations/oauth/start?provider=${provider}&prompt=consent`,
+      "oauth_popup",
+      `width=${width},height=${height},left=${left},top=${top},popup=yes`
     );
-    toast.success("Account connected", `${integration?.name || "Integration"} account added`);
+
+    if (!popup) {
+      toast.error("Popup blocked", "Please allow popups for this site");
+      return;
+    }
+
+    // Listen for OAuth completion
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === "oauth_complete" && event.data?.provider === provider) {
+        window.removeEventListener("message", onMessage);
+        // Refresh integrations list
+        window.location.reload();
+      }
+    };
+    window.addEventListener("message", onMessage);
+
+    // Poll for popup close
+    const poll = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(poll);
+        window.removeEventListener("message", onMessage);
+        // Refresh anyway in case OAuth completed
+        window.location.reload();
+      }
+    }, 1000);
   };
 
   const disconnectAccount = (integrationId: string, accountId: string) => {

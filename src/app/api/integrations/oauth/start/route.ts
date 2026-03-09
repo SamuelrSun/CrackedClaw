@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const provider = searchParams.get('provider');
   const scopesParam = searchParams.get('scopes');
+  const prompt = searchParams.get('prompt') || undefined;
   const scopes = scopesParam ? scopesParam.split(',') : undefined;
 
   // Validate provider
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Build authorization URL
-  const authUrl = buildAuthorizationUrl(provider, state, scopes);
+  const authUrl = buildAuthorizationUrl(provider, state, scopes, prompt);
   if (!authUrl) {
     return new NextResponse('Failed to generate authorization URL', { status: 500 });
   }
