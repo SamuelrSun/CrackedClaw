@@ -144,13 +144,25 @@ export function parseMessageContent(content: string): ParsedSegment[] {
     });
   }
 
+  // Deduplicate integration connect cards — one per provider
+  const seenProviders = new Set<string>();
   PATTERNS.integrationConnect.lastIndex = 0;
   while ((match = PATTERNS.integrationConnect.exec(processedContent)) !== null) {
-    matches.push({
-      index: match.index,
-      length: match[0].length,
-      segment: { type: "integration-connect", provider: match[1] as IntegrationProvider },
-    });
+    if (!seenProviders.has(match[1])) {
+      seenProviders.add(match[1]);
+      matches.push({
+        index: match.index,
+        length: match[0].length,
+        segment: { type: "integration-connect", provider: match[1] as IntegrationProvider },
+      });
+    } else {
+      // Still need to remove the duplicate tag from content
+      matches.push({
+        index: match.index,
+        length: match[0].length,
+        segment: { type: "text", content: "" },
+      });
+    }
   }
 
   // Integration status
