@@ -90,7 +90,7 @@ async function getRedirectPath(nextUrl?: string | null): Promise<string> {
 
   // First check localStorage (fast)
   if (checkOnboardingComplete()) {
-    return "/";
+    return "/chat";
   }
 
   // Then check Supabase profile (authoritative)
@@ -99,7 +99,7 @@ async function getRedirectPath(nextUrl?: string | null): Promise<string> {
     if (res.ok) {
       const data = await res.json();
       if (data.completed) {
-        return "/";
+        return "/chat";
       }
     }
   } catch {
@@ -151,7 +151,7 @@ function LoginContent() {
     localStorage.setItem("demo_mode", "true");
     
     // Check if onboarding completed
-    const redirectPath = checkOnboardingComplete() ? "/" : "/onboarding";
+    const redirectPath = checkOnboardingComplete() ? "/chat" : "/onboarding";
     router.push(redirectPath);
     router.refresh();
   };
