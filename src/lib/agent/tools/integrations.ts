@@ -85,7 +85,7 @@ export const scanIntegrationTool: ToolDefinition = {
     type: 'object',
     properties: {
       provider: { type: 'string', description: 'Integration provider to scan (e.g. google)' },
-      mode: { type: 'string', enum: ['quick', 'deep'], description: 'Scan depth: quick (default, ~3 min, smaller dataset) or deep (~12 min, full dataset)' },
+      mode: { type: 'string', enum: ['quick', 'deep'], description: 'Scan mode: quick (~3min) or deep (~12min). Default: quick.' },
     },
     required: ['provider'],
   },

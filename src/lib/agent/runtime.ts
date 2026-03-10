@@ -204,29 +204,41 @@ export class AgentRuntime {
         let output: unknown;
         let errorMsg: string | undefined;
 
-        const progressEvents: Array<Record<string, unknown>> = [];
+        // Queue for real-time progress streaming during tool execution
+        const progressQueue: Array<Record<string, unknown>> = [];
+        let toolDone = false;
         const contextWithProgress: AgentContext = {
           ...context,
-          onToolProgress: (toolName: string, data: Record<string, unknown>) => {
-            progressEvents.push({ toolName, ...data });
-            context.onToolProgress?.(toolName, data);
+          onToolProgress: (_toolName: string, data: Record<string, unknown>) => {
+            progressQueue.push(data);
           },
         };
 
         if (!toolDef) {
           errorMsg = `Tool "${block.name}" not found`;
           output = { error: errorMsg };
+          toolDone = true;
         } else {
-          try {
-            output = await toolDef.execute(block.input, contextWithProgress);
-          } catch (err) {
-            errorMsg = err instanceof Error ? err.message : String(err);
-            output = { error: errorMsg };
-          }
-        }
+          // Run tool in background, drain progress queue while it executes
+          const toolPromise = toolDef.execute(block.input, contextWithProgress).then(
+            (r) => { output = r; toolDone = true; },
+            (err) => { errorMsg = err instanceof Error ? err.message : String(err); output = { error: errorMsg }; toolDone = true; },
+          );
 
-        for (const evt of progressEvents) {
-          yield { type: 'tool_progress' as const, tool: block.name, data: evt };
+          // Drain progress events in real-time while tool runs
+          while (!toolDone) {
+            await new Promise(r => setTimeout(r, 200));
+            while (progressQueue.length > 0) {
+              const evt = progressQueue.shift()!;
+              yield { type: 'tool_progress' as const, tool: block.name, data: evt };
+            }
+          }
+          await toolPromise;
+          // Flush remaining
+          while (progressQueue.length > 0) {
+            const evt = progressQueue.shift()!;
+            yield { type: 'tool_progress' as const, tool: block.name, data: evt };
+          }
         }
 
         yield { type: 'tool_end', tool: block.name, output, error: errorMsg };

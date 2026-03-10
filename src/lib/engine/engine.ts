@@ -25,6 +25,11 @@ export async function runDeepAnalysis(
     data = await fetchGoogleData(userId, (msg) => {
       onProgress?.({ phase: 'fetching', progress: 20, message: msg });
     }, mode);
+
+  // Log summary of fetched data
+  const emailSample = data.emails.sent.slice(0, 8).map(e => '- **To:** ' + (e.to || 'unknown').split('<')[0].trim() + ' — "' + (e.subject || 'No subject') + '"').join('\n');
+  const calSample = [...data.calendar.futureEvents, ...data.calendar.pastEvents].slice(0, 5).map(e => '- 📅 ' + e.title + (e.attendees?.length ? ' (' + e.attendees.length + ' attendees)' : '')).join('\n');
+  onProgress?.({ phase: 'fetching', progress: 100, message: '### ✅ Data fetched\n**Emails:** ' + data.emails.totalSent + ' sent + ' + data.emails.totalReceived + ' received\n\n**Sample sent emails:**\n' + emailSample + '\n\n**Upcoming calendar:**\n' + calSample });
   } else {
     throw new Error('Provider ' + provider + ' not yet supported for deep analysis');
   }
@@ -43,10 +48,12 @@ export async function runDeepAnalysis(
     // Deep mode: run passes sequentially with 15s gap
     for (let i = 0; i < passNames.length; i++) {
       const name = passNames[i];
-      onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round((i / passNames.length) * 100), message: 'Running ' + name + ' analysis (' + (i + 1) + '/' + passNames.length + ')...' });
+      onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round((i / passNames.length) * 100), message: '### 🧠 Running ' + name + ' analysis (' + (i + 1) + '/' + passNames.length + ')\nSending ' + data.emails.totalSent + ' sent emails + ' + (data.calendar.pastEvents.length + data.calendar.futureEvents.length) + ' calendar events to Claude...' });
       try {
         const result = await ALL_PASSES[name](data, apiKey);
-        onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round(((i + 1) / passNames.length) * 100), message: name + ' complete — ' + result.memories.length + ' insights, ' + result.entities.length + ' entities' });
+        const insightPreview = result.memories.slice(0, 3).map(m => '- ' + m.content.substring(0, 100)).join('\n');
+        const entityPreview = result.entities.slice(0, 3).map(e => '- 👤 ' + e.name + ' (' + e.type + ')').join('\n');
+        onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round(((i + 1) / passNames.length) * 100), message: '### ✅ ' + name + ' complete\n**' + result.memories.length + ' insights found:**\n' + (insightPreview || '_(none)_') + '\n\n**' + result.entities.length + ' entities:**\n' + (entityPreview || '_(none)_') });
         passResults.push(result);
       } catch (err) {
         console.error('Pass ' + name + ' failed:', err);
@@ -67,7 +74,8 @@ export async function runDeepAnalysis(
   if (allEntities.length > 0) {
     try {
       unifiedEntities = await correlateEntities(allEntities, apiKey);
-      onProgress?.({ phase: 'correlating', progress: 100, message: 'Resolved ' + allEntities.length + ' entities into ' + unifiedEntities.length + ' unified profiles' });
+      const profilePreview = unifiedEntities.slice(0, 5).map(e => '- **' + e.name + '** (' + e.type + ') — ' + e.sources.join(', ')).join('\n');
+      onProgress?.({ phase: 'correlating', progress: 100, message: '### ✅ Entity correlation complete\nResolved ' + allEntities.length + ' raw entities → ' + unifiedEntities.length + ' unified profiles\n\n' + profilePreview });
     } catch (err) {
       console.error('Correlation failed:', err);
       onProgress?.({ phase: 'correlating', progress: 100, message: 'Entity correlation failed, continuing with raw entities' });
