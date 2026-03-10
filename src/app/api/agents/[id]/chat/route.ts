@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
 import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
 import { createClient } from "@/lib/supabase/server";
+import { AgentRuntime } from "@/lib/agent/runtime";
+import { getTools } from "@/lib/agent/tools";
+import { buildSystemPromptForUser } from "@/lib/gateway/system-prompt";
 import Anthropic from "@anthropic-ai/sdk";
 
 export const dynamic = 'force-dynamic';
-
-const anthropic = new Anthropic();
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -54,28 +55,55 @@ export async function POST(request: NextRequest, { params }: Params) {
       updated_at: new Date().toISOString(),
     }).eq('id', id);
 
+    // Get user's connected integrations
+    const { data: integrations } = await supabase
+      .from('user_integrations')
+      .select('provider')
+      .eq('user_id', user.id)
+      .eq('status', 'connected');
+
+    const context = {
+      userId: user.id,
+      orgId: (agent.org_id as string) || '',
+      conversationId: id,
+      companionConnected: false,
+      integrations: (integrations || []).map((i: { provider: string }) => i.provider),
+    };
+
+    const tools = getTools(context);
+
+    // Build full system prompt with agent-specific context
+    const basePrompt = await buildSystemPromptForUser(user.id);
+    const systemPrompt = `${basePrompt}\n\nYou are an agent named "${agent.name}". Your task: "${agent.task}". Use your tools to complete tasks.`;
+
     // Build messages for LLM
     const messages: Anthropic.MessageParam[] = [
       ...((history || [])
-        .filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))),
+        .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
+        .map((m: { role: string; content: string }) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        }))),
       { role: 'user', content: message },
     ];
 
-    const response = await anthropic.messages.create({
-      model: agent.model || "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      system: `You are a helpful AI agent named "${agent.name}". Your original task was: "${agent.task}". Complete tasks efficiently and report your progress clearly.`,
+    const runtime = new AgentRuntime(process.env.ANTHROPIC_API_KEY!);
+    const result = await runtime.chat(
+      {
+        model: (agent.model as string) || 'claude-sonnet-4-20250514',
+        systemPrompt,
+        tools,
+        maxTokens: 4096,
+      },
       messages,
-    });
-
-    const assistantText = response.content[0].type === 'text' ? response.content[0].text : '';
+      context,
+    );
 
     // Save response
     await supabase.from('agent_messages').insert({
       agent_id: id,
       role: 'assistant',
-      content: assistantText,
+      content: result.response,
     });
 
     await supabase.from('agent_instances').update({
@@ -83,10 +111,9 @@ export async function POST(request: NextRequest, { params }: Params) {
       updated_at: new Date().toISOString(),
     }).eq('id', id);
 
-    return jsonResponse({ message: assistantText });
+    return jsonResponse({ message: result.response, toolResults: result.toolResults });
   } catch (err) {
     console.error("Agent chat error:", err);
-    // Mark as failed
     try {
       const supabase = await createClient();
       await supabase.from('agent_instances').update({ status: 'failed' }).eq('id', id);

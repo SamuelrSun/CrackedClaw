@@ -1,8 +1,23 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { AgentPanel, AgentInstance } from "./agent-panel";
 import { AgentExpandModal } from "./agent-expand-modal";
+
+const PANEL_W = 360;
+const PANEL_H = 380;
+const GRID_COLS = 3;
+const GAP = 24;
+const CANVAS_PAD = 32;
+
+function getAutoPosition(index: number): { x: number; y: number } {
+  const col = index % GRID_COLS;
+  const row = Math.floor(index / GRID_COLS);
+  return {
+    x: CANVAS_PAD + col * (PANEL_W + GAP),
+    y: CANVAS_PAD + row * (PANEL_H + GAP),
+  };
+}
 
 interface AgentCanvasProps {
   agents: AgentInstance[];
@@ -37,6 +52,8 @@ export function AgentCanvas({
       offsetX: canvasOffset.x,
       offsetY: canvasOffset.y,
     };
+    (e.currentTarget as HTMLElement).style.cursor = 'grabbing';
+
     const handleMove = (ev: MouseEvent) => {
       if (!isPanning.current) return;
       setCanvasOffset({
@@ -44,8 +61,9 @@ export function AgentCanvas({
         y: panStart.current.offsetY + (ev.clientY - panStart.current.mouseY),
       });
     };
-    const handleUp = () => {
+    const handleUp = (ev: MouseEvent) => {
       isPanning.current = false;
+      (document.querySelector('.canvas-area') as HTMLElement | null)?.style.setProperty('cursor', 'default');
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
@@ -61,30 +79,38 @@ export function AgentCanvas({
     setSpawning(false);
   };
 
-  const expandedAgent = expandedId ? agents.find((a) => a.id === expandedId) : null;
+  // Auto-position agents that have default position (0,0)
+  const agentsWithPositions = agents.map((agent, i) => {
+    if (agent.position.x === 0 && agent.position.y === 0) {
+      return { ...agent, position: getAutoPosition(i) };
+    }
+    return agent;
+  });
+
+  const expandedAgent = expandedId ? agentsWithPositions.find((a) => a.id === expandedId) : null;
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)]">
       {/* Canvas area */}
       <div
-        className="flex-1 relative overflow-hidden"
+        className="canvas-area flex-1 relative overflow-hidden"
         style={{
-          background: '#FAFAF8',
-          backgroundImage: 'radial-gradient(circle, #ccc 1px, transparent 1px)',
+          background: '#F7F7F5',
+          backgroundImage: 'radial-gradient(circle, #d0d0cc 1px, transparent 1px)',
           backgroundSize: '24px 24px',
-          cursor: 'default',
         }}
         onMouseDown={handleCanvasMouseDown}
       >
-        {/* Panning layer */}
+        {/* Pannable layer */}
         <div
           style={{
             position: 'absolute',
             inset: 0,
             transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px)`,
+            willChange: 'transform',
           }}
         >
-          {agents.map((agent) => (
+          {agentsWithPositions.map((agent) => (
             <div key={agent.id} className="agent-panel-root">
               <AgentPanel
                 agent={agent}
@@ -99,34 +125,48 @@ export function AgentCanvas({
 
           {agents.length === 0 && (
             <div
-              className="absolute text-center"
+              className="absolute flex flex-col items-center gap-3 text-center"
               style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
             >
-              <div className="text-4xl mb-3">✨</div>
-              <p className="text-sm text-gray-400 font-mono">No agents yet. Spawn one below.</p>
+              <div className="text-5xl">✨</div>
+              <p className="text-sm text-gray-400">No agents yet.</p>
+              <p className="text-xs text-gray-300">Type a task below to spawn your first agent.</p>
             </div>
           )}
         </div>
+
+        {/* Canvas controls overlay */}
+        {agents.length > 0 && (
+          <div className="absolute bottom-4 right-4 flex gap-2">
+            <button
+              onClick={() => setCanvasOffset({ x: 0, y: 0 })}
+              className="text-[10px] font-mono px-2.5 py-1 bg-white/80 hover:bg-white border border-gray-200 text-gray-500 rounded-md shadow-sm transition-colors backdrop-blur-sm"
+              title="Reset canvas view"
+            >
+              ⌖ Reset
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Bottom spawn bar */}
-      <div className="border-t border-gray-200 bg-white px-4 py-3 flex items-center gap-3">
-        <span className="text-base">✨</span>
+      <div className="border-t border-gray-200 bg-white px-4 py-3 flex items-center gap-3 flex-shrink-0">
+        <span className="text-base select-none">✨</span>
         <input
           type="text"
           value={spawnInput}
           onChange={(e) => setSpawnInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSpawn()}
-          placeholder='e.g. "Research competitors in the AR glasses space"'
+          placeholder='Spawn an agent... e.g. "Research AR glasses competitors"'
           className="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-gray-400"
           disabled={spawning}
         />
         <button
           onClick={handleSpawn}
           disabled={!spawnInput.trim() || spawning}
-          className="font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40 transition-colors"
+          className="font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40 transition-colors rounded-md"
         >
-          {spawning ? 'Spawning...' : 'Enter ↵'}
+          {spawning ? 'Spawning...' : 'Spawn ↵'}
         </button>
       </div>
 
@@ -138,6 +178,13 @@ export function AgentCanvas({
           onSendMessage={(msg) => onSendMessage(expandedAgent.id, msg)}
         />
       )}
+
+      <style>{`
+        @keyframes agentFadeIn {
+          from { opacity: 0; transform: translateY(8px) scale(0.97); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
     </div>
   );
 }
