@@ -525,7 +525,7 @@ export async function getTokenUsage(): Promise<TokenUsage> {
 
     return {
       used: data.used || 0,
-      limit: data.token_limit || 1_000_000,
+      limit: data.limit_amount || 1_000_000,
       resetDate: data.reset_date || '—',
     }
   } catch (err) {
@@ -575,7 +575,7 @@ export async function updateTokenUsage(tokensUsed: number): Promise<void> {
         .insert({
           user_id: user.id,
           used: tokensUsed,
-          token_limit: 1_000_000,
+          limit_amount: 1_000_000,
           reset_date: resetDate.toISOString().split('T')[0],
           created_at: now.toISOString(),
           updated_at: now.toISOString(),
