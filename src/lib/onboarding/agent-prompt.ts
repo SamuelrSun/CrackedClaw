@@ -380,6 +380,18 @@ export function detectCompleteIntent(message: string): boolean {
 /**
  * Extract user name from a message (simple heuristic)
  */
+const NOT_NAMES = new Set([
+  'hello', 'hi', 'hey', 'yo', 'sup', 'howdy', 'hola', 'greetings',
+  'yes', 'no', 'yeah', 'yep', 'nope', 'sure', 'ok', 'okay', 'fine',
+  'thanks', 'thank', 'please', 'help', 'stop', 'quit', 'exit',
+  'what', 'who', 'where', 'when', 'why', 'how',
+  'the', 'and', 'but', 'not', 'this', 'that', 'just', 'like',
+  'good', 'great', 'nice', 'cool', 'awesome', 'amazing', 'perfect',
+  'morning', 'afternoon', 'evening', 'night', 'today', 'tomorrow',
+  'skip', 'next', 'back', 'done', 'start', 'begin', 'continue',
+  'test', 'testing', 'nothing', 'none', 'idk', 'dunno',
+]);
+
 export function extractUserName(message: string): string | null {
   // Common patterns: "I'm X", "My name is X", "Call me X", "It's X", "X"
   const patterns = [
@@ -390,6 +402,7 @@ export function extractUserName(message: string): string | null {
   for (const pattern of patterns) {
     const match = message.match(pattern);
     if (match && match[1] && match[1].length > 1 && match[1].length < 20) {
+      if (NOT_NAMES.has(match[1].toLowerCase())) continue;
       // Capitalize first letter
       return match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
     }
@@ -402,6 +415,7 @@ export function extractUserName(message: string): string | null {
  * Check if response contains a name assignment for the agent
  */
 export function extractAgentName(message: string): string | null {
+  // Same blocklist applies
   // Common patterns: "Call you X", "How about X", "Let's go with X", "X sounds good", "X"
   const patterns = [
     /(?:call you|how about|let'?s go with|i'?ll call you|you'?re|your name is|be called)\s+([a-zA-Z]+)/i,
