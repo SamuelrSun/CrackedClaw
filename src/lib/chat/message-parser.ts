@@ -1,4 +1,29 @@
 import type { IntegrationProvider } from "@/components/chat/integration-connect-card";
+import { INTEGRATIONS } from "@/lib/integrations/registry";
+
+// Build a map: any keyword → parent integration ID
+// e.g. "gmail" → "google", "google-sheets" → "google", "slack" → "slack"
+const CAPABILITY_TO_INTEGRATION: Record<string, string> = {};
+for (const integration of INTEGRATIONS) {
+  // The integration ID itself maps to itself
+  CAPABILITY_TO_INTEGRATION[integration.id] = integration.id;
+  // Each capability maps to the parent integration
+  for (const cap of integration.capabilities) {
+    CAPABILITY_TO_INTEGRATION[cap] = integration.id;
+    CAPABILITY_TO_INTEGRATION[cap.replace(/\s+/g, '-').toLowerCase()] = integration.id;
+  }
+  // Common aliases
+  const name = integration.name.toLowerCase().replace(/\s+/g, '-');
+  CAPABILITY_TO_INTEGRATION[name] = integration.id;
+}
+// Manual aliases people might say
+Object.assign(CAPABILITY_TO_INTEGRATION, {
+  'gmail': 'google', 'google-sheets': 'google', 'google-calendar': 'google',
+  'google-drive': 'google', 'google-docs': 'google', 'google-meet': 'google',
+  'sheets': 'google', 'calendar': 'google', 'drive': 'google', 'docs': 'google',
+  'meet': 'google', 'outlook': 'microsoft', 'teams': 'microsoft',
+  'onedrive': 'microsoft', 'excel': 'microsoft',
+});
 import type { WorkflowDef } from "@/components/workflows/workflow-visualizer";
 
 export interface FileAttachmentMeta {
@@ -30,7 +55,7 @@ const PATTERNS = {
   inlineTask: /\[\[task:([^:]+):([^:]+)(?::([^\]]+))?\]\]/g,
   integrationsResolve: /\[\[integrations:resolve:([^\]]+)\]\]/g,
   skillSuggest: /\[\[skill:suggest:([^,\]]+)(?:,([^\]]+))?\]\]/g,
-  integrationConnect: /\[\[integration:(google|slack|notion|github|microsoft|linear|discord|zoom|twitter|hubspot|jira|figma|reddit|linkedin|gmail|google-sheets|google-calendar|google-drive)\]\]/g,
+  integrationConnect: /\[\[integration:([a-z][a-z0-9-]*)\]\]/g,
   scanTrigger: /\[\[scan:(google|slack|notion)\]\]/g,
   integrationStatus: /\[\[integration-status:(\w+):(connected|error)(?::([^\]]+))?\]\]/g,
   subagentProgress: /\[\[subagent:progress:(\{.*?\})\]\]/g,
