@@ -1,6 +1,6 @@
 /**
  * Onboarding Module
- * 
+ *
  * Exports all onboarding-related functions for guiding new users through
  * OpenClaw setup.
  */
@@ -16,10 +16,9 @@ export {
   skipStep,
   setAgentName,
   setUserDisplayName,
-  isWelcomeComplete,
-  isIntegrationsComplete,
-  isContextGatheringComplete,
-  isWorkflowSetupComplete,
+  isIntroComplete,
+  isToolsComplete,
+  isLearningComplete,
   updateGatheredContext,
   setSuggestedWorkflows,
   getRequiredStepsForPhase,

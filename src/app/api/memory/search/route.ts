@@ -1,53 +1,31 @@
 import { NextRequest } from "next/server";
 import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
-import { memoryEntries, MemoryEntry } from "@/lib/mock-data";
+import { mem0Search } from "@/lib/memory/mem0-client";
 
-// In-memory store (would be Supabase in production)
-let memoryStore = [...memoryEntries];
-
-// POST /api/memory/search - Search memory entries
+// POST /api/memory/search - Search memory entries via semantic search
 export async function POST(request: NextRequest) {
   const { user, error } = await requireApiAuth();
   if (error) return error;
 
   try {
-    const body = await request.json();
-    
-    const query = (body.query || "").toLowerCase();
-    const category = body.category?.toLowerCase();
-    const limit = body.limit || 20;
-    const offset = body.offset || 0;
+    const { query, domain, limit = 20 } = await request.json();
+    if (!query) return errorResponse("query required", 400);
 
-    if (!query && !category) {
-      return errorResponse("Query or category is required", 400);
-    }
-
-    // Simple text search (in production, would use Supabase full-text search or vector similarity)
-    let results = memoryStore.filter((m) => {
-      const matchesQuery = !query || m.content.toLowerCase().includes(query);
-      const matchesCategory = !category || m.category.toLowerCase() === category;
-      return matchesQuery && matchesCategory;
-    });
-
-    // Sort by relevance (simple: exact matches first)
-    if (query) {
-      results = results.sort((a, b) => {
-        const aStartsWith = a.content.toLowerCase().startsWith(query) ? 0 : 1;
-        const bStartsWith = b.content.toLowerCase().startsWith(query) ? 0 : 1;
-        return aStartsWith - bStartsWith;
-      });
-    }
-
-    const paginated = results.slice(offset, offset + limit);
+    const results = await mem0Search(query, user.id, { limit, domain });
 
     return jsonResponse({
-      results: paginated,
+      results: results.map(m => ({
+        id: m.id,
+        content: m.memory || m.content,
+        domain: m.domain,
+        importance: m.importance,
+        similarity: m.similarity,
+        source: (m.metadata as Record<string, unknown>)?.source,
+        created_at: m.created_at,
+        updated_at: m.updated_at,
+      })),
       total: results.length,
       query,
-      category: category || null,
-      limit,
-      offset,
-      userId: user.id,
     });
   } catch {
     return errorResponse("Invalid request body", 400);

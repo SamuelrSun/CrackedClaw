@@ -1,4 +1,4 @@
-import { saveMemory } from './service';
+import { mem0Write } from './mem0-client';
 import { fetchRecentEmails, fetchCalendarEvents } from '@/lib/integrations/google-client';
 
 export interface ScanResult {
@@ -45,34 +45,34 @@ export async function scanGoogleData(userId: string): Promise<ScanResult> {
     result.emailsScanned = emails.length;
     result.eventsScanned = events.length;
 
-    const toSave: Array<{ key: string; value: string; category: 'contact' | 'context' | 'schedule'; importance: number }> = [];
+    const toSave: Array<{ key: string; value: string; domain: string; importance: number }> = [];
 
     const contacts = extractContacts(emails);
     for (const c of contacts.slice(0, 10)) {
-      toSave.push({ key: `contact_${c.email.split('@')[0].replace(/[^a-z0-9]/gi, '_')}`, value: `${c.name} <${c.email}>${c.context ? ' — ' + c.context : ''}`, category: 'contact', importance: 3 });
+      toSave.push({ key: `contact_${c.email.split('@')[0].replace(/[^a-z0-9]/gi, '_')}`, value: `${c.name} <${c.email}>${c.context ? ' — ' + c.context : ''}`, domain: 'email', importance: 0.6 });
     }
 
     const topics = extractTopics(emails);
     if (topics.length > 0) {
-      toSave.push({ key: 'work_topics', value: topics.join(', '), category: 'context', importance: 4 });
+      toSave.push({ key: 'work_topics', value: topics.join(', '), domain: 'general', importance: 0.8 });
     }
 
     const recurring = events.filter(e => e.recurring);
     if (recurring.length > 0) {
-      toSave.push({ key: 'recurring_meetings', value: recurring.slice(0, 5).map(e => e.title).join(', '), category: 'schedule', importance: 3 });
+      toSave.push({ key: 'recurring_meetings', value: recurring.slice(0, 5).map(e => e.title).join(', '), domain: 'calendar', importance: 0.6 });
     }
 
     const attendeeFreq = new Map<string, number>();
     for (const e of events) for (const a of e.attendees) attendeeFreq.set(a, (attendeeFreq.get(a) || 0) + 1);
     const topCollabs = Array.from(attendeeFreq.entries()).filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([e]) => e);
     if (topCollabs.length > 0) {
-      toSave.push({ key: 'frequent_collaborators', value: topCollabs.join(', '), category: 'contact', importance: 3 });
+      toSave.push({ key: 'frequent_collaborators', value: topCollabs.join(', '), domain: 'email', importance: 0.6 });
     }
 
-    await Promise.all(toSave.map(m => saveMemory(userId, m.key, m.value, { category: m.category, source: 'scan', importance: m.importance })));
+    await Promise.all(toSave.map(m => mem0Write(userId, `${m.key}: ${m.value}`, { source: 'scan', domain: m.domain, importance: m.importance })));
 
     result.memoriesCreated = toSave.length;
-    result.categories = toSave.reduce((acc, m) => { acc[m.category] = (acc[m.category] || 0) + 1; return acc; }, {} as Record<string, number>);
+    result.categories = toSave.reduce((acc, m) => { acc[m.domain] = (acc[m.domain] || 0) + 1; return acc; }, {} as Record<string, number>);
     result.summary = `Scanned ${emails.length} emails + ${events.length} calendar events. Found ${contacts.length} frequent contacts, ${topics.length} work topics, ${recurring.length} recurring meetings.`;
   } catch (err) {
     console.error('Scan error:', err);

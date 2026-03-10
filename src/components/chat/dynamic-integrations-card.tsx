@@ -8,6 +8,7 @@ import { IntegrationIcon } from "@/components/integrations/integration-icon";
 interface DynamicIntegrationsCardProps {
   services: string[];
   gatewayHost?: string;
+  onOpenBrowser?: (url: string) => void;
 }
 
 interface CardState {
@@ -65,7 +66,7 @@ function parseGatewayHost(url: string | null): string {
   }
 }
 
-function NodeRequiredModal({ name, onClose, gatewayHost }: { name: string; onClose: () => void; gatewayHost?: string }) {
+function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }: { name: string; onClose: () => void; gatewayHost?: string; loginUrl?: string; onConnected?: () => void }) {
   const [nodeStatus, setNodeStatus] = useState<NodeStatus | null>(null);
   const [copied, setCopied] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -187,11 +188,15 @@ function NodeRequiredModal({ name, onClose, gatewayHost }: { name: string; onClo
 
         {nodeStatus?.isOnline ? (
           <button
-            onClick={onClose}
+            onClick={() => {
+              if (loginUrl) window.open(loginUrl, '_blank', 'noopener,noreferrer');
+              onConnected?.();
+              onClose();
+            }}
             className="w-full py-2 font-mono text-[10px] uppercase tracking-wide bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
           >
             <Check className="w-3 h-3" />
-            All Set — Close
+            Open in Browser
           </button>
         ) : (
           <>
@@ -243,10 +248,12 @@ function NodeRequiredModal({ name, onClose, gatewayHost }: { name: string; onClo
   );
 }
 
-export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegrationsCardProps) {
+export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }: DynamicIntegrationsCardProps) {
   const [cards, setCards] = useState<CardState[]>([]);
   const [loading, setLoading] = useState(true);
   const [nodeModal, setNodeModal] = useState<string | null>(null);
+  const [nodeModalCardIndex, setNodeModalCardIndex] = useState<number | null>(null);
+  const [nodeModalUrl, setNodeModalUrl] = useState<string | undefined>(undefined);
   const apiKeyRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   useEffect(() => {
@@ -326,7 +333,7 @@ export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegr
     if (!card || card.status !== "idle") return;
     const { resolved } = card;
 
-    // Browser-login integrations: open the site directly in user's browser
+    // Browser-login integrations: show NodeRequiredModal to guide user
     if (resolved.needsNode || resolved.authType === "browser") {
       const urls: Record<string, string> = {
         linkedin: 'https://linkedin.com',
@@ -338,8 +345,9 @@ export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegr
         reddit: 'https://reddit.com',
       };
       const url = resolved.loginUrl || urls[resolved.slug] || `https://${resolved.slug}.com`;
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setCards(prev => prev.map((c, idx) => idx === index ? { ...c, status: "added" } : c));
+      setNodeModalCardIndex(index);
+      setNodeModalUrl(url);
+      setNodeModal(resolved.name);
       return;
     }
 
@@ -414,7 +422,20 @@ export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegr
 
   return (
     <>
-      {nodeModal && <NodeRequiredModal name={nodeModal} onClose={() => setNodeModal(null)} gatewayHost={gatewayHost} />}
+      {nodeModal && (
+        <NodeRequiredModal
+          name={nodeModal}
+          onClose={() => { setNodeModal(null); setNodeModalCardIndex(null); setNodeModalUrl(undefined); }}
+          gatewayHost={gatewayHost}
+          loginUrl={nodeModalUrl}
+          onConnected={() => {
+            if (nodeModalCardIndex !== null) {
+              setCards(prev => prev.map((c, idx) => idx === nodeModalCardIndex ? { ...c, status: "added" } : c));
+            }
+            if (nodeModalUrl) onOpenBrowser?.(nodeModalUrl);
+          }}
+        />
+      )}
       <div className="flex flex-col gap-2 my-2">
         {cards.map((card, i) => (
           <div key={card.resolved.slug} className="border border-[rgba(58,58,56,0.2)] bg-gray-100 p-3 max-w-sm">

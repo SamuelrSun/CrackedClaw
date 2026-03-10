@@ -1,6 +1,6 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { encrypt, decrypt } from '@/lib/crypto';
+import { mem0Write, mem0Search, mem0GetAll, mem0Delete, mem0Update, mem0Add } from './mem0-client';
 
 export type MemoryCategory = 'credential' | 'preference' | 'project' | 'contact' | 'fact' | 'context' | 'schedule' | 'personal';
 export type MemorySource = 'chat' | 'scan' | 'user_input' | 'onboarding';
@@ -17,61 +17,34 @@ export interface MemoryEntry {
   summary?: string;
   created_at: string;
   updated_at: string;
-}
-
-// Infer category from key name
-function inferCategory(key: string): MemoryCategory {
-  const k = key.toLowerCase();
-  if (k.includes('password') || k.includes('token') || k.includes('key') || k.includes('secret') || k.includes('sid') || k.includes('api')) return 'credential';
-  if (k.includes('prefer') || k.includes('style') || k.includes('tone') || k.includes('format') || k.includes('language')) return 'preference';
-  if (k.includes('project') || k.includes('app') || k.includes('startup') || k.includes('product') || k.includes('repo')) return 'project';
-  if (k.includes('contact') || k.includes('email') || k.includes('person') || k.includes('team') || k.includes('founder')) return 'contact';
-  if (k.includes('schedule') || k.includes('meeting') || k.includes('calendar') || k.includes('timezone') || k.includes('time')) return 'schedule';
-  if (k.includes('context') || k.includes('background') || k.includes('goal') || k.includes('objective')) return 'context';
-  return 'fact';
-}
-
-// Infer importance from category and key
-function inferImportance(key: string, category: MemoryCategory): number {
-  if (category === 'credential') return 5;
-  if (category === 'preference') return 4;
-  if (category === 'project') return 4;
-  if (category === 'contact') return 3;
-  if (category === 'schedule') return 3;
-  return 2;
-}
-
-// Extract tags from key and value
-function extractTags(key: string, value: string): string[] {
-  const tags = new Set<string>();
-  const words = (key + ' ' + value).toLowerCase().split(/[\s_\-=.,]/);
-  const meaningful = words.filter(w => w.length > 3 && !['this', 'that', 'with', 'from', 'have', 'will', 'been', 'were'].includes(w));
-  meaningful.slice(0, 5).forEach(w => tags.add(w));
-  return Array.from(tags);
+  // Fields from mem0 system
+  domain?: string;
+  content?: string;
+  metadata?: Record<string, unknown> | null;
 }
 
 // Enhanced [[REMEMBER:]] parser — supports optional category
 // Format: [[REMEMBER: key=value]] or [[REMEMBER(category): key=value]]
 export function parseMemoryMarkers(text: string): Array<{key: string, value: string, category?: MemoryCategory}> {
   const results: Array<{key: string, value: string, category?: MemoryCategory}> = [];
-  
+
   // With category: [[REMEMBER(credential): twilio_sid=ACxxx]]
   const withCategory = /\[\[REMEMBER\((\w+)\):\s*([^=\]]+)=([^\]]+)\]\]/g;
   let match;
   while ((match = withCategory.exec(text)) !== null) {
-    results.push({ 
-      key: match[2].trim(), 
-      value: match[3].trim(), 
-      category: match[1] as MemoryCategory 
+    results.push({
+      key: match[2].trim(),
+      value: match[3].trim(),
+      category: match[1] as MemoryCategory
     });
   }
-  
+
   // Without category: [[REMEMBER: key=value]]
   const withoutCategory = /\[\[REMEMBER:\s*([^=\]]+)=([^\]]+)\]\]/g;
   while ((match = withoutCategory.exec(text)) !== null) {
     results.push({ key: match[1].trim(), value: match[2].trim() });
   }
-  
+
   return results;
 }
 
@@ -106,88 +79,111 @@ export function stripMarkers(text: string): string {
     .trim();
 }
 
+// Map category to mem0 domain
+function categoryToDomain(category?: MemoryCategory): string | undefined {
+  if (!category) return undefined;
+  switch (category) {
+    case 'credential': return 'general';
+    case 'preference': return 'general';
+    case 'project': return 'coding';
+    case 'contact': return 'email';
+    case 'schedule': return 'calendar';
+    default: return 'general';
+  }
+}
+
 export async function saveMemory(
-  userId: string, 
-  key: string, 
+  userId: string,
+  key: string,
   value: string,
   options: { category?: MemoryCategory; source?: MemorySource; importance?: number; tags?: string[] } = {}
 ): Promise<void> {
-  const supabase = createAdminClient();
-  const category = options.category || inferCategory(key);
-  const importance = options.importance || inferImportance(key, category);
-  const tags = options.tags || extractTags(key, value);
-  const source = options.source || 'chat';
-  
-  await supabase.from('user_memory').upsert(
-    { 
-      user_id: userId, key, value, category, tags, importance, source,
-      updated_at: new Date().toISOString() 
-    },
-    { onConflict: 'user_id,key' }
-  );
+  try {
+    await mem0Write(userId, `${key}: ${value}`, {
+      domain: categoryToDomain(options.category),
+      source: options.source || 'chat',
+      importance: options.importance ? options.importance / 5.0 : 0.5, // convert 1-5 to 0-1
+      metadata: { original_key: key, category: options.category, tags: options.tags },
+    });
+  } catch (err) {
+    console.error('[memory] saveMemory failed:', err);
+  }
 }
 
 export async function deleteMemory(userId: string, key: string): Promise<void> {
-  const supabase = createAdminClient();
-  await supabase.from('user_memory').delete().eq('user_id', userId).eq('key', key);
+  try {
+    // Semantic search for the key, delete best match
+    const results = await mem0Search(key, userId, { limit: 1, threshold: 0.3 });
+    if (results.length > 0) {
+      await mem0Delete(results[0].id);
+    }
+  } catch (err) {
+    console.error('[memory] deleteMemory failed:', err);
+  }
 }
 
 export async function deleteMemoryById(userId: string, id: string): Promise<void> {
-  const supabase = createAdminClient();
-  await supabase.from('user_memory').delete().eq('user_id', userId).eq('id', id);
+  try {
+    await mem0Delete(id);
+  } catch (err) {
+    console.error('[memory] deleteMemoryById failed:', err);
+  }
 }
 
 export async function updateMemory(userId: string, id: string, updates: Partial<Pick<MemoryEntry, 'value' | 'category' | 'importance' | 'tags' | 'summary'>>): Promise<void> {
-  const supabase = createAdminClient();
-  await supabase.from('user_memory')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('user_id', userId)
-    .eq('id', id);
+  try {
+    await mem0Update(id, {
+      content: updates.value,
+      importance: updates.importance ? updates.importance / 5.0 : undefined,
+      domain: updates.category ? categoryToDomain(updates.category) : undefined,
+    });
+  } catch (err) {
+    console.error('[memory] updateMemory failed:', err);
+  }
 }
 
-// Get memories relevant to a given message (keyword/tag matching)
+// Get memories relevant to a given message via semantic search
 export async function getRelevantMemories(userId: string, message: string, limit = 10): Promise<MemoryEntry[]> {
-  const supabase = createAdminClient();
-  
-  // Extract keywords from message
-  const words = message.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-  
-  // Get all memories ordered by importance
-  const { data } = await supabase
-    .from('user_memory')
-    .select('*')
-    .eq('user_id', userId)
-    .order('importance', { ascending: false })
-    .limit(100);
-  
-  if (!data || data.length === 0) return [];
-  
-  // Score each memory by relevance to message
-  const scored = data.map(m => {
-    let score = m.importance;
-    const haystack = (m.key + ' ' + m.value + ' ' + (m.summary || '') + ' ' + (m.tags || []).join(' ')).toLowerCase();
-    for (const word of words) {
-      if (haystack.includes(word)) score += 2;
-    }
-    return { ...m, _score: score };
-  });
-  
-  // Return top N most relevant
-  return scored
-    .sort((a, b) => b._score - a._score)
-    .slice(0, limit)
-    .map(({ _score, ...m }) => m as MemoryEntry);
+  try {
+    const results = await mem0Search(message, userId, { limit, threshold: 0.3 });
+    return results.map(mem0ToMemoryEntry);
+  } catch (err) {
+    console.error('[memory] getRelevantMemories failed:', err);
+    return [];
+  }
 }
 
 export async function getAllMemories(userId: string): Promise<MemoryEntry[]> {
-  const supabase = createAdminClient();
-  const { data } = await supabase
-    .from('user_memory')
-    .select('*')
-    .eq('user_id', userId)
-    .order('importance', { ascending: false })
-    .order('updated_at', { ascending: false });
-  return (data || []) as MemoryEntry[];
+  try {
+    const results = await mem0GetAll(userId);
+    return results.map(mem0ToMemoryEntry);
+  } catch (err) {
+    console.error('[memory] getAllMemories failed:', err);
+    return [];
+  }
+}
+
+function mem0ToMemoryEntry(m: { id: string; memory?: string; content?: string; domain?: string; metadata?: Record<string, unknown> | null; importance?: number; created_at?: Date; updated_at?: Date }): MemoryEntry {
+  const content = m.memory || m.content || '';
+  const colonIdx = content.indexOf(':');
+  const key = colonIdx > 0 ? content.substring(0, colonIdx).trim() : content.substring(0, 30);
+  const value = colonIdx > 0 ? content.substring(colonIdx + 1).trim() : content;
+  const meta = m.metadata as Record<string, unknown> | null;
+  return {
+    id: m.id,
+    user_id: '',
+    key,
+    value,
+    category: (meta?.category as MemoryCategory) || (m.domain as MemoryCategory) || 'fact',
+    tags: (meta?.tags as string[]) || [],
+    importance: Math.round((m.importance || 0.5) * 5),
+    source: (meta?.source as MemorySource) || 'chat',
+    created_at: m.created_at?.toISOString() || new Date().toISOString(),
+    updated_at: m.updated_at?.toISOString() || new Date().toISOString(),
+    domain: m.domain,
+    content: content,
+    metadata: m.metadata,
+  };
 }
 
 export async function saveSecret(userId: string, name: string, value: string): Promise<void> {
@@ -211,87 +207,31 @@ export async function getSecret(userId: string, name: string): Promise<string | 
   return decrypt(data.encrypted_value);
 }
 
-
-const FACT_EXTRACT_PROMPT = `You extract memorable facts from a conversation turn. Given a user message and assistant response, identify facts worth remembering for future conversations.
-
-Extract ONLY concrete, specific facts like:
-- User's name, location, job, company, preferences
-- Projects they're working on, goals, deadlines
-- Tools/tech they use
-- Important dates, people they mention
-- Preferences (communication style, interests, routines)
-
-DO NOT extract:
-- Generic questions, greetings, small talk
-- Temporary/ephemeral info
-- Things the assistant said (only user-provided info)
-- Facts already in the existing memories list
-
-Return a JSON array (empty [] if nothing worth remembering):
-[{"key": "snake_case_key", "value": "concise value", "category": "personal|preference|project|contact|fact|schedule"}]`;
-
-async function autoExtractFacts(
-  userId: string,
-  userMessage: string,
-  assistantResponse: string,
-): Promise<void> {
-  if (!process.env.ANTHROPIC_API_KEY) return;
-  if (userMessage.length < 5) return; // skip trivial messages
-  
-  try {
-    // Get existing memories to avoid duplicates
-    const supabase = createAdminClient();
-    const { data: existing } = await supabase
-      .from('user_memory')
-      .select('key, value')
-      .eq('user_id', userId)
-      .limit(50);
-    
-    const existingContext = (existing || []).map(m => `${m.key}: ${m.value}`).join('\n');
-    
-    const client = new Anthropic();
-    const result = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      system: FACT_EXTRACT_PROMPT,
-      messages: [{
-        role: 'user',
-        content: `Existing memories:\n${existingContext || '(none)'}\n\n---\nUser: ${userMessage}\nAssistant: ${assistantResponse.substring(0, 500)}`
-      }],
-    });
-    
-    const text = result.content[0].type === 'text' ? result.content[0].text : '';
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return;
-    
-    const facts = JSON.parse(jsonMatch[0]) as Array<{key: string; value: string; category: string}>;
-    if (!Array.isArray(facts) || facts.length === 0) return;
-    
-    await Promise.all(
-      facts.map(f => saveMemory(userId, f.key, f.value, {
-        category: (f.category as MemoryCategory) || 'fact',
-        source: 'chat',
-      }))
-    );
-  } catch (e) {
-    console.error('Auto-extract facts error:', e);
-  }
-}
-
 export async function processAgentResponse(userId: string, responseText: string, userMessage?: string): Promise<string> {
   const memoryMarkers = parseMemoryMarkers(responseText);
   const forgetMarkers = parseForgetMarkers(responseText);
   const secretMarkers = parseSecretMarkers(responseText);
 
   await Promise.all([
-    ...memoryMarkers.map(m => saveMemory(userId, m.key, m.value, { category: m.category, source: 'chat' })),
-    ...forgetMarkers.map(k => deleteMemory(userId, k)),
+    ...memoryMarkers.map(m => mem0Write(userId, `${m.key}: ${m.value}`, {
+      domain: categoryToDomain(m.category),
+      source: 'chat',
+      importance: 0.7,
+      metadata: { original_key: m.key, category: m.category, marker: true },
+    })),
+    ...forgetMarkers.map(async (k) => {
+      const results = await mem0Search(k, userId, { limit: 1, threshold: 0.3 });
+      if (results.length > 0) await mem0Delete(results[0].id);
+    }),
     ...secretMarkers.map(s => saveSecret(userId, s.name, s.value)),
   ]);
 
-  // Auto-extract facts in background (don't block response)
+  // Auto-extract facts via mem0Add in background (don't block response)
   if (userMessage) {
-    autoExtractFacts(userId, userMessage, responseText).catch(() => {});
+    mem0Add(
+      [{ role: 'user', content: userMessage }, { role: 'assistant', content: responseText }],
+      userId,
+    ).catch(() => {});
   }
 
   return stripMarkers(responseText);

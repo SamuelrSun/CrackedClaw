@@ -23,7 +23,7 @@ export interface TransitionResult {
 export function createInitialState(userId: string): Omit<OnboardingState, 'id' | 'created_at' | 'updated_at'> {
   return {
     user_id: userId,
-    phase: 'welcome',
+    phase: 'intro',
     completed_steps: [],
     skipped_steps: [],
     gathered_context: {},
@@ -37,20 +37,20 @@ export function createInitialState(userId: string): Omit<OnboardingState, 'id' |
 export function isValidTransition(from: OnboardingPhase, to: OnboardingPhase): boolean {
   // Allow transition to same phase (no-op)
   if (from === to) return true;
-  
+
   // Always allow transition to 'complete' or 'derailed'
   if (to === 'complete' || to === 'derailed') return true;
-  
+
   // Check sequential order for normal phases
   const fromIndex = phaseOrder.indexOf(from);
   const toIndex = phaseOrder.indexOf(to);
-  
+
   // Allow forward progression
   if (toIndex > fromIndex) return true;
-  
+
   // Allow going back (e.g., from derailed back to a phase)
   if (from === 'derailed') return true;
-  
+
   return false;
 }
 
@@ -89,7 +89,7 @@ export function transitionPhase(
 // Advance to the next phase
 export function advancePhase(state: OnboardingState): TransitionResult {
   const nextPhase = getNextPhase(state.phase);
-  
+
   if (!nextPhase) {
     return {
       success: false,
@@ -159,41 +159,26 @@ export function setUserDisplayName(
   };
 }
 
-// Check if welcome phase is complete
-export function isWelcomeComplete(state: OnboardingState): boolean {
+// Check if intro phase is complete (both names collected)
+export function isIntroComplete(state: OnboardingState): boolean {
   return (
     state.completed_steps.includes('user_name_provided') &&
     state.completed_steps.includes('agent_name_provided')
   );
 }
 
-// Check if integrations phase is complete (or skipped)
-export function isIntegrationsComplete(state: OnboardingState): boolean {
-  // Complete if skipped OR at least one integration connected
-  if (state.skipped_steps.includes('integrations_skipped')) {
-    return true;
-  }
-  return (
-    state.completed_steps.includes('integration_google') ||
-    state.completed_steps.includes('integration_slack') ||
-    state.completed_steps.includes('integration_notion')
-  );
+// Check if tools/connecting phase is complete (or skipped)
+export function isToolsComplete(state: OnboardingState): boolean {
+  return state.completed_steps.includes('integrations_shown');
 }
 
-// Check if context gathering is complete (or skipped)
-export function isContextGatheringComplete(state: OnboardingState): boolean {
-  return (
-    state.skipped_steps.includes('context_skipped') ||
-    state.completed_steps.includes('context_scan_completed')
-  );
-}
-
-// Check if workflow setup is complete (or skipped)
-export function isWorkflowSetupComplete(state: OnboardingState): boolean {
-  return (
-    state.skipped_steps.includes('workflow_skipped') ||
-    state.completed_steps.includes('workflow_created')
-  );
+// Check if learning phase can complete
+export function isLearningComplete(state: OnboardingState): boolean {
+  const scanDone = state.completed_steps.includes('scan_completed');
+  const questionSteps: OnboardingStep[] = ['identity_asked', 'workflow_asked', 'priorities_asked', 'relationships_asked'];
+  const questionsAnswered = questionSteps.filter(s => state.completed_steps.includes(s)).length;
+  // Complete when scans done (or no scans) AND at least 2 questions asked
+  return (scanDone || !state.completed_steps.includes('scan_started')) && questionsAnswered >= 2;
 }
 
 // Update gathered context
@@ -217,7 +202,7 @@ export function setSuggestedWorkflows(
   workflows: WorkflowSuggestion[]
 ): OnboardingState {
   return {
-    ...completeStep(state, 'workflow_suggested'),
+    ...state,
     suggested_workflows: workflows,
   };
 }
@@ -225,13 +210,13 @@ export function setSuggestedWorkflows(
 // Get steps required to complete current phase
 export function getRequiredStepsForPhase(phase: OnboardingPhase): OnboardingStep[] {
   switch (phase) {
-    case 'welcome':
+    case 'intro':
       return ['user_name_provided', 'agent_name_provided'];
-    case 'integrations':
+    case 'tools':
       return []; // No required steps, can skip
-    case 'context_gathering':
+    case 'connecting':
       return []; // No required steps, can skip
-    case 'workflow_setup':
+    case 'learning':
       return []; // No required steps, can skip
     default:
       return [];
@@ -241,14 +226,14 @@ export function getRequiredStepsForPhase(phase: OnboardingPhase): OnboardingStep
 // Check if current phase can be completed
 export function canAdvanceFromPhase(state: OnboardingState): boolean {
   switch (state.phase) {
-    case 'welcome':
-      return isWelcomeComplete(state);
-    case 'integrations':
-      return true; // Can always advance (skip or connect)
-    case 'context_gathering':
-      return true; // Can always advance (skip or complete scan)
-    case 'workflow_setup':
-      return true; // Can always advance (skip or create workflow)
+    case 'intro':
+      return isIntroComplete(state);
+    case 'tools':
+      return true; // Can always advance (skip or show cards)
+    case 'connecting':
+      return true; // Can always advance (user says done)
+    case 'learning':
+      return isLearningComplete(state);
     case 'complete':
       return false; // Already done
     case 'derailed':
@@ -281,19 +266,16 @@ export function getProgressPercentage(state: OnboardingState): number {
   const currentIndex = phaseOrder.indexOf(state.phase);
   if (currentIndex === -1) return 0;
   if (state.phase === 'complete') return 100;
-  
-  // Each phase is roughly 25%
+
   const phaseProgress = (currentIndex / (phaseOrder.length - 1)) * 100;
   return Math.round(phaseProgress);
 }
 
-// Determine which integrations are connected
+// Determine which integrations are connected (from user_integrations table, not steps)
 export function getConnectedIntegrations(state: OnboardingState): string[] {
-  const integrations: string[] = [];
-  if (state.completed_steps.includes('integration_google')) integrations.push('google');
-  if (state.completed_steps.includes('integration_slack')) integrations.push('slack');
-  if (state.completed_steps.includes('integration_notion')) integrations.push('notion');
-  return integrations;
+  // This now returns from gathered_context or empty — actual integrations
+  // are queried from user_integrations table in the stream route
+  return [];
 }
 
 // Generate workflow suggestions based on connected integrations

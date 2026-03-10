@@ -118,27 +118,53 @@ export async function POST(request: NextRequest) {
       content: task,
     });
 
-    // Get initial LLM response
+    // Get initial LLM response WITH tools
     try {
-      const response = await anthropic.messages.create({
-        model: agent.model || "claude-sonnet-4-20250514",
-        max_tokens: 1024,
-        system: "You are a helpful AI agent. Complete tasks efficiently and report your progress clearly.",
-        messages: [{ role: 'user', content: task }],
-      });
+      const { data: integrations } = await supabase
+        .from('user_integrations')
+        .select('provider')
+        .eq('user_id', user.id)
+        .eq('status', 'connected');
 
-      const assistantText = response.content[0].type === 'text' ? response.content[0].text : '';
+      const agentContext = {
+        userId: user.id,
+        orgId: '',
+        conversationId: agent.id,
+        companionConnected: false,
+        integrations: (integrations || []).map((i: { provider: string }) => i.provider),
+      };
+
+      const { buildSystemPromptForUser } = await import('@/lib/gateway/system-prompt');
+      const { AgentRuntime } = await import('@/lib/agent/runtime');
+      const { getTools } = await import('@/lib/agent/tools');
+
+      const systemPrompt = await buildSystemPromptForUser(user.id, task);
+      const tools = getTools(agentContext);
+      const runtime = new AgentRuntime(process.env.ANTHROPIC_API_KEY!);
+
+      const result = await runtime.chat(
+        {
+          model: agent.model || 'claude-sonnet-4-20250514',
+          systemPrompt: systemPrompt + `\n\nYou are an agent named "${name}". Your task: "${task}". Use your tools to make progress on this task immediately.`,
+          tools,
+          maxTokens: 4096,
+        },
+        [{ role: 'user', content: task }],
+        agentContext,
+      );
+
       await supabase.from('agent_messages').insert({
         agent_id: agent.id,
         role: 'assistant',
-        content: assistantText,
+        content: result.response,
       });
 
       await supabase.from('agent_instances').update({
         status: 'idle',
         updated_at: new Date().toISOString(),
       }).eq('id', agent.id);
-    } catch {
+    } catch (err) {
+      console.error('Agent initial response error:', err);
       await supabase.from('agent_instances').update({ status: 'idle' }).eq('id', agent.id);
     }
 

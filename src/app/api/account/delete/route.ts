@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
     await Promise.all([
       supabase.from("conversations").delete().eq("user_id", user.id),
       supabase.from("memory_entries").delete().eq("user_id", user.id),
-      supabase.from("user_memory").delete().eq("user_id", user.id),
+      supabase.from("memories").delete().eq("user_id", user.id),
       supabase.from("integrations").delete().eq("user_id", user.id),
       supabase.from("workflows").delete().eq("user_id", user.id),
       supabase.from("instructions").delete().eq("user_id", user.id),

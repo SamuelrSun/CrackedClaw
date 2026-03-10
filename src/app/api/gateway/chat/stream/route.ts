@@ -137,9 +137,21 @@ export async function POST(request: NextRequest) {
         if (connectedIntegrations && connectedIntegrations.length > 0) {
           const providers = connectedIntegrations.map((i: { provider: string }) => i.provider);
           onboardingPrompt = (onboardingPrompt || '') + '\n\nALREADY CONNECTED INTEGRATIONS:\n' + providers.map(p => `- ${p}`).join('\n');
+
+          // During connecting phase: inject which integrations are connected so agent can acknowledge
+          if (onboardingState && onboardingState.phase === 'connecting') {
+            onboardingPrompt += '\n\n[System: The user has connected these integrations: ' + providers.join(', ') + '. Acknowledge any new connections and ask if they want to connect more or move on.]';
+          }
         }
       } catch { /* ignore */ }
-      systemPrompt = onboardingPrompt || 'You are a helpful assistant.';
+
+      // During learning phase: merge with full user system prompt so the agent has access to tools
+      if (onboardingState && onboardingState.phase === 'learning') {
+        const fullUserPrompt = await buildSystemPromptForUser(user.id, message);
+        systemPrompt = (onboardingPrompt || '') + '\n\n' + fullUserPrompt;
+      } else {
+        systemPrompt = onboardingPrompt || 'You are a helpful assistant.';
+      }
     } else {
       systemPrompt = await buildSystemPromptForUser(user.id, message);
       if (activeConversationId) {

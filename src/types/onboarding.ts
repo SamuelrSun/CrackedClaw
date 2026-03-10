@@ -4,32 +4,29 @@
  */
 
 // Onboarding phases in order
-export type OnboardingPhase = 
-  | 'welcome' 
-  | 'integrations' 
-  | 'context_gathering' 
-  | 'workflow_setup' 
-  | 'complete' 
+export type OnboardingPhase =
+  | 'intro'
+  | 'tools'
+  | 'connecting'
+  | 'learning'
+  | 'complete'
   | 'derailed';
 
 // Steps within each phase that can be completed or skipped
-export type OnboardingStep = 
-  // Welcome phase
+export type OnboardingStep =
+  // Intro phase
   | 'user_name_provided'
   | 'agent_name_provided'
-  // Integrations phase
-  | 'integration_google'
-  | 'integration_slack'
-  | 'integration_notion'
-  | 'integrations_skipped'
-  // Context gathering phase
-  | 'context_scan_started'
-  | 'context_scan_completed'
-  | 'context_skipped'
-  // Workflow setup phase
-  | 'workflow_suggested'
-  | 'workflow_created'
-  | 'workflow_skipped';
+  // Tools phase
+  | 'tools_asked'
+  | 'integrations_shown'
+  // Learning phase
+  | 'scan_started'
+  | 'scan_completed'
+  | 'identity_asked'
+  | 'workflow_asked'
+  | 'priorities_asked'
+  | 'relationships_asked';
 
 // Workflow suggestion from context analysis
 export interface WorkflowSuggestion {
@@ -120,7 +117,7 @@ export interface SkipOnboardingRequest {
 
 // Special syntax output types for the frontend to parse
 export interface OnboardingAction {
-  type: 'integration' | 'welcome' | 'subagent' | 'context' | 'workflow' | 'action';
+  type: 'integration' | 'welcome' | 'subagent' | 'context' | 'workflow' | 'action' | 'task';
   payload: string;
 }
 
@@ -153,43 +150,43 @@ export function isStepSkipped(state: OnboardingState, step: OnboardingStep): boo
 
 // Phase display info
 export const phaseInfo: Record<OnboardingPhase, { label: string; description: string; icon: string }> = {
-  welcome: { 
-    label: 'Welcome', 
+  intro: {
+    label: 'Intro',
     description: 'Get to know each other',
-    icon: '👋'
+    icon: '👋',
   },
-  integrations: { 
-    label: 'Integrations', 
-    description: 'Connect your tools',
-    icon: '🔗'
+  tools: {
+    label: 'Tools',
+    description: 'Pick your tools',
+    icon: '🔗',
   },
-  context_gathering: { 
-    label: 'Context', 
-    description: 'Learn about your work',
-    icon: '🔍'
+  connecting: {
+    label: 'Connecting',
+    description: 'Connecting your tools',
+    icon: '⚙️',
   },
-  workflow_setup: { 
-    label: 'Workflows', 
-    description: 'Set up automations',
-    icon: '⚡'
+  learning: {
+    label: 'Learning',
+    description: 'Learning about you',
+    icon: '🧠',
   },
-  complete: { 
-    label: 'Complete', 
+  complete: {
+    label: 'Complete',
     description: 'Ready to go!',
-    icon: '✅'
+    icon: '✅',
   },
-  derailed: { 
-    label: 'Paused', 
+  derailed: {
+    label: 'Paused',
     description: 'Onboarding paused',
-    icon: '⏸️'
+    icon: '⏸️',
   },
 };
 
 // Phase order for progression
 export const phaseOrder: OnboardingPhase[] = [
-  'welcome',
-  'integrations',
-  'context_gathering',
-  'workflow_setup',
+  'intro',
+  'tools',
+  'connecting',
+  'learning',
   'complete',
 ];

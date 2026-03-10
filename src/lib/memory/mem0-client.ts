@@ -41,6 +41,8 @@ interface RawMemory {
   metadata: Record<string, unknown>;
   importance: number;
   similarity?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 function normalizeMemory(m: RawMemory): Mem0Memory {
@@ -53,7 +55,13 @@ function normalizeMemory(m: RawMemory): Mem0Memory {
     importance: m.importance,
     similarity: m.similarity,
     score: m.similarity,
+    created_at: m.created_at ? new Date(m.created_at) : undefined,
+    updated_at: m.updated_at ? new Date(m.updated_at) : undefined,
   };
+}
+
+function hasEmbeddingKey(): boolean {
+  return !!(process.env.OPENAI_API_KEY || process.env.VOYAGE_API_KEY);
 }
 
 /**
@@ -70,14 +78,28 @@ export async function mem0Search(
   }
 ): Promise<Mem0Memory[]> {
   try {
-    const embedding = await getEmbedding(query);
-    const { data, error } = await supabase.rpc('match_memories', {
-      query_embedding: embedding,
-      match_user_id: userId,
-      match_domain: options?.domain ?? null,
-      match_limit: options?.limit ?? 5,
-      match_threshold: options?.threshold ?? 0.5,
-    });
+    if (hasEmbeddingKey()) {
+      const embedding = await getEmbedding(query);
+      const { data, error } = await supabase.rpc('match_memories', {
+        query_embedding: embedding,
+        match_user_id: userId,
+        match_domain: options?.domain ?? null,
+        match_limit: options?.limit ?? 5,
+        match_threshold: options?.threshold ?? 0.5,
+      });
+      if (error) throw error;
+      return (data as RawMemory[] || []).map(normalizeMemory);
+    }
+    // Fallback: ILIKE text search when no embedding key
+    let q = supabase
+      .from('memories')
+      .select('id, content, domain, metadata, importance, created_at, updated_at')
+      .eq('user_id', userId)
+      .ilike('content', `%${query}%`)
+      .order('importance', { ascending: false })
+      .limit(options?.limit ?? 5);
+    if (options?.domain) q = q.eq('domain', options.domain);
+    const { data, error } = await q;
     if (error) throw error;
     return (data as RawMemory[] || []).map(normalizeMemory);
   } catch (err) {
@@ -174,12 +196,136 @@ Example output:
 }
 
 /**
+ * Write a memory with deduplication. If a very similar memory exists (0.9 threshold),
+ * update it instead of creating a new one.
+ */
+export async function mem0Write(
+  userId: string,
+  content: string,
+  options?: {
+    domain?: string;
+    importance?: number;
+    source?: string;
+    metadata?: Record<string, unknown>;
+  }
+): Promise<string | null> {
+  try {
+    const importance = options?.importance ?? 0.5;
+    const domain = options?.domain ?? classifyDomain(content);
+    const meta = { ...options?.metadata, source: options?.source ?? 'chat' };
+
+    let embedding: number[] | null = null;
+    if (hasEmbeddingKey()) {
+      try {
+        embedding = await getEmbedding(content);
+      } catch (err) {
+        console.warn('[memory] Embedding failed, storing without vector:', err);
+      }
+    }
+
+    // Dedup: check for near-duplicate if we have an embedding
+    if (embedding) {
+      const { data: existing } = await supabase.rpc('match_memories', {
+        query_embedding: embedding,
+        match_user_id: userId,
+        match_domain: null,
+        match_limit: 1,
+        match_threshold: 0.9,
+      });
+
+      if (existing && existing.length > 0) {
+        const { error } = await supabase.from('memories').update({
+          content,
+          embedding,
+          importance: Math.max(importance, existing[0].importance),
+          metadata: { ...existing[0].metadata, ...meta },
+          updated_at: new Date().toISOString(),
+          accessed_at: new Date().toISOString(),
+        }).eq('id', existing[0].id);
+        if (error) throw error;
+        return existing[0].id;
+      }
+    }
+
+    // Insert new memory
+    const { data, error } = await supabase.from('memories').insert({
+      user_id: userId,
+      content,
+      embedding,
+      domain,
+      importance,
+      metadata: meta,
+    }).select('id').single();
+    if (error) throw error;
+    return data?.id ?? null;
+  } catch (err) {
+    console.error('[memory] Write failed:', err);
+    return null;
+  }
+}
+
+/**
+ * Get high-importance core memories regardless of query.
+ */
+export async function mem0GetCore(
+  userId: string,
+  options?: { minImportance?: number; limit?: number }
+): Promise<Mem0Memory[]> {
+  try {
+    const { data, error } = await supabase
+      .from('memories')
+      .select('id, content, domain, metadata, importance, created_at, updated_at')
+      .eq('user_id', userId)
+      .gte('importance', options?.minImportance ?? 0.7)
+      .order('importance', { ascending: false })
+      .order('updated_at', { ascending: false })
+      .limit(options?.limit ?? 10);
+    if (error) throw error;
+    return (data as RawMemory[] || []).map(normalizeMemory);
+  } catch (err) {
+    console.error('[memory] GetCore failed:', err);
+    return [];
+  }
+}
+
+/**
+ * Update a memory's content (re-embed if content changed).
+ */
+export async function mem0Update(
+  memoryId: string,
+  updates: { content?: string; importance?: number; domain?: string }
+): Promise<void> {
+  try {
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (updates.content !== undefined) {
+      updateData.content = updates.content;
+      if (hasEmbeddingKey()) {
+        try {
+          updateData.embedding = await getEmbedding(updates.content);
+        } catch (err) {
+          console.warn('[memory] Re-embedding failed:', err);
+        }
+      }
+    }
+    if (updates.importance !== undefined) updateData.importance = updates.importance;
+    if (updates.domain !== undefined) updateData.domain = updates.domain;
+
+    const { error } = await supabase.from('memories').update(updateData).eq('id', memoryId);
+    if (error) throw error;
+  } catch (err) {
+    console.error('[memory] Update failed:', err);
+  }
+}
+
+/**
  * Retrieve all stored memories for a user, ordered by importance.
  */
 export async function mem0GetAll(userId: string, domain?: string): Promise<Mem0Memory[]> {
   let query = supabase
     .from('memories')
-    .select('id, content, domain, metadata, importance')
+    .select('id, content, domain, metadata, importance, created_at, updated_at')
     .eq('user_id', userId)
     .order('importance', { ascending: false });
 
@@ -198,10 +344,10 @@ export async function mem0Delete(memoryId: string): Promise<void> {
 }
 
 /**
- * Check if the memory system is configured (needs embedding API key).
+ * The memory system is always enabled — gracefully degrades without embeddings.
  */
 export function isMem0Enabled(): boolean {
-  return !!(process.env.OPENAI_API_KEY || process.env.VOYAGE_API_KEY);
+  return true;
 }
 
 /**

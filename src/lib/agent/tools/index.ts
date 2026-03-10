@@ -4,7 +4,7 @@ import { browserTool } from './browser';
 import { fileReadTool, fileWriteTool } from './files';
 import { webSearchTool, webFetchTool } from './web';
 import { memorySearchTool, memoryAddTool } from './memory';
-import { readEmailsTool, sendEmailTool, readCalendarTool, createEventTool } from './integrations';
+import { getIntegrationTokenTool, listIntegrationsTool, scanIntegrationTool } from './integrations';
 
 export const ALL_TOOLS: ToolDefinition[] = [
   execTool,
@@ -15,24 +15,14 @@ export const ALL_TOOLS: ToolDefinition[] = [
   webFetchTool,
   memorySearchTool,
   memoryAddTool,
-  readEmailsTool,
-  sendEmailTool,
-  readCalendarTool,
-  createEventTool,
+  getIntegrationTokenTool,
+  listIntegrationsTool,
+  scanIntegrationTool,
 ];
 
-/**
- * Returns the appropriate set of tools for the given context.
- * Filters tools based on connected integrations.
- */
-export function getTools(context: AgentContext): ToolDefinition[] {
-  return ALL_TOOLS.filter(tool => {
-    // Integration-specific tools only available if integration is connected
-    if (tool.name === 'send_email' || tool.name === 'read_calendar' || tool.name === 'create_event') {
-      return context.integrations.some(i => i === 'google' || i === 'microsoft');
-    }
-    return true;
-  });
+// All tools always available — agent decides what to use based on context
+export function getTools(_context: AgentContext): ToolDefinition[] {
+  return ALL_TOOLS;
 }
 
 export {
@@ -44,8 +34,7 @@ export {
   webFetchTool,
   memorySearchTool,
   memoryAddTool,
-  readEmailsTool,
-  sendEmailTool,
-  readCalendarTool,
-  createEventTool,
+  getIntegrationTokenTool,
+  listIntegrationsTool,
+  scanIntegrationTool,
 };

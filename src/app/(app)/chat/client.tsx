@@ -228,6 +228,7 @@ function RichMessage({
                 key={idx}
                 services={segment.services}
                 gatewayHost={gatewayHost}
+                onOpenBrowser={(url) => onOpenBrowser?.(url, false)}
               />
             );
           case "skill-suggest":
@@ -304,14 +305,14 @@ function RichMessage({
 
 // Onboarding progress indicator
 function OnboardingProgress({ phase }: { phase: string }) {
-  const phases = ["welcome", "integrations", "context_gathering", "workflow_setup"];
+  const phases = ["intro", "tools", "connecting", "learning"];
   const currentIndex = phases.indexOf(phase);
-  
+
   const phaseLabels: Record<string, string> = {
-    welcome: "Getting Started",
-    integrations: "Connect Tools",
-    context_gathering: "Learning About You",
-    workflow_setup: "Set Up Workflows",
+    intro: "Getting Started",
+    tools: "Pick Your Tools",
+    connecting: "Connecting Tools",
+    learning: "Learning About You",
   };
   
   return (
@@ -679,8 +680,7 @@ export default function ChatPageClient({
             if (data.connected) {
               clearInterval(pollInterval);
               popup.close();
-              const stepName = `integration_${provider}` as 'integration_google' | 'integration_slack' | 'integration_notion';
-              try { await completeStep(stepName); } catch { /* continue */ }
+              try { await completeStep('integrations_shown'); } catch { /* continue */ }
               resolve(true);
               // Auto-send continuation message so agent continues the task
               setTimeout(() => {
@@ -720,7 +720,7 @@ export default function ChatPageClient({
     // Welcome animation completed, advance to next phase
     console.log("Welcome animation complete");
     try {
-      await updatePhase("integrations");
+      await updatePhase("tools");
     } catch {
       // Continue anyway
     }

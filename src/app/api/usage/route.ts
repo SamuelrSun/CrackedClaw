@@ -29,7 +29,7 @@ export async function GET() {
 
   // Memory count
   const { count: memoryCount } = await supabase
-    .from('user_memory')
+    .from('memories')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id);
 

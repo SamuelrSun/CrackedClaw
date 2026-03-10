@@ -322,26 +322,40 @@ export function parseMessageContent(content: string): ParsedSegment[] {
     } catch { /* skip */ }
   }
 
-  // Integrations resolve
+  // Integrations resolve — collect ALL tags, merge all services, emit ONE segment at first tag position
   PATTERNS.integrationsResolve.lastIndex = 0;
+  const resolveMatches: Array<{ index: number; length: number; rawServices: string[] }> = [];
   while ((match = PATTERNS.integrationsResolve.exec(processedContent)) !== null) {
     const rawServices = match[1].split(",").map(s => s.trim()).filter(Boolean);
-    // Normalize: gmail -> google, google-sheets -> google, etc. Then deduplicate.
+    resolveMatches.push({ index: match.index, length: match[0].length, rawServices });
+  }
+  if (resolveMatches.length > 0) {
+    // Merge all services from all tags, then normalize+deduplicate in one pass
+    const allRaw = resolveMatches.flatMap(m => m.rawServices);
     const seen = new Set<string>();
     const services: string[] = [];
-    for (const svc of rawServices) {
-      const normalized = CAPABILITY_TO_INTEGRATION[svc] || svc;
+    for (const svc of allRaw) {
+      const normalized = CAPABILITY_TO_INTEGRATION[svc] || CAPABILITY_TO_INTEGRATION[svc.toLowerCase()] || svc;
       if (!seen.has(normalized)) {
         seen.add(normalized);
         services.push(normalized);
       }
     }
     if (services.length > 0) {
+      // First tag position gets the merged segment
       matches.push({
-        index: match.index,
-        length: match[0].length,
+        index: resolveMatches[0].index,
+        length: resolveMatches[0].length,
         segment: { type: "integrations-resolve", services },
       });
+      // All subsequent tag positions emit empty text so they are consumed but not rendered
+      for (let ri = 1; ri < resolveMatches.length; ri++) {
+        matches.push({
+          index: resolveMatches[ri].index,
+          length: resolveMatches[ri].length,
+          segment: { type: "text", content: "" },
+        });
+      }
     }
   }
 

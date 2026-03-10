@@ -1,20 +1,21 @@
 import { NextRequest } from "next/server";
 import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
-import { getMemoryEntries, updateMemoryEntry, deleteMemoryEntry, logActivity } from "@/lib/supabase/data";
+import { mem0GetAll, mem0Update, mem0Delete } from "@/lib/memory/mem0-client";
 
 // GET /api/memory/[id] - Get a single memory entry
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireApiAuth();
+  const { user, error } = await requireApiAuth();
   if (error) return error;
 
   const { id } = await params;
-  
+
   try {
-    const entries = await getMemoryEntries();
-    const memory = entries.find((m) => m.id === id);
+    // Fetch all and find by id (no single-record RPC needed)
+    const all = await mem0GetAll(user.id);
+    const memory = all.find((m) => m.id === id);
 
     if (!memory) {
       return errorResponse("Memory entry not found", 404);
@@ -39,23 +40,14 @@ export async function PUT(
 
   try {
     const body = await request.json();
-    
-    const updated = await updateMemoryEntry(id, {
-      title: body.title,
-      content: body.content,
-      category: body.category,
+
+    await mem0Update(id, {
+      content: body.content || body.title,
+      domain: body.category,
     });
 
-    // Log activity
-    await logActivity(
-      "Memory updated",
-      body.title || body.content?.substring(0, 50) || "Memory entry",
-      { memoryId: id, category: body.category }
-    );
-
-    return jsonResponse({ 
-      message: "Memory entry updated", 
-      memory: updated 
+    return jsonResponse({
+      message: "Memory entry updated",
     });
   } catch (err) {
     console.error("Failed to update memory:", err);
@@ -77,23 +69,15 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    
-    const updated = await updateMemoryEntry(id, {
-      ...(body.title !== undefined && { title: body.title }),
+
+    await mem0Update(id, {
       ...(body.content !== undefined && { content: body.content }),
-      ...(body.category !== undefined && { category: body.category }),
+      ...(body.category !== undefined && { domain: body.category }),
+      ...(body.importance !== undefined && { importance: body.importance }),
     });
 
-    // Log activity
-    await logActivity(
-      "Memory updated",
-      body.title || "Memory entry",
-      { memoryId: id }
-    );
-
-    return jsonResponse({ 
-      message: "Memory entry updated", 
-      memory: updated 
+    return jsonResponse({
+      message: "Memory entry updated",
     });
   } catch (err) {
     console.error("Failed to update memory:", err);
@@ -114,16 +98,9 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    await deleteMemoryEntry(id);
+    await mem0Delete(id);
 
-    // Log activity
-    await logActivity(
-      "Memory deleted",
-      `Memory entry removed`,
-      { memoryId: id }
-    );
-
-    return jsonResponse({ 
+    return jsonResponse({
       message: "Memory entry deleted",
       id,
     });

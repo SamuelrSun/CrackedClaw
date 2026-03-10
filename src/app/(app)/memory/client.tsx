@@ -1,44 +1,43 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 
-// ─── Category config ────────────────────────────────────────────────────────
+// ─── Domain config ────────────────────────────────────────────────────────
 
-const CATEGORIES = {
-  personal:   { label: 'Personal',    icon: '🧑', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  preference: { label: 'Preference',  icon: '⚙️',  color: 'bg-purple-100 text-purple-700 border-purple-200' },
-  project:    { label: 'Project',     icon: '📋', color: 'bg-green-100 text-green-700 border-green-200' },
-  contact:    { label: 'Contact',     icon: '👤', color: 'bg-orange-100 text-orange-700 border-orange-200' },
-  fact:       { label: 'Fact',        icon: '📌', color: 'bg-gray-100 text-gray-600 border-gray-200' },
-  schedule:   { label: 'Schedule',    icon: '🗓', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  credential: { label: 'Credential',  icon: '🔑', color: 'bg-red-100 text-red-700 border-red-200' },
-  context:    { label: 'Context',     icon: '🧠', color: 'bg-gray-100 text-gray-600 border-gray-200' },
+const DOMAINS = {
+  general:    { label: 'General',     icon: '📌', color: 'bg-gray-100 text-gray-600 border-gray-200' },
+  email:      { label: 'Email',       icon: '📧', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  calendar:   { label: 'Calendar',    icon: '🗓', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+  coding:     { label: 'Coding',      icon: '💻', color: 'bg-green-100 text-green-700 border-green-200' },
+  job_search: { label: 'Job Search',  icon: '🔍', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  sales:      { label: 'Sales',       icon: '📈', color: 'bg-orange-100 text-orange-700 border-orange-200' },
+  fenna:      { label: 'Fenna',       icon: '👓', color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+  personal:   { label: 'Personal',    icon: '🧑', color: 'bg-pink-100 text-pink-700 border-pink-200' },
+  preference: { label: 'Preference',  icon: '⚙️',  color: 'bg-teal-100 text-teal-700 border-teal-200' },
 } as const;
 
-type Category = keyof typeof CATEGORIES;
+type Domain = keyof typeof DOMAINS;
 
-const ALL_CATS = Object.keys(CATEGORIES) as Category[];
+const ALL_DOMAINS = Object.keys(DOMAINS) as Domain[];
 
-function catInfo(cat: string) {
-  return (CATEGORIES as Record<string, { label: string; icon: string; color: string }>)[cat]
-    ?? { label: cat, icon: '📌', color: 'bg-gray-100 text-gray-600 border-gray-200' };
+function domainInfo(d: string) {
+  return (DOMAINS as Record<string, { label: string; icon: string; color: string }>)[d]
+    ?? { label: d, icon: '📌', color: 'bg-gray-100 text-gray-600 border-gray-200' };
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Memory {
   id: string;
-  key: string;
-  value: string;
-  category: string;
-  tags: string[];
+  content: string;
+  domain: string;
   importance: number;
   source: string;
   created_at: string;
   updated_at: string;
 }
 
-type SortKey = 'category' | 'key' | 'value' | 'source' | 'updated_at';
+type SortKey = 'domain' | 'content' | 'importance' | 'source' | 'updated_at';
 type ViewMode = 'table' | 'grid';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -60,14 +59,30 @@ function relativeTime(dateStr: string): string {
   return diffMonths + 'mo ago';
 }
 
-// ─── Category Badge ───────────────────────────────────────────────────────────
+function importanceIndicator(importance: number): string {
+  if (importance >= 0.7) return '🔴';
+  if (importance >= 0.4) return '🟡';
+  return '⚪';
+}
 
-function CategoryBadge({ category }: { category: string }) {
-  const info = catInfo(category);
+// ─── Domain Badge ────────────────────────────────────────────────────────────
+
+function DomainBadge({ domain }: { domain: string }) {
+  const info = domainInfo(domain);
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-medium border ${info.color} whitespace-nowrap`}>
       <span>{info.icon}</span>
       <span>{info.label}</span>
+    </span>
+  );
+}
+
+// ─── Source Badge ────────────────────────────────────────────────────────────
+
+function SourceBadge({ source }: { source: string }) {
+  return (
+    <span className="font-mono text-xs text-[rgba(58,58,56,0.45)] uppercase tracking-wide">
+      {source || '—'}
     </span>
   );
 }
@@ -79,27 +94,27 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
   return <span className="text-[#1A3C2B] ml-1">{dir === 'asc' ? '↑' : '↓'}</span>;
 }
 
-// ─── Inline editable value ───────────────────────────────────────────────────
+// ─── Inline editable content ────────────────────────────────────────────────
 
-function InlineValue({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+function InlineContent({ content, onSave }: { content: string; onSave: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
+  const [draft, setDraft] = useState(content);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   function startEdit() {
-    setDraft(value);
+    setDraft(content);
     setEditing(true);
     setTimeout(() => taRef.current?.focus(), 0);
   }
 
   function commit() {
     setEditing(false);
-    if (draft.trim() !== value) onSave(draft.trim());
+    if (draft.trim() !== content) onSave(draft.trim());
   }
 
   function onKey(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(); }
-    if (e.key === 'Escape') { setEditing(false); setDraft(value); }
+    if (e.key === 'Escape') { setEditing(false); setDraft(content); }
   }
 
   if (editing) {
@@ -119,10 +134,10 @@ function InlineValue({ value, onSave }: { value: string; onSave: (v: string) => 
   return (
     <span
       onClick={startEdit}
-      className="text-sm text-[rgba(58,58,56,0.85)] cursor-text hover:bg-[#F5F3EF] rounded px-1 -ml-1 block truncate max-w-xs"
-      title={value}
+      className="text-sm text-[rgba(58,58,56,0.85)] cursor-text hover:bg-[#F5F3EF] rounded px-1 -ml-1 block"
+      title={content}
     >
-      {value || <span className="italic text-gray-400">—</span>}
+      {content || <span className="italic text-gray-400">—</span>}
     </span>
   );
 }
@@ -136,7 +151,7 @@ function TableRow({
 }: {
   memory: Memory;
   onDelete: (id: string) => void;
-  onEdit: (id: string, value: string) => void;
+  onEdit: (id: string, content: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -147,20 +162,18 @@ function TableRow({
       onMouseLeave={() => setHovered(false)}
     >
       <td className="px-4 py-3 w-36">
-        <CategoryBadge category={memory.category} />
-      </td>
-      <td className="px-4 py-3 w-48">
-        <span className="font-mono text-sm font-semibold text-[#1A3C2B] block truncate" title={memory.key}>
-          {memory.key}
-        </span>
+        <DomainBadge domain={memory.domain} />
       </td>
       <td className="px-4 py-3">
-        <InlineValue value={memory.value} onSave={(v) => onEdit(memory.id, v)} />
+        <InlineContent content={memory.content} onSave={(v) => onEdit(memory.id, v)} />
+      </td>
+      <td className="px-4 py-3 w-20 text-center">
+        <span title={`Importance: ${(memory.importance * 100).toFixed(0)}%`}>
+          {importanceIndicator(memory.importance)}
+        </span>
       </td>
       <td className="px-4 py-3 w-28">
-        <span className="font-mono text-xs text-[rgba(58,58,56,0.45)] uppercase tracking-wide">
-          {memory.source || '—'}
-        </span>
+        <SourceBadge source={memory.source} />
       </td>
       <td className="px-4 py-3 w-28">
         <span className="font-mono text-xs text-[rgba(58,58,56,0.45)]">
@@ -170,7 +183,7 @@ function TableRow({
       <td className="px-3 py-3 w-10 text-right">
         <button
           onClick={() => {
-            if (window.confirm('Delete "' + memory.key + '"?')) onDelete(memory.id);
+            if (window.confirm('Delete this memory?')) onDelete(memory.id);
           }}
           className={`text-gray-300 hover:text-red-500 transition-colors ${hovered ? 'opacity-100' : 'opacity-0'}`}
           title="Delete"
@@ -191,29 +204,30 @@ function MemoryGridCard({
 }: {
   memory: Memory;
   onDelete: (id: string) => void;
-  onEdit: (id: string, value: string) => void;
+  onEdit: (id: string, content: string) => void;
 }) {
   return (
     <div className="bg-white border border-[rgba(58,58,56,0.12)] rounded-lg p-4 flex flex-col gap-2 group hover:border-[rgba(58,58,56,0.25)] transition-colors relative">
       <button
         onClick={() => {
-          if (window.confirm('Delete "' + memory.key + '"?')) onDelete(memory.id);
+          if (window.confirm('Delete this memory?')) onDelete(memory.id);
         }}
         className="absolute top-3 right-3 text-gray-200 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity text-sm"
         title="Delete"
       >
         🗑
       </button>
-      <span className="font-mono text-sm font-bold text-[#1A3C2B] pr-6 truncate" title={memory.key}>
-        {memory.key}
-      </span>
+      <div className="flex items-center gap-2 pr-6">
+        <span title={`Importance: ${(memory.importance * 100).toFixed(0)}%`}>
+          {importanceIndicator(memory.importance)}
+        </span>
+        <SourceBadge source={memory.source} />
+      </div>
       <div className="flex-1">
-        <InlineValue value={memory.value} onSave={(v) => onEdit(memory.id, v)} />
+        <InlineContent content={memory.content} onSave={(v) => onEdit(memory.id, v)} />
       </div>
       <div className="flex items-center justify-between mt-1 pt-2 border-t border-[rgba(58,58,56,0.08)]">
-        <span className="font-mono text-[10px] text-[rgba(58,58,56,0.4)] uppercase tracking-wide">
-          {memory.source || 'unknown'}
-        </span>
+        <DomainBadge domain={memory.domain} />
         <span className="font-mono text-[10px] text-[rgba(58,58,56,0.4)]">
           {relativeTime(memory.updated_at)}
         </span>
@@ -228,63 +242,56 @@ function AddMemoryForm({
   onAdd,
   onCancel,
 }: {
-  onAdd: (key: string, value: string, category: string) => Promise<void>;
+  onAdd: (content: string, domain: string) => Promise<void>;
   onCancel: () => void;
 }) {
-  const [key, setKey] = useState('');
-  const [value, setValue] = useState('');
-  const [category, setCategory] = useState<string>('fact');
+  const [content, setContent] = useState('');
+  const [domain, setDomain] = useState<string>('general');
   const [saving, setSaving] = useState(false);
 
   async function submit() {
-    if (!key.trim() || !value.trim()) return;
+    if (!content.trim()) return;
     setSaving(true);
-    await onAdd(key.trim(), value.trim(), category);
+    await onAdd(content.trim(), domain);
     setSaving(false);
   }
 
   return (
     <div className="border border-dashed border-[#1A3C2B]/30 rounded-lg bg-white p-4 mb-4">
       <p className="font-mono text-xs uppercase tracking-wider text-[rgba(58,58,56,0.4)] mb-3">New Memory</p>
-      <div className="flex flex-col sm:flex-row gap-3">
-        <input
+      <div className="flex flex-col gap-3">
+        <textarea
           autoFocus
-          type="text"
-          placeholder="Key (e.g. startup_name)"
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          className="flex-1 border border-[rgba(58,58,56,0.2)] rounded px-3 py-1.5 text-sm font-mono text-[#1A3C2B] bg-[#F5F3EF] outline-none focus:border-[#1A3C2B]"
+          placeholder="What should I remember? (e.g. Sam prefers concise responses)"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          rows={2}
+          className="w-full border border-[rgba(58,58,56,0.2)] rounded px-3 py-2 text-sm text-[#1A3C2B] bg-[#F5F3EF] outline-none focus:border-[#1A3C2B] resize-none"
         />
-        <input
-          type="text"
-          placeholder="Value"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()}
-          className="flex-[2] border border-[rgba(58,58,56,0.2)] rounded px-3 py-1.5 text-sm text-[#1A3C2B] bg-[#F5F3EF] outline-none focus:border-[#1A3C2B]"
-        />
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="border border-[rgba(58,58,56,0.2)] rounded px-3 py-1.5 text-sm font-mono text-[#1A3C2B] bg-[#F5F3EF] outline-none focus:border-[#1A3C2B]"
-        >
-          {ALL_CATS.map((c) => (
-            <option key={c} value={c}>{catInfo(c).icon} {catInfo(c).label}</option>
-          ))}
-        </select>
-        <button
-          onClick={submit}
-          disabled={saving || !key.trim() || !value.trim()}
-          className="bg-[#1A3C2B] text-white px-4 py-1.5 text-sm font-mono rounded hover:bg-[#2a5c3e] disabled:opacity-40 whitespace-nowrap"
-        >
-          {saving ? 'Saving…' : 'Add'}
-        </button>
-        <button
-          onClick={onCancel}
-          className="border border-[rgba(58,58,56,0.2)] text-[rgba(58,58,56,0.6)] px-3 py-1.5 text-sm font-mono rounded hover:bg-[rgba(58,58,56,0.05)]"
-        >
-          Cancel
-        </button>
+        <div className="flex gap-3 items-center">
+          <select
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            className="border border-[rgba(58,58,56,0.2)] rounded px-3 py-1.5 text-sm font-mono text-[#1A3C2B] bg-[#F5F3EF] outline-none focus:border-[#1A3C2B]"
+          >
+            {ALL_DOMAINS.map((d) => (
+              <option key={d} value={d}>{domainInfo(d).icon} {domainInfo(d).label}</option>
+            ))}
+          </select>
+          <button
+            onClick={submit}
+            disabled={saving || !content.trim()}
+            className="bg-[#1A3C2B] text-white px-4 py-1.5 text-sm font-mono rounded hover:bg-[#2a5c3e] disabled:opacity-40 whitespace-nowrap"
+          >
+            {saving ? 'Saving…' : 'Add'}
+          </button>
+          <button
+            onClick={onCancel}
+            className="border border-[rgba(58,58,56,0.2)] text-[rgba(58,58,56,0.6)] px-3 py-1.5 text-sm font-mono rounded hover:bg-[rgba(58,58,56,0.05)]"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -295,49 +302,103 @@ function AddMemoryForm({
 export function MemoryClient({ initialMemories }: { initialMemories: Memory[] }) {
   const [memories, setMemories] = useState<Memory[]>(initialMemories);
   const [search, setSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [searchResults, setSearchResults] = useState<Memory[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [activeDomain, setActiveDomain] = useState<string>('all');
   const [view, setView] = useState<ViewMode>('table');
   const [showAdd, setShowAdd] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('updated_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const categoryCounts = useMemo(() => {
+  const domainCounts = useMemo(() => {
     const counts: Record<string, number> = { all: memories.length };
-    for (const cat of ALL_CATS) counts[cat] = memories.filter((m) => m.category === cat).length;
+    for (const d of ALL_DOMAINS) counts[d] = memories.filter((m) => m.domain === d).length;
+    // Also count domains not in DOMAINS
+    for (const m of memories) {
+      if (!(m.domain in DOMAINS)) {
+        counts[m.domain] = (counts[m.domain] || 0) + 1;
+      }
+    }
     return counts;
   }, [memories]);
 
-  const presentCategories = ALL_CATS.filter((c) => (categoryCounts[c] ?? 0) > 0);
+  const presentDomains = useMemo(() => {
+    const known = ALL_DOMAINS.filter((d) => (domainCounts[d] ?? 0) > 0);
+    const unknown = Object.keys(domainCounts).filter(k => k !== 'all' && !(k in DOMAINS) && domainCounts[k] > 0);
+    return [...known, ...unknown];
+  }, [domainCounts]);
+
+  // Debounced semantic search
+  const handleSearchChange = useCallback((q: string) => {
+    setSearch(q);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!q.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch('/api/memory/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: q, limit: 50 }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const results = (data.results || []).map((r: { id: string; content?: string; memory?: string; domain?: string; importance?: number; metadata?: Record<string, unknown>; created_at?: string; updated_at?: string; score?: number }) => ({
+            id: r.id,
+            content: r.content || r.memory || '',
+            domain: r.domain || 'general',
+            importance: r.importance || 0.5,
+            source: String((r.metadata as Record<string, unknown>)?.source || 'chat'),
+            created_at: r.created_at || '',
+            updated_at: r.updated_at || '',
+          }));
+          setSearchResults(results);
+        }
+      } catch {
+        // Fall back to local filtering
+        setSearchResults(null);
+      }
+      setSearching(false);
+    }, 400);
+  }, []);
+
+  const baseList = searchResults !== null ? searchResults : memories;
 
   const filtered = useMemo(() => {
-    let list = memories.filter((m) => {
-      const q = search.toLowerCase();
-      const matchSearch = !q || m.key.toLowerCase().includes(q) || m.value.toLowerCase().includes(q);
-      const matchCat = activeCategory === 'all' || m.category === activeCategory;
-      return matchSearch && matchCat;
+    let list = baseList.filter((m) => {
+      const matchDomain = activeDomain === 'all' || m.domain === activeDomain;
+      return matchDomain;
     });
 
     list = [...list].sort((a, b) => {
-      let av: string = String(a[sortKey as keyof Memory] ?? '');
-      let bv: string = String(b[sortKey as keyof Memory] ?? '');
-      if (sortKey === 'updated_at') {
-        av = String(new Date(av).getTime()).padStart(20, '0');
-        bv = String(new Date(bv).getTime()).padStart(20, '0');
+      if (sortKey === 'importance') {
+        const cmp = a.importance - b.importance;
+        return sortDir === 'asc' ? cmp : -cmp;
       }
+      if (sortKey === 'updated_at') {
+        const cmp = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
+      const av = String(a[sortKey as keyof Memory] ?? '');
+      const bv = String(b[sortKey as keyof Memory] ?? '');
       const cmp = av.localeCompare(bv);
       return sortDir === 'asc' ? cmp : -cmp;
     });
 
     return list;
-  }, [memories, search, activeCategory, sortKey, sortDir]);
+  }, [baseList, activeDomain, sortKey, sortDir]);
 
   const grouped = useMemo(() => {
     const groups: Record<string, Memory[]> = {};
     for (const m of filtered) {
-      if (!groups[m.category]) groups[m.category] = [];
-      groups[m.category].push(m);
+      if (!groups[m.domain]) groups[m.domain] = [];
+      groups[m.domain].push(m);
     }
     return groups;
   }, [filtered]);
@@ -358,37 +419,42 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
       body: JSON.stringify({ id }),
     });
     setMemories((prev) => prev.filter((m) => m.id !== id));
+    if (searchResults) {
+      setSearchResults((prev) => prev ? prev.filter((m) => m.id !== id) : null);
+    }
   }
 
-  async function handleEdit(id: string, value: string) {
+  async function handleEdit(id: string, content: string) {
     await fetch('/api/memory', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, value }),
+      body: JSON.stringify({ id, content }),
     });
     setMemories((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, value, updated_at: new Date().toISOString() } : m))
+      prev.map((m) => (m.id === id ? { ...m, content, updated_at: new Date().toISOString() } : m))
     );
+    if (searchResults) {
+      setSearchResults((prev) =>
+        prev ? prev.map((m) => (m.id === id ? { ...m, content, updated_at: new Date().toISOString() } : m)) : null
+      );
+    }
   }
 
-  async function handleAdd(key: string, value: string, category: string) {
+  async function handleAdd(content: string, domain: string) {
     const res = await fetch('/api/memory', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key, value, category }),
+      body: JSON.stringify({ content, domain }),
     });
     if (res.ok) {
-      const data = await res.json();
       const now = new Date().toISOString();
       setMemories((prev) => [
         {
-          id: data.id || String(Date.now()),
-          key,
-          value,
-          category,
-          tags: [],
-          importance: 3,
-          source: 'manual',
+          id: String(Date.now()),
+          content,
+          domain,
+          importance: 0.8,
+          source: 'user_input',
           created_at: now,
           updated_at: now,
         },
@@ -409,7 +475,7 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
         const r2 = await fetch('/api/memory');
         if (r2.ok) {
           const d2 = await r2.json();
-          if (Array.isArray(d2.memories)) setMemories(d2.memories);
+          if (Array.isArray(d2.memory)) setMemories(d2.memory);
         }
       } else {
         setScanMsg({ type: 'err', text: data.error || 'Scan failed' });
@@ -513,37 +579,42 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by key or value…"
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Search memories (semantic search)…"
             className="w-full bg-white border border-[rgba(58,58,56,0.15)] rounded-lg pl-10 pr-4 py-2 text-sm font-mono text-[#1A3C2B] placeholder:text-[rgba(58,58,56,0.3)] outline-none focus:border-[#1A3C2B]/40 transition-colors"
           />
+          {searching && (
+            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-[rgba(58,58,56,0.4)] font-mono">
+              searching…
+            </span>
+          )}
         </div>
 
-        {/* Category filter pills */}
+        {/* Domain filter pills */}
         <div className="flex gap-2 flex-wrap mb-6">
           <button
-            onClick={() => setActiveCategory('all')}
+            onClick={() => setActiveDomain('all')}
             className={`px-3 py-1 rounded-full text-xs font-mono border transition-colors ${
-              activeCategory === 'all'
+              activeDomain === 'all'
                 ? 'bg-[#1A3C2B] text-white border-[#1A3C2B]'
                 : 'border-[rgba(58,58,56,0.18)] text-[rgba(58,58,56,0.6)] hover:border-[#1A3C2B]/40 hover:text-[#1A3C2B]'
             }`}
           >
-            All {categoryCounts.all}
+            All {domainCounts.all}
           </button>
-          {presentCategories.map((cat) => {
-            const info = catInfo(cat);
+          {presentDomains.map((d) => {
+            const info = domainInfo(d);
             return (
               <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
+                key={d}
+                onClick={() => setActiveDomain(d)}
                 className={`px-3 py-1 rounded-full text-xs font-mono border transition-colors ${
-                  activeCategory === cat
+                  activeDomain === d
                     ? 'bg-[#1A3C2B] text-white border-[#1A3C2B]'
                     : 'border-[rgba(58,58,56,0.18)] text-[rgba(58,58,56,0.6)] hover:border-[#1A3C2B]/40 hover:text-[#1A3C2B]'
                 }`}
               >
-                {info.icon} {info.label} {categoryCounts[cat]}
+                {info.icon} {info.label} {domainCounts[d]}
               </button>
             );
           })}
@@ -553,11 +624,11 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
         {filtered.length === 0 && (
           <div className="py-24 text-center">
             <div className="text-5xl mb-4">🧠</div>
-            {search || activeCategory !== 'all' ? (
+            {search || activeDomain !== 'all' ? (
               <>
                 <p className="font-mono text-sm text-[rgba(58,58,56,0.5)] mb-2">No memories match your filter.</p>
                 <button
-                  onClick={() => { setSearch(''); setActiveCategory('all'); }}
+                  onClick={() => { setSearch(''); setSearchResults(null); setActiveDomain('all'); }}
                   className="font-mono text-xs text-[#1A3C2B] underline underline-offset-2"
                 >
                   Clear filters
@@ -580,9 +651,9 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
             <table className="w-full border-collapse">
               <thead className="border-b border-[rgba(58,58,56,0.1)] bg-[#F5F3EF]">
                 <tr>
-                  <Th label="Category" sk="category" className="w-36" />
-                  <Th label="Key" sk="key" className="w-48" />
-                  <Th label="Value" sk="value" />
+                  <Th label="Domain" sk="domain" className="w-36" />
+                  <Th label="Content" sk="content" />
+                  <Th label="Imp." sk="importance" className="w-20" />
                   <Th label="Source" sk="source" className="w-28" />
                   <Th label="Updated" sk="updated_at" className="w-28" />
                   <th className="w-10" />
@@ -605,10 +676,10 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
         {/* GRID VIEW */}
         {view === 'grid' && filtered.length > 0 && (
           <div className="space-y-8">
-            {Object.entries(grouped).map(([cat, items]) => {
-              const info = catInfo(cat);
+            {Object.entries(grouped).map(([dom, items]) => {
+              const info = domainInfo(dom);
               return (
-                <div key={cat}>
+                <div key={dom}>
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">{info.icon}</span>
                     <span className="font-mono text-sm font-semibold text-[#1A3C2B]">{info.label}</span>

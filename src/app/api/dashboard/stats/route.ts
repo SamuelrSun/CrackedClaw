@@ -49,19 +49,19 @@ export async function GET() {
     .eq('status', 'connected');
 
   const { data: memoryItems } = await supabase
-    .from('user_memory')
-    .select('id, category, key')
+    .from('memories')
+    .select('id, domain, content, metadata')
     .eq('user_id', user.id);
 
-  const contactMemory = memoryItems?.filter((m: { category: string }) => m.category === 'contacts') ?? [];
-  const writingStyleSaved = memoryItems?.some((m: { category: string; key: string }) =>
-    m.category === 'writing_style' || m.key?.includes('writing')
+  const contactMemory = memoryItems?.filter((m: { domain: string }) => m.domain === 'email') ?? [];
+  const writingStyleSaved = memoryItems?.some((m: { content: string }) =>
+    m.content?.toLowerCase().includes('writing')
   ) ?? false;
-  const schedulePatterns = memoryItems?.filter((m: { category: string }) =>
-    m.category === 'schedule' || m.category === 'patterns'
+  const schedulePatterns = memoryItems?.filter((m: { domain: string }) =>
+    m.domain === 'calendar'
   ).length ?? 0;
-  const automationIdeas = memoryItems?.filter((m: { category: string }) =>
-    m.category === 'automation' || m.category === 'ideas'
+  const automationIdeas = memoryItems?.filter((m: { content: string }) =>
+    m.content?.toLowerCase().includes('automation')
   ).length ?? 0;
 
   const { data: recentConversations } = await supabase
