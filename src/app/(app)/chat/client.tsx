@@ -16,6 +16,8 @@ import { ChatSkeleton } from "@/components/skeletons/chat-skeleton";
 import { parseMessageContent, type ParsedSegment } from "@/lib/chat/message-parser";
 import { DynamicIntegrationsCard } from "@/components/chat/dynamic-integrations-card";
 import { ScanTriggerCard } from "@/components/chat/scan-trigger-card";
+import { ScanProgressCard } from "@/components/chat/scan-progress-card";
+import type { ScanProgressCardProps } from "@/components/chat/scan-progress-card";
 import { SkillSuggestCard } from "@/components/chat/skill-suggest-card";
 import {
   IntegrationConnectCard,
@@ -581,7 +583,9 @@ export default function ChatPageClient({
   const [subagentCount, setSubagentCount] = useState(0);
   const [activityPanelOpen, setActivityPanelOpen] = useState(false);
   const [agentActivities, setAgentActivities] = useState<AgentActivityEntry[]>([]);
-  const [activityActiveTab, setActivityActiveTab] = useState<string | undefined>(undefined); 
+  const [activityActiveTab, setActivityActiveTab] = useState<string | undefined>(undefined);
+  const [scanCardState, setScanCardState] = useState<Omit<ScanProgressCardProps, 'onViewActivity'> | null>(null);
+  const [scanStartedAt, setScanStartedAt] = useState<number | undefined>(undefined); 
   const [inlineSubagents, setInlineSubagents] = useState<SubagentSession[]>([]);
   const [memoryPanelOpen, setMemoryPanelOpen] = useState(false);
   const [memoryPanelData, setMemoryPanelData] = useState<{ insights?: MemoryInsights; source?: string }>({});
@@ -946,16 +950,38 @@ User message: `
               setAgentActivities(prev => prev.map(a =>
                 a.status === 'running' ? { ...a, status: 'done' as const, completedAt: Date.now() } : a
               ));
+              setScanCardState(prev => prev ? {
+                ...prev,
+                status: 'complete',
+                progress: 100,
+                durationSeconds: scanStartedAt ? Math.round((Date.now() - scanStartedAt) / 1000) : undefined,
+              } : null);
             }
           } else if (chunk.type === "tool_progress" && chunk.tool && chunk.data) {
-            const data = chunk.data as { phase?: string; pass?: string; message?: string; progress?: number };
+            const data = chunk.data as { phase?: string; pass?: string; message?: string; progress?: number; provider?: string; providers?: Array<{name: string; status: string; memories?: number; error?: string}> };
             const phase = data.phase || 'scan';
             const passName = data.pass || phase;
             const logLine = data.message || '';
             // Auto-open panel when scan starts
             if (phase === 'fetching' && logLine) {
-              setActivityPanelOpen(true);
+              if (!scanStartedAt) setScanStartedAt(Date.now());
             }
+            // Update inline scan card state
+            setScanCardState(prev => {
+              const providers = data.providers || (data.provider ? [{ name: data.provider, status: phase }] : prev?.providers || [{ name: 'Workspace', status: phase }]);
+              const scanId = prev?.scanId || `scan-${Date.now()}`;
+              return {
+                scanId,
+                status: 'running' as const,
+                providers,
+                progress: data.progress ?? prev?.progress ?? 0,
+                currentPhase: phase,
+                currentMessage: logLine || prev?.currentMessage || '',
+                totalMemories: prev?.totalMemories,
+                durationSeconds: prev?.durationSeconds,
+                workflowSuggestions: prev?.workflowSuggestions,
+              };
+            });
             setAgentActivities(prev => {
               // Find or create activity for this phase/pass
               const existingId = passName === 'fetching' || passName === 'correlating' || passName === 'storing'
@@ -1627,8 +1653,21 @@ User message: `
             />
           )}
 
+          {/* Inline Scan Progress Card */}
+          {scanCardState && (
+            <div className="max-w-[70%] mr-auto">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-mono text-[10px] uppercase tracking-wide text-grid/40">Assistant</span>
+              </div>
+              <ScanProgressCard
+                {...scanCardState}
+                onViewActivity={() => setActivityPanelOpen(true)}
+              />
+            </div>
+          )}
+
           {/* Loading indicator */}
-          {isLoading && (
+          {isLoading && !scanCardState && (
             <div className="max-w-[70%] mr-auto px-1">
               <span className="font-mono text-[11px] text-grid/40 italic animate-pulse">
                 {retryCount > 0 ? `Retrying (${retryCount}/3)...` : "Thinking..."}
@@ -1788,6 +1827,9 @@ User message: `
             activities={agentActivities}
             activeTabId={activityActiveTab}
             onTabChange={setActivityActiveTab}
+            overallProgress={scanCardState?.progress}
+            totalMemories={scanCardState?.totalMemories}
+            scanStartedAt={scanStartedAt}
           />
         </div>
       )}
