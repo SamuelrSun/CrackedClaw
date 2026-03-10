@@ -1,3 +1,4 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { encrypt, decrypt } from '@/lib/crypto';
 
@@ -208,7 +209,74 @@ export async function getSecret(userId: string, name: string): Promise<string | 
   return decrypt(data.encrypted_value);
 }
 
-export async function processAgentResponse(userId: string, responseText: string): Promise<string> {
+
+const FACT_EXTRACT_PROMPT = `You extract memorable facts from a conversation turn. Given a user message and assistant response, identify facts worth remembering for future conversations.
+
+Extract ONLY concrete, specific facts like:
+- User's name, location, job, company, preferences
+- Projects they're working on, goals, deadlines
+- Tools/tech they use
+- Important dates, people they mention
+- Preferences (communication style, interests, routines)
+
+DO NOT extract:
+- Generic questions, greetings, small talk
+- Temporary/ephemeral info
+- Things the assistant said (only user-provided info)
+- Facts already in the existing memories list
+
+Return a JSON array (empty [] if nothing worth remembering):
+[{"key": "snake_case_key", "value": "concise value", "category": "personal|preference|project|contact|fact|schedule"}]`;
+
+async function autoExtractFacts(
+  userId: string,
+  userMessage: string,
+  assistantResponse: string,
+): Promise<void> {
+  if (!process.env.ANTHROPIC_API_KEY) return;
+  if (userMessage.length < 5) return; // skip trivial messages
+  
+  try {
+    // Get existing memories to avoid duplicates
+    const supabase = createAdminClient();
+    const { data: existing } = await supabase
+      .from('user_memory')
+      .select('key, value')
+      .eq('user_id', userId)
+      .limit(50);
+    
+    const existingContext = (existing || []).map(m => `${m.key}: ${m.value}`).join('\n');
+    
+    const client = new Anthropic();
+    const result = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      system: FACT_EXTRACT_PROMPT,
+      messages: [{
+        role: 'user',
+        content: `Existing memories:\n${existingContext || '(none)'}\n\n---\nUser: ${userMessage}\nAssistant: ${assistantResponse.substring(0, 500)}`
+      }],
+    });
+    
+    const text = result.content[0].type === 'text' ? result.content[0].text : '';
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return;
+    
+    const facts = JSON.parse(jsonMatch[0]) as Array<{key: string; value: string; category: string}>;
+    if (!Array.isArray(facts) || facts.length === 0) return;
+    
+    await Promise.all(
+      facts.map(f => saveMemory(userId, f.key, f.value, {
+        category: (f.category as MemoryCategory) || 'fact',
+        source: 'chat',
+      }))
+    );
+  } catch (e) {
+    console.error('Auto-extract facts error:', e);
+  }
+}
+
+export async function processAgentResponse(userId: string, responseText: string, userMessage?: string): Promise<string> {
   const memoryMarkers = parseMemoryMarkers(responseText);
   const forgetMarkers = parseForgetMarkers(responseText);
   const secretMarkers = parseSecretMarkers(responseText);
@@ -218,6 +286,11 @@ export async function processAgentResponse(userId: string, responseText: string)
     ...forgetMarkers.map(k => deleteMemory(userId, k)),
     ...secretMarkers.map(s => saveSecret(userId, s.name, s.value)),
   ]);
+
+  // Auto-extract facts in background (don't block response)
+  if (userMessage) {
+    autoExtractFacts(userId, userMessage, responseText).catch(() => {});
+  }
 
   return stripMarkers(responseText);
 }

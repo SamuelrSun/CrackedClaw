@@ -228,7 +228,7 @@ export async function POST(request: NextRequest) {
 
       // Post-stream cleanup
       try {
-        const cleanedContent = fullContent ? await processAgentResponse(user.id, fullContent) : fullContent;
+        const cleanedContent = fullContent ? await processAgentResponse(user.id, fullContent, message) : fullContent;
 
         if (isOnboarding && capturedOnboardingState && cleanedContent) {
           await processOnboardingResponse(supabase, user.id, message, cleanedContent, capturedOnboardingState);
