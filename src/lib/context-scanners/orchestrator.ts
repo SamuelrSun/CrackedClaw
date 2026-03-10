@@ -458,48 +458,6 @@ async function saveContextResults(
       }
     }
     
-    // Update onboarding state with gathered context
-    const { data: onboardingState } = await supabase
-      .from('onboarding_state')
-      .select('gathered_context')
-      .eq('user_id', userId)
-      .single();
-    
-    if (onboardingState) {
-      const gatheredContext = onboardingState.gathered_context || {};
-      
-      // Extract relevant context for onboarding
-      const gmailResult = results.find(r => r.source === 'gmail') as any;
-      const calendarResult = results.find(r => r.source === 'calendar') as any;
-      
-      if (gmailResult?.data) {
-        gatheredContext.email = {
-          commonContacts: gmailResult.data.frequentContacts?.slice(0, 5).map((c: any) => c.name) || [],
-          frequentTopics: gmailResult.data.patterns?.map((p: any) => p.type) || [],
-          meetingPatterns: [],
-        };
-      }
-      
-      if (calendarResult?.data) {
-        gatheredContext.calendar = {
-          workingHours: `Busiest hour: ${calendarResult.data.busyTimeAnalysis?.busiestHour}:00`,
-          meetingFrequency: `${calendarResult.data.busyTimeAnalysis?.averageMeetingsPerDay} meetings/day`,
-          commonMeetingTypes: calendarResult.data.meetingTypes?.slice(0, 3).map((m: any) => m.type) || [],
-        };
-      }
-      
-      gatheredContext.summary = combinedInsights.slice(0, 3).join('. ');
-      gatheredContext.scannedAt = now;
-      
-      await supabase
-        .from('onboarding_state')
-        .update({
-          gathered_context: gatheredContext,
-          suggested_workflows: suggestedWorkflows,
-          updated_at: now,
-        })
-        .eq('user_id', userId);
-    }
   } catch (error) {
     console.error('Failed to save context results:', error);
     // Don't throw - saving is best effort

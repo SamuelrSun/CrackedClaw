@@ -225,16 +225,15 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
   try {
     const supabase = await createClient();
 
-    // Get user name and agent name from onboarding state
-    const { data: onboarding } = await supabase
-      .from('onboarding_state')
-      .select('user_display_name, agent_name')
-      .eq('user_id', userId)
+    // Get user name from profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name')
+      .eq('id', userId)
       .single();
-    
-    if (onboarding) {
-      ctx.userName = onboarding.user_display_name || undefined;
-      ctx.agentName = onboarding.agent_name || undefined;
+
+    if (profile?.display_name) {
+      ctx.userName = profile.display_name;
     }
 
     // Get connected integrations

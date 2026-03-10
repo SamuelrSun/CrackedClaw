@@ -2,23 +2,23 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-async function getOnboardingRedirect(
+async function getPostAuthRedirect(
   supabase: ReturnType<typeof createServerClient>,
   origin: string
 ): Promise<string> {
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return `${origin}/login`;
 
-    const { data } = await supabase
-      .from("onboarding_state")
-      .select("phase")
-      .eq("user_id", user.id)
-      .single();
+    // Check if user has an organization (completed workspace setup)
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("id")
+      .eq("owner_id", user.id)
+      .limit(1)
+      .maybeSingle();
 
-    if (data?.phase === "complete") return `${origin}/chat`;
+    if (org) return `${origin}/chat`;
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -28,7 +28,7 @@ async function getOnboardingRedirect(
 
     if (profile?.onboarding_completed) return `${origin}/chat`;
   } catch {
-    // Ignore DB errors
+    // Default to onboarding on DB errors
   }
   return `${origin}/onboarding`;
 }
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
         });
         return redirectResponse;
       }
-      const redirectTo = await getOnboardingRedirect(supabase, origin);
+      const redirectTo = await getPostAuthRedirect(supabase, origin);
       const redirectResponse = NextResponse.redirect(new URL(redirectTo));
       response.cookies.getAll().forEach(({ name, value, ...rest }) => {
         redirectResponse.cookies.set(name, value, rest);

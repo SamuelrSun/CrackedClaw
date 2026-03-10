@@ -4,7 +4,6 @@ export { IntegrationStatusCard } from "./integration-status-card";
 export { SubagentProgressCard } from "./subagent-progress-card";
 export { WorkflowSuggestionCard } from "./workflow-suggestion-card";
 export { ContextSummaryCard } from "./context-summary-card";
-export { OnboardingWelcomeAnimation } from "./onboarding-welcome";
 export { ChatError } from "./chat-error";
 
 export { CronJobCard } from "./cron-job-card";

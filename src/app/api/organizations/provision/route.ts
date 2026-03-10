@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createInitialState } from "@/lib/onboarding/state-machine";
 
 export const dynamic = 'force-dynamic';
 
@@ -160,64 +159,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const now = new Date().toISOString();
-
-    // Initialize onboarding state for new users
-    if (isNewOrganization) {
-      const initialState = createInitialState(user.id);
-
-      const gatheredContext = {
-        ...initialState.gathered_context,
-        ...(use_case ? { use_case, source: "landing_chat" } : {}),
-      };
-      const completedSteps = [
-        ...initialState.completed_steps,
-        ...(user_display_name ? ["user_name_provided" as const] : []),
-        ...(agent_name ? ["agent_name_provided" as const] : []),
-      ];
-
-      await supabase
-        .from("onboarding_state")
-        .upsert({
-          user_id: user.id,
-          phase: initialState.phase,
-          completed_steps: completedSteps,
-          skipped_steps: initialState.skipped_steps,
-          gathered_context: gatheredContext,
-          suggested_workflows: initialState.suggested_workflows,
-          agent_name: agent_name ?? initialState.agent_name,
-          user_display_name: user_display_name ?? initialState.user_display_name,
-          created_at: now,
-          updated_at: now,
-        }, { onConflict: "user_id" });
-
-      const { data: welcomeConvo } = await supabase
-        .from("conversations")
-        .insert({
-          user_id: user.id,
-          title: "Welcome to CrackedClaw",
-          summary: "Your onboarding conversation",
-          is_pinned: false,
-          created_at: now,
-          updated_at: now,
-        })
-        .select()
-        .single();
-
-      if (welcomeConvo) {
-        await supabase
-          .from("messages")
-          .insert({
-            conversation_id: welcomeConvo.id,
-            role: "assistant",
-            content: user_display_name
-              ? `Hey ${user_display_name}! I'm ${agent_name ?? "your AI agent"} — fully set up and ready to go. What would you like to tackle first?`
-              : "👋 Welcome! I'm your new AI assistant. Let's get to know each other.\n\nWhat should I call you?",
-            created_at: now,
-          });
-      }
-    }
-
     // Fetch the org to return current gateway data
     const { data: finalOrg } = await supabase
       .from("organizations")
@@ -233,7 +174,7 @@ export async function POST(request: NextRequest) {
         gateway_url: finalOrg?.openclaw_gateway_url || null,
         status: finalOrg?.openclaw_status || "running",
       },
-      onboarding_initialized: isNewOrganization,
+      is_new: isNewOrganization,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

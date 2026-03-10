@@ -13,6 +13,7 @@ export default function ChatPage() {
   const [hasGateway, setHasGateway] = useState(false);
   const [gatewayHost, setGatewayHost] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
+  const [provisioning, setProvisioning] = useState(false);
   const [initialConversationId, setInitialConversationId] = useState<string | undefined>();
 
   useEffect(() => {
@@ -25,49 +26,39 @@ export default function ChatPage() {
           return;
         }
 
+        // Check organization / OpenClaw instance
+        const orgRes = await fetch('/api/organizations/provision');
+        if (orgRes.ok) {
+          const orgData = await orgRes.json();
+          if (!orgData.organization || !orgData.organization.openclaw_instance_id) {
+            // Auto-provision
+            setProvisioning(true);
+            try {
+              const provRes = await fetch('/api/organizations/provision', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+              });
+              if (!provRes.ok) {
+                console.error('Auto-provision failed:', await provRes.text());
+              }
+            } catch (err) {
+              console.error('Auto-provision error:', err);
+            } finally {
+              setProvisioning(false);
+            }
+          }
+        }
+
         // Fetch conversations
         const convRes = authCheck;
         if (convRes.ok) {
           const convData = await convRes.json();
           const convos = convData.conversations || [];
-          let initialConvoSet = false;
           setConversations(convos);
-          
-          // Check for onboarding state to find the welcome conversation
-          const onboardingRes = await fetch('/api/onboarding/state');
-          if (onboardingRes.status === 401) {
-            window.location.href = '/login';
-            return;
-          }
-          if (onboardingRes.ok) {
-            const onboardingData = await onboardingRes.json();
-            if (onboardingData.state && onboardingData.state.phase !== 'complete') {
-              // User is in onboarding - find the welcome conversation
-              const welcomeConvo = convos.find((c: Conversation) => 
-                c.title === "Welcome to CrackedClaw" || c.title === "Welcome to OpenClaw" || 
-                c.title?.toLowerCase().includes("welcome")
-              );
-              
-              if (welcomeConvo) {
-                setInitialConversationId(welcomeConvo.id);
-                initialConvoSet = true;
-                
-                // Fetch messages for the welcome conversation
-                try {
-                  const msgRes = await fetch(`/api/conversations/${welcomeConvo.id}/messages`);
-                  if (msgRes.ok) {
-                    const msgData = await msgRes.json();
-                    setMessages(msgData.messages || []);
-                  }
-                } catch {
-                  // Continue without messages
-                }
-              }
-            }
-          }
-          
-          // If no messages loaded yet (onboarding complete or no welcome convo), load the most recent conversation
-          if (convos.length > 0 && !initialConvoSet) {
+
+          // Load the most recent conversation
+          if (convos.length > 0) {
             const latestConvo = convos[0]; // already sorted by updated_at desc
             setInitialConversationId(latestConvo.id);
             try {
@@ -107,7 +98,7 @@ export default function ChatPage() {
     loadData();
   }, []);
 
-  if (loading) {
+  if (loading || provisioning) {
     return (
       <div className="flex h-[calc(100vh-56px)]">
         {/* Conversation Sidebar Skeleton */}
@@ -119,7 +110,7 @@ export default function ChatPage() {
           <div className="flex-1 overflow-y-auto">
             <ConversationListSkeleton rows={6} />
           </div>
-          
+
           {/* Gateway Status */}
           <div className="px-4 py-3 border-t border-[rgba(58,58,56,0.2)] bg-paper">
             <div className="flex items-center gap-2">
@@ -129,27 +120,38 @@ export default function ChatPage() {
           </div>
         </aside>
 
-        {/* Chat Area Skeleton */}
+        {/* Chat Area */}
         <div className="flex-1 flex flex-col">
-          <div className="flex-1 overflow-y-auto">
-            <ChatSkeleton messages={5} />
-          </div>
-
-          {/* Input Skeleton */}
-          <div className="border-t border-[rgba(58,58,56,0.2)] p-4">
-            <div className="flex gap-2">
-              <Skeleton className="flex-1 h-10" />
-              <Skeleton className="h-10 w-16" />
+          {provisioning ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-8 h-8 border-2 border-forest border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="font-mono text-[11px] text-grid/60 uppercase tracking-wide">
+                  Setting up your workspace...
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="flex-1 overflow-y-auto">
+                <ChatSkeleton messages={5} />
+              </div>
+              <div className="border-t border-[rgba(58,58,56,0.2)] p-4">
+                <div className="flex gap-2">
+                  <Skeleton className="flex-1 h-10" />
+                  <Skeleton className="h-10 w-16" />
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <ChatPageClient 
-      initialConversations={conversations} 
+    <ChatPageClient
+      initialConversations={conversations}
       initialMessages={messages}
       hasGateway={hasGateway}
       initialConversationId={initialConversationId}

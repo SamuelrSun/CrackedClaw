@@ -3,7 +3,7 @@ import { encrypt, decrypt } from '@/lib/crypto';
 import { mem0Write, mem0Search, mem0GetAll, mem0Delete, mem0Update, mem0Add } from './mem0-client';
 
 export type MemoryCategory = 'credential' | 'preference' | 'project' | 'contact' | 'fact' | 'context' | 'schedule' | 'personal';
-export type MemorySource = 'chat' | 'scan' | 'user_input' | 'onboarding';
+export type MemorySource = 'chat' | 'scan' | 'user_input';
 
 export interface MemoryEntry {
   id: string;

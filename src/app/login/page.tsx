@@ -15,25 +15,6 @@ const DEMO_USER = {
   name: "Demo User",
 };
 
-// Onboarding storage key
-const ONBOARDING_STORAGE_KEY = "openclaw_onboarding_state";
-
-/**
- * Check if onboarding is complete (client-side)
- */
-function checkOnboardingComplete(): boolean {
-  try {
-    const stored = localStorage.getItem(ONBOARDING_STORAGE_KEY);
-    if (stored) {
-      const data = JSON.parse(stored);
-      return data.completedAt !== null;
-    }
-  } catch {
-    // Ignore
-  }
-  return false;
-}
-
 /**
  * Parse Supabase error messages into user-friendly text
  */
@@ -82,32 +63,11 @@ function getErrorMessage(error: { message: string }): string {
 /**
  * Determine redirect path after successful auth
  */
-async function getRedirectPath(nextUrl?: string | null): Promise<string> {
-  // If a ?next= param is present, redirect there after login
+function getRedirectPath(nextUrl?: string | null): string {
   if (nextUrl && nextUrl.startsWith("/")) {
     return nextUrl;
   }
-
-  // First check localStorage (fast)
-  if (checkOnboardingComplete()) {
-    return "/chat";
-  }
-
-  // Then check Supabase profile (authoritative)
-  try {
-    const res = await fetch("/api/onboarding/complete");
-    if (res.ok) {
-      const data = await res.json();
-      if (data.completed) {
-        return "/chat";
-      }
-    }
-  } catch {
-    // Ignore - use localStorage result
-  }
-
-  // Not completed - go to onboarding
-  return "/onboarding";
+  return "/chat";
 }
 
 function LoginContent() {
@@ -150,9 +110,7 @@ function LoginContent() {
     localStorage.setItem("demo_user", JSON.stringify(DEMO_USER));
     localStorage.setItem("demo_mode", "true");
     
-    // Check if onboarding completed
-    const redirectPath = checkOnboardingComplete() ? "/chat" : "/onboarding";
-    router.push(redirectPath);
+    router.push("/chat");
     router.refresh();
   };
 
@@ -253,7 +211,7 @@ function LoginContent() {
         }
 
         const nextUrl = searchParams.get("next");
-        const redirectPath = await getRedirectPath(nextUrl);
+        const redirectPath = getRedirectPath(nextUrl);
         router.push(redirectPath);
         router.refresh();
       }

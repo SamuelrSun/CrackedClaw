@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Conversation, Message } from "@/lib/mock-data";
 import { useGateway } from "@/hooks/use-gateway";
-import { useOnboardingChat } from "@/hooks/use-onboarding-chat";
 import { useToast } from "@/hooks/use-toast";
 import type { GatewayError } from "@/types/gateway";
 import Link from "next/link";
@@ -25,7 +24,6 @@ import {
   SubagentProgressCard,
   WorkflowSuggestionCard,
   ContextSummaryCard,
-  OnboardingWelcomeAnimation,
 } from "@/components/chat";
 import { ActiveAgentsPanel } from "@/components/chat/active-agents-panel";
 import { AgentActivityPanel } from "@/components/chat/agent-activity-panel";
@@ -140,7 +138,6 @@ interface RichMessageProps {
   onIntegrationConnect: (provider: string) => Promise<boolean>;
   onWorkflowSelect: (id: string) => void;
   onWorkflowCustom: () => void;
-  onWelcomeComplete: () => void;
   onScanComplete?: (summary: string) => void;
   onOpenMemory?: (insights: MemoryInsights, source: string) => void;
   gatewayHost?: string;
@@ -155,7 +152,6 @@ function RichMessage({
   onIntegrationConnect,
   onWorkflowSelect,
   onWorkflowCustom,
-  onWelcomeComplete,
   onScanComplete,
   onOpenMemory,
   gatewayHost,
@@ -325,45 +321,7 @@ function RichMessage({
   );
 }
 
-// Onboarding progress indicator
-function OnboardingProgress({ phase }: { phase: string }) {
-  const phases = ["intro", "tools", "connecting", "learning"];
-  const currentIndex = phases.indexOf(phase);
 
-  const phaseLabels: Record<string, string> = {
-    intro: "Getting Started",
-    tools: "Pick Your Tools",
-    connecting: "Connecting Tools",
-    learning: "Learning About You",
-  };
-  
-  return (
-    <div className="bg-forest/5 border-b border-forest/10 px-4 py-2">
-      <div className="flex items-center justify-between max-w-3xl mx-auto">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-wide text-forest/60">
-            Onboarding
-          </span>
-          <span className="font-mono text-[11px] text-forest font-medium">
-            {phaseLabels[phase] || phase}
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          {phases.map((p, i) => (
-            <div
-              key={p}
-              className={cn(
-                "h-1.5 transition-all duration-300",
-                i <= currentIndex ? "bg-forest w-6" : "bg-forest/20 w-3"
-              )}
-            />
-          ))}
-        </div>
-
-      </div>
-    </div>
-  );
-}
 
 // Enhanced connection status component for sidebar
 function GatewayStatusPanel({
@@ -644,16 +602,6 @@ export default function ChatPageClient({
     loading: nodeLoading,
   } = useNodeStatus(30000);
   
-  const { 
-    onboardingState, 
-    isInOnboarding, 
-    currentPhase,
-    completeOnboarding,
-    updatePhase,
-    completeStep,
-    refreshState: refreshOnboardingState,
-  } = useOnboardingChat();
-  
   // Use server-provided initial state to avoid hydration mismatch
   const showBanner = !gatewayLoading && !isConnected && !initialHasGateway && !isReconnecting;
   const toast = useToast();
@@ -707,7 +655,6 @@ export default function ChatPageClient({
             if (data.connected) {
               clearInterval(pollInterval);
               popup.close();
-              try { await completeStep('integrations_shown'); } catch { /* continue */ }
               resolve(true);
               // Auto-send continuation message so agent continues the task
               setTimeout(() => {
@@ -727,7 +674,7 @@ export default function ChatPageClient({
 
       setTimeout(() => { clearInterval(pollInterval); resolve(false); }, 5 * 60 * 1000);
     });
-  }, [completeStep]);
+  }, []);
 
   const handleWorkflowSelect = useCallback((workflowTitle: string) => {
     // Send workflow selection as message
@@ -743,39 +690,16 @@ export default function ChatPageClient({
     }
   }, []);
 
-  const handleWelcomeComplete = useCallback(async () => {
-    // Welcome animation completed, advance to next phase
-    console.log("Welcome animation complete");
-    try {
-      await updatePhase("tools");
-    } catch {
-      // Continue anyway
-    }
-  }, [updatePhase]);
-
   const handleOpenMemory = useCallback((insights: MemoryInsights, source: string) => {
     setMemoryPanelData({ insights, source });
     setMemoryPanelOpen(true);
   }, []);
 
-  // Handle skip onboarding
-  const handleSkipOnboarding = useCallback(async () => {
-    try {
-      await completeOnboarding();
-      toast.success("Onboarding skipped", "You can always set up integrations in Settings.");
-    } catch (err) {
-      console.error("Failed to skip onboarding:", err);
-    }
-  }, [completeOnboarding, toast]);
-
-
-  // Integration polling: detect when user connects integration in another tab during onboarding
+  // Integration polling: detect when user connects integration in another tab
   useEffect(() => {
-    if (!isInOnboarding) return;
-    
     let prevConnected: Set<string> = new Set();
     let initialized = false;
-    
+
     const checkIntegrations = async () => {
       try {
         const res = await fetch("/api/integrations/status");
@@ -808,7 +732,7 @@ export default function ChatPageClient({
     const interval = setInterval(checkIntegrations, 7000);
     checkIntegrations(); // init baseline
     return () => clearInterval(interval);
-  }, [isInOnboarding]);
+  }, []);
 
   // Inline subagent polling — runs independently of the slide-out panel
   useEffect(() => {
@@ -1063,7 +987,6 @@ User message: `
             setActiveAgentTasks([]);
             setRetryCount(0);
             lastFailedMessage.current = null;
-            refreshOnboardingState();
           } else if (chunk.type === "error") {
             // Remove placeholder and fall back
             setMessages((prev) => prev.filter((m) => m.id !== streamingMsgId));
@@ -1131,11 +1054,10 @@ User message: `
       if (data.conversation_id) {
         const isNew = !conversations.find((c) => c.id === data.conversation_id);
         setConversationId(data.conversation_id);
-        if (isNew || data.is_onboarding) {
+        if (isNew) {
           await refreshConversations(data.conversation_id);
         }
       }
-      if (data.is_onboarding) refreshOnboardingState();
     } catch (err) {
       console.error("Fallback chat error:", err);
       const gatewayError: GatewayError = {
@@ -1211,21 +1133,6 @@ User message: `
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
-
-  // Issue 3: Show onboarding welcome conversation in sidebar from the start
-  useEffect(() => {
-    if (conversations.length === 0 && isInOnboarding) {
-      const welcomeConvo: Conversation = {
-        id: 'temp-welcome',
-        title: 'Welcome to CrackedClaw',
-        lastMessage: "",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      };
-      setConversations([welcomeConvo]);
-      setActiveConvo('temp-welcome');
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInOnboarding]);
 
   const handleLinkConversations = async (selectedIds: string[], linkType: string) => {
     if (!conversationId) return;
@@ -1492,11 +1399,6 @@ User message: `
           </button>
         </div>
 
-        {/* Onboarding Progress Bar */}
-        {isInOnboarding && currentPhase && (
-          <OnboardingProgress phase={currentPhase} />
-        )}
-
         {/* Reconnection Banner */}
         <ReconnectionBanner
           isReconnecting={isReconnecting}
@@ -1561,7 +1463,7 @@ User message: `
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-mono text-[10px] uppercase tracking-wide text-grid/40">
-                      {msg.role === "user" ? "You" : (onboardingState?.agent_name && onboardingState.agent_name !== onboardingState?.user_display_name ? onboardingState.agent_name : "Assistant")}
+                      {msg.role === "user" ? "You" : "Assistant"}
                     </span>
                     <span className="font-mono text-[9px] text-grid/30">{msg.timestamp}</span>
                   </div>
@@ -1592,7 +1494,6 @@ User message: `
                         onIntegrationConnect={handleIntegrationConnect}
                         onWorkflowSelect={handleWorkflowSelect}
                         onWorkflowCustom={handleWorkflowCustom}
-                        onWelcomeComplete={handleWelcomeComplete}
                         onScanComplete={(summary) => handleSendRef.current(`[System] Scan complete: ${summary}`)}
                         onOpenMemory={handleOpenMemory}
                         gatewayHost={gatewayHost}
@@ -1664,15 +1565,13 @@ User message: `
             <div className="flex-1 flex items-center justify-center h-full">
               <div className="text-center">
                 <div className="w-16 h-16 mx-auto mb-4 border border-[rgba(58,58,56,0.2)] flex items-center justify-center">
-                  <span className="text-2xl">{isInOnboarding ? "👋" : "💬"}</span>
+                  <span className="text-2xl">💬</span>
                 </div>
                 <h3 className="font-header text-lg font-bold mb-2">
-                  {isInOnboarding ? "Welcome!" : "Start a conversation"}
+                  Start a conversation
                 </h3>
                 <p className="text-sm text-grid/50 max-w-sm">
-                  {isInOnboarding 
-                    ? "Let's get you set up. Type 'hello' to begin!"
-                    : "Ask your assistant anything — summarize emails, draft responses, research topics, or get help with tasks."}
+                  Ask your assistant anything — summarize emails, draft responses, research topics, or get help with tasks.
                 </p>
               </div>
             </div>
@@ -1754,17 +1653,6 @@ User message: `
 
         {/* Input */}
         <div className="flex-shrink-0 border-t border-[rgba(58,58,56,0.2)] p-4">
-          {/* Skip onboarding option */}
-          {isInOnboarding && (
-            <div className="mb-2 flex justify-end">
-              <button
-                onClick={handleSkipOnboarding}
-                className="font-mono text-[10px] text-grid/40 hover:text-grid/60 uppercase tracking-wide"
-              >
-                Skip onboarding →
-              </button>
-            </div>
-          )}
           {/* File preview strip */}
           <FilePreview
             files={attachedFiles}
@@ -1786,7 +1674,7 @@ User message: `
                   : attachedFiles.length > 0
                     ? "Add a message about these files..."
                     : gateway 
-                      ? (isInOnboarding ? "Say hello to get started..." : "Message your assistant...") 
+                      ? "Message your assistant..."
                       : "Connect gateway to chat..."
               }
               disabled={!gateway || isLoading || isReconnecting}
