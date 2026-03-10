@@ -98,6 +98,7 @@ export function AgentCanvas({
           background: '#F7F7F5',
           backgroundImage: 'radial-gradient(circle, #d0d0cc 1px, transparent 1px)',
           backgroundSize: '24px 24px',
+          backgroundPosition: `${canvasOffset.x}px ${canvasOffset.y}px`,
         }}
         onMouseDown={handleCanvasMouseDown}
       >
