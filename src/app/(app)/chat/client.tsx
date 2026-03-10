@@ -35,6 +35,7 @@ import { MemoryPanel, type MemoryInsights } from "@/components/chat/memory-panel
 import { BrowserPopup } from "@/components/chat/browser-popup";
 import { BrowserPreviewCard } from "@/components/chat/browser-preview-card";
 import { BrowserOpenCard } from "@/components/chat/browser-open-card";
+import { getIntegration } from "@/lib/integrations/registry";
 import { LinkedContextBadge } from "@/components/chat/linked-context-badge";
 import { ConversationContextMenu } from "@/components/chat/conversation-context-menu";
 import { ConversationPickerModal } from "@/components/chat/conversation-picker-modal";
@@ -639,6 +640,23 @@ export default function ChatPageClient({
 
   // Handle integration connect via OAuth popup
   const handleIntegrationConnect = useCallback(async (provider: string): Promise<boolean> => {
+    // Browser-login integrations: just open the site in user's browser
+    const integration = getIntegration(provider);
+    if (integration?.authType === 'browser-login') {
+      const urls: Record<string, string> = {
+        linkedin: 'https://linkedin.com',
+        instagram: 'https://instagram.com',
+        facebook: 'https://facebook.com',
+        whatsapp: 'https://web.whatsapp.com',
+        youtube: 'https://youtube.com',
+        twitter: 'https://twitter.com',
+        reddit: 'https://reddit.com',
+      };
+      const url = urls[provider] || `https://${provider}.com`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return true;
+    }
+
     const width = 600;
     const height = 700;
     const left = window.screenX + (window.outerWidth - width) / 2;

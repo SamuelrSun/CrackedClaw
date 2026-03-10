@@ -326,15 +326,20 @@ export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegr
     if (!card || card.status !== "idle") return;
     const { resolved } = card;
 
-    // Browser/node-gated integrations
+    // Browser-login integrations: open the site directly in user's browser
     if (resolved.needsNode || resolved.authType === "browser") {
-      if (!nodeOnline) {
-        // Node not connected — show setup instructions
-        setNodeModal(resolved.name);
-      } else {
-        // Node is connected — mark as ready. The assistant will open the browser when needed.
-        setCards(prev => prev.map((c, idx) => idx === index ? { ...c, status: "added" } : c));
-      }
+      const urls: Record<string, string> = {
+        linkedin: 'https://linkedin.com',
+        instagram: 'https://instagram.com',
+        facebook: 'https://facebook.com',
+        whatsapp: 'https://web.whatsapp.com',
+        youtube: 'https://youtube.com',
+        twitter: 'https://twitter.com',
+        reddit: 'https://reddit.com',
+      };
+      const url = urls[resolved.id] || \`https://\${resolved.id}.com\`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setCards(prev => prev.map((c, idx) => idx === index ? { ...c, status: "added" } : c));
       return;
     }
 
