@@ -14,7 +14,7 @@ import { getTools } from "@/lib/agent/tools";
 import type { AgentContext, StreamEvent } from "@/lib/agent/runtime";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 800; // Pro plan — needed for deep scan tool calls
 
 function encode(chunk: StreamEvent | Record<string, unknown>): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(chunk)}\n\n`);
