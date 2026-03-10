@@ -9,11 +9,29 @@ async function runPass(
   prompt: string,
 ): Promise<{ memories: AnalysisPassResult['memories']; entities: ExtractedEntity[] }> {
   const client = new Anthropic({ apiKey });
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 6000,
-    messages: [{ role: 'user', content: prompt }],
-  });
+
+  // Retry with exponential backoff for rate limits
+  let response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      response = await client.messages.create({
+        model: MODEL,
+        max_tokens: 6000,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      break;
+    } catch (err: unknown) {
+      const status = (err as { status?: number }).status;
+      if (status === 429 && attempt < 2) {
+        const wait = (attempt + 1) * 30000; // 30s, 60s
+        console.log('Pass ' + passName + ' rate limited, waiting ' + (wait / 1000) + 's (attempt ' + (attempt + 1) + '/3)');
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      throw err;
+    }
+  }
+  if (!response) throw new Error('Failed after 3 retries');
   const text = response.content[0].type === 'text' ? response.content[0].text : '';
 
   // Robust parser: try XML tags first, then markdown code blocks, then raw JSON

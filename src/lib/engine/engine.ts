@@ -30,24 +30,27 @@ export async function runDeepAnalysis(
 
   onProgress?.({ phase: 'fetching', progress: 100, message: 'Fetched ' + data.emails.totalSent + ' sent + ' + data.emails.totalReceived + ' received emails, ' + (data.calendar.pastEvents.length + data.calendar.futureEvents.length) + ' calendar events' });
 
-  // ── Phase 2: Run analysis passes (all in parallel) ────────
-  onProgress?.({ phase: 'analyzing', progress: 0, message: 'Starting 10 analysis passes...' });
+  // ── Phase 2: Run analysis passes (sequential to respect rate limits) ────────
+  onProgress?.({ phase: 'analyzing', progress: 0, message: 'Starting ' + Object.keys(ALL_PASSES).length + ' analysis passes (sequential to stay within rate limits)...' });
 
   const passNames = Object.keys(ALL_PASSES) as PassName[];
-  const passPromises = passNames.map(async (name, i) => {
-    onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round((i / passNames.length) * 50), message: 'Running ' + name + ' analysis...' });
+  const passResults: AnalysisPassResult[] = [];
+
+  for (let i = 0; i < passNames.length; i++) {
+    const name = passNames[i];
+    onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round((i / passNames.length) * 100), message: 'Running ' + name + ' analysis (' + (i + 1) + '/' + passNames.length + ')...' });
     try {
       const result = await ALL_PASSES[name](data, apiKey);
       onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round(((i + 1) / passNames.length) * 100), message: name + ' complete — ' + result.memories.length + ' insights, ' + result.entities.length + ' entities' });
-      return result;
+      passResults.push(result);
     } catch (err) {
       console.error('Pass ' + name + ' failed:', err);
       onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round(((i + 1) / passNames.length) * 100), message: name + ' failed: ' + String(err) });
-      return { passName: name, memories: [], entities: [] } as AnalysisPassResult;
+      passResults.push({ passName: name, memories: [], entities: [] } as AnalysisPassResult);
     }
-  });
-
-  const passResults = await Promise.all(passPromises);
+    // Rate limit: wait between passes to stay under 30k tokens/min
+    if (i < passNames.length - 1) await new Promise(r => setTimeout(r, 15000));
+  }
 
   // ── Phase 3: Correlate entities across passes ──────────────
   onProgress?.({ phase: 'correlating', progress: 0, message: 'Correlating entities across data sources...' });
