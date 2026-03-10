@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self';">
+  <title>CrackedClaw Connect</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Setup Screen -->
+  <div id="screen-setup" class="screen active">
+    <div class="logo">CrackedClaw</div>
+    <p class="subtitle">Connect your machine to your cloud AI instance</p>
+    <input
+      id="token-input"
+      type="text"
+      placeholder="Paste your connection token"
+      spellcheck="false"
+      autocomplete="off"
+    />
+    <button id="btn-connect" class="btn-primary">Connect</button>
+    <p id="error-msg" class="error"></p>
+  </div>
+
+  <!-- Connected Screen -->
+  <div id="screen-connected" class="screen">
+    <div class="checkmark">&#10003;</div>
+    <p class="status-label">Connected</p>
+    <p id="instance-url" class="instance-url"></p>
+    <button id="btn-disconnect" class="btn-secondary">Disconnect</button>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

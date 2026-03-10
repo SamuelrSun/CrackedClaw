@@ -183,7 +183,10 @@ export async function POST(request: NextRequest) {
         if (useGateway && instance) {
           // ═══ OPENCLAW GATEWAY PATH ═══
           // Route through user's OpenClaw instance — it handles tools, skills, everything
-          const gatewayUrl = `http://${instance.host}:${instance.port}/v1/chat/completions`;
+          const gatewayBase = instance.port === 443
+            ? `https://${instance.host}`
+            : `http://${instance.host}:${instance.port}`;
+          const gatewayUrl = `${gatewayBase}/v1/chat/completions`;
 
           const gatewayMessages = [
             { role: 'system', content: systemPrompt },

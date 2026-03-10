@@ -19,76 +19,55 @@ interface InstanceInfo {
 }
 
 /**
- * Get the user's OpenClaw instance connection info.
- * Checks: 1) openclaw_instances table (stores provisioned instance data)
- *         2) Falls back to provisioning API
+ * Get the user's OpenClaw instance connection info from the organizations table.
  */
 export async function getUserInstance(userId: string): Promise<InstanceInfo | null> {
-  // Try openclaw_instances table first
-  const { data } = await supabase
-    .from('openclaw_instances')
-    .select('instance_id, host, port, gateway_token, status')
-    .eq('user_id', userId)
-    .eq('status', 'running')
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('openclaw_instance_id, openclaw_gateway_url, openclaw_auth_token, openclaw_status')
+    .eq('owner_id', userId)
+    .eq('openclaw_status', 'running')
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
 
-  if (data) {
-    return {
-      instanceId: data.instance_id,
-      host: data.host || process.env.OPENCLAW_SERVER_HOST || '164.92.75.153',
-      port: data.port || 18100,
-      gatewayToken: data.gateway_token,
-    };
-  }
+  if (org?.openclaw_gateway_url && org?.openclaw_auth_token) {
+    // Parse gateway_url to extract host and port
+    // gateway_url is like "https://i-f2da86c0.crackedclaw.com" or "http://164.92.75.153:18100"
+    let host: string;
+    let port: number;
 
-  // Try getting org-linked instance via provisioning API
-  try {
-    const { data: org } = await supabase
-      .from('organizations')
-      .select('id')
-      .eq('owner_id', userId)
-      .limit(1)
-      .single();
-
-    if (org) {
-      const provUrl = process.env.PROVISIONING_API_URL || 'http://164.92.75.153:3456';
-      const provKey = process.env.PROVISIONING_API_KEY || '';
-      const res = await fetch(provUrl + '/api/instances', {
-        headers: provKey ? { 'Authorization': 'Bearer ' + provKey } : {},
-      });
-      if (res.ok) {
-        const instances = await res.json();
-        const match = (instances.instances || []).find((i: { organization_id: string; status: string }) =>
-          i.organization_id === org.id && i.status === 'running'
-        );
-        if (match) {
-          return {
-            instanceId: match.id,
-            host: process.env.OPENCLAW_SERVER_HOST || '164.92.75.153',
-            port: match.port,
-            gatewayToken: match.auth_token,
-          };
-        }
-      }
+    try {
+      const parsed = new URL(org.openclaw_gateway_url);
+      host = parsed.hostname;
+      port = parsed.port ? parseInt(parsed.port, 10) : (parsed.protocol === 'https:' ? 443 : 80);
+    } catch {
+      return null;
     }
-  } catch (err) {
-    console.error('Provisioning API lookup failed:', err);
+
+    return {
+      instanceId: org.openclaw_instance_id || 'unknown',
+      host,
+      port,
+      gatewayToken: org.openclaw_auth_token,
+    };
   }
 
   return null;
 }
 
 /**
- * Build the gateway URL for a user's instance
+ * Build the gateway URL for a user's instance.
+ * For SSL domains (port 443), use https://host.
+ * For local/IP instances, use http://host:port.
  */
 function getGatewayUrl(instance: InstanceInfo): string {
-  // If running on same server, use localhost
+  if (instance.port === 443) {
+    return `https://${instance.host}`;
+  }
   if (instance.host === 'localhost' || instance.host === '127.0.0.1') {
     return `http://localhost:${instance.port}`;
   }
-  // Remote instance
   return `http://${instance.host}:${instance.port}`;
 }
 

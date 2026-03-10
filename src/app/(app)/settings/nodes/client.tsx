@@ -98,6 +98,9 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
   const [copied, setCopied] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [connectionToken, setConnectionToken] = useState<string | null>(null);
+  const [showConnectionToken, setShowConnectionToken] = useState(false);
+  const [copiedConnectionToken, setCopiedConnectionToken] = useState(false);
 
   // Derived values
   const { host, port } = parseGatewayUrl(organization?.openclaw_gateway_url || null);
@@ -133,6 +136,22 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
     } finally {
       setLoadingConnected(false);
     }
+  }, []);
+
+  // Fetch connection token for desktop app
+  useEffect(() => {
+    async function fetchConnectionToken() {
+      try {
+        const res = await fetch("/api/node/connection-token");
+        if (res.ok) {
+          const data = await res.json();
+          setConnectionToken(data.token || null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch connection token:", err);
+      }
+    }
+    fetchConnectionToken();
   }, []);
 
   // Initial fetch
@@ -267,6 +286,68 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
       </div>
 
       <div className="max-w-3xl space-y-6">
+        {/* Section 0: Desktop App Token */}
+        <Card label="Desktop App Token" accentColor="#FF6B6B" bordered>
+          <div className="mt-2 space-y-4">
+            <span className="font-mono text-[11px] text-grid/60">
+              For CrackedClaw Connect (Desktop App)
+            </span>
+
+            {/* Token display */}
+            <div className="relative">
+              <pre className="bg-forest text-white p-4 font-mono text-xs overflow-x-auto break-all whitespace-pre-wrap">
+                <code>{connectionToken ? (showConnectionToken ? connectionToken : maskToken(connectionToken)) : "Loading..."}</code>
+              </pre>
+              <div className="absolute top-2 right-2 flex gap-2">
+                <button
+                  onClick={() => setShowConnectionToken(!showConnectionToken)}
+                  className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white font-mono text-[9px] uppercase tracking-wide transition-colors"
+                >
+                  {showConnectionToken ? "Hide" : "Show"}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!connectionToken) return;
+                    try {
+                      await navigator.clipboard.writeText(connectionToken);
+                      setCopiedConnectionToken(true);
+                      setTimeout(() => setCopiedConnectionToken(false), 2000);
+                    } catch (err) {
+                      console.error("Failed to copy:", err);
+                    }
+                  }}
+                  className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white font-mono text-[9px] uppercase tracking-wide transition-colors flex items-center gap-1"
+                >
+                  {copiedConnectionToken ? (
+                    <>
+                      <Check className="w-3 h-3" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Download link */}
+            <div className="pt-2 border-t border-[rgba(58,58,56,0.1)]">
+              <a
+                href="https://crackedclaw.com/connect"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-forest hover:text-mint transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Download CrackedClaw Connect
+              </a>
+            </div>
+          </div>
+        </Card>
+
         {/* Section 1: Connect Your Mac */}
         <Card label="Connect Your Mac" accentColor="#9EFFBF" bordered>
           <div className="mt-2 space-y-4">

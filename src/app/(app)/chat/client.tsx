@@ -147,6 +147,7 @@ interface RichMessageProps {
   onOpenBrowser?: (url: string, control?: boolean) => void;
   onSendEmail?: (email: EmailDraft) => Promise<void>;
   onSaveDraftEmail?: (email: EmailDraft) => Promise<void>;
+  onViewActivity: () => void;
 }
 
 function RichMessage({
@@ -161,6 +162,7 @@ function RichMessage({
   onOpenBrowser,
   onSendEmail,
   onSaveDraftEmail,
+  onViewActivity,
 }: RichMessageProps) {
   return (
     <div className="space-y-3">
@@ -312,7 +314,7 @@ function RichMessage({
                 totalMemories={segment.totalMemories}
                 durationSeconds={segment.durationSeconds}
                 workflowSuggestions={segment.workflowSuggestions}
-                onViewActivity={() => setActivityPanelOpen(true)}
+                onViewActivity={onViewActivity}
               />
             );
           default:
@@ -1638,6 +1640,7 @@ User message: `
                             toast.error('Failed to save draft', String(err));
                           }
                         }}
+                        onViewActivity={() => setActivityPanelOpen(true)}
                       />
                     ) : msg.role === "user" ? (
                       <UserMessageContent content={msg.content} />

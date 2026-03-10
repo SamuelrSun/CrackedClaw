@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createInitialState } from "@/lib/onboarding/state-machine";
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Generate a random workspace name like "swift-horizon-4821"
  */
@@ -110,6 +112,54 @@ export async function POST(request: NextRequest) {
         .eq("id", user.id);
     }
 
+    // ── Provision OpenClaw gateway instance on DO server ──
+    if (isNewOrganization) {
+      const provisioningUrl = process.env.PROVISIONING_API_URL;
+      const provisioningSecret = process.env.PROVISIONING_API_SECRET;
+
+      if (provisioningUrl && provisioningSecret) {
+        try {
+          const provRes = await fetch(`${provisioningUrl}/api/provision`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${provisioningSecret}`,
+            },
+            body: JSON.stringify({
+              organization_id: organizationId,
+              organization_name,
+              user_display_name: user_display_name || undefined,
+              agent_name: agent_name || undefined,
+              use_case: use_case || undefined,
+            }),
+          });
+
+          if (provRes.ok) {
+            const provData = await provRes.json();
+            if (provData.success && provData.instance) {
+              await supabase
+                .from("organizations")
+                .update({
+                  openclaw_gateway_url: provData.instance.gateway_url,
+                  openclaw_auth_token: provData.instance.auth_token,
+                  openclaw_instance_id: provData.instance.id,
+                  openclaw_status: "running",
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", organizationId);
+            }
+          } else {
+            const errText = await provRes.text().catch(() => provRes.statusText);
+            console.error("DO provisioning failed:", provRes.status, errText);
+            // Non-fatal: org still created, just no gateway instance
+          }
+        } catch (provErr) {
+          console.error("DO provisioning error:", provErr);
+          // Non-fatal: org still created
+        }
+      }
+    }
+
     const now = new Date().toISOString();
 
     // Initialize onboarding state for new users
@@ -168,13 +218,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Fetch the org to return current gateway data
+    const { data: finalOrg } = await supabase
+      .from("organizations")
+      .select("openclaw_instance_id, openclaw_gateway_url, openclaw_status")
+      .eq("id", organizationId)
+      .single();
+
     return NextResponse.json({
       success: true,
       organization_id: organizationId,
       instance: {
-        id: organizationId,
-        gateway_url: null,
-        status: "running",
+        id: finalOrg?.openclaw_instance_id || organizationId,
+        gateway_url: finalOrg?.openclaw_gateway_url || null,
+        status: finalOrg?.openclaw_status || "running",
       },
       onboarding_initialized: isNewOrganization,
     });
@@ -213,9 +270,9 @@ export async function GET() {
         id: org.id,
         name: org.name,
         plan: org.plan,
-        openclaw_instance_id: null,
-        openclaw_gateway_url: null,
-        openclaw_status: "running",
+        openclaw_instance_id: org.openclaw_instance_id || null,
+        openclaw_gateway_url: org.openclaw_gateway_url || null,
+        openclaw_status: org.openclaw_status || "running",
       },
     });
   } catch (error) {

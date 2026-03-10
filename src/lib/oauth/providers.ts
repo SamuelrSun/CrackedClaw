@@ -204,8 +204,12 @@ export function isProviderConfigured(provider: OAuthProvider): boolean {
  * Get the callback URL for OAuth
  */
 export function getCallbackUrl(): string {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL 
-    ? `https://${process.env.VERCEL_URL}` 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appUrl) {
+    console.error('CRITICAL: NEXT_PUBLIC_APP_URL is not set — OAuth redirects will fail in production');
+  }
+  const baseUrl = appUrl || (process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
     : 'http://localhost:3000');
   return `${baseUrl}/api/integrations/oauth/callback`;
 }

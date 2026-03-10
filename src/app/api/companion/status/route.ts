@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 const RELAY_STATUS_URL = 'https://companion.crackedclaw.com/api/companion/status';
 
 export async function GET(req: NextRequest) {

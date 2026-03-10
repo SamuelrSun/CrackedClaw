@@ -49,7 +49,7 @@ export async function GET() {
       createdAt: a.created_at,
       lastActiveAt: a.updated_at,
       messages: (a.agent_messages || [])
-        .sort((x: {created_at: string}, y: {created_at: string}) => 
+        .sort((x: {created_at: string}, y: {created_at: string}) =>
           new Date(x.created_at).getTime() - new Date(y.created_at).getTime())
         .map((m: {role: string; content: string; created_at: string}) => ({
           role: m.role,
@@ -111,91 +111,28 @@ export async function POST(request: NextRequest) {
 
     if (dbError) throw dbError;
 
-    // Send initial task as first message
+    // Save initial task as first user message
     await supabase.from('agent_messages').insert({
       agent_id: agent.id,
       role: 'user',
       content: task,
     });
 
-    // Get initial LLM response WITH tools
-    try {
-      const { data: integrations } = await supabase
-        .from('user_integrations')
-        .select('provider')
-        .eq('user_id', user.id)
-        .eq('status', 'connected');
-
-      const agentContext = {
-        userId: user.id,
-        orgId: '',
-        conversationId: agent.id,
-        companionConnected: false,
-        integrations: (integrations || []).map((i: { provider: string }) => i.provider),
-      };
-
-      const { buildSystemPromptForUser } = await import('@/lib/gateway/system-prompt');
-      const { AgentRuntime } = await import('@/lib/agent/runtime');
-      const { getTools } = await import('@/lib/agent/tools');
-
-      const systemPrompt = await buildSystemPromptForUser(user.id, task);
-      const tools = getTools(agentContext);
-      const runtime = new AgentRuntime(process.env.ANTHROPIC_API_KEY!);
-
-      const result = await runtime.chat(
-        {
-          model: agent.model || 'claude-sonnet-4-20250514',
-          systemPrompt: systemPrompt + `\n\nYou are an agent named "${name}". Your task: "${task}". Use your tools to make progress on this task immediately.`,
-          tools,
-          maxTokens: 4096,
-        },
-        [{ role: 'user', content: task }],
-        agentContext,
-      );
-
-      await supabase.from('agent_messages').insert({
-        agent_id: agent.id,
-        role: 'assistant',
-        content: result.response,
-      });
-
-      await supabase.from('agent_instances').update({
-        status: 'idle',
-        updated_at: new Date().toISOString(),
-      }).eq('id', agent.id);
-    } catch (err) {
-      console.error('Agent initial response error:', err);
-      await supabase.from('agent_instances').update({ status: 'idle' }).eq('id', agent.id);
-    }
-
-    // Return fresh agent
-    const { data: fresh } = await supabase
-      .from('agent_instances')
-      .select('*, agent_messages(*)')
-      .eq('id', agent.id)
-      .single();
-
-    const formatted = {
-      id: fresh.id,
-      name: fresh.name,
-      task: fresh.task,
-      status: fresh.status,
-      model: fresh.model,
-      position: { x: fresh.position_x, y: fresh.position_y },
-      integrations: fresh.integrations || [],
-      createdAt: fresh.created_at,
-      lastActiveAt: fresh.updated_at,
-      messages: (fresh.agent_messages || [])
-        .sort((x: {created_at: string}, y: {created_at: string}) => 
-          new Date(x.created_at).getTime() - new Date(y.created_at).getTime())
-        .map((m: {role: string; content: string; created_at: string}) => ({
-          role: m.role,
-          content: m.content,
-          timestamp: m.created_at,
-        })),
-    };
-
-    return jsonResponse({ agent: formatted }, 201);
+    // Return immediately — client will call /run to start streaming execution
+    return jsonResponse({
+      agent: {
+        id: agent.id,
+        name: agent.name,
+        task: agent.task,
+        status: 'running',
+        model: agent.model,
+        position: { x: agent.position_x, y: agent.position_y },
+        integrations: agent.integrations || [],
+        createdAt: agent.created_at,
+        lastActiveAt: agent.updated_at,
+        messages: [{ role: 'user', content: task, timestamp: agent.created_at }],
+      },
+    }, 201);
   } catch (err) {
     console.error("Failed to create agent:", err);
     return errorResponse("Failed to create agent", 500);

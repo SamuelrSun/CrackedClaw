@@ -61,6 +61,32 @@ const channelInstructions: Record<ChannelType, {
     tokenPlaceholder: "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ",
     docsUrl: "https://core.telegram.org/bots#how-do-i-create-a-bot",
   },
+  signal: {
+    name: "Signal",
+    icon: <MessageSquare className="w-6 h-6" />,
+    steps: [
+      "Install signal-cli on your server (github.com/AsamK/signal-cli)",
+      "Register or link a phone number with signal-cli",
+      "Set up the JSON-RPC interface",
+      "Copy the phone number used for registration",
+    ],
+    tokenLabel: "Phone Number",
+    tokenPlaceholder: "+1234567890",
+    docsUrl: "https://github.com/AsamK/signal-cli",
+  },
+  imessage: {
+    name: "iMessage",
+    icon: <MessageCircle className="w-6 h-6" />,
+    steps: [
+      "Requires a Mac with Messages.app signed in",
+      "Install the CrackedClaw Connect companion app",
+      "The companion app bridges iMessage to your cloud agent",
+      "Messages are processed locally on your Mac",
+    ],
+    tokenLabel: "Connection Token",
+    tokenPlaceholder: "Paste your companion app token",
+    docsUrl: "https://crackedclaw.com/connect",
+  },
   whatsapp: {
     name: "WhatsApp",
     icon: <MessageSquare className="w-6 h-6" />,

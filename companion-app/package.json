@@ -1,0 +1,41 @@
+{
+  "name": "crackedclaw-connect",
+  "version": "1.0.0",
+  "description": "CrackedClaw Connect — link your machine to your CrackedClaw cloud AI instance",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.crackedclaw.connect",
+    "productName": "CrackedClaw Connect",
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.utilities"
+    },
+    "dmg": {
+      "title": "CrackedClaw Connect",
+      "contents": [
+        { "x": 130, "y": 220 },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ]
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "node-manager.js",
+      "index.html",
+      "style.css",
+      "assets/**/*"
+    ]
+  }
+}

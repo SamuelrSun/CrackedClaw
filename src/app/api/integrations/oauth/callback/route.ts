@@ -92,8 +92,12 @@ export async function GET(request: NextRequest) {
   const error = searchParams.get('error');
   const errorDescription = searchParams.get('error_description');
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  const redirectBase = `${appUrl}/integrations`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appUrl) {
+    console.error('CRITICAL: NEXT_PUBLIC_APP_URL is not set — OAuth redirects will fail in production');
+  }
+  const baseUrl = appUrl || 'http://localhost:3000';
+  const redirectBase = `${baseUrl}/integrations`;
 
   // Handle OAuth errors from provider
   if (error) {
