@@ -299,6 +299,22 @@ function RichMessage({
                 onComplete={onScanComplete}
               />
             );
+          case "scan-result":
+            return (
+              <ScanProgressCard
+                key={idx}
+                scanId={segment.scanId}
+                status="complete"
+                providers={segment.providers.map((p: { name: string; memories: number; error?: string }) => ({ name: p.name, status: p.error ? 'failed' : 'complete', memories: p.memories, error: p.error }))}
+                progress={100}
+                currentPhase="complete"
+                currentMessage="Scan complete"
+                totalMemories={segment.totalMemories}
+                durationSeconds={segment.durationSeconds}
+                workflowSuggestions={segment.workflowSuggestions}
+                onViewActivity={() => setActivityPanelOpen(true)}
+              />
+            );
           default:
             return null;
         }
@@ -950,12 +966,29 @@ User message: `
               setAgentActivities(prev => prev.map(a =>
                 a.status === 'running' ? { ...a, status: 'done' as const, completedAt: Date.now() } : a
               ));
-              setScanCardState(prev => prev ? {
-                ...prev,
-                status: 'complete',
-                progress: 100,
-                durationSeconds: scanStartedAt ? Math.round((Date.now() - scanStartedAt) / 1000) : undefined,
-              } : null);
+              setScanCardState(prev => {
+                if (!prev) return null;
+                const completedState = {
+                  ...prev,
+                  status: 'complete' as const,
+                  progress: 100,
+                  durationSeconds: scanStartedAt ? Math.round((Date.now() - scanStartedAt) / 1000) : undefined,
+                };
+                // Persist scan result as a tag so it survives reload
+                const scanResultTag = '[[scan-result:' + JSON.stringify({
+                  scanId: prev.scanId,
+                  totalMemories: prev.totalMemories || 0,
+                  durationSeconds: completedState.durationSeconds || 0,
+                  providers: (prev.providers || []).map(p => ({ name: p.name, memories: p.memories || 0, error: p.error })),
+                  workflowSuggestions: prev.workflowSuggestions,
+                }) + ']]';
+                // Append to current streaming message
+                updateMsg((m) => ({
+                  ...m,
+                  content: (m.content || '') + '\n\n' + scanResultTag,
+                }));
+                return completedState;
+              });
             }
           } else if (chunk.type === "tool_progress" && chunk.tool && chunk.data) {
             const data = chunk.data as { phase?: string; pass?: string; message?: string; progress?: number; provider?: string; providers?: Array<{name: string; status: string; memories?: number; error?: string}> };

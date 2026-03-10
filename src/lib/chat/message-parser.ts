@@ -50,7 +50,8 @@ export type ParsedSegment =
   | { type: "workflow-preview"; workflow: WorkflowDef }
   | { type: "browser-preview"; url: string; status: "browsing" | "waiting-login" | "complete" | "error"; message?: string }
   | { type: "browser-open"; url: string; message?: string }
-  | { type: "email-composer"; to: string[]; cc?: string[]; bcc?: string[]; subject: string; body: string; integration: 'google' | 'microsoft' };
+  | { type: "email-composer"; to: string[]; cc?: string[]; bcc?: string[]; subject: string; body: string; integration: 'google' | 'microsoft' }
+  | { type: "scan-result"; scanId: string; totalMemories: number; durationSeconds: number; providers: Array<{ name: string; memories: number; error?: string }>; workflowSuggestions?: Array<{ name: string; description: string }> };
 
 const PATTERNS = {
   inlineTask: /\[\[task:([^:]+):([^:]+)(?::([^\]]+))?\]\]/g,
@@ -67,6 +68,7 @@ const PATTERNS = {
   browserPreview: /\[\[browser:([^:]+):([^:]+)(?::([^\]]+))?\]\]/g,
   emailComposer: /\[\[email:(\{[^\]]*\})\]\]/g,
   fileAttachment: /\[Attached files:([^\]]+)\]/g,
+  scanResult: /\[\[scan-result:(\{[^\]]*\})\]\]/g,
 };
 
 interface MatchInfo {
@@ -393,6 +395,7 @@ export function parseMessageContent(content: string): ParsedSegment[] {
 
   // Browser preview
   PATTERNS.browserPreview.lastIndex = 0;
+  PATTERNS.scanResult.lastIndex = 0;
   while ((match = PATTERNS.browserPreview.exec(processedContent)) !== null) {
     const bStatus = match[2].trim() as "browsing" | "waiting-login" | "complete" | "error";
     const validStatuses = ["browsing", "waiting-login", "complete", "error"];
@@ -424,6 +427,48 @@ export function parseMessageContent(content: string): ParsedSegment[] {
         message: match[2]?.trim(),
       },
     });
+  }
+
+
+  // Scan result card - [[scan-result:{...}]]
+  {
+    const SCAN_TAG = "[[scan-result:";
+    let sSearch = 0;
+    while (true) {
+      const sStart = processedContent.indexOf(SCAN_TAG, sSearch);
+      if (sStart === -1) break;
+      const payloadStart = sStart + SCAN_TAG.length;
+      if (processedContent[payloadStart] !== "{") { sSearch = payloadStart; continue; }
+      let depth = 1;
+      let pos = payloadStart + 1;
+      while (pos < processedContent.length && depth > 0) {
+        if (processedContent[pos] === "{") depth++;
+        else if (processedContent[pos] === "}") depth--;
+        pos++;
+      }
+      if (depth === 0 && processedContent[pos] === "]" && processedContent[pos + 1] === "]") {
+        const payload = processedContent.slice(payloadStart, pos);
+        const totalLen = pos + 2 - sStart;
+        try {
+          const data = JSON.parse(payload);
+          matches.push({
+            index: sStart,
+            length: totalLen,
+            segment: {
+              type: "scan-result",
+              scanId: data.scanId || "",
+              totalMemories: data.totalMemories || 0,
+              durationSeconds: data.durationSeconds || 0,
+              providers: data.providers || [],
+              workflowSuggestions: data.workflowSuggestions,
+            },
+          });
+        } catch { /* skip */ }
+        sSearch = sStart + totalLen;
+      } else {
+        sSearch = payloadStart;
+      }
+    }
   }
 
   // Email composer - bracket-aware extraction for [[email:{...}]]
@@ -553,6 +598,7 @@ export function hasRichContent(content: string): boolean {
   PATTERNS.skillSuggest.lastIndex = 0;
   PATTERNS.inlineTask.lastIndex = 0;
   PATTERNS.browserPreview.lastIndex = 0;
+  PATTERNS.scanResult.lastIndex = 0;
 
   return (
     PATTERNS.integrationConnect.test(content) ||
@@ -565,6 +611,7 @@ export function hasRichContent(content: string): boolean {
     PATTERNS.skillSuggest.test(content) ||
     PATTERNS.inlineTask.test(content) ||
     PATTERNS.browserPreview.test(content) ||
+    content.includes("[[scan-result:") ||
     /\[\[email:\{/.test(content)
   );
 }
