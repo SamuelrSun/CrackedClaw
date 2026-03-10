@@ -17,6 +17,8 @@ export async function GET() {
         domain: m.domain || 'general',
         importance: m.importance || 0.5,
         source: (m.metadata as Record<string, unknown>)?.source || 'chat',
+        page_path: (m.metadata as Record<string, unknown>)?.page_path || null,
+        temporal: (m.metadata as Record<string, unknown>)?.temporal || 'permanent',
         created_at: m.created_at,
         updated_at: m.updated_at,
       })),
@@ -34,19 +36,25 @@ export async function POST(request: NextRequest) {
   // Support both old {key, value} and new {content} formats
   const content = body.content || (body.key && body.value ? `${body.key}: ${body.value}` : null);
   if (!content) return errorResponse('content is required', 400);
-  await mem0Write(user.id, content, { domain: body.domain || body.category || 'general', source: 'user_input', importance: 0.8 });
+  await mem0Write(user.id, content, {
+    domain: body.domain || body.category || 'general',
+    source: 'user_input',
+    importance: 0.8,
+    metadata: body.page_path ? { page_path: body.page_path } : undefined,
+  });
   return jsonResponse({ ok: true });
 }
 
 export async function PATCH(request: NextRequest) {
   const { user, error } = await requireApiAuth();
   if (error) return error;
-  const { id, content, domain, importance } = await request.json();
+  const { id, content, domain, importance, page_path } = await request.json();
   if (!id) return errorResponse('id required', 400);
   await mem0Update(id, {
     ...(content !== undefined ? { content } : {}),
     ...(importance !== undefined ? { importance } : {}),
     ...(domain !== undefined ? { domain } : {}),
+    ...(page_path !== undefined ? { page_path } : {}),
   });
   return jsonResponse({ ok: true });
 }

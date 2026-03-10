@@ -293,7 +293,7 @@ export async function mem0GetCore(
  */
 export async function mem0Update(
   memoryId: string,
-  updates: { content?: string; importance?: number; domain?: string }
+  updates: { content?: string; importance?: number; domain?: string; page_path?: string | null }
 ): Promise<void> {
   try {
     const updateData: Record<string, unknown> = {
@@ -311,6 +311,17 @@ export async function mem0Update(
     }
     if (updates.importance !== undefined) updateData.importance = updates.importance;
     if (updates.domain !== undefined) updateData.domain = updates.domain;
+
+    // If page_path is being updated, merge into existing metadata
+    if (updates.page_path !== undefined) {
+      const { data: existing } = await supabase
+        .from('memories')
+        .select('metadata')
+        .eq('id', memoryId)
+        .single();
+      const existingMeta = (existing?.metadata as Record<string, unknown>) || {};
+      updateData.metadata = { ...existingMeta, page_path: updates.page_path };
+    }
 
     const { error } = await supabase.from('memories').update(updateData).eq('id', memoryId);
     if (error) throw error;

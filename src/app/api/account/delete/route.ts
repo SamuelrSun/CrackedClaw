@@ -168,23 +168,53 @@ export async function POST(request: NextRequest) {
     }
 
     // Delete user data
-    await Promise.all([
-      supabase.from("conversations").delete().eq("user_id", user.id),
-      supabase.from("memory_entries").delete().eq("user_id", user.id),
+    // Delete ALL user data — belt and suspenders with FK cascades
+    // Order matters: children before parents, catch errors so partial deletes don't abort
+    const deletions = [
+      // Agent system
+      supabase.from("agent_instances").delete().eq("user_id", user.id),  // agent_messages cascade via FK
+      supabase.from("agent_tasks").delete().eq("user_id", user.id),
+      // Chat
+      supabase.from("conversations").delete().eq("user_id", user.id),  // messages + conversation_links cascade via FK
+      // Memory (both old and new)
       supabase.from("memories").delete().eq("user_id", user.id),
-      supabase.from("integrations").delete().eq("user_id", user.id),
+      supabase.from("user_memory").delete().eq("user_id", user.id),
+      supabase.from("user_secrets").delete().eq("user_id", user.id),
+      // Files
+      supabase.from("file_chunks").delete().eq("user_id", user.id),
+      supabase.from("files").delete().eq("user_id", user.id),
+      // Integrations
+      supabase.from("user_integrations").delete().eq("user_id", user.id),
+      supabase.from("oauth_flows").delete().eq("user_id", user.id),
+      // Skills
+      supabase.from("installed_skills").delete().eq("user_id", user.id),
+      // Workflows
+      supabase.from("workflow_runs").delete().eq("user_id", user.id),
+      supabase.from("workflow_memory").delete().eq("user_id", user.id),
       supabase.from("workflows").delete().eq("user_id", user.id),
-      supabase.from("instructions").delete().eq("user_id", user.id),
+      // Usage & activity
       supabase.from("activity_log").delete().eq("user_id", user.id),
       supabase.from("token_usage").delete().eq("user_id", user.id),
-      supabase.from("user_gateways").delete().eq("user_id", user.id),
-      supabase.from("onboarding_state").delete().eq("user_id", user.id),
-      supabase.from("user_context").delete().eq("user_id", user.id),
-      supabase.from("oauth_flows").delete().eq("user_id", user.id),
-      supabase.from("user_integrations").delete().eq("user_id", user.id),
       supabase.from("usage_history").delete().eq("user_id", user.id),
+      supabase.from("daily_usage").delete().eq("user_id", user.id),
+      // Config
+      supabase.from("instructions").delete().eq("user_id", user.id),
+      supabase.from("user_gateways").delete().eq("user_id", user.id),
+      supabase.from("user_context").delete().eq("user_id", user.id),
+      supabase.from("onboarding_state").delete().eq("user_id", user.id),
+      // Profile last (other tables may FK to it)
       supabase.from("profiles").delete().eq("id", user.id),
-    ]);
+    ];
+    // Run all deletes, don't let individual failures block the rest
+    await Promise.allSettled(deletions);
+
+
+
+
+
+
+
+
 
     // Log the deletion (for audit)
     try {
@@ -201,6 +231,25 @@ export async function POST(request: NextRequest) {
       });
     } catch (err) {
       console.error("Failed to log deletion:", err);
+    }
+
+    // Clean up DO server data (browser sessions, files, exec artifacts)
+    try {
+      const doUrl = process.env.DO_SERVER_URL;
+      const doSecret = process.env.DO_SERVER_SECRET;
+      if (doUrl && doSecret) {
+        await fetch(`${doUrl}/tools/cleanup`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${doSecret}`,
+          },
+          body: JSON.stringify({ user_id: user.id, action: 'delete_all' }),
+          signal: AbortSignal.timeout(10_000),
+        }).catch(err => console.error('DO cleanup failed (non-fatal):', err));
+      }
+    } catch (err) {
+      console.error('DO server cleanup error (non-fatal):', err);
     }
 
     // Sign out the user first
@@ -233,11 +282,15 @@ export async function POST(request: NextRequest) {
 function getDataSummary(info: DeletionInfo): string[] {
   const items = [
     "All conversations and messages",
-    "All memory entries",
+    "All memories (semantic memory, secrets, learned context)",
+    "All AI agents and their chat history",
     "All workflows and their run history",
-    "All integrations and connected accounts",
+    "All integrations and OAuth tokens",
+    "All uploaded files and embeddings",
+    "All installed skills",
     "Usage history and token records",
-    "Instructions and preferences",
+    "Browser sessions and server-side data",
+    "Onboarding state and preferences",
   ];
 
   if (info.has_organization) {

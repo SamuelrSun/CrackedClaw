@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
         importance: m.importance,
         similarity: m.similarity,
         source: (m.metadata as Record<string, unknown>)?.source,
+        page_path: (m.metadata as Record<string, unknown>)?.page_path || null,
         created_at: m.created_at,
         updated_at: m.updated_at,
       })),

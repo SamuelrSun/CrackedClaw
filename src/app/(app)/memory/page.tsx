@@ -24,6 +24,8 @@ export default async function MemoryPage() {
     domain: m.domain || 'general',
     importance: m.importance || 0.5,
     source: String((m.metadata as Record<string, unknown>)?.source || 'chat'),
+    page_path: ((m.metadata as Record<string, unknown>)?.page_path as string) || null,
+    temporal: String((m.metadata as Record<string, unknown>)?.temporal || 'permanent'),
     created_at: m.created_at,
     updated_at: m.updated_at,
   }));

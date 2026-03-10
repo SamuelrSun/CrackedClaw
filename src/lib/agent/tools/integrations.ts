@@ -80,7 +80,7 @@ export const getIntegrationTokenTool: ToolDefinition = {
 
 export const scanIntegrationTool: ToolDefinition = {
   name: 'scan_integration',
-  description: 'Deep-scan a connected integration to learn about the user. Analyzes recent emails, calendar events, contacts, topics, and patterns. Saves everything to memory automatically. Use this when first connecting an integration or when the user asks you to learn about them.',
+  description: 'Deep-scan a connected integration to build a comprehensive behavioral profile. Analyzes communication style, relationships, decision patterns, priorities, and more. Takes 3-5 minutes. Saves all insights to memory automatically.',
   input_schema: {
     type: 'object',
     properties: {
@@ -90,22 +90,31 @@ export const scanIntegrationTool: ToolDefinition = {
   },
   async execute(input: unknown, context: AgentContext): Promise<unknown> {
     const { provider } = input as { provider: string };
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return { success: false, error: 'ANTHROPIC_API_KEY not configured' };
     try {
-      if (provider === 'google') {
-        const { scanGoogleData } = await import('@/lib/memory/scanner');
-        const result = await scanGoogleData(context.userId);
-        return {
-          success: true,
-          summary: result.summary,
-          memoriesCreated: result.memoriesCreated,
-          emailsScanned: result.emailsScanned,
-          eventsScanned: result.eventsScanned,
-          categories: result.categories,
-        };
-      }
+      const { runDeepAnalysis } = await import('@/lib/engine/engine');
+      const result = await runDeepAnalysis(context.userId, provider, apiKey);
       return {
-        success: false,
-        message: `No native scanner for ${provider}. Use get_integration_token + exec+curl to read the API and memory_add to store insights.`,
+        success: true,
+        summary: result.summary,
+        memoriesCreated: result.totalMemoriesCreated,
+        entitiesFound: result.totalEntities,
+        durationSeconds: Math.round(result.durationMs / 1000),
+        accountEmail: result.accountEmail,
+        automationSuggestions: (result.workflowSuggestions || []).slice(0, 5).map((s: { name: string; description: string; painScore: number; trigger: string; estimatedTimeSaved: string; priority: string }) => ({
+          name: s.name,
+          description: s.description,
+          painScore: s.painScore,
+          trigger: s.trigger,
+          estimatedTimeSaved: s.estimatedTimeSaved,
+          priority: s.priority,
+        })),
+        passes: result.passResults.map(p => ({
+          name: p.passName,
+          memories: p.memories.length,
+          entities: p.entities.length,
+        })),
       };
     } catch (err) {
       return { success: false, error: String(err) };

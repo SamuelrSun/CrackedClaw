@@ -1,29 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useCallback } from 'react';
-
-// ─── Domain config ────────────────────────────────────────────────────────
-
-const DOMAINS = {
-  general:    { label: 'General',     icon: '📌', color: 'bg-gray-100 text-gray-600 border-gray-200' },
-  email:      { label: 'Email',       icon: '📧', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  calendar:   { label: 'Calendar',    icon: '🗓', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  coding:     { label: 'Coding',      icon: '💻', color: 'bg-green-100 text-green-700 border-green-200' },
-  job_search: { label: 'Job Search',  icon: '🔍', color: 'bg-purple-100 text-purple-700 border-purple-200' },
-  sales:      { label: 'Sales',       icon: '📈', color: 'bg-orange-100 text-orange-700 border-orange-200' },
-  fenna:      { label: 'Fenna',       icon: '👓', color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
-  personal:   { label: 'Personal',    icon: '🧑', color: 'bg-pink-100 text-pink-700 border-pink-200' },
-  preference: { label: 'Preference',  icon: '⚙️',  color: 'bg-teal-100 text-teal-700 border-teal-200' },
-} as const;
-
-type Domain = keyof typeof DOMAINS;
-
-const ALL_DOMAINS = Object.keys(DOMAINS) as Domain[];
-
-function domainInfo(d: string) {
-  return (DOMAINS as Record<string, { label: string; icon: string; color: string }>)[d]
-    ?? { label: d, icon: '📌', color: 'bg-gray-100 text-gray-600 border-gray-200' };
-}
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -33,65 +10,172 @@ interface Memory {
   domain: string;
   importance: number;
   source: string;
+  page_path: string | null;
+  temporal?: string;
   created_at: string;
   updated_at: string;
 }
 
+interface PageInfo {
+  path: string;
+  count: number;
+  lastUpdated: string;
+}
+
+interface TreeNode {
+  name: string;
+  path: string;
+  isFolder: boolean;
+  count: number;
+  lastUpdated: string;
+  children: TreeNode[];
+}
+
 type SortKey = 'domain' | 'content' | 'importance' | 'source' | 'updated_at';
-type ViewMode = 'table' | 'grid';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function relativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return diffMin + 'm ago';
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return diffHr + 'h ago';
-  const diffDays = Math.floor(diffHr / 24);
-  if (diffDays === 1) return 'yesterday';
-  if (diffDays < 30) return diffDays + 'd ago';
-  const diffMonths = Math.floor(diffDays / 30);
-  if (diffMonths === 1) return '1mo ago';
-  return diffMonths + 'mo ago';
+  if (!dateStr) return '';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return min + 'm ago';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + 'h ago';
+  const d = Math.floor(hr / 24);
+  if (d === 1) return 'yesterday';
+  if (d < 30) return d + 'd ago';
+  const mo = Math.floor(d / 30);
+  return mo + 'mo ago';
 }
 
 function importanceIndicator(importance: number): string {
-  if (importance >= 0.7) return '🔴';
-  if (importance >= 0.4) return '🟡';
-  return '⚪';
+  if (importance >= 0.7) return '\u{1F534}';
+  if (importance >= 0.4) return '\u{1F7E1}';
+  return '\u26AA';
 }
 
-// ─── Domain Badge ────────────────────────────────────────────────────────────
+function titleCase(s: string): string {
+  return s.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 
-function DomainBadge({ domain }: { domain: string }) {
-  const info = domainInfo(domain);
+function getPagePath(m: Memory): string {
+  return m.page_path || `${m.domain || 'general'}/uncategorized`;
+}
+
+// ─── Tree builder ────────────────────────────────────────────────────────────
+
+function buildTree(pages: PageInfo[]): TreeNode[] {
+  const root: TreeNode[] = [];
+  for (const page of pages) {
+    const segments = page.path.split('/');
+    let current = root;
+    let pathSoFar = '';
+    for (let i = 0; i < segments.length; i++) {
+      pathSoFar = pathSoFar ? pathSoFar + '/' + segments[i] : segments[i];
+      let node = current.find(n => n.name === segments[i]);
+      if (!node) {
+        node = {
+          name: segments[i],
+          path: pathSoFar,
+          isFolder: i < segments.length - 1,
+          count: 0,
+          lastUpdated: '',
+          children: [],
+        };
+        current.push(node);
+      }
+      if (i === segments.length - 1) {
+        node.count = page.count;
+        node.lastUpdated = page.lastUpdated;
+      } else {
+        node.isFolder = true;
+      }
+      current = node.children;
+    }
+  }
+  // Compute folder counts by summing children
+  function sumCounts(nodes: TreeNode[]): number {
+    let total = 0;
+    for (const n of nodes) {
+      if (n.children.length > 0) {
+        const childSum = sumCounts(n.children);
+        if (n.count === 0) n.count = childSum;
+        total += childSum;
+      } else {
+        total += n.count;
+      }
+    }
+    return total;
+  }
+  sumCounts(root);
+  return root;
+}
+
+// ─── Sidebar Tree Node ──────────────────────────────────────────────────────
+
+function TreeItem({
+  node,
+  depth,
+  selectedPath,
+  expandedFolders,
+  onSelect,
+  onToggleFolder,
+}: {
+  node: TreeNode;
+  depth: number;
+  selectedPath: string | null;
+  expandedFolders: Set<string>;
+  onSelect: (path: string) => void;
+  onToggleFolder: (path: string) => void;
+}) {
+  const isExpanded = expandedFolders.has(node.path);
+  const isSelected = selectedPath === node.path;
+  const hasChildren = node.children.length > 0;
+  const isFolder = node.isFolder || hasChildren;
+
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-medium border ${info.color} whitespace-nowrap`}>
-      <span>{info.icon}</span>
-      <span>{info.label}</span>
-    </span>
+    <>
+      <button
+        onClick={() => {
+          if (isFolder) onToggleFolder(node.path);
+          onSelect(node.path);
+        }}
+        className={`w-full text-left flex items-center gap-1.5 py-1.5 pr-2 rounded-md text-sm transition-colors group ${
+          isSelected
+            ? 'bg-[#1A3C2B] text-white'
+            : 'text-[rgba(58,58,56,0.75)] hover:bg-[rgba(58,58,56,0.06)]'
+        }`}
+        style={{ paddingLeft: `${8 + depth * 16}px` }}
+      >
+        {isFolder ? (
+          <span className={`text-[10px] transition-transform inline-block ${isExpanded ? 'rotate-90' : ''} ${isSelected ? 'text-white/70' : 'text-[rgba(58,58,56,0.35)]'}`}>
+            &#9654;
+          </span>
+        ) : (
+          <span className={`text-[10px] ${isSelected ? 'text-white/50' : 'text-[rgba(58,58,56,0.25)]'}`}>
+            &#9643;
+          </span>
+        )}
+        <span className="truncate flex-1 font-medium">{titleCase(node.name)}</span>
+        <span className={`text-[10px] font-mono ${isSelected ? 'text-white/50' : 'text-[rgba(58,58,56,0.3)]'}`}>
+          {node.count}
+        </span>
+      </button>
+      {isFolder && isExpanded && node.children.map(child => (
+        <TreeItem
+          key={child.path}
+          node={child}
+          depth={depth + 1}
+          selectedPath={selectedPath}
+          expandedFolders={expandedFolders}
+          onSelect={onSelect}
+          onToggleFolder={onToggleFolder}
+        />
+      ))}
+    </>
   );
-}
-
-// ─── Source Badge ────────────────────────────────────────────────────────────
-
-function SourceBadge({ source }: { source: string }) {
-  return (
-    <span className="font-mono text-xs text-[rgba(58,58,56,0.45)] uppercase tracking-wide">
-      {source || '—'}
-    </span>
-  );
-}
-
-// ─── Sort indicator ───────────────────────────────────────────────────────────
-
-function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
-  if (!active) return <span className="text-gray-300 ml-1">↕</span>;
-  return <span className="text-[#1A3C2B] ml-1">{dir === 'asc' ? '↑' : '↓'}</span>;
 }
 
 // ─── Inline editable content ────────────────────────────────────────────────
@@ -122,174 +206,69 @@ function InlineContent({ content, onSave }: { content: string; onSave: (v: strin
       <textarea
         ref={taRef}
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={onKey}
-        rows={2}
-        className="w-full text-sm text-[#1A3C2B] bg-[#F5F3EF] border border-[#1A3C2B]/30 rounded px-2 py-1 resize-none outline-none focus:border-[#1A3C2B]"
+        rows={3}
+        className="w-full text-sm text-[#1A3C2B] bg-[#F5F3EF] border border-[#1A3C2B]/30 rounded px-3 py-2 resize-none outline-none focus:border-[#1A3C2B]"
       />
     );
   }
 
   return (
-    <span
-      onClick={startEdit}
-      className="text-sm text-[rgba(58,58,56,0.85)] cursor-text hover:bg-[#F5F3EF] rounded px-1 -ml-1 block"
-      title={content}
-    >
-      {content || <span className="italic text-gray-400">—</span>}
+    <span onClick={startEdit} className="text-sm text-[rgba(58,58,56,0.85)] cursor-text block whitespace-pre-wrap">
+      {content || <span className="italic text-gray-400">(empty)</span>}
     </span>
   );
 }
 
-// ─── Table Row ───────────────────────────────────────────────────────────────
+// ─── Memory Entry (page content view) ───────────────────────────────────────
 
-function TableRow({
+function MemoryEntry({
   memory,
-  onDelete,
   onEdit,
+  onDelete,
+  highlighted,
 }: {
   memory: Memory;
-  onDelete: (id: string) => void;
   onEdit: (id: string, content: string) => void;
+  onDelete: (id: string) => void;
+  highlighted?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
 
   return (
-    <tr
-      className={`border-b border-[rgba(58,58,56,0.08)] transition-colors group ${hovered ? 'bg-[#F5F3EF]' : 'bg-white'}`}
+    <div
+      className={`py-3 px-4 rounded-lg transition-colors group ${
+        highlighted ? 'bg-yellow-50 border border-yellow-200' : hovered ? 'bg-[rgba(58,58,56,0.03)]' : ''
+      }`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <td className="px-4 py-3 w-36">
-        <DomainBadge domain={memory.domain} />
-      </td>
-      <td className="px-4 py-3">
-        <InlineContent content={memory.content} onSave={(v) => onEdit(memory.id, v)} />
-      </td>
-      <td className="px-4 py-3 w-20 text-center">
-        <span title={`Importance: ${(memory.importance * 100).toFixed(0)}%`}>
-          {importanceIndicator(memory.importance)}
-        </span>
-      </td>
-      <td className="px-4 py-3 w-28">
-        <SourceBadge source={memory.source} />
-      </td>
-      <td className="px-4 py-3 w-28">
-        <span className="font-mono text-xs text-[rgba(58,58,56,0.45)]">
-          {relativeTime(memory.updated_at)}
-        </span>
-      </td>
-      <td className="px-3 py-3 w-10 text-right">
-        <button
-          onClick={() => {
-            if (window.confirm('Delete this memory?')) onDelete(memory.id);
-          }}
-          className={`text-gray-300 hover:text-red-500 transition-colors ${hovered ? 'opacity-100' : 'opacity-0'}`}
-          title="Delete"
-        >
-          🗑
-        </button>
-      </td>
-    </tr>
-  );
-}
-
-// ─── Grid Card ───────────────────────────────────────────────────────────────
-
-function MemoryGridCard({
-  memory,
-  onDelete,
-  onEdit,
-}: {
-  memory: Memory;
-  onDelete: (id: string) => void;
-  onEdit: (id: string, content: string) => void;
-}) {
-  return (
-    <div className="bg-white border border-[rgba(58,58,56,0.12)] rounded-lg p-4 flex flex-col gap-2 group hover:border-[rgba(58,58,56,0.25)] transition-colors relative">
-      <button
-        onClick={() => {
-          if (window.confirm('Delete this memory?')) onDelete(memory.id);
-        }}
-        className="absolute top-3 right-3 text-gray-200 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity text-sm"
-        title="Delete"
-      >
-        🗑
-      </button>
-      <div className="flex items-center gap-2 pr-6">
-        <span title={`Importance: ${(memory.importance * 100).toFixed(0)}%`}>
-          {importanceIndicator(memory.importance)}
-        </span>
-        <SourceBadge source={memory.source} />
-      </div>
-      <div className="flex-1">
-        <InlineContent content={memory.content} onSave={(v) => onEdit(memory.id, v)} />
-      </div>
-      <div className="flex items-center justify-between mt-1 pt-2 border-t border-[rgba(58,58,56,0.08)]">
-        <DomainBadge domain={memory.domain} />
-        <span className="font-mono text-[10px] text-[rgba(58,58,56,0.4)]">
-          {relativeTime(memory.updated_at)}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ─── Add Memory Form ─────────────────────────────────────────────────────────
-
-function AddMemoryForm({
-  onAdd,
-  onCancel,
-}: {
-  onAdd: (content: string, domain: string) => Promise<void>;
-  onCancel: () => void;
-}) {
-  const [content, setContent] = useState('');
-  const [domain, setDomain] = useState<string>('general');
-  const [saving, setSaving] = useState(false);
-
-  async function submit() {
-    if (!content.trim()) return;
-    setSaving(true);
-    await onAdd(content.trim(), domain);
-    setSaving(false);
-  }
-
-  return (
-    <div className="border border-dashed border-[#1A3C2B]/30 rounded-lg bg-white p-4 mb-4">
-      <p className="font-mono text-xs uppercase tracking-wider text-[rgba(58,58,56,0.4)] mb-3">New Memory</p>
-      <div className="flex flex-col gap-3">
-        <textarea
-          autoFocus
-          placeholder="What should I remember? (e.g. Sam prefers concise responses)"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={2}
-          className="w-full border border-[rgba(58,58,56,0.2)] rounded px-3 py-2 text-sm text-[#1A3C2B] bg-[#F5F3EF] outline-none focus:border-[#1A3C2B] resize-none"
-        />
-        <div className="flex gap-3 items-center">
-          <select
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            className="border border-[rgba(58,58,56,0.2)] rounded px-3 py-1.5 text-sm font-mono text-[#1A3C2B] bg-[#F5F3EF] outline-none focus:border-[#1A3C2B]"
-          >
-            {ALL_DOMAINS.map((d) => (
-              <option key={d} value={d}>{domainInfo(d).icon} {domainInfo(d).label}</option>
-            ))}
-          </select>
+      <div className="flex items-start gap-3">
+        <span className="text-[rgba(58,58,56,0.25)] mt-0.5 select-none">&bull;</span>
+        <div className="flex-1 min-w-0">
+          <InlineContent content={memory.content} onSave={v => onEdit(memory.id, v)} />
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className="text-xs" title={`Importance: ${(memory.importance * 100).toFixed(0)}%`}>
+              {importanceIndicator(memory.importance)}
+            </span>
+            <span className="font-mono text-[11px] text-[rgba(58,58,56,0.35)]">
+              {memory.source || 'chat'}
+            </span>
+            <span className="text-[rgba(58,58,56,0.2)]">&middot;</span>
+            <span className="font-mono text-[11px] text-[rgba(58,58,56,0.35)]">
+              {relativeTime(memory.updated_at)}
+            </span>
+          </div>
+        </div>
+        <div className={`flex items-center gap-1 transition-opacity ${hovered ? 'opacity-100' : 'opacity-0'}`}>
           <button
-            onClick={submit}
-            disabled={saving || !content.trim()}
-            className="bg-[#1A3C2B] text-white px-4 py-1.5 text-sm font-mono rounded hover:bg-[#2a5c3e] disabled:opacity-40 whitespace-nowrap"
+            onClick={() => onDelete(memory.id)}
+            className="text-gray-300 hover:text-red-500 text-xs p-1 transition-colors"
+            title="Delete"
           >
-            {saving ? 'Saving…' : 'Add'}
-          </button>
-          <button
-            onClick={onCancel}
-            className="border border-[rgba(58,58,56,0.2)] text-[rgba(58,58,56,0.6)] px-3 py-1.5 text-sm font-mono rounded hover:bg-[rgba(58,58,56,0.05)]"
-          >
-            Cancel
+            &#128465;
           </button>
         </div>
       </div>
@@ -297,43 +276,220 @@ function AddMemoryForm({
   );
 }
 
-// ─── Main Client Component ────────────────────────────────────────────────────
+// ─── All Memories Table (fallback) ──────────────────────────────────────────
+
+function AllMemoriesTable({
+  memories,
+  onEdit,
+  onDelete,
+}: {
+  memories: Memory[];
+  onEdit: (id: string, content: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [sortKey, setSortKey] = useState<SortKey>('updated_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  }
+
+  const sorted = useMemo(() => {
+    return [...memories].sort((a, b) => {
+      if (sortKey === 'importance') {
+        const cmp = a.importance - b.importance;
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
+      if (sortKey === 'updated_at') {
+        const cmp = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
+      const av = String(a[sortKey as keyof Memory] ?? '');
+      const bv = String(b[sortKey as keyof Memory] ?? '');
+      const cmp = av.localeCompare(bv);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [memories, sortKey, sortDir]);
+
+  function Th({ label, sk, className = '' }: { label: string; sk: SortKey; className?: string }) {
+    const active = sortKey === sk;
+    return (
+      <th
+        className={`px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-[rgba(58,58,56,0.45)] cursor-pointer select-none hover:text-[#1A3C2B] transition-colors ${className}`}
+        onClick={() => toggleSort(sk)}
+      >
+        {label}
+        <span className={`ml-1 ${active ? 'text-[#1A3C2B]' : 'text-gray-300'}`}>
+          {active ? (sortDir === 'asc' ? '\u2191' : '\u2193') : '\u2195'}
+        </span>
+      </th>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-[rgba(58,58,56,0.12)] overflow-hidden bg-white">
+      <table className="w-full border-collapse">
+        <thead className="border-b border-[rgba(58,58,56,0.1)] bg-[#F5F3EF]">
+          <tr>
+            <Th label="Domain" sk="domain" className="w-32" />
+            <Th label="Content" sk="content" />
+            <Th label="Imp." sk="importance" className="w-16" />
+            <Th label="Source" sk="source" className="w-24" />
+            <Th label="Updated" sk="updated_at" className="w-24" />
+            <th className="w-10" />
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(m => (
+            <tr key={m.id} className="border-b border-[rgba(58,58,56,0.08)] hover:bg-[#F5F3EF] transition-colors group">
+              <td className="px-4 py-3">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-medium border bg-gray-100 text-gray-600 border-gray-200 whitespace-nowrap">
+                  {m.domain}
+                </span>
+              </td>
+              <td className="px-4 py-3">
+                <InlineContent content={m.content} onSave={v => onEdit(m.id, v)} />
+              </td>
+              <td className="px-4 py-3 text-center">{importanceIndicator(m.importance)}</td>
+              <td className="px-4 py-3 font-mono text-xs text-[rgba(58,58,56,0.45)]">{m.source}</td>
+              <td className="px-4 py-3 font-mono text-xs text-[rgba(58,58,56,0.45)]">{relativeTime(m.updated_at)}</td>
+              <td className="px-3 py-3 text-right">
+                <button
+                  onClick={() => { if (window.confirm('Delete this memory?')) onDelete(m.id); }}
+                  className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                >
+                  &#128465;
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Add Memory Form (inline in page content) ───────────────────────────────
+
+function AddMemoryInline({
+  pagePath,
+  onAdd,
+  onCancel,
+}: {
+  pagePath: string | null;
+  onAdd: (content: string, domain: string, pagePath: string | null) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [content, setContent] = useState('');
+  const [saving, setSaving] = useState(false);
+  const domain = pagePath ? pagePath.split('/')[0] : 'general';
+
+  async function submit() {
+    if (!content.trim()) return;
+    setSaving(true);
+    await onAdd(content.trim(), domain, pagePath);
+    setSaving(false);
+    setContent('');
+    onCancel();
+  }
+
+  return (
+    <div className="border border-dashed border-[#1A3C2B]/30 rounded-lg bg-white p-4 mt-3">
+      <textarea
+        autoFocus
+        placeholder="What should I remember?"
+        value={content}
+        onChange={e => setContent(e.target.value)}
+        rows={2}
+        className="w-full border border-[rgba(58,58,56,0.2)] rounded px-3 py-2 text-sm text-[#1A3C2B] bg-[#F5F3EF] outline-none focus:border-[#1A3C2B] resize-none"
+        onKeyDown={e => {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+          if (e.key === 'Escape') onCancel();
+        }}
+      />
+      <div className="flex gap-2 mt-2">
+        <button
+          onClick={submit}
+          disabled={saving || !content.trim()}
+          className="bg-[#1A3C2B] text-white px-4 py-1.5 text-sm font-mono rounded hover:bg-[#2a5c3e] disabled:opacity-40"
+        >
+          {saving ? 'Saving...' : 'Add'}
+        </button>
+        <button onClick={onCancel} className="border border-[rgba(58,58,56,0.2)] text-[rgba(58,58,56,0.6)] px-3 py-1.5 text-sm font-mono rounded hover:bg-[rgba(58,58,56,0.05)]">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Client Component ──────────────────────────────────────────────────
 
 export function MemoryClient({ initialMemories }: { initialMemories: Memory[] }) {
   const [memories, setMemories] = useState<Memory[]>(initialMemories);
-  const [search, setSearch] = useState('');
+  const [pages, setPages] = useState<PageInfo[]>([]);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null); // null = all memories
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Memory[] | null>(null);
   const [searching, setSearching] = useState(false);
-  const [activeDomain, setActiveDomain] = useState<string>('all');
-  const [view, setView] = useState<ViewMode>('table');
   const [showAdd, setShowAdd] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey>('updated_at');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const domainCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: memories.length };
-    for (const d of ALL_DOMAINS) counts[d] = memories.filter((m) => m.domain === d).length;
-    // Also count domains not in DOMAINS
+  // Build page info from memories
+  const computedPages = useMemo(() => {
+    const pageMap = new Map<string, { count: number; lastUpdated: string }>();
     for (const m of memories) {
-      if (!(m.domain in DOMAINS)) {
-        counts[m.domain] = (counts[m.domain] || 0) + 1;
+      const path = getPagePath(m);
+      const existing = pageMap.get(path);
+      if (existing) {
+        existing.count++;
+        if (m.updated_at > existing.lastUpdated) existing.lastUpdated = m.updated_at;
+      } else {
+        pageMap.set(path, { count: 1, lastUpdated: m.updated_at });
       }
     }
-    return counts;
+    return Array.from(pageMap.entries())
+      .map(([path, info]) => ({ path, count: info.count, lastUpdated: info.lastUpdated }))
+      .sort((a, b) => a.path.localeCompare(b.path));
   }, [memories]);
 
-  const presentDomains = useMemo(() => {
-    const known = ALL_DOMAINS.filter((d) => (domainCounts[d] ?? 0) > 0);
-    const unknown = Object.keys(domainCounts).filter(k => k !== 'all' && !(k in DOMAINS) && domainCounts[k] > 0);
-    return [...known, ...unknown];
-  }, [domainCounts]);
+  // Use server-fetched pages if available, otherwise computed
+  const effectivePages = pages.length > 0 ? pages : computedPages;
 
-  // Debounced semantic search
+  // Fetch pages on mount
+  useEffect(() => {
+    fetch('/api/memory/pages')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.pages) setPages(d.pages); })
+      .catch(() => {});
+  }, []);
+
+  // Auto-expand top-level folders on mount
+  useEffect(() => {
+    const topLevel = new Set(effectivePages.map(p => p.path.split('/')[0]));
+    setExpandedFolders(topLevel);
+  }, [effectivePages.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tree = useMemo(() => buildTree(effectivePages), [effectivePages]);
+
+  // Memories filtered to selected page
+  const pageMemories = useMemo(() => {
+    if (!selectedPath) return memories;
+    return memories.filter(m => {
+      const mPath = getPagePath(m);
+      return mPath === selectedPath || mPath.startsWith(selectedPath + '/');
+    });
+  }, [memories, selectedPath]);
+
+  // Search
   const handleSearchChange = useCallback((q: string) => {
-    setSearch(q);
+    setSearchQuery(q);
     if (searchTimer.current) clearTimeout(searchTimer.current);
     if (!q.trim()) {
       setSearchResults(null);
@@ -349,79 +505,45 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
         });
         if (res.ok) {
           const data = await res.json();
-          const results = (data.results || []).map((r: { id: string; content?: string; memory?: string; domain?: string; importance?: number; metadata?: Record<string, unknown>; created_at?: string; updated_at?: string; score?: number }) => ({
-            id: r.id,
-            content: r.content || r.memory || '',
-            domain: r.domain || 'general',
-            importance: r.importance || 0.5,
-            source: String((r.metadata as Record<string, unknown>)?.source || 'chat'),
-            created_at: r.created_at || '',
-            updated_at: r.updated_at || '',
-          }));
-          setSearchResults(results);
+          setSearchResults((data.results || []).map((r: Record<string, unknown>) => ({
+            id: r.id as string,
+            content: (r.content || r.memory || '') as string,
+            domain: (r.domain || 'general') as string,
+            importance: (r.importance || 0.5) as number,
+            source: String(r.source || 'chat'),
+            page_path: (r.page_path as string) || null,
+            created_at: (r.created_at || '') as string,
+            updated_at: (r.updated_at || '') as string,
+          })));
         }
       } catch {
-        // Fall back to local filtering
         setSearchResults(null);
       }
       setSearching(false);
     }, 400);
   }, []);
 
-  const baseList = searchResults !== null ? searchResults : memories;
+  const displayMemories = searchResults !== null ? searchResults : pageMemories;
 
-  const filtered = useMemo(() => {
-    let list = baseList.filter((m) => {
-      const matchDomain = activeDomain === 'all' || m.domain === activeDomain;
-      return matchDomain;
-    });
+  // Page title
+  const pageTitle = selectedPath
+    ? titleCase(selectedPath.split('/').pop() || '')
+    : 'All Memories';
 
-    list = [...list].sort((a, b) => {
-      if (sortKey === 'importance') {
-        const cmp = a.importance - b.importance;
-        return sortDir === 'asc' ? cmp : -cmp;
-      }
-      if (sortKey === 'updated_at') {
-        const cmp = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
-        return sortDir === 'asc' ? cmp : -cmp;
-      }
-      const av = String(a[sortKey as keyof Memory] ?? '');
-      const bv = String(b[sortKey as keyof Memory] ?? '');
-      const cmp = av.localeCompare(bv);
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
+  const pageLastUpdated = selectedPath
+    ? effectivePages.find(p => p.path === selectedPath)?.lastUpdated
+    : memories.length > 0 ? memories.reduce((a, b) => a.updated_at > b.updated_at ? a : b).updated_at : null;
 
-    return list;
-  }, [baseList, activeDomain, sortKey, sortDir]);
-
-  const grouped = useMemo(() => {
-    const groups: Record<string, Memory[]> = {};
-    for (const m of filtered) {
-      if (!groups[m.domain]) groups[m.domain] = [];
-      groups[m.domain].push(m);
-    }
-    return groups;
-  }, [filtered]);
-
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDir('asc');
-    }
-  }
-
+  // Handlers
   async function handleDelete(id: string) {
+    if (!window.confirm('Delete this memory?')) return;
     await fetch('/api/memory', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     });
-    setMemories((prev) => prev.filter((m) => m.id !== id));
-    if (searchResults) {
-      setSearchResults((prev) => prev ? prev.filter((m) => m.id !== id) : null);
-    }
+    setMemories(prev => prev.filter(m => m.id !== id));
+    if (searchResults) setSearchResults(prev => prev ? prev.filter(m => m.id !== id) : null);
   }
 
   async function handleEdit(id: string, content: string) {
@@ -430,37 +552,30 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, content }),
     });
-    setMemories((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, content, updated_at: new Date().toISOString() } : m))
-    );
+    setMemories(prev => prev.map(m => m.id === id ? { ...m, content, updated_at: new Date().toISOString() } : m));
     if (searchResults) {
-      setSearchResults((prev) =>
-        prev ? prev.map((m) => (m.id === id ? { ...m, content, updated_at: new Date().toISOString() } : m)) : null
-      );
+      setSearchResults(prev => prev ? prev.map(m => m.id === id ? { ...m, content, updated_at: new Date().toISOString() } : m) : null);
     }
   }
 
-  async function handleAdd(content: string, domain: string) {
+  async function handleAdd(content: string, domain: string, pagePath: string | null) {
     const res = await fetch('/api/memory', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, domain }),
+      body: JSON.stringify({ content, domain, page_path: pagePath }),
     });
     if (res.ok) {
       const now = new Date().toISOString();
-      setMemories((prev) => [
-        {
-          id: String(Date.now()),
-          content,
-          domain,
-          importance: 0.8,
-          source: 'user_input',
-          created_at: now,
-          updated_at: now,
-        },
-        ...prev,
-      ]);
-      setShowAdd(false);
+      setMemories(prev => [{
+        id: String(Date.now()),
+        content,
+        domain,
+        importance: 0.8,
+        source: 'user_input',
+        page_path: pagePath,
+        created_at: now,
+        updated_at: now,
+      }, ...prev]);
     }
   }
 
@@ -486,70 +601,55 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
     setScanning(false);
   }
 
-  function Th({ label, sk, className = '' }: { label: string; sk: SortKey; className?: string }) {
-    return (
-      <th
-        className={`px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-[rgba(58,58,56,0.45)] cursor-pointer select-none hover:text-[#1A3C2B] transition-colors ${className}`}
-        onClick={() => toggleSort(sk)}
-      >
-        {label}
-        <SortIcon active={sortKey === sk} dir={sortDir} />
-      </th>
-    );
+  function toggleFolder(path: string) {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }
+
+  function navigateToMemory(memory: Memory) {
+    const path = getPagePath(memory);
+    // Expand parent folders
+    const segments = path.split('/');
+    const newExpanded = new Set(expandedFolders);
+    let acc = '';
+    for (let i = 0; i < segments.length - 1; i++) {
+      acc = acc ? acc + '/' + segments[i] : segments[i];
+      newExpanded.add(acc);
+    }
+    setExpandedFolders(newExpanded);
+    setSelectedPath(path);
+    setHighlightedId(memory.id);
+    setSearchQuery('');
+    setSearchResults(null);
+    setTimeout(() => setHighlightedId(null), 3000);
   }
 
   return (
     <div className="min-h-screen bg-[#F5F3EF] text-[#1A3C2B]">
-      <div className="max-w-6xl mx-auto px-6 py-10">
-
-        {/* Page header */}
-        <div className="flex items-start justify-between mb-8">
-          <div>
-            <h1 className="font-header text-4xl font-bold tracking-tight text-[#1A3C2B] mb-1">Memory</h1>
-            <p className="text-sm text-[rgba(58,58,56,0.5)]">
-              Everything I know about you — collected from our conversations.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 mt-1 flex-wrap justify-end">
-            {/* View toggle */}
-            <div className="flex border border-[rgba(58,58,56,0.18)] rounded overflow-hidden">
-              <button
-                onClick={() => setView('table')}
-                title="Table view"
-                className={`px-3 py-1.5 text-xs font-mono transition-colors ${
-                  view === 'table'
-                    ? 'bg-[#1A3C2B] text-white'
-                    : 'text-[rgba(58,58,56,0.5)] hover:bg-[rgba(58,58,56,0.06)]'
-                }`}
-              >
-                ≡ Table
-              </button>
-              <button
-                onClick={() => setView('grid')}
-                title="Grid view"
-                className={`px-3 py-1.5 text-xs font-mono border-l border-[rgba(58,58,56,0.18)] transition-colors ${
-                  view === 'grid'
-                    ? 'bg-[#1A3C2B] text-white'
-                    : 'text-[rgba(58,58,56,0.5)] hover:bg-[rgba(58,58,56,0.06)]'
-                }`}
-              >
-                ⊞ Grid
-              </button>
-            </div>
-
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowAdd((v) => !v)}
-              className="bg-[#1A3C2B] text-white px-4 py-1.5 text-sm font-mono rounded hover:bg-[#2a5c3e] transition-colors"
+              onClick={() => setSidebarOpen(v => !v)}
+              className="sm:hidden text-[rgba(58,58,56,0.5)] hover:text-[#1A3C2B] p-1"
+              title="Toggle sidebar"
             >
-              + Add Memory
+              &#9776;
             </button>
-
+            <h1 className="font-header text-3xl font-bold tracking-tight text-[#1A3C2B]">Memory</h1>
+          </div>
+          <div className="flex items-center gap-2">
             <button
               onClick={handleScan}
               disabled={scanning}
               className="border border-[rgba(58,58,56,0.2)] text-[#1A3C2B] px-3 py-1.5 text-sm font-mono rounded hover:bg-[rgba(58,58,56,0.05)] disabled:opacity-40 transition-colors"
             >
-              {scanning ? 'Scanning…' : 'Scan Google'}
+              {scanning ? 'Scanning...' : 'Scan Google'}
             </button>
           </div>
         </div>
@@ -562,151 +662,206 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
               : 'bg-red-50 border border-red-200 text-red-600'
           }`}>
             <span>{scanMsg.text}</span>
-            <button onClick={() => setScanMsg(null)} className="opacity-50 hover:opacity-100 ml-4">✕</button>
+            <button onClick={() => setScanMsg(null)} className="opacity-50 hover:opacity-100 ml-4">&#10005;</button>
           </div>
         )}
 
-        {/* Add form */}
-        {showAdd && (
-          <AddMemoryForm onAdd={handleAdd} onCancel={() => setShowAdd(false)} />
-        )}
+        {/* Main layout */}
+        <div className="flex gap-0 min-h-[calc(100vh-160px)]">
+          {/* Sidebar */}
+          <div className={`${sidebarOpen ? 'block' : 'hidden'} sm:block w-64 flex-shrink-0 bg-white border border-[rgba(58,58,56,0.12)] rounded-l-xl overflow-hidden`}>
+            <div className="p-3">
+              {/* Search */}
+              <div className="relative mb-3">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[rgba(58,58,56,0.3)] text-xs pointer-events-none">&#128269;</span>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => handleSearchChange(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full bg-[#F5F3EF] border border-[rgba(58,58,56,0.1)] rounded-md pl-8 pr-3 py-1.5 text-xs font-mono text-[#1A3C2B] placeholder:text-[rgba(58,58,56,0.3)] outline-none focus:border-[#1A3C2B]/30 transition-colors"
+                />
+                {searching && (
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[rgba(58,58,56,0.4)] font-mono">...</span>
+                )}
+              </div>
 
-        {/* Search */}
-        <div className="relative mb-4">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[rgba(58,58,56,0.35)] pointer-events-none">
-            🔍
-          </span>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search memories (semantic search)…"
-            className="w-full bg-white border border-[rgba(58,58,56,0.15)] rounded-lg pl-10 pr-4 py-2 text-sm font-mono text-[#1A3C2B] placeholder:text-[rgba(58,58,56,0.3)] outline-none focus:border-[#1A3C2B]/40 transition-colors"
-          />
-          {searching && (
-            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-[rgba(58,58,56,0.4)] font-mono">
-              searching…
-            </span>
-          )}
-        </div>
-
-        {/* Domain filter pills */}
-        <div className="flex gap-2 flex-wrap mb-6">
-          <button
-            onClick={() => setActiveDomain('all')}
-            className={`px-3 py-1 rounded-full text-xs font-mono border transition-colors ${
-              activeDomain === 'all'
-                ? 'bg-[#1A3C2B] text-white border-[#1A3C2B]'
-                : 'border-[rgba(58,58,56,0.18)] text-[rgba(58,58,56,0.6)] hover:border-[#1A3C2B]/40 hover:text-[#1A3C2B]'
-            }`}
-          >
-            All {domainCounts.all}
-          </button>
-          {presentDomains.map((d) => {
-            const info = domainInfo(d);
-            return (
+              {/* All Memories button */}
               <button
-                key={d}
-                onClick={() => setActiveDomain(d)}
-                className={`px-3 py-1 rounded-full text-xs font-mono border transition-colors ${
-                  activeDomain === d
-                    ? 'bg-[#1A3C2B] text-white border-[#1A3C2B]'
-                    : 'border-[rgba(58,58,56,0.18)] text-[rgba(58,58,56,0.6)] hover:border-[#1A3C2B]/40 hover:text-[#1A3C2B]'
+                onClick={() => { setSelectedPath(null); setSearchQuery(''); setSearchResults(null); }}
+                className={`w-full text-left flex items-center gap-2 py-2 px-2 rounded-md text-sm font-medium transition-colors mb-1 ${
+                  selectedPath === null && !searchResults
+                    ? 'bg-[#1A3C2B] text-white'
+                    : 'text-[rgba(58,58,56,0.75)] hover:bg-[rgba(58,58,56,0.06)]'
                 }`}
               >
-                {info.icon} {info.label} {domainCounts[d]}
+                <span className="text-xs">&#128203;</span>
+                <span className="flex-1">All Memories</span>
+                <span className={`text-[10px] font-mono ${selectedPath === null && !searchResults ? 'text-white/50' : 'text-[rgba(58,58,56,0.3)]'}`}>
+                  {memories.length}
+                </span>
               </button>
-            );
-          })}
-        </div>
 
-        {/* Empty state */}
-        {filtered.length === 0 && (
-          <div className="py-24 text-center">
-            <div className="text-5xl mb-4">🧠</div>
-            {search || activeDomain !== 'all' ? (
-              <>
-                <p className="font-mono text-sm text-[rgba(58,58,56,0.5)] mb-2">No memories match your filter.</p>
-                <button
-                  onClick={() => { setSearch(''); setSearchResults(null); setActiveDomain('all'); }}
-                  className="font-mono text-xs text-[#1A3C2B] underline underline-offset-2"
-                >
-                  Clear filters
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="text-[rgba(58,58,56,0.55)] text-base mb-1">No memories yet.</p>
-                <p className="font-mono text-sm text-[rgba(58,58,56,0.35)]">
-                  Start chatting and I&apos;ll remember the important stuff.
-                </p>
-              </>
-            )}
-          </div>
-        )}
+              <div className="border-t border-[rgba(58,58,56,0.08)] my-2" />
 
-        {/* TABLE VIEW */}
-        {view === 'table' && filtered.length > 0 && (
-          <div className="rounded-xl border border-[rgba(58,58,56,0.12)] overflow-hidden bg-white">
-            <table className="w-full border-collapse">
-              <thead className="border-b border-[rgba(58,58,56,0.1)] bg-[#F5F3EF]">
-                <tr>
-                  <Th label="Domain" sk="domain" className="w-36" />
-                  <Th label="Content" sk="content" />
-                  <Th label="Imp." sk="importance" className="w-20" />
-                  <Th label="Source" sk="source" className="w-28" />
-                  <Th label="Updated" sk="updated_at" className="w-28" />
-                  <th className="w-10" />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((m) => (
-                  <TableRow
-                    key={m.id}
-                    memory={m}
-                    onDelete={handleDelete}
-                    onEdit={handleEdit}
+              {/* Tree */}
+              <div className="space-y-0.5 overflow-y-auto max-h-[calc(100vh-340px)]">
+                {tree.map(node => (
+                  <TreeItem
+                    key={node.path}
+                    node={node}
+                    depth={0}
+                    selectedPath={selectedPath}
+                    expandedFolders={expandedFolders}
+                    onSelect={setSelectedPath}
+                    onToggleFolder={toggleFolder}
                   />
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
-        )}
 
-        {/* GRID VIEW */}
-        {view === 'grid' && filtered.length > 0 && (
-          <div className="space-y-8">
-            {Object.entries(grouped).map(([dom, items]) => {
-              const info = domainInfo(dom);
-              return (
-                <div key={dom}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-lg">{info.icon}</span>
-                    <span className="font-mono text-sm font-semibold text-[#1A3C2B]">{info.label}</span>
-                    <span className="font-mono text-xs text-[rgba(58,58,56,0.4)]">({items.length})</span>
+          {/* Content area */}
+          <div className="flex-1 bg-white border-y border-r border-[rgba(58,58,56,0.12)] rounded-r-xl sm:rounded-r-xl sm:rounded-l-none rounded-xl sm:rounded-xl overflow-hidden">
+            <div className="p-6">
+              {/* Search results view */}
+              {searchResults !== null ? (
+                <>
+                  <div className="mb-4">
+                    <h2 className="font-header text-2xl font-bold text-[#1A3C2B]">
+                      Search Results
+                    </h2>
+                    <p className="text-xs font-mono text-[rgba(58,58,56,0.4)] mt-1">
+                      {searchResults.length} {searchResults.length === 1 ? 'result' : 'results'} for &ldquo;{searchQuery}&rdquo;
+                    </p>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {items.map((m) => (
-                      <MemoryGridCard
-                        key={m.id}
-                        memory={m}
-                        onDelete={handleDelete}
-                        onEdit={handleEdit}
-                      />
-                    ))}
+                  {searchResults.length === 0 ? (
+                    <div className="py-16 text-center">
+                      <p className="text-[rgba(58,58,56,0.4)] text-sm">No results found.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[rgba(58,58,56,0.06)]">
+                      {searchResults.map(m => (
+                        <div key={m.id} className="py-2">
+                          <button
+                            onClick={() => navigateToMemory(m)}
+                            className="text-[10px] font-mono text-[#1A3C2B]/50 hover:text-[#1A3C2B] mb-1 block"
+                          >
+                            {getPagePath(m).split('/').map(s => titleCase(s)).join(' / ')}
+                          </button>
+                          <MemoryEntry
+                            memory={m}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : selectedPath === null ? (
+                /* All Memories table view */
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 className="font-header text-2xl font-bold text-[#1A3C2B]">All Memories</h2>
+                      <p className="text-xs font-mono text-[rgba(58,58,56,0.4)] mt-1">
+                        {memories.length} {memories.length === 1 ? 'memory' : 'memories'}
+                        {pageLastUpdated ? ` \u00B7 Updated ${relativeTime(pageLastUpdated)}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowAdd(v => !v)}
+                      className="bg-[#1A3C2B] text-white px-3 py-1.5 text-sm font-mono rounded hover:bg-[#2a5c3e] transition-colors"
+                    >
+                      + Add
+                    </button>
                   </div>
-                </div>
-              );
-            })}
+                  {showAdd && (
+                    <AddMemoryInline pagePath={null} onAdd={handleAdd} onCancel={() => setShowAdd(false)} />
+                  )}
+                  {memories.length === 0 ? (
+                    <div className="py-24 text-center">
+                      <div className="text-5xl mb-4">&#129504;</div>
+                      <p className="text-[rgba(58,58,56,0.55)] text-base mb-1">No memories yet.</p>
+                      <p className="font-mono text-sm text-[rgba(58,58,56,0.35)]">
+                        Start chatting and I&apos;ll remember the important stuff.
+                      </p>
+                    </div>
+                  ) : (
+                    <AllMemoriesTable memories={memories} onEdit={handleEdit} onDelete={handleDelete} />
+                  )}
+                </>
+              ) : (
+                /* Page content view */
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-[10px] font-mono text-[rgba(58,58,56,0.35)] mb-1">
+                        {selectedPath.split('/').slice(0, -1).map(s => titleCase(s)).join(' / ')}
+                      </p>
+                      <h2 className="font-header text-2xl font-bold text-[#1A3C2B]">{pageTitle}</h2>
+                      <p className="text-xs font-mono text-[rgba(58,58,56,0.4)] mt-1">
+                        {pageMemories.length} {pageMemories.length === 1 ? 'memory' : 'memories'}
+                        {pageLastUpdated ? ` \u00B7 Updated ${relativeTime(pageLastUpdated)}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowAdd(v => !v)}
+                      className="bg-[#1A3C2B] text-white px-3 py-1.5 text-sm font-mono rounded hover:bg-[#2a5c3e] transition-colors"
+                    >
+                      + Add
+                    </button>
+                  </div>
+
+                  {showAdd && (
+                    <AddMemoryInline pagePath={selectedPath} onAdd={handleAdd} onCancel={() => setShowAdd(false)} />
+                  )}
+
+                  <div className="border-t border-[rgba(58,58,56,0.08)] mt-2" />
+
+                  {pageMemories.length === 0 ? (
+                    <div className="py-16 text-center">
+                      <p className="text-[rgba(58,58,56,0.4)] text-sm">No memories in this page yet.</p>
+                      <button
+                        onClick={() => setShowAdd(true)}
+                        className="font-mono text-xs text-[#1A3C2B] underline underline-offset-2 mt-2"
+                      >
+                        Add one
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[rgba(58,58,56,0.06)] mt-2">
+                      {pageMemories.map(m => (
+                        <MemoryEntry
+                          key={m.id}
+                          memory={m}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                          highlighted={highlightedId === m.id}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        )}
+        </div>
 
-        {/* Footer count */}
-        {filtered.length > 0 && (
-          <p className="font-mono text-xs text-[rgba(58,58,56,0.3)] text-right mt-6">
-            {filtered.length} {filtered.length === 1 ? 'memory' : 'memories'}
-          </p>
-        )}
+        {/* Footer */}
+        <div className="flex items-center justify-between mt-4 px-1">
+          <button
+            onClick={handleScan}
+            disabled={scanning}
+            className="font-mono text-xs text-[rgba(58,58,56,0.4)] hover:text-[#1A3C2B] transition-colors disabled:opacity-40"
+          >
+            {scanning ? 'Scanning...' : 'Scan Google'}
+          </button>
+          <span className="font-mono text-[10px] text-[rgba(58,58,56,0.3)]">
+            {memories.length} total memories
+          </span>
+        </div>
       </div>
     </div>
   );
