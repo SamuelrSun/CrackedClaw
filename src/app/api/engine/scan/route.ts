@@ -3,7 +3,7 @@ import { requireApiAuth } from '@/lib/api-auth';
 import { runDeepAnalysis } from '@/lib/engine/engine';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 600; // 5 minutes
+export const maxDuration = 300; // Max for Vercel Hobby // 5 minutes
 
 export async function POST(request: NextRequest) {
   const { user, error } = await requireApiAuth();
