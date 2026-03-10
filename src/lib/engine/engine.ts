@@ -13,6 +13,7 @@ export async function runDeepAnalysis(
   provider: string,
   apiKey: string,
   onProgress?: ProgressCallback,
+  mode: "quick" | "deep" = "quick",
 ): Promise<EngineResult> {
   const startTime = Date.now();
 
@@ -31,28 +32,51 @@ export async function runDeepAnalysis(
   onProgress?.({ phase: 'fetching', progress: 100, message: 'Fetched ' + data.emails.totalSent + ' sent + ' + data.emails.totalReceived + ' received emails, ' + (data.calendar.pastEvents.length + data.calendar.futureEvents.length) + ' calendar events' });
 
   // ── Phase 2: Run analysis passes (sequential to respect rate limits) ────────
-  onProgress?.({ phase: 'analyzing', progress: 0, message: 'Starting ' + Object.keys(ALL_PASSES).length + ' analysis passes (sequential to stay within rate limits)...' });
+  onProgress?.({ phase: 'analyzing', progress: 0, message: 'Starting ' + Object.keys(ALL_PASSES).length + ' analysis passes (' + (mode === 'quick' ? '2 at a time' : 'sequential') + ' to stay within rate limits)...' });
 
   const passNames = Object.keys(ALL_PASSES) as PassName[];
   const passResults: AnalysisPassResult[] = [];
 
-  for (let i = 0; i < passNames.length; i++) {
-    const name = passNames[i];
-    onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round((i / passNames.length) * 100), message: 'Running ' + name + ' analysis (' + (i + 1) + '/' + passNames.length + ')...' });
-    try {
-      const result = await ALL_PASSES[name](data, apiKey);
-      onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round(((i + 1) / passNames.length) * 100), message: name + ' complete — ' + result.memories.length + ' insights, ' + result.entities.length + ' entities' });
-      passResults.push(result);
-    } catch (err) {
-      console.error('Pass ' + name + ' failed:', err);
-      onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round(((i + 1) / passNames.length) * 100), message: name + ' failed: ' + String(err) });
-      passResults.push({ passName: name, memories: [], entities: [] } as AnalysisPassResult);
+  if (mode === 'quick') {
+    // Quick mode: run 2 passes at a time
+    for (let i = 0; i < passNames.length; i += 2) {
+      const batch = passNames.slice(i, i + 2);
+      const batchResults = await Promise.all(batch.map(async (name, batchIdx) => {
+        const globalIdx = i + batchIdx;
+        onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round((globalIdx / passNames.length) * 100), message: 'Running ' + name + ' analysis (' + (globalIdx + 1) + '/' + passNames.length + ')...' });
+        try {
+          const result = await ALL_PASSES[name](data, apiKey);
+          onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round(((globalIdx + 1) / passNames.length) * 100), message: name + ' complete — ' + result.memories.length + ' insights, ' + result.entities.length + ' entities' });
+          return result;
+        } catch (err) {
+          console.error('Pass ' + name + ' failed:', err);
+          onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round(((globalIdx + 1) / passNames.length) * 100), message: name + ' failed: ' + String(err) });
+          return { passName: name, memories: [], entities: [] } as AnalysisPassResult;
+        }
+      }));
+      passResults.push(...batchResults);
+      if (i + 2 < passNames.length) await new Promise(r => setTimeout(r, 15000));
     }
-    // Rate limit: wait between passes to stay under 30k tokens/min
-    if (i < passNames.length - 1) await new Promise(r => setTimeout(r, 15000));
+  } else {
+    // Deep mode: run passes sequentially with 15s gap
+    for (let i = 0; i < passNames.length; i++) {
+      const name = passNames[i];
+      onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round((i / passNames.length) * 100), message: 'Running ' + name + ' analysis (' + (i + 1) + '/' + passNames.length + ')...' });
+      try {
+        const result = await ALL_PASSES[name](data, apiKey);
+        onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round(((i + 1) / passNames.length) * 100), message: name + ' complete — ' + result.memories.length + ' insights, ' + result.entities.length + ' entities' });
+        passResults.push(result);
+      } catch (err) {
+        console.error('Pass ' + name + ' failed:', err);
+        onProgress?.({ phase: 'analyzing', pass: name, progress: Math.round(((i + 1) / passNames.length) * 100), message: name + ' failed: ' + String(err) });
+        passResults.push({ passName: name, memories: [], entities: [] } as AnalysisPassResult);
+      }
+      // Rate limit: wait between passes to stay under 30k tokens/min
+      if (i < passNames.length - 1) await new Promise(r => setTimeout(r, 15000));
+    }
   }
 
-  // ── Phase 3: Correlate entities across passes ──────────────
+    // ── Phase 3: Correlate entities across passes ──────────────
   onProgress?.({ phase: 'correlating', progress: 0, message: 'Correlating entities across data sources...' });
 
   const allEntities: ExtractedEntity[] = passResults.flatMap(p => p.entities);

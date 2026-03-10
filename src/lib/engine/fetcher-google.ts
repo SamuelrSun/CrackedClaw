@@ -120,7 +120,7 @@ async function fetchEmailDetails(token: string, ids: string[], format: 'full' | 
   return results;
 }
 
-export async function fetchGoogleData(userId: string, onProgress?: (msg: string) => void): Promise<IntegrationData> {
+export async function fetchGoogleData(userId: string, onProgress?: (msg: string) => void, mode: "quick" | "deep" = "quick"): Promise<IntegrationData> {
   const token = await getGoogleToken(userId);
   if (!token) throw new Error('No Google integration connected');
 
@@ -136,21 +136,25 @@ export async function fetchGoogleData(userId: string, onProgress?: (msg: string)
   }));
 
   // Fetch SENT emails (full body — the user's writing DNA)
-  onProgress?.('Fetching sent emails (up to 200)...');
-  const sentIds = await fetchEmailIds(token, 'in:sent', 200);
+  const maxSent = mode === 'quick' ? 50 : 200;
+  const maxReceived = mode === 'quick' ? 75 : 300;
+  onProgress?.('Fetching sent emails (up to ' + maxSent + ')...');
+  const sentIds = await fetchEmailIds(token, 'in:sent', maxSent);
   onProgress?.('Reading ' + sentIds.length + ' sent emails...');
   const sentEmails = await fetchEmailDetails(token, sentIds, 'full');
 
   // Fetch RECEIVED emails (metadata only — for relationship mapping)
-  onProgress?.('Fetching received emails (up to 300)...');
-  const receivedIds = await fetchEmailIds(token, 'in:inbox -in:sent', 300);
+  onProgress?.('Fetching received emails (up to ' + maxReceived + ')...');
+  const receivedIds = await fetchEmailIds(token, 'in:inbox -in:sent', maxReceived);
   onProgress?.('Reading ' + receivedIds.length + ' received email headers...');
   const receivedEmails = await fetchEmailDetails(token, receivedIds, 'metadata');
 
   // Fetch calendar — PAST 90 days + FUTURE 30 days
-  onProgress?.('Fetching calendar events (past 90 days + future 30)...');
-  const past90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-  const future30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const daysBack = mode === 'quick' ? 30 : 90;
+  const daysForward = mode === 'quick' ? 14 : 30;
+  onProgress?.('Fetching calendar events (past ' + daysBack + ' days + future ' + daysForward + ')...');
+  const past90 = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();
+  const future30 = new Date(Date.now() + daysForward * 24 * 60 * 60 * 1000).toISOString();
   const now = new Date().toISOString();
 
   const [pastCal, futureCal] = await Promise.all([

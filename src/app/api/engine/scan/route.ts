@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}));
   const provider = body.provider || 'google';
+  const mode: 'quick' | 'deep' = body.mode === 'deep' ? 'deep' : 'quick';
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
       try {
         const result = await runDeepAnalysis(user!.id, provider, apiKey, (event) => {
           controller.enqueue(encoder.encode('data: ' + JSON.stringify(event) + '\n\n'));
-        });
+        }, mode);
         controller.enqueue(encoder.encode('data: ' + JSON.stringify({
           phase: 'complete',
           progress: 100,

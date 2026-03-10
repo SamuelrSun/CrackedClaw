@@ -80,21 +80,22 @@ export const getIntegrationTokenTool: ToolDefinition = {
 
 export const scanIntegrationTool: ToolDefinition = {
   name: 'scan_integration',
-  description: 'Deep-scan a connected integration to build a comprehensive behavioral profile. Analyzes communication style, relationships, decision patterns, priorities, and more. Takes 3-5 minutes. Saves all insights to memory automatically.',
+  description: 'Deep-scan a connected integration to build a comprehensive behavioral profile. Analyzes communication style, relationships, decision patterns, priorities, and more. Quick mode (~3 min) or deep mode (~12 min). Saves all insights to memory automatically.',
   input_schema: {
     type: 'object',
     properties: {
       provider: { type: 'string', description: 'Integration provider to scan (e.g. google)' },
+      mode: { type: 'string', enum: ['quick', 'deep'], description: 'Scan depth: quick (default, ~3 min, smaller dataset) or deep (~12 min, full dataset)' },
     },
     required: ['provider'],
   },
   async execute(input: unknown, context: AgentContext): Promise<unknown> {
-    const { provider } = input as { provider: string };
+    const { provider, mode = 'quick' } = input as { provider: string; mode?: 'quick' | 'deep' };
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return { success: false, error: 'ANTHROPIC_API_KEY not configured' };
     try {
       const { runDeepAnalysis } = await import('@/lib/engine/engine');
-      const result = await runDeepAnalysis(context.userId, provider, apiKey);
+      const result = await runDeepAnalysis(context.userId, provider, apiKey, undefined, mode);
       return {
         success: true,
         summary: result.summary,
