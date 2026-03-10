@@ -24,7 +24,7 @@ export async function runDeepAnalysis(
   if (provider === 'google') {
     data = await fetchGoogleData(userId, (msg) => {
       onProgress?.({ phase: 'fetching', progress: 20, message: msg });
-    });
+    }, mode);
   } else {
     throw new Error('Provider ' + provider + ' not yet supported for deep analysis');
   }

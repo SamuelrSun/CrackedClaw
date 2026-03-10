@@ -64,7 +64,7 @@ export const getIntegrationTokenTool: ToolDefinition = {
     required: ['provider'],
   },
   async execute(input: unknown, context: AgentContext): Promise<unknown> {
-    const { provider } = input as { provider: string };
+    const { provider, mode: scanMode } = input as { provider: string; mode?: 'quick' | 'deep' };
     const result = await getValidToken(context.userId, provider);
     if (!result) {
       return { error: `No connected ${provider} integration found. The user needs to connect it first.`, connected: false };
@@ -85,6 +85,7 @@ export const scanIntegrationTool: ToolDefinition = {
     type: 'object',
     properties: {
       provider: { type: 'string', description: 'Integration provider to scan (e.g. google)' },
+      mode: { type: 'string', enum: ['quick', 'deep'], description: 'Scan mode: quick (~3min, recent data) or deep (~12min, full history). Default: quick.' },
       mode: { type: 'string', enum: ['quick', 'deep'], description: 'Scan depth: quick (default, ~3 min, smaller dataset) or deep (~12 min, full dataset)' },
     },
     required: ['provider'],
