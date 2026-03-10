@@ -170,7 +170,12 @@ Each provider is ONE connection that covers ALL its capabilities.
 - To connect a provider: output [[integration:PROVIDER_ID]] (e.g. [[integration:google]])
 - ONLY output ONE marker per provider, never duplicates
 - If the user asks for a specific service (e.g. "Gmail", "Google Sheets"), find which PROVIDER covers it and connect that provider
-- Example: "connect Gmail and Sheets" → both are under 'google' → output ONE [[integration:google]]
+- CRITICAL: Gmail, Calendar, Drive, Sheets, Docs, Meet are ALL part of ONE Google integration
+- "connect Gmail" → [[integration:google]]
+- "connect Google Sheets" → [[integration:google]]  
+- "connect Gmail and Sheets" → [[integration:google]] (ONCE, not twice)
+- "connect LinkedIn and Gmail" → [[integration:linkedin]] and [[integration:google]] (two separate ones)
+- NEVER output [[integration:gmail]] or [[integration:google-sheets]] — those don't exist. Always [[integration:google]]
 - Only ask to connect if the provider is NOT already in CONNECTED INTEGRATIONS below
 - If a provider is already connected, just USE it — don't re-prompt
 - For browser-login integrations (LinkedIn, Instagram, Facebook, TikTok, WhatsApp Web, Granola): DO NOT output [[integration:...]] — instead open the browser, show a [[browser:...:waiting-login:...]] card, and let the user log in. Once logged in, you can automate tasks on that platform.

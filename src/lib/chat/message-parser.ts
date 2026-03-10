@@ -30,7 +30,7 @@ const PATTERNS = {
   inlineTask: /\[\[task:([^:]+):([^:]+)(?::([^\]]+))?\]\]/g,
   integrationsResolve: /\[\[integrations:resolve:([^\]]+)\]\]/g,
   skillSuggest: /\[\[skill:suggest:([^,\]]+)(?:,([^\]]+))?\]\]/g,
-  integrationConnect: /\[\[integration:(google|slack|notion)\]\]/g,
+  integrationConnect: /\[\[integration:(google|slack|notion|github|microsoft|linear|discord|zoom|twitter|hubspot|jira|figma|reddit|linkedin|gmail|google-sheets|google-calendar|google-drive)\]\]/g,
   scanTrigger: /\[\[scan:(google|slack|notion)\]\]/g,
   integrationStatus: /\[\[integration-status:(\w+):(connected|error)(?::([^\]]+))?\]\]/g,
   subagentProgress: /\[\[subagent:progress:(\{.*?\})\]\]/g,
