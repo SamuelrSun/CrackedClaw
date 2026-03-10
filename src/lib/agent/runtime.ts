@@ -38,8 +38,8 @@ export interface ChatResult {
 
 export type StreamEvent =
   | { type: 'token'; text: string }
-  | { type: 'tool_start'; toolName: string; input: unknown }
-  | { type: 'tool_result'; toolName: string; output: unknown; error?: string }
+  | { type: 'tool_start'; tool: string; input: unknown }
+  | { type: 'tool_end'; tool: string; output?: unknown; error?: string }
   | { type: 'done'; conversation_id?: string }
   | { type: 'error'; message: string };
 
@@ -175,7 +175,7 @@ export class AgentRuntime {
           if (inToolUse) {
             let parsedInput: unknown = {};
             try { parsedInput = JSON.parse(currentToolInputJson); } catch { /* ignore */ }
-            yield { type: 'tool_start', toolName: currentToolName, input: parsedInput };
+            yield { type: 'tool_start', tool: currentToolName, input: parsedInput };
             inToolUse = false;
           }
         }
@@ -209,7 +209,7 @@ export class AgentRuntime {
           }
         }
 
-        yield { type: 'tool_result', toolName: block.name, output, error: errorMsg };
+        yield { type: 'tool_end', tool: block.name, output, error: errorMsg };
         toolResultContents.push({
           type: 'tool_result' as const,
           tool_use_id: block.id,

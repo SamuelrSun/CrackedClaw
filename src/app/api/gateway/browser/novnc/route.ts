@@ -10,7 +10,7 @@ export async function GET(_request: NextRequest) {
   if (error) return error;
 
   // Shared browser endpoint on the DO server
-  const novncUrl = `${COMPANION_BROWSER_BASE}/vnc.html?autoconnect=true&resize=scale&path=websockify`;
+  const novncUrl = `${COMPANION_BROWSER_BASE}/vnc_lite.html?autoconnect=true&resize=scale&path=websockify&view_only=false`;
   const wsUrl = `wss://browser.crackedclaw.com/websockify`;
 
   // Check if companion browser is reachable
