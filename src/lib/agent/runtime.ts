@@ -139,6 +139,9 @@ export class AgentRuntime {
 
     const allMessages: AnthropicMessage[] = [...messages];
 
+    let totalStreamInput = 0;
+    let totalStreamOutput = 0;
+
     while (true) {
       const stream = this.client.messages.stream({
         model: config.model,
@@ -182,10 +185,12 @@ export class AgentRuntime {
       }
 
       const finalMsg = await stream.finalMessage();
+      totalStreamInput += finalMsg.usage.input_tokens;
+      totalStreamOutput += finalMsg.usage.output_tokens;
       const toolUseBlocks = finalMsg.content.filter(b => b.type === 'tool_use') as Anthropic.ToolUseBlock[];
 
       if (finalMsg.stop_reason === 'end_turn' || toolUseBlocks.length === 0) {
-        yield { type: 'done' };
+        yield { type: 'done', usage: { inputTokens: totalStreamInput, outputTokens: totalStreamOutput } };
         return;
       }
 

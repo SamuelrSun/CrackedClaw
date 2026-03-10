@@ -216,6 +216,11 @@ export async function POST(request: NextRequest) {
           }
           if (event.type === 'done') {
             (event as Record<string, unknown>).conversation_id = capturedConvoId;
+            if ((event as Record<string, unknown>).usage) {
+              const u = (event as Record<string, unknown>).usage as { inputTokens: number; outputTokens: number };
+              inputTokens = u.inputTokens;
+              outputTokens = u.outputTokens;
+            }
           }
           try { await writer.write(encode(event)); } catch { /* writer closed */ }
         }
