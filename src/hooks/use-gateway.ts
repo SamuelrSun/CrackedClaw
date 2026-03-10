@@ -293,7 +293,7 @@ export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatew
     setMemoryError(null);
     
     try {
-      const res = await fetch('/api/gateway/memory');
+      const res = await fetch('/api/memory');
       const data: GatewayMemoryResponse = await res.json();
       
       setMemoryEntries(data.entries);

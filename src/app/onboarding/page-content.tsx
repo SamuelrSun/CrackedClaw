@@ -445,16 +445,7 @@ function IntegrationsStep({
   useEffect(() => {
     async function fetchIntegrations() {
       try {
-        // First sync from gateway
-        const syncRes = // sync not needed in serverless mode
-        if (!syncRes.ok) {
-          const data = await syncRes.json();
-          setError(data.error || "Failed to sync");
-          setLoading(false);
-          return;
-        }
-
-        // Then fetch all integrations
+        // Fetch all integrations directly (no gateway sync needed in serverless mode)
         const res = await fetch("/api/integrations");
         if (res.ok) {
           const data = await res.json();

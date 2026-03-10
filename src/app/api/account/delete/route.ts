@@ -123,23 +123,7 @@ export async function POST(request: NextRequest) {
       memberCount = count || 0;
     }
 
-    // If there's an instance and user is solo owner, delete the instance first
-    let instanceDeleted = false;
-    if (org?.openclaw_instance_id && memberCount === 0) {
-      // Delete the provisioned instance
-      try {
-        const deleteResult = { success: true };
-        if (deleteResult.success) {
-          instanceDeleted = true;
-        } else {
-          console.error("Failed to delete instance:", deleteResult.error);
-          // Continue with account deletion anyway - instance will be orphaned
-        }
-      } catch (err) {
-        console.error("Instance deletion error:", err);
-        // Continue with account deletion anyway
-      }
-    }
+        // No instance cleanup needed — serverless runtime
 
     // If user has other members in org, just leave the org (don't delete it)
     if (org && memberCount > 0) {
