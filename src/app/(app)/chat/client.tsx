@@ -34,6 +34,7 @@ import { useNodeStatus } from "@/hooks/use-node-status";
 import { MemoryPanel, type MemoryInsights } from "@/components/chat/memory-panel";
 import { BrowserPopup } from "@/components/chat/browser-popup";
 import { BrowserPreviewCard } from "@/components/chat/browser-preview-card";
+import { BrowserOpenCard } from "@/components/chat/browser-open-card";
 import { LinkedContextBadge } from "@/components/chat/linked-context-badge";
 import { ConversationContextMenu } from "@/components/chat/conversation-context-menu";
 import { ConversationPickerModal } from "@/components/chat/conversation-picker-modal";
@@ -256,6 +257,14 @@ function RichMessage({
                 onOpenPopup={() => onOpenBrowser?.(segment.url, false)}
                 onTakeControl={() => onOpenBrowser?.(segment.url, true)}
                 onIgnore={() => {}}
+              />
+            );
+          case "browser-open":
+            return (
+              <BrowserOpenCard
+                key={idx}
+                url={segment.url}
+                message={segment.message}
               />
             );
           case "email-composer":

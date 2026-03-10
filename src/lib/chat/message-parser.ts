@@ -49,10 +49,12 @@ export type ParsedSegment =
   | { type: "inline-task"; taskName: string; status: "running" | "complete" | "failed"; details?: string }
   | { type: "workflow-preview"; workflow: WorkflowDef }
   | { type: "browser-preview"; url: string; status: "browsing" | "waiting-login" | "complete" | "error"; message?: string }
+  | { type: "browser-open"; url: string; message?: string }
   | { type: "email-composer"; to: string[]; cc?: string[]; bcc?: string[]; subject: string; body: string; integration: 'google' | 'microsoft' };
 
 const PATTERNS = {
   inlineTask: /\[\[task:([^:]+):([^:]+)(?::([^\]]+))?\]\]/g,
+  browserOpen: /\[\[browser:(https?:\/\/[^\]:\s]+)(?::([^\]]+))?\]\]/g,
   integrationsResolve: /\[\[integrations:resolve:([^\]]+)\]\]/g,
   skillSuggest: /\[\[skill:suggest:([^,\]]+)(?:,([^\]]+))?\]\]/g,
   integrationConnect: /\[\[integration:([a-z][a-z0-9-]*)\]\]/g,
@@ -384,6 +386,21 @@ export function parseMessageContent(content: string): ParsedSegment[] {
     }
   }
 
+
+
+  // Browser open - [[browser:URL]] or [[browser:URL:message]]
+  PATTERNS.browserOpen.lastIndex = 0;
+  while ((match = PATTERNS.browserOpen.exec(processedContent)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      segment: {
+        type: "browser-open",
+        url: match[1].trim(),
+        message: match[2]?.trim(),
+      },
+    });
+  }
 
   // Email composer - bracket-aware extraction for [[email:{...}]]
   {

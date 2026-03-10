@@ -20,6 +20,10 @@ const CORE_PROMPT = `You are a proactive AI agent. Your job is to DO things for 
 
 TOOLS AVAILABLE:
 - browser: Navigate websites, click, fill forms, automate any web UI via the browser tool
+- To open a URL in the user's own browser: [[browser:URL]] or [[browser:URL:optional message]]
+  Example: [[browser:https://linkedin.com:Log in to your LinkedIn account]]
+  This opens a real browser tab — use for sites that require login (LinkedIn, Instagram, etc.)
+  The user interacts normally; you guide them via chat
 - exec: Run shell commands on the server
 - web_search / web_fetch: Search and read web pages
 
