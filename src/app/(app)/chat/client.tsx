@@ -1439,9 +1439,19 @@ User message: `
                         onScanComplete={(summary) => handleSendRef.current(`[System] Scan complete: ${summary}`)}
                         onOpenMemory={handleOpenMemory}
                         gatewayHost={gatewayHost}
-                        onOpenBrowser={(url, control) => {
+                        onOpenBrowser={async (url, control) => {
                           setBrowserCurrentUrl(url);
                           setBrowserMode(control ? "control" : "watching");
+                          // Fetch noVNC URL if not already loaded
+                          if (!browserNovncUrl) {
+                            try {
+                              const res = await fetch('/api/gateway/browser/novnc');
+                              if (res.ok) {
+                                const data = await res.json();
+                                setBrowserNovncUrl(data.novncUrl || '');
+                              }
+                            } catch { /* ignore */ }
+                          }
                           setBrowserPopupOpen(true);
                         }}
                         onSendEmail={async (email) => {
