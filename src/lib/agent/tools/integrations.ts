@@ -90,35 +90,44 @@ export const scanIntegrationTool: ToolDefinition = {
     required: ['provider'],
   },
   async execute(input: unknown, context: AgentContext): Promise<unknown> {
-    const { provider, mode = 'quick' } = input as { provider: string; mode?: 'quick' | 'deep' };
+    const { provider, mode: scanMode } = input as { provider: string; mode?: 'quick' | 'deep' };
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return { success: false, error: 'ANTHROPIC_API_KEY not configured' };
     try {
-      const { runDeepAnalysis } = await import('@/lib/engine/engine');
+      const { runScan } = await import('@/lib/engine/v2');
       const onProgress = context.onToolProgress
         ? (evt: Record<string, unknown>) => context.onToolProgress!('scan_integration', evt)
         : undefined;
-      const result = await runDeepAnalysis(context.userId, provider, apiKey, onProgress as import('@/lib/engine/types').ProgressCallback | undefined, mode);
+      const result = await runScan(
+        context.userId,
+        apiKey,
+        scanMode || 'quick',
+        onProgress as import('@/lib/engine/v2/types').ScanProgressCallback | undefined,
+        provider === 'all' ? undefined : provider,
+      );
       return {
         success: true,
-        summary: result.summary,
-        memoriesCreated: result.totalMemoriesCreated,
-        entitiesFound: result.totalEntities,
-        durationSeconds: Math.round(result.durationMs / 1000),
-        accountEmail: result.accountEmail,
-        automationSuggestions: (result.workflowSuggestions || []).slice(0, 5).map((s: { name: string; description: string; painScore: number; trigger: string; estimatedTimeSaved: string; priority: string }) => ({
-          name: s.name,
-          description: s.description,
-          painScore: s.painScore,
-          trigger: s.trigger,
-          estimatedTimeSaved: s.estimatedTimeSaved,
-          priority: s.priority,
+        scanId: result.scanId,
+        totalMemories: result.totalMemories,
+        durationSeconds: Math.round(result.totalDurationMs / 1000),
+        integrations: result.integrationResults.map((r: import('@/lib/engine/v2/types').IntegrationScanResult) => ({
+          provider: r.provider,
+          account: r.accountLabel,
+          memories: r.memoriesCreated,
+          error: r.error || null,
         })),
-        passes: result.passResults.map(p => ({
-          name: p.passName,
-          memories: p.memories.length,
-          entities: p.entities.length,
-        })),
+        synthesis: result.synthesis ? {
+          crossInsights: result.synthesis.crossIntegrationInsights.length,
+          workflowSuggestions: result.synthesis.workflowSuggestions.map((s: import('@/lib/engine/v2/types').WorkflowSuggestion) => ({
+            name: s.name,
+            description: s.description,
+            trigger: s.trigger,
+            integrations: s.integrations,
+            estimatedTimeSaved: s.estimatedTimeSaved,
+            priority: s.priority,
+          })),
+          userProfile: result.synthesis.userProfile?.substring(0, 500),
+        } : null,
       };
     } catch (err) {
       return { success: false, error: String(err) };
