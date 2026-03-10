@@ -12,7 +12,6 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const provider = body.provider || 'google';
   const mode = (body.mode === 'deep' ? 'deep' : 'quick') as 'quick' | 'deep';
-  const mode: 'quick' | 'deep' = body.mode === 'deep' ? 'deep' : 'quick';
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
