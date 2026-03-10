@@ -1,0 +1,179 @@
+/**
+ * Chat Stream v2 — Routes through OpenClaw gateway instance
+ * Falls back to direct AgentRuntime if no instance is available
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { requireApiAuth } from '@/lib/api-auth';
+import { createClient } from '@/lib/supabase/server';
+import { getUserInstance, streamThroughGateway } from '@/lib/gateway/openclaw-proxy';
+import { buildSystemPromptForUser } from '@/lib/gateway/system-prompt';
+import { logActivity, incrementTokenUsage } from '@/lib/supabase/data';
+import { processAgentResponse } from '@/lib/memory/service';
+import { incrementUsage } from '@/lib/usage/tracker';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 800;
+
+function encode(data: string): Uint8Array {
+  return new TextEncoder().encode(data);
+}
+
+export async function POST(request: NextRequest) {
+  const { user, error } = await requireApiAuth();
+  if (error) return error;
+
+  try {
+    const body = await request.json();
+    const { message, conversation_id } = body;
+
+    if (!message || typeof message !== 'string') {
+      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    }
+
+    const supabase = await createClient();
+    let activeConversationId = conversation_id;
+
+    // Check if user has an OpenClaw instance
+    const instance = await getUserInstance(user!.id);
+    if (!instance) {
+      // No instance — fall back to v1 stream route
+      const v1Url = new URL('/api/gateway/chat/stream', request.url);
+      return NextResponse.redirect(v1Url, { status: 307 });
+    }
+
+    // Create conversation if needed
+    if (!activeConversationId) {
+      const { data: newConvo } = await supabase
+        .from('conversations')
+        .insert({
+          user_id: user!.id,
+          title: message.length > 50 ? message.substring(0, 47) + '...' : message,
+        })
+        .select()
+        .single();
+      if (newConvo) activeConversationId = newConvo.id;
+    }
+
+    // Save user message
+    if (activeConversationId) {
+      await supabase.from('messages').insert({
+        conversation_id: activeConversationId,
+        role: 'user',
+        content: message,
+      }).then(() => {}, (e) => console.error('Failed to save user msg:', e));
+    }
+
+    // Get conversation history
+    let previousMessages: Array<{ role: string; content: string }> = [];
+    if (activeConversationId) {
+      const { data: historyRows } = await supabase
+        .from('messages')
+        .select('role, content')
+        .eq('conversation_id', activeConversationId)
+        .order('created_at', { ascending: false })
+        .limit(51);
+      if (historyRows && historyRows.length > 0) {
+        previousMessages = historyRows.slice(1).reverse() as Array<{ role: string; content: string }>;
+      }
+    }
+
+    // Build system prompt (includes user context, memory, integrations)
+    const systemPrompt = await buildSystemPromptForUser(user!.id, message);
+
+    // All messages for the gateway
+    const allMessages = [
+      ...previousMessages,
+      { role: 'user', content: message },
+    ];
+
+    const capturedConvoId = activeConversationId;
+
+    // SSE stream
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+    const writer = writable.getWriter();
+
+    (async () => {
+      let fullContent = '';
+
+      try {
+        const stream = streamThroughGateway({
+          userId: user!.id,
+          messages: allMessages,
+          systemPrompt,
+        });
+
+        for await (const event of stream) {
+          if (event.type === 'token') {
+            fullContent += event.text;
+            try {
+              await writer.write(encode('data: ' + JSON.stringify({ type: 'token', text: event.text }) + '\n\n'));
+            } catch { /* writer closed */ }
+          } else if (event.type === 'done') {
+            try {
+              await writer.write(encode('data: ' + JSON.stringify({
+                type: 'done',
+                conversation_id: capturedConvoId,
+              }) + '\n\n'));
+            } catch { /* writer closed */ }
+          } else if (event.type === 'error') {
+            try {
+              await writer.write(encode('data: ' + JSON.stringify({
+                type: 'error',
+                message: event.message,
+              }) + '\n\n'));
+            } catch { /* writer closed */ }
+          }
+        }
+      } catch (err) {
+        console.error('Gateway proxy error:', err);
+        try {
+          await writer.write(encode('data: ' + JSON.stringify({
+            type: 'error',
+            message: err instanceof Error ? err.message : 'Proxy streaming failed',
+          }) + '\n\n'));
+        } catch { /* ignore */ }
+      }
+
+      // Post-stream: save assistant message, log activity
+      try {
+        const cleanedContent = fullContent ? await processAgentResponse(user!.id, fullContent, message) : fullContent;
+
+        if (capturedConvoId && cleanedContent) {
+          await supabase.from('messages').insert({
+            conversation_id: capturedConvoId,
+            role: 'assistant',
+            content: cleanedContent,
+          }).then(() => {}, (e) => console.error('Failed to save assistant msg:', e));
+
+          await supabase.from('conversations').update({
+            updated_at: new Date().toISOString(),
+          }).eq('id', capturedConvoId).then(() => {}, () => {});
+        }
+
+        await logActivity('Chat message sent', message.length > 50 ? message.substring(0, 50) + '...' : message, { conversation_id: capturedConvoId })
+          .catch(e => console.error('Failed to log activity:', e));
+
+        const estimatedTokens = Math.ceil((message.length + (fullContent?.length ?? 0)) / 4);
+        incrementUsage(user!.id, estimatedTokens, 0);
+        await incrementTokenUsage(estimatedTokens).catch(() => {});
+      } catch (e) {
+        console.error('Post-stream error:', e);
+      }
+
+      try { await writer.close(); } catch { /* ignore */ }
+    })();
+
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Conversation-Id': activeConversationId || '',
+        'X-Backend': 'openclaw-gateway',
+      },
+    });
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  }
+}
