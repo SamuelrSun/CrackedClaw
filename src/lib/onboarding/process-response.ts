@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { parseOnboardingActions, extractUserName, extractAgentName } from "@/lib/onboarding/agent-prompt";
+import { saveMemory } from "@/lib/memory/service";
 import { toOnboardingState, type OnboardingStep } from "@/types/onboarding";
 
 /**
@@ -30,12 +31,16 @@ export async function processOnboardingResponse(
       if (userName) {
         updates.user_display_name = userName;
         addCompletedStep("user_name_provided");
+        // Save to memory
+        saveMemory(userId, 'user_name', userName, { category: 'personal', source: 'onboarding' }).catch(() => {});
       }
     } else if (!currentState.agent_name) {
       const agentName = extractAgentName(userMessage);
       if (agentName) {
         updates.agent_name = agentName;
         addCompletedStep("agent_name_provided");
+        // Save to memory
+        saveMemory(userId, 'agent_name', agentName, { category: 'preference', source: 'onboarding' }).catch(() => {});
       }
     }
   }
