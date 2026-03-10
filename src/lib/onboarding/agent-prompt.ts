@@ -81,6 +81,10 @@ Special syntax you can output:
 - [[context:summary:{json}]] - Show context summary
 - [[workflow:suggest:TITLE:DESCRIPTION]] - Show a workflow suggestion card (output one per suggestion, all on separate lines)
 - [[action:complete_onboarding]] - End onboarding
+- [[user_name:NAME]] - When you learn the user's name (e.g. [[user_name:Sam]])
+- [[agent_name:NAME]] - When the user names you (e.g. [[agent_name:Sophia]])
+
+CRITICAL: You MUST output [[user_name:X]] when you identify the user's name, and [[agent_name:X]] when they name you. These tags save the names to the system. Without them, names won't persist.
 `;
 
 // Phase-specific prompts
@@ -335,7 +339,11 @@ export function parseOnboardingActions(response: string): Array<{
  * Remove special syntax from response for display
  */
 export function stripOnboardingActions(response: string): string {
-  return response.replace(/\[\[(integrations|integration|welcome|subagent|context|workflow|skill|action):[^\]]+\]\]/g, '').trim();
+  return response
+    .replace(/\[\[(integrations|integration|welcome|subagent|context|workflow|skill|action):[^\]]+\]\]/g, '')
+    .replace(/\[\[user_name:[^\]]+\]\]/g, '')
+    .replace(/\[\[agent_name:[^\]]+\]\]/g, '')
+    .trim();
 }
 
 /**

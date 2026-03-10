@@ -100,6 +100,8 @@ export function stripMarkers(text: string): string {
     .replace(/\[\[REMEMBER(\([^)]*\))?:[^\]]+\]\]/g, '')
     .replace(/\[\[FORGET:[^\]]+\]\]/g, '')
     .replace(/\[\[STORE_SECRET:[^\]]+\]\]/g, '')
+    .replace(/\[\[user_name:[^\]]+\]\]/g, '')
+    .replace(/\[\[agent_name:[^\]]+\]\]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
