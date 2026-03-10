@@ -337,7 +337,7 @@ export function DynamicIntegrationsCard({ services, gatewayHost }: DynamicIntegr
         twitter: 'https://twitter.com',
         reddit: 'https://reddit.com',
       };
-      const url = urls[resolved.id] || \`https://\${resolved.id}.com\`;
+      const url = urls[resolved.id] || `https://${resolved.id}.com`;
       window.open(url, '_blank', 'noopener,noreferrer');
       setCards(prev => prev.map((c, idx) => idx === index ? { ...c, status: "added" } : c));
       return;
