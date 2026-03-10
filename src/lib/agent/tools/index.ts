@@ -5,6 +5,7 @@ import { fileReadTool, fileWriteTool } from './files';
 import { webSearchTool, webFetchTool } from './web';
 import { memorySearchTool, memoryAddTool } from './memory';
 import { getIntegrationTokenTool, listIntegrationsTool, scanIntegrationTool } from './integrations';
+import { gmailSearchTool, gmailDraftsTool, gmailSendTool, gmailLabelsTool } from './gmail';
 
 export const ALL_TOOLS: ToolDefinition[] = [
   execTool,
@@ -18,6 +19,10 @@ export const ALL_TOOLS: ToolDefinition[] = [
   getIntegrationTokenTool,
   listIntegrationsTool,
   scanIntegrationTool,
+  gmailSearchTool,
+  gmailDraftsTool,
+  gmailSendTool,
+  gmailLabelsTool,
 ];
 
 // All tools always available — agent decides what to use based on context
@@ -37,4 +42,8 @@ export {
   getIntegrationTokenTool,
   listIntegrationsTool,
   scanIntegrationTool,
+  gmailSearchTool,
+  gmailDraftsTool,
+  gmailSendTool,
+  gmailLabelsTool,
 };
