@@ -26,6 +26,8 @@ import {
   OnboardingWelcomeAnimation,
 } from "@/components/chat";
 import { ActiveAgentsPanel } from "@/components/chat/active-agents-panel";
+import { AgentActivityPanel } from "@/components/chat/agent-activity-panel";
+import type { AgentActivityEntry } from "@/components/chat/agent-activity-panel";
 import { SubagentPanel } from "@/components/chat/subagent-panel";
 import { InlineTaskCard } from "@/components/chat/inline-task-card";
 import type { SubagentSession } from "@/components/chat/subagent-card";
@@ -576,7 +578,10 @@ export default function ChatPageClient({
   const [retryCount, setRetryCount] = useState(0);
   const [activeAgentTasks, setActiveAgentTasks] = useState<Array<{id: string, label: string, startedAt: number}>>([]); 
   const [showSubagentPanel, setShowSubagentPanel] = useState(false); 
-  const [subagentCount, setSubagentCount] = useState(0); 
+  const [subagentCount, setSubagentCount] = useState(0);
+  const [activityPanelOpen, setActivityPanelOpen] = useState(false);
+  const [agentActivities, setAgentActivities] = useState<AgentActivityEntry[]>([]);
+  const [activityActiveTab, setActivityActiveTab] = useState<string | undefined>(undefined); 
   const [inlineSubagents, setInlineSubagents] = useState<SubagentSession[]>([]);
   const [memoryPanelOpen, setMemoryPanelOpen] = useState(false);
   const [memoryPanelData, setMemoryPanelData] = useState<{ insights?: MemoryInsights; source?: string }>({});
@@ -910,7 +915,7 @@ User message: `
           const jsonStr = line.slice("data: ".length).trim();
           if (!jsonStr) continue;
 
-          let chunk: { type: string; text?: string; tool?: string; input?: Record<string, unknown>; result?: string; conversation_id?: string; message?: string };
+          let chunk: { type: string; text?: string; tool?: string; input?: Record<string, unknown>; result?: string; conversation_id?: string; message?: string; data?: Record<string, unknown> };
           try { chunk = JSON.parse(jsonStr); } catch { continue; }
 
           if (chunk.type === "token" && chunk.text) {
@@ -936,6 +941,50 @@ User message: `
                   : tc
               ),
             }));
+            // Mark activity as done when scan tool ends
+            if (chunk.tool === 'scan_integration') {
+              setAgentActivities(prev => prev.map(a =>
+                a.status === 'running' ? { ...a, status: 'done' as const, completedAt: Date.now() } : a
+              ));
+            }
+          } else if (chunk.type === "tool_progress" && chunk.tool && chunk.data) {
+            const data = chunk.data as { phase?: string; pass?: string; message?: string; progress?: number };
+            const phase = data.phase || 'scan';
+            const passName = data.pass || phase;
+            const logLine = data.message || '';
+            // Auto-open panel when scan starts
+            if (phase === 'fetching' && logLine) {
+              setActivityPanelOpen(true);
+            }
+            setAgentActivities(prev => {
+              // Find or create activity for this phase/pass
+              const existingId = passName === 'fetching' || passName === 'correlating' || passName === 'storing'
+                ? `scan-${passName}`
+                : passName === 'analyzing' && data.pass
+                  ? `scan-pass-${data.pass}`
+                  : `scan-${passName}`;
+              const existing = prev.find(a => a.id === existingId);
+              if (existing) {
+                return prev.map(a => a.id === existingId
+                  ? { ...a, status: 'running' as const, logs: [...a.logs, logLine] }
+                  : a
+                );
+              }
+              const displayName = passName === 'fetching' ? 'Fetching'
+                : passName === 'correlating' ? 'Correlating'
+                : passName === 'storing' ? 'Storing'
+                : data.pass || passName;
+              const newEntry: AgentActivityEntry = {
+                id: existingId,
+                name: displayName,
+                status: 'running',
+                logs: logLine ? [logLine] : [],
+                startedAt: Date.now(),
+              };
+              const updated = [...prev, newEntry];
+              if (!activityActiveTab) setActivityActiveTab(existingId);
+              return updated;
+            });
           } else if (chunk.type === "done") {
             if (chunk.conversation_id) {
               const isNew = !conversations.find((c) => c.id === chunk.conversation_id);
@@ -1298,9 +1347,11 @@ User message: `
         />
       </aside>
 
+      {/* Chat Area + Activity Panel */}
+      <div className="flex-1 flex overflow-hidden">
       {/* Chat Area */}
       <div
-        className="flex-1 flex flex-col relative overflow-hidden"
+        className={cn("flex flex-col relative overflow-hidden transition-all duration-300", activityPanelOpen ? "flex-1" : "flex-1")}
         onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false); }}
         onDrop={(e) => {
@@ -1357,6 +1408,24 @@ User message: `
             {subagentCount > 0 && (
               <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#1A3C2B] text-white font-mono text-[9px] ml-0.5">
                 {subagentCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActivityPanelOpen((v) => !v)}
+            className={cn(
+              "relative flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide border transition-all rounded-none",
+              activityPanelOpen
+                ? "text-[#1A3C2B] border-[rgba(26,60,43,0.3)] bg-forest/5"
+                : "text-grid/50 hover:text-[#1A3C2B] border-transparent hover:border-[rgba(26,60,43,0.2)]"
+            )}
+            title="Toggle agent activity panel"
+          >
+            <span>📊</span>
+            <span>Activity</span>
+            {agentActivities.filter(a => a.status === 'running').length > 0 && (
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#1A3C2B] text-white font-mono text-[9px] ml-0.5">
+                {agentActivities.filter(a => a.status === 'running').length}
               </span>
             )}
           </button>
@@ -1708,6 +1777,20 @@ User message: `
             setBrowserMode("watching");
           }}
         />
+      </div>
+
+      {/* Agent Activity Split Panel */}
+      {activityPanelOpen && (
+        <div className="w-[38%] flex-shrink-0 border-l border-[rgba(58,58,56,0.2)] overflow-hidden">
+          <AgentActivityPanel
+            isOpen={activityPanelOpen}
+            onClose={() => setActivityPanelOpen(false)}
+            activities={agentActivities}
+            activeTabId={activityActiveTab}
+            onTabChange={setActivityActiveTab}
+          />
+        </div>
+      )}
       </div>
     </div>
   );

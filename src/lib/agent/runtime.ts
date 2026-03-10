@@ -21,6 +21,7 @@ export interface AgentContext {
   conversationId: string;
   companionConnected: boolean;
   integrations: string[];
+  onToolProgress?: (toolName: string, data: Record<string, unknown>) => void;
 }
 
 export interface ToolResult {
@@ -41,7 +42,8 @@ export type StreamEvent =
   | { type: 'tool_start'; tool: string; input: unknown }
   | { type: 'tool_end'; tool: string; output?: unknown; error?: string }
   | { type: 'done'; conversation_id?: string; usage?: { inputTokens: number; outputTokens: number } }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  | { type: 'tool_progress'; tool: string; data: Record<string, unknown> };
 
 type AnthropicMessage = Anthropic.MessageParam;
 
@@ -202,16 +204,29 @@ export class AgentRuntime {
         let output: unknown;
         let errorMsg: string | undefined;
 
+        const progressEvents: Array<Record<string, unknown>> = [];
+        const contextWithProgress: AgentContext = {
+          ...context,
+          onToolProgress: (toolName: string, data: Record<string, unknown>) => {
+            progressEvents.push({ toolName, ...data });
+            context.onToolProgress?.(toolName, data);
+          },
+        };
+
         if (!toolDef) {
           errorMsg = `Tool "${block.name}" not found`;
           output = { error: errorMsg };
         } else {
           try {
-            output = await toolDef.execute(block.input, context);
+            output = await toolDef.execute(block.input, contextWithProgress);
           } catch (err) {
             errorMsg = err instanceof Error ? err.message : String(err);
             output = { error: errorMsg };
           }
+        }
+
+        for (const evt of progressEvents) {
+          yield { type: 'tool_progress' as const, tool: block.name, data: evt };
         }
 
         yield { type: 'tool_end', tool: block.name, output, error: errorMsg };
