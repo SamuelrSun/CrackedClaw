@@ -3,7 +3,7 @@ import { requireApiAuth } from "@/lib/api-auth";
 import { createClient } from "@/lib/supabase/server";
 import { logActivity, incrementTokenUsage } from "@/lib/supabase/data";
 import { getOnboardingPrompt } from "@/lib/onboarding/agent-prompt";
-import { toOnboardingState, type OnboardingStateRow } from "@/types/onboarding";
+import { toOnboardingState, type OnboardingStateRow, type OnboardingStep } from "@/types/onboarding";
 import { processOnboardingResponse } from "@/lib/onboarding/process-response";
 import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
 import { processAgentResponse } from "@/lib/memory/service";
@@ -147,6 +147,36 @@ export async function POST(request: NextRequest) {
         if (linkedCtx) systemPrompt += "\n\n" + linkedCtx;
       }
       if (workflowContext) systemPrompt += "\n\n" + workflowContext;
+    }
+
+    // Pre-process onboarding: extract names from user message BEFORE streaming
+    // This prevents race conditions where message 2 arrives before message 1's post-stream update
+    if (isOnboarding && onboardingState) {
+      const { extractUserName, extractAgentName } = await import('@/lib/onboarding/agent-prompt');
+      const preUpdates: Record<string, unknown> = {};
+      
+      if (!onboardingState.user_display_name) {
+        const userName = extractUserName(message);
+        if (userName) {
+          preUpdates.user_display_name = userName;
+          preUpdates.completed_steps = [...onboardingState.completed_steps, 'user_name_provided'];
+        }
+      } else if (!onboardingState.agent_name) {
+        const agentName = extractAgentName(message);
+        if (agentName) {
+          preUpdates.agent_name = agentName;
+          preUpdates.completed_steps = [...onboardingState.completed_steps, 'agent_name_provided'];
+        }
+      }
+      
+      if (Object.keys(preUpdates).length > 0) {
+        preUpdates.updated_at = new Date().toISOString();
+        await supabase.from('onboarding_state').update(preUpdates).eq('user_id', user.id);
+        // Update local state so post-stream processing doesn't re-process
+        if (preUpdates.user_display_name) onboardingState.user_display_name = preUpdates.user_display_name as string;
+        if (preUpdates.agent_name) onboardingState.agent_name = preUpdates.agent_name as string;
+        if (preUpdates.completed_steps) onboardingState.completed_steps = preUpdates.completed_steps as OnboardingStep[];
+      }
     }
 
     let userMessageContent = message;
