@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,210 @@ import { IntegrationGridSkeleton } from "@/components/skeletons/integration-skel
 import type { ResolvedIntegration } from "@/lib/integrations/resolver";
 import { IntegrationIcon } from "@/components/integrations/integration-icon";
 import { INTEGRATIONS } from "@/lib/integrations/registry";
+
+
+// ── Deep Scan types ──────────────────────────────────────────────────────────
+interface ScanProgress {
+  phase: string;
+  progress: number;
+  message: string;
+  result?: {
+    scanId: string;
+    totalMemories: number;
+    durationMs: number;
+  };
+}
+
+interface ScanLog {
+  id: string;
+  mode: string;
+  status: string;
+  provider: string | null;
+  memoriesCreated: number;
+  durationMs: number;
+  createdAt: string;
+}
+
+interface ScanState {
+  running: boolean;
+  progress: ScanProgress | null;
+  history: ScanLog[];
+  historyLoaded: boolean;
+  showHistory: boolean;
+}
+
+// ── Deep Scan Panel ──────────────────────────────────────────────────────────
+function DeepScanPanel({ provider }: { provider: string }) {
+  const [state, setState] = useState<ScanState>({
+    running: false,
+    progress: null,
+    history: [],
+    historyLoaded: false,
+    showHistory: false,
+  });
+  const toast = useToast();
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/engine/scan/history?provider=${provider}`);
+      if (res.ok) {
+        const data = await res.json();
+        setState(prev => ({ ...prev, history: data.scans || [], historyLoaded: true }));
+      }
+    } catch {
+      setState(prev => ({ ...prev, historyLoaded: true }));
+    }
+  }, [provider]);
+
+  const startScan = async () => {
+    if (state.running) return;
+    setState(prev => ({ ...prev, running: true, progress: { phase: 'starting', progress: 0, message: 'Starting deep scan…' } }));
+
+    try {
+      const res = await fetch('/api/engine/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, mode: 'deep' }),
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error('Failed to start scan');
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event: ScanProgress = JSON.parse(line.slice(6));
+              setState(prev => ({ ...prev, progress: event }));
+              if (event.phase === 'complete' || event.phase === 'error') {
+                setState(prev => ({ ...prev, running: false }));
+                if (event.phase === 'complete') {
+                  toast.success('Deep scan complete', `${event.result?.totalMemories ?? 0} memories created`);
+                  loadHistory();
+                } else {
+                  toast.error('Scan failed', event.message);
+                }
+              }
+            } catch { /* malformed SSE */ }
+          }
+        }
+      }
+    } catch (err) {
+      setState(prev => ({ ...prev, running: false, progress: { phase: 'error', progress: 0, message: String(err) } }));
+      toast.error('Scan error', String(err));
+    }
+  };
+
+  const toggleHistory = () => {
+    const next = !state.showHistory;
+    setState(prev => ({ ...prev, showHistory: next }));
+    if (next && !state.historyLoaded) loadHistory();
+  };
+
+  const prog = state.progress;
+  const isDone = prog?.phase === 'complete';
+  const isError = prog?.phase === 'error';
+
+  return (
+    <div className="mt-4 pt-4 border-t border-[rgba(58,58,56,0.1)]">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={startScan}
+          disabled={state.running}
+          className="px-3 py-1.5 text-[11px] font-mono uppercase tracking-wide border border-[rgba(26,60,43,0.2)] text-[#1A3C2B] hover:bg-[#1A3C2B] hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {state.running ? 'Scanning…' : 'Deep Scan'}
+        </button>
+        <button
+          onClick={toggleHistory}
+          className="px-2 py-1.5 text-[10px] font-mono uppercase tracking-wide text-grid/50 hover:text-grid transition-colors"
+        >
+          {state.showHistory ? 'Hide History' : 'History'}
+        </button>
+      </div>
+
+      {/* Progress bar */}
+      {prog && !isDone && !isError && (
+        <div className="mt-3 space-y-1.5">
+          <div className="flex justify-between items-center">
+            <span className="font-mono text-[10px] text-grid/60 truncate pr-2">{prog.message}</span>
+            <span className="font-mono text-[10px] text-grid/40 flex-shrink-0">{prog.progress}%</span>
+          </div>
+          <div className="w-full h-1.5 bg-[rgba(58,58,56,0.1)]">
+            <div
+              className="h-full bg-[#1A3C2B] transition-all duration-300"
+              style={{ width: `${prog.progress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Completion summary */}
+      {isDone && prog.result && (
+        <div className="mt-3 p-2 bg-[#1A3C2B]/5 border border-[#1A3C2B]/20">
+          <p className="font-mono text-[10px] text-[#1A3C2B]">
+            ✓ {prog.result.totalMemories} memories created · {Math.round(prog.result.durationMs / 1000)}s
+          </p>
+        </div>
+      )}
+
+      {/* Error */}
+      {isError && (
+        <div className="mt-3 p-2 bg-coral/5 border border-coral/20">
+          <p className="font-mono text-[10px] text-coral">✕ {prog.message}</p>
+        </div>
+      )}
+
+      {/* Scan history */}
+      {state.showHistory && (
+        <div className="mt-3 space-y-1">
+          <p className="font-mono text-[9px] uppercase tracking-wide text-grid/40">Recent Scans</p>
+          {!state.historyLoaded ? (
+            <p className="font-mono text-[10px] text-grid/30">Loading…</p>
+          ) : state.history.length === 0 ? (
+            <p className="font-mono text-[10px] text-grid/30 italic">No scans yet</p>
+          ) : (
+            <div className="space-y-1.5">
+              {state.history.map(scan => (
+                <div key={scan.id} className="flex items-center justify-between py-1.5 px-2 border border-[rgba(58,58,56,0.08)] bg-cream/30">
+                  <div>
+                    <span className="font-mono text-[10px] text-grid/70 capitalize">{scan.mode}</span>
+                    <span className="font-mono text-[9px] text-grid/40 ml-2">
+                      {new Date(scan.createdAt).toLocaleDateString()} {new Date(scan.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[9px] text-grid/50">{scan.memoriesCreated} mem</span>
+                    {scan.durationMs > 0 && (
+                      <span className="font-mono text-[9px] text-grid/40">{Math.round(scan.durationMs / 1000)}s</span>
+                    )}
+                    <span className={`font-mono text-[8px] uppercase tracking-wide px-1.5 py-0.5 border ${
+                      scan.status === 'complete'
+                        ? 'text-[#1A3C2B] border-[#1A3C2B]/20 bg-[#1A3C2B]/5'
+                        : 'text-coral border-coral/20 bg-coral/5'
+                    }`}>
+                      {scan.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface IntegrationsPageClientProps {
   initialIntegrations: Integration[];
@@ -514,6 +718,11 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                   )}
 
                   <p className="font-mono text-[10px] text-grid/40 mt-4">Last sync: {integration.last_sync || "Never"}</p>
+
+                  {/* Deep Scan — only for connected integrations with a known provider */}
+                  {integration.status === "connected" && (
+                    <DeepScanPanel provider={integration.slug || integration.name?.toLowerCase() || ""} />
+                  )}
                 </div>
               </Card>
             );
