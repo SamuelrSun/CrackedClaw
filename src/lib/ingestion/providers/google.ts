@@ -5,6 +5,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import { saveMemory } from '@/lib/memory/service';
+import { getValidToken } from '@/lib/integrations/oauth-tokens';
 import {
   analyzeWritingStyle,
   analyzeSchedule,
@@ -16,17 +17,7 @@ import {
 } from '../analyzers';
 import { IngestResult } from '../engine';
 
-async function getGoogleTokens(userId: string): Promise<{ access_token: string; refresh_token?: string } | null> {
-  const supabase = createAdminClient();
-  const { data } = await supabase
-    .from('user_integrations')
-    .select('access_token, refresh_token')
-    .eq('user_id', userId)
-    .eq('provider', 'google')
-    .eq('status', 'connected')
-    .single();
-  return data || null;
-}
+// Token management handled by shared oauth-tokens module
 
 async function fetchEmails(accessToken: string, query: string, maxResults: number): Promise<Email[]> {
   const listRes = await fetch(
@@ -149,12 +140,8 @@ async function fetchDriveFiles(accessToken: string): Promise<{ name: string; mim
 export async function scanGoogle(userId: string, scope: 'quick' | 'full'): Promise<IngestResult> {
   const startMs = Date.now();
 
-  const tokens = await getGoogleTokens(userId);
-  if (!tokens?.access_token) {
-    throw new Error('Google integration not connected or missing access token');
-  }
-
-  const token = tokens.access_token;
+  // Get a valid (auto-refreshed) token
+  const token = await getValidToken(userId, 'google');
   const inboxCount = scope === 'quick' ? 10 : 50;
   const sentCount = scope === 'quick' ? 6 : 30;
   const starredCount = scope === 'quick' ? 4 : 20;

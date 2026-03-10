@@ -23,6 +23,13 @@ export function ScanTriggerCard({ provider, scope = "full", onComplete, onAgentS
 
     async function runScan() {
       try {
+        // Set scan consent (triggering scan = giving consent)
+        await fetch("/api/ingestion/consent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ provider, consent: true }),
+        });
+
         const res = await fetch("/api/ingestion/scan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
