@@ -1,8 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { encrypt, decrypt } from '@/lib/crypto';
 
-export type MemoryCategory = 'credential' | 'preference' | 'project' | 'contact' | 'fact' | 'context' | 'schedule';
-export type MemorySource = 'chat' | 'scan' | 'user_input';
+export type MemoryCategory = 'credential' | 'preference' | 'project' | 'contact' | 'fact' | 'context' | 'schedule' | 'personal';
+export type MemorySource = 'chat' | 'scan' | 'user_input' | 'onboarding';
 
 export interface MemoryEntry {
   id: string;
