@@ -325,7 +325,17 @@ export function parseMessageContent(content: string): ParsedSegment[] {
   // Integrations resolve
   PATTERNS.integrationsResolve.lastIndex = 0;
   while ((match = PATTERNS.integrationsResolve.exec(processedContent)) !== null) {
-    const services = match[1].split(",").map(s => s.trim()).filter(Boolean);
+    const rawServices = match[1].split(",").map(s => s.trim()).filter(Boolean);
+    // Normalize: gmail -> google, google-sheets -> google, etc. Then deduplicate.
+    const seen = new Set<string>();
+    const services: string[] = [];
+    for (const svc of rawServices) {
+      const normalized = CAPABILITY_TO_INTEGRATION[svc] || svc;
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        services.push(normalized);
+      }
+    }
     if (services.length > 0) {
       matches.push({
         index: match.index,
