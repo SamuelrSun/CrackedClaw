@@ -338,7 +338,43 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
     }
   } catch { /* skills table may not exist yet */ }
 
-  return buildSystemPrompt(ctx);
+  // Add OpenClaw gateway context for token bridge access
+  const basePrompt = buildSystemPrompt(ctx);
+  
+  // Check if this user has an OpenClaw instance (gateway mode)
+  try {
+    const { getUserInstance } = await import('./openclaw-proxy');
+    const instance = await getUserInstance(userId);
+    if (instance) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://crackedclaw.com';
+      const bridgeSecret = process.env.TOKEN_BRIDGE_SECRET || 'crackedclaw-bridge-2026';
+      const gatewayContext = `
+
+## CrackedClaw Integration Access
+You are running as a CrackedClaw agent. The user has connected integrations via CrackedClaw's OAuth system.
+
+To access the user's Google token for gog/Gmail/Calendar/Drive commands:
+\`\`\`bash
+TOKEN=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge -H 'Content-Type: application/json' -d '{"user_id":"${userId}","provider":"google","bridge_secret":"${bridgeSecret}"}' | jq -r '.access_token')
+\`\`\`
+
+Then use it with gog or direct API calls:
+\`\`\`bash
+# With gog (preferred — set the token as env var):
+GOG_TOKEN="$TOKEN" gog gmail search 'newer_than:7d' --max 10
+
+# Or use curl directly:
+curl -s -H "Authorization: Bearer $TOKEN" "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5"
+\`\`\`
+
+The user's ID is: ${userId}
+Connected integrations: ${(ctx.integrations || []).join(', ') || 'none yet'}
+`;
+      return basePrompt + gatewayContext;
+    }
+  } catch { /* no instance, skip gateway context */ }
+
+  return basePrompt;
 }
 
 /**
