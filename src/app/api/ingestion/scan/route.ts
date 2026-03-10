@@ -4,7 +4,7 @@ import { runScopedScan, isAgentScanNeeded, isNodeScanNeeded } from '@/lib/ingest
 import { INTEGRATIONS } from '@/lib/integrations/registry';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   const { user, error } = await requireApiAuth();
