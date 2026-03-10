@@ -96,9 +96,6 @@ export function AgentCanvas({
         className="canvas-area flex-1 relative overflow-hidden"
         style={{
           background: '#F7F7F5',
-          backgroundImage: 'radial-gradient(circle, #d0d0cc 1px, transparent 1px)',
-          backgroundSize: '24px 24px',
-          backgroundPosition: `${canvasOffset.x}px ${canvasOffset.y}px`,
         }}
         onMouseDown={handleCanvasMouseDown}
       >
@@ -106,9 +103,14 @@ export function AgentCanvas({
         <div
           style={{
             position: 'absolute',
-            inset: 0,
+            width: '200%',
+            height: '200%',
+            left: '-50%',
+            top: '-50%',
             transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px)`,
             willChange: 'transform',
+            backgroundImage: 'radial-gradient(circle, #d0d0cc 1px, transparent 1px)',
+            backgroundSize: '24px 24px',
           }}
         >
           {agentsWithPositions.map((agent) => (
