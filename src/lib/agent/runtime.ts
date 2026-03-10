@@ -40,7 +40,7 @@ export type StreamEvent =
   | { type: 'token'; text: string }
   | { type: 'tool_start'; tool: string; input: unknown }
   | { type: 'tool_end'; tool: string; output?: unknown; error?: string }
-  | { type: 'done'; conversation_id?: string }
+  | { type: 'done'; conversation_id?: string; usage?: { inputTokens: number; outputTokens: number } }
   | { type: 'error'; message: string };
 
 type AnthropicMessage = Anthropic.MessageParam;
