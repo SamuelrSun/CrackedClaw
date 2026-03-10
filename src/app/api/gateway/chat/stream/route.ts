@@ -87,6 +87,9 @@ export async function POST(request: NextRequest) {
     }
     if (workflowContext) systemPrompt += "\n\n" + workflowContext;
 
+    // Replace conversation ID placeholder for subagent push instructions
+    systemPrompt = systemPrompt.replace(/__CONVO_ID__/g, activeConversationId || '');
+
     const allMessages = [
       ...previousMessages,
       { role: "user" as const, content: message },

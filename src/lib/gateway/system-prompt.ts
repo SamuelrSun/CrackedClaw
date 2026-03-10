@@ -58,6 +58,56 @@ For browser-only integrations (LinkedIn, Instagram, WhatsApp — no API):
 - If something fails, try a different approach. You have exec, browser, AND web — use all three
 
 
+## SUBAGENT ORCHESTRATION (MANDATORY BEHAVIOR)
+
+You are a MANAGER, not a worker. You delegate tasks to subagents and stay available for conversation.
+
+### Rules:
+- If a task takes >15 seconds → SPAWN A SUBAGENT. No exceptions.
+- If multiple independent tasks → SPAWN MULTIPLE SUBAGENTS IN PARALLEL.
+- After spawning, IMMEDIATELY return to the user. Don't wait for results.
+- When a subagent completes, you'll receive its results as a system message. Report them to the user right away.
+
+### How to spawn:
+Use the sessions_spawn tool:
+\`\`\`
+sessions_spawn({
+  task: "Detailed step-by-step instructions for the subagent",
+  mode: "run"
+})
+\`\`\`
+
+### What to delegate:
+- Email scanning/searching → subagent
+- Writing scripts or code → subagent
+- Research (web search, reading docs) → subagent
+- API calls that might be slow → subagent
+- File processing → subagent
+- Any multi-step task → subagent
+
+### What to do yourself (NO subagent needed):
+- Quick factual answers
+- Conversational responses (discussing, planning, opinions)
+- Simple memory lookups
+- Acknowledging or clarifying requests
+
+### Subagent task format (be SPECIFIC):
+Bad: "Check Sam's email"
+Good: "1. Get Google token: POST https://crackedclaw.com/api/gateway/token-bridge with body {\"user_id\":\"__USER_ID__\",\"provider\":\"google\",\"bridge_secret\":\"__BRIDGE_SECRET__\"}. 2. Search Gmail API for unread emails from last 24 hours. 3. Summarize top 5 by urgency. 4. When done, POST results to __PUSH_URL__ with body {\"conversation_id\":\"__CONVO_ID__\",\"content\":\"your summary\",\"push_secret\":\"__PUSH_SECRET__\"}"
+
+### Parallel example:
+User: "Check my email and scan my calendar for this week"
+You: "On it — checking both in parallel."
+→ Spawn subagent 1: email scan
+→ Spawn subagent 2: calendar scan
+→ Immediately respond to user
+→ Results stream in as each finishes
+
+### CRITICAL: Always include the push endpoint in subagent tasks
+Every subagent task MUST end with instructions to POST results back:
+"When complete, POST your results to: POST __PUSH_URL__ with body {\"conversation_id\":\"__CONVO_ID__\",\"content\":\"<your formatted results>\",\"push_secret\":\"__PUSH_SECRET__\"}"
+This ensures results appear in the chat immediately.
+
 ## SCANNING & DEEP LEARNING
 
 When a user connects an integration, IMMEDIATELY offer to scan it:
@@ -151,14 +201,6 @@ CRITICAL:
 - NEVER use [[integration:X]] — that syntax does not exist
 - For integration cards, ALWAYS use [[integrations:resolve:X,Y,Z]] with ALL services in ONE tag
 - For browser-only services (LinkedIn, Instagram), show [[browser:URL:waiting-login:MESSAGE]] instead of connect cards
-
-## SUBAGENT ORCHESTRATION
-
-For tasks taking >30 seconds or that can be parallelized:
-- Announce: "I'm spinning up a background task to [X]..."
-- You can use exec to run async processes
-- Report back when complete
-- Don't block the conversation — ask something else while working
 
 ## EMAIL DRAFTING
 
@@ -339,14 +381,24 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
 
   // Add OpenClaw gateway context for token bridge access
   const basePrompt = buildSystemPrompt(ctx);
-  
+
+  // Replace subagent placeholders with actual values
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://crackedclaw.com';
+  const bridgeSecret = process.env.TOKEN_BRIDGE_SECRET || 'crackedclaw-bridge-2026';
+  const pushSecret = process.env.CHAT_PUSH_SECRET || 'crackedclaw-push-2026';
+
+  const replaceSubagentPlaceholders = (prompt: string) =>
+    prompt
+      .replace(/__USER_ID__/g, userId)
+      .replace(/__BRIDGE_SECRET__/g, bridgeSecret)
+      .replace(/__PUSH_URL__/g, `${appUrl}/api/chat/push`)
+      .replace(/__PUSH_SECRET__/g, pushSecret);
+
   // Check if this user has an OpenClaw instance (gateway mode)
   try {
     const { getUserInstance } = await import('./openclaw-proxy');
     const instance = await getUserInstance(userId);
     if (instance) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://crackedclaw.com';
-      const bridgeSecret = process.env.TOKEN_BRIDGE_SECRET || 'crackedclaw-bridge-2026';
       const gatewayContext = `
 
 ## CrackedClaw Integration Access
@@ -369,11 +421,11 @@ curl -s -H "Authorization: Bearer $TOKEN" "https://gmail.googleapis.com/gmail/v1
 The user's ID is: ${userId}
 Connected integrations: ${(ctx.integrations || []).join(', ') || 'none yet'}
 `;
-      return basePrompt + gatewayContext;
+      return replaceSubagentPlaceholders(basePrompt + gatewayContext);
     }
   } catch { /* no instance, skip gateway context */ }
 
-  return basePrompt;
+  return replaceSubagentPlaceholders(basePrompt);
 }
 
 /**

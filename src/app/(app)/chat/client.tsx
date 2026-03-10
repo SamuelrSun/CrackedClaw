@@ -50,6 +50,7 @@ import { VoiceInputButton } from "@/components/chat/voice-input-button";
 import { VoiceOutputButton } from "@/components/chat/voice-output-button";
 import { EmailComposerCard } from "@/components/chat/email-composer-card";
 import type { EmailDraft } from "@/lib/email/gmail-client";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 
 interface ToolCallInfo {
   tool: string;
@@ -1132,6 +1133,50 @@ User message: `
       setLinkedConversations([]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
+
+  // Subscribe to new messages via Supabase Realtime (for subagent push results)
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const supabase = createSupabaseClient();
+
+    const channel = supabase
+      .channel(`messages:${conversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload: { new: Record<string, unknown> }) => {
+          const newMsg = payload.new as { id: string; role: string; content: string; created_at: string };
+          if (newMsg.role === 'assistant') {
+            setMessages((prev) => {
+              const lastMsg = prev[prev.length - 1];
+              if (lastMsg?.role === 'assistant' && lastMsg?.content === newMsg.content) {
+                return prev;
+              }
+              if (newMsg.content.startsWith('📋')) {
+                return [...prev, {
+                  id: newMsg.id,
+                  role: 'assistant' as const,
+                  content: newMsg.content,
+                  timestamp: newMsg.created_at || new Date().toISOString(),
+                }];
+              }
+              return prev;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [conversationId]);
 
   const handleLinkConversations = async (selectedIds: string[], linkType: string) => {
