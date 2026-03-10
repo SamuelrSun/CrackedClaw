@@ -149,6 +149,35 @@ export async function POST(request: NextRequest) {
       if (workflowContext) systemPrompt += "\n\n" + workflowContext;
     }
 
+    // Pre-save onboarding names BEFORE streaming to prevent race conditions
+    if (isOnboarding && onboardingState) {
+      const { extractUserName, extractAgentName } = await import('@/lib/onboarding/agent-prompt');
+      
+      if (!onboardingState.user_display_name) {
+        const userName = extractUserName(message);
+        if (userName) {
+          await supabase.from('onboarding_state').update({
+            user_display_name: userName,
+            completed_steps: [...onboardingState.completed_steps, 'user_name_provided'],
+            updated_at: new Date().toISOString(),
+          }).eq('user_id', user.id);
+          onboardingState.user_display_name = userName;
+          onboardingState.completed_steps = [...onboardingState.completed_steps, 'user_name_provided'] as typeof onboardingState.completed_steps;
+        }
+      } else if (!onboardingState.agent_name) {
+        const agentName = extractAgentName(message);
+        if (agentName) {
+          await supabase.from('onboarding_state').update({
+            agent_name: agentName,
+            completed_steps: [...onboardingState.completed_steps, 'agent_name_provided'],
+            updated_at: new Date().toISOString(),
+          }).eq('user_id', user.id);
+          onboardingState.agent_name = agentName;
+          onboardingState.completed_steps = [...onboardingState.completed_steps, 'agent_name_provided'] as typeof onboardingState.completed_steps;
+        }
+      }
+    }
+
     let userMessageContent = message;
     if (isOnboarding && onboardingPrompt) {
       userMessageContent = `[SYSTEM PROMPT - FOLLOW THESE INSTRUCTIONS]\n${onboardingPrompt}\n\n[USER MESSAGE]\n${message}`;

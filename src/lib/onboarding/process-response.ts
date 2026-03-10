@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { parseOnboardingActions } from "@/lib/onboarding/agent-prompt";
+import { parseOnboardingActions, extractUserName, extractAgentName } from "@/lib/onboarding/agent-prompt";
 import { saveMemory } from "@/lib/memory/service";
 import { toOnboardingState, type OnboardingStep } from "@/types/onboarding";
 
@@ -25,21 +25,28 @@ export async function processOnboardingResponse(
     }
   };
 
-  // Name extraction via AI tags in assistant response (not regex on user message)
-  const userNameMatch = assistantResponse.match(/\[\[user_name:([^\]]+)\]\]/);
-  if (userNameMatch && !currentState.user_display_name) {
-    const userName = userNameMatch[1].trim();
-    updates.user_display_name = userName;
-    addCompletedStep("user_name_provided");
-    saveMemory(userId, 'user_name', userName, { category: 'personal', source: 'onboarding' }).catch(() => {});
-  }
-  
-  const agentNameMatch = assistantResponse.match(/\[\[agent_name:([^\]]+)\]\]/);
-  if (agentNameMatch && !currentState.agent_name) {
-    const agentName = agentNameMatch[1].trim();
-    updates.agent_name = agentName;
-    addCompletedStep("agent_name_provided");
-    saveMemory(userId, 'agent_name', agentName, { category: 'preference', source: 'onboarding' }).catch(() => {});
+  if (currentState.phase === "welcome") {
+    // Try AI tags first (from assistant response), fall back to regex (from user message)
+    const userNameTag = assistantResponse.match(/\[\[user_name:([^\]]+)\]\]/);
+    const agentNameTag = assistantResponse.match(/\[\[agent_name:([^\]]+)\]\]/);
+    
+    if (!currentState.user_display_name && !updates.user_display_name) {
+      const userName = userNameTag?.[1]?.trim() || extractUserName(userMessage);
+      if (userName) {
+        updates.user_display_name = userName;
+        addCompletedStep("user_name_provided");
+        saveMemory(userId, 'user_name', userName, { category: 'personal', source: 'onboarding' }).catch(() => {});
+      }
+    }
+    
+    if ((currentState.user_display_name || updates.user_display_name) && !currentState.agent_name && !updates.agent_name) {
+      const agentName = agentNameTag?.[1]?.trim() || extractAgentName(userMessage);
+      if (agentName) {
+        updates.agent_name = agentName;
+        addCompletedStep("agent_name_provided");
+        saveMemory(userId, 'agent_name', agentName, { category: 'preference', source: 'onboarding' }).catch(() => {});
+      }
+    }
   }
 
   const actions = parseOnboardingActions(assistantResponse);
