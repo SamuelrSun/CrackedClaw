@@ -445,10 +445,6 @@ export function extractAgentNameFromResponse(assistantResponse: string): string 
 export function extractAgentName(_message: string): string | null {
   return null;
 }
-  }
-  
-  return null;
-}
 
 /**
  * Generate integration awareness context for the prompt
