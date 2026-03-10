@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { parseOnboardingActions, extractUserName, extractAgentName } from "@/lib/onboarding/agent-prompt";
+import { parseOnboardingActions, extractUserNameFromResponse, extractAgentNameFromResponse } from "@/lib/onboarding/agent-prompt";
 import { saveMemory } from "@/lib/memory/service";
 import { toOnboardingState, type OnboardingStep } from "@/types/onboarding";
 
@@ -26,12 +26,14 @@ export async function processOnboardingResponse(
   };
 
   if (currentState.phase === "welcome") {
-    // Try AI tags first (from assistant response), fall back to regex (from user message)
+    // Extract names from the AI's RESPONSE, not the user's message.
+    // The AI naturally confirms: "Nice to meet you, Sam!" or "I'm Sophia!"
+    // Also check for explicit [[user_name:X]] / [[agent_name:X]] tags.
     const userNameTag = assistantResponse.match(/\[\[user_name:([^\]]+)\]\]/);
     const agentNameTag = assistantResponse.match(/\[\[agent_name:([^\]]+)\]\]/);
     
     if (!currentState.user_display_name && !updates.user_display_name) {
-      const userName = userNameTag?.[1]?.trim() || extractUserName(userMessage);
+      const userName = userNameTag?.[1]?.trim() || extractUserNameFromResponse(assistantResponse);
       if (userName) {
         updates.user_display_name = userName;
         addCompletedStep("user_name_provided");
@@ -40,7 +42,7 @@ export async function processOnboardingResponse(
     }
     
     if ((currentState.user_display_name || updates.user_display_name) && !currentState.agent_name && !updates.agent_name) {
-      const agentName = agentNameTag?.[1]?.trim() || extractAgentName(userMessage);
+      const agentName = agentNameTag?.[1]?.trim() || extractAgentNameFromResponse(assistantResponse);
       if (agentName) {
         updates.agent_name = agentName;
         addCompletedStep("agent_name_provided");

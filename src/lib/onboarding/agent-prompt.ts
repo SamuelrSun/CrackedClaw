@@ -388,59 +388,63 @@ export function detectCompleteIntent(message: string): boolean {
 /**
  * Extract user name from a message (simple heuristic)
  */
-const NOT_NAMES = new Set([
-  'hello', 'hi', 'hey', 'yo', 'sup', 'howdy', 'hola', 'greetings',
-  'yes', 'no', 'yeah', 'yep', 'nope', 'sure', 'ok', 'okay', 'fine',
-  'thanks', 'thank', 'please', 'help', 'stop', 'quit', 'exit',
-  'what', 'who', 'where', 'when', 'why', 'how',
-  'the', 'and', 'but', 'not', 'this', 'that', 'just', 'like',
-  'good', 'great', 'nice', 'cool', 'awesome', 'amazing', 'perfect',
-  'morning', 'afternoon', 'evening', 'night', 'today', 'tomorrow',
-  'skip', 'next', 'back', 'done', 'start', 'begin', 'continue',
-  'test', 'testing', 'nothing', 'none', 'idk', 'dunno',
-]);
-
-export function extractUserName(message: string): string | null {
-  // Common patterns: "I'm X", "My name is X", "Call me X", "It's X", "X"
+/**
+ * Extract user's name from the AI's response (not the user's message).
+ * The AI confirms the name naturally: "Nice to meet you, Sam!" or "Got it, Sam!"
+ * This is more reliable than regex on user input.
+ */
+export function extractUserNameFromResponse(assistantResponse: string): string | null {
   const patterns = [
-    /(?:i'?m|i am|my name is|call me|it's|name'?s?)\s+([a-zA-Z]+)/i,
-    /^([a-zA-Z]+)$/i, // Just a single word (likely a name)
+    /nice to meet you,?\s+([A-Z][a-zA-Z]+)/i,
+    /got it,?\s+([A-Z][a-zA-Z]+)/i,
+    /hello,?\s+([A-Z][a-zA-Z]+)/i,
+    /hey,?\s+([A-Z][a-zA-Z]+)/i,
+    /hi,?\s+([A-Z][a-zA-Z]+)/i,
+    /welcome,?\s+([A-Z][a-zA-Z]+)/i,
+    /great,?\s+([A-Z][a-zA-Z]+)/i,
+    /thanks,?\s+([A-Z][a-zA-Z]+)/i,
+    /call you\s+([A-Z][a-zA-Z]+)/i,
+    /you(?:'re| are)\s+([A-Z][a-zA-Z]+)/i,
   ];
   
   for (const pattern of patterns) {
-    const match = message.match(pattern);
+    const match = assistantResponse.match(pattern);
     if (match && match[1] && match[1].length > 1 && match[1].length < 20) {
-      if (NOT_NAMES.has(match[1].toLowerCase())) continue;
-      // Capitalize first letter
       return match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
     }
   }
-  
+  return null;
+}
+
+/**
+ * @deprecated Use extractUserNameFromResponse instead
+ */
+export function extractUserName(_message: string): string | null {
   return null;
 }
 
 /**
  * Check if response contains a name assignment for the agent
  */
-export function extractAgentName(message: string): string | null {
-  // Same blocklist applies
-  // Common patterns: "Call you X", "How about X", "Let's go with X", "X sounds good", "X"
+export function extractAgentNameFromResponse(assistantResponse: string): string | null {
   const patterns = [
-    /(?:call you|how about|let'?s go with|i'?ll call you|you'?re|your name is|be called)\s+([a-zA-Z]+)/i,
-    /^([a-zA-Z]+)(?:\s+sounds?\s+good)?$/i,
-    /([a-zA-Z]+)\s+(?:sounds?\s+good|works?|is\s+good|is\s+fine)/i,
+    /I(?:'m| am)\s+([A-Z][a-zA-Z]+)/,
+    /call me\s+([A-Z][a-zA-Z]+)/i,
+    /name(?:'s| is)\s+([A-Z][a-zA-Z]+)/i,
   ];
-  
   for (const pattern of patterns) {
-    const match = message.match(pattern);
+    const match = assistantResponse.match(pattern);
     if (match && match[1] && match[1].length > 1 && match[1].length < 20) {
-      // Filter out common non-name words
-      const nonNames = ['that', 'this', 'sure', 'yes', 'yeah', 'okay', 'ok', 'fine', 'good', 'great'];
-      if (nonNames.includes(match[1].toLowerCase())) continue;
-      
-      // Capitalize first letter
       return match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
     }
+  }
+  return null;
+}
+
+/** @deprecated */
+export function extractAgentName(_message: string): string | null {
+  return null;
+}
   }
   
   return null;
