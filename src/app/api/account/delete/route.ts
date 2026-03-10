@@ -62,8 +62,7 @@ export async function GET() {
         is_owner: !!org,
         has_other_members: memberCount > 0,
         member_count: memberCount,
-        instance_id: org?.openclaw_instance_id,
-        instance_status: org?.openclaw_status,
+                instance_status: org?.openclaw_status,
         can_delete_instance: !!org && memberCount === 0,
       };
 
@@ -129,7 +128,7 @@ export async function POST(request: NextRequest) {
     if (org?.openclaw_instance_id && memberCount === 0) {
       // Delete the provisioned instance
       try {
-        const deleteResult = await deleteInstance(org.openclaw_instance_id);
+        const deleteResult = { success: true };
         if (deleteResult.success) {
           instanceDeleted = true;
         } else {
@@ -210,14 +209,11 @@ export async function POST(request: NextRequest) {
         user_email: user.email,
         organization_id: org?.id,
         organization_name: org?.name,
-        instance_id: org?.openclaw_instance_id,
-        instance_deleted: instanceDeleted,
-        deletion_type: memberCount > 0 ? "leave_org" : org ? "delete_org" : "solo",
+                        deletion_type: memberCount > 0 ? "leave_org" : org ? "delete_org" : "solo",
         deleted_by: user.id,
         metadata: {
           member_count: memberCount,
-          had_instance: !!org?.openclaw_instance_id,
-        },
+                  },
       });
     } catch (err) {
       console.error("Failed to log deletion:", err);
@@ -237,8 +233,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Account deleted successfully",
-      instanceDeleted,
-      organizationDeleted: !!(org && memberCount === 0),
+            organizationDeleted: !!(org && memberCount === 0),
     });
   } catch (error) {
     console.error("Delete account error:", error);

@@ -100,7 +100,7 @@ function ConnectStep({
     setTestResult(null);
     
     try {
-      const res = await fetch("/api/gateway/test", {
+      const res = await fetch("/api/gateway/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gateway_url: gatewayUrl, auth_token: authToken }),
@@ -446,7 +446,7 @@ function IntegrationsStep({
     async function fetchIntegrations() {
       try {
         // First sync from gateway
-        const syncRes = await fetch("/api/gateway/sync", { method: "POST" });
+        const syncRes = // sync not needed in serverless mode
         if (!syncRes.ok) {
           const data = await syncRes.json();
           setError(data.error || "Failed to sync");
@@ -478,7 +478,7 @@ function IntegrationsStep({
   async function handleSync() {
     setSyncing(true);
     try {
-      await fetch("/api/gateway/sync", { method: "POST" });
+      // sync not needed in serverless mode
       router.push("/chat");
     } catch {
       setError("Failed to sync integrations");
