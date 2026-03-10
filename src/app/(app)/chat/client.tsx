@@ -1404,7 +1404,7 @@ User message: `
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-mono text-[10px] uppercase tracking-wide text-grid/40">
-                      {msg.role === "user" ? "You" : (onboardingState?.agent_name || "Assistant")}
+                      {msg.role === "user" ? "You" : (onboardingState?.agent_name && onboardingState.agent_name !== onboardingState?.user_display_name ? onboardingState.agent_name : "Assistant")}
                     </span>
                     <span className="font-mono text-[9px] text-grid/30">{msg.timestamp}</span>
                   </div>
