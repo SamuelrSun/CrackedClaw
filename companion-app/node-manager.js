@@ -4,11 +4,14 @@ const https = require('https');
 const http = require('http');
 const crypto = require('crypto');
 const os = require('os');
+const WebSocket = require('ws');
 
 const RECONNECT_DELAY_MS = 5000;
 // How long to poll for pending pairing requests before giving up
-const APPROVE_POLL_ATTEMPTS = 12;
-const APPROVE_POLL_DELAY_MS = 3000;
+const APPROVE_POLL_ATTEMPTS = 15;
+const APPROVE_POLL_DELAY_MS = 2000;
+// Timeout for each WebSocket approve attempt
+const WS_ATTEMPT_TIMEOUT_MS = 12000;
 
 class NodeManager extends EventEmitter {
   constructor({ gatewayUrl, instanceId, authToken, operatorToken }) {
@@ -16,15 +19,14 @@ class NodeManager extends EventEmitter {
     this.gatewayUrl = gatewayUrl;
     this.instanceId = instanceId;
     this.authToken = authToken;
-    // operatorToken is the device token for the bootstrapped operator device
-    // Used to approve node pairing requests via the gateway WS API
+    // operatorToken is the device token for the bootstrapped operator device.
+    // Falls back to authToken (the gateway shared-secret token).
     this.operatorToken = operatorToken || authToken;
     this.connected = false;
     this.lastError = null;
     this.process = null;
     this.shouldRun = false;
     this.reconnectTimer = null;
-    this.pairingToken = null;
     // Generate a stable device ID for this installation
     this.deviceId = 'companion-' + crypto.randomBytes(8).toString('hex');
   }
@@ -32,12 +34,6 @@ class NodeManager extends EventEmitter {
   async start() {
     this.shouldRun = true;
     await this.ensureCLI();
-    // Pre-pair best-effort (don't fail hard if this errors)
-    try {
-      await this.prePair();
-    } catch (err) {
-      console.warn('[NodeManager] pre-pair failed (continuing anyway):', err.message);
-    }
     this.spawnNode();
   }
 
@@ -67,67 +63,6 @@ class NodeManager extends EventEmitter {
   }
 
   /**
-   * Notify CrackedClaw server that we're about to pair.
-   * Uses x-gateway-token header (not Authorization) to authenticate.
-   * Body: { deviceId, token, displayName, platform }
-   */
-  async prePair() {
-    const url = 'https://crackedclaw.com/api/node/pre-pair';
-    const displayName = os.hostname() + ' (CrackedClaw Companion)';
-    const bodyObj = {
-      deviceId: this.deviceId,
-      token: this.authToken,
-      displayName,
-      platform: process.platform,
-    };
-    const bodyStr = JSON.stringify(bodyObj);
-
-    return new Promise((resolve, reject) => {
-      const transport = url.startsWith('https') ? https : http;
-      const urlObj = new URL(url);
-      const req = transport.request({
-        hostname: urlObj.hostname,
-        port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
-        path: urlObj.pathname,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(bodyStr),
-          // Route looks for x-gateway-token, not Authorization
-          'x-gateway-token': this.authToken,
-        },
-      }, (res) => {
-        let body = '';
-        res.on('data', (chunk) => { body += chunk; });
-        res.on('end', () => {
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            try {
-              const data = JSON.parse(body);
-              this.pairingToken = data.pairingToken || data.token || this.authToken;
-              resolve(data);
-            } catch (_) {
-              this.pairingToken = this.authToken;
-              resolve({});
-            }
-          } else {
-            const err = new Error(`Pre-pair failed (${res.statusCode}): ${body}`);
-            this.lastError = err.message;
-            reject(err);
-          }
-        });
-      });
-
-      req.on('error', (err) => {
-        this.lastError = `Pre-pair request failed: ${err.message}`;
-        reject(new Error(this.lastError));
-      });
-
-      req.write(bodyStr);
-      req.end();
-    });
-  }
-
-  /**
    * Parse the gateway URL to extract host, port, and whether to use TLS.
    * gatewayUrl looks like: https://i-abc123.crackedclaw.com
    */
@@ -153,7 +88,7 @@ class NodeManager extends EventEmitter {
    *   --host <gateway-host>
    *   --port <port>
    *   --tls  (if HTTPS/WSS)
-   *   OPENCLAW_GATEWAY_TOKEN env var for auth (no --token flag on node run)
+   *   OPENCLAW_GATEWAY_TOKEN env var for auth
    */
   spawnNode() {
     if (!this.shouldRun) return;
@@ -174,7 +109,7 @@ class NodeManager extends EventEmitter {
       env: {
         ...process.env,
         // Auth via env var — openclaw node run resolves token from OPENCLAW_GATEWAY_TOKEN
-        OPENCLAW_GATEWAY_TOKEN: this.pairingToken || this.authToken,
+        OPENCLAW_GATEWAY_TOKEN: this.authToken,
       },
     });
 
@@ -213,107 +148,244 @@ class NodeManager extends EventEmitter {
       }
     });
 
-    // After spawning, poll the gateway for the pending pairing request and auto-approve it.
-    // The node needs a moment to connect and register with the gateway first.
-    this.pollAndApproveGateway().catch((err) => {
-      console.warn('[NodeManager] auto-approve polling failed:', err.message);
+    // After spawning the node process, poll via WebSocket to auto-approve its pairing request.
+    this.approveViaWebSocket().catch((err) => {
+      console.warn('[NodeManager] auto-approve failed:', err.message);
     });
   }
 
-  /**
-   * Make a raw HTTPS/HTTP request to the OpenClaw gateway REST API.
-   * Uses Authorization: Bearer <authToken> to authenticate.
-   */
-  gatewayRequest(method, path, body) {
-    const { host, port, tls } = this.parseGatewayUrl();
-    const transport = tls ? https : http;
-    const bodyStr = body ? JSON.stringify(body) : null;
-
-    return new Promise((resolve, reject) => {
-      const options = {
-        hostname: host,
-        port,
-        path,
-        method,
-        headers: {
-          'Authorization': `Bearer ${this.operatorToken}`,
-          'Content-Type': 'application/json',
-          ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {}),
-        },
-      };
-
-      const req = transport.request(options, (res) => {
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            try { resolve(JSON.parse(data)); } catch (_) { resolve({}); }
-          } else {
-            reject(new Error(`Gateway ${method} ${path} returned ${res.statusCode}: ${data}`));
-          }
-        });
-      });
-
-      req.on('error', reject);
-      if (bodyStr) req.write(bodyStr);
-      req.end();
-    });
-  }
+  // ---------------------------------------------------------------------------
+  // WebSocket-based auto-approve (Option B)
+  //
+  // OpenClaw's gateway does NOT expose REST endpoints for node pairing.
+  // Pairing is managed via WebSocket JSON-RPC methods:
+  //   - node.pair.list   → list pending pairing requests
+  //   - node.pair.approve → approve a pending request by requestId
+  //
+  // This method opens a short-lived operator WebSocket connection to the gateway,
+  // polls for the node's pending pairing request, approves it, and disconnects.
+  // ---------------------------------------------------------------------------
 
   /**
-   * Poll the OpenClaw gateway for pending device pairing requests and approve them.
-   *
-   * When `openclaw node run` first connects, it creates a pending pairing request
-   * (role: node) that must be approved before the node becomes active.
-   * This method calls the gateway REST API directly to detect and approve that request.
-   *
+   * Poll the gateway via WebSocket for pending node pairing requests and approve them.
    * Retries APPROVE_POLL_ATTEMPTS times with APPROVE_POLL_DELAY_MS between each.
    */
-  async pollAndApproveGateway() {
-    console.log('[NodeManager] Starting auto-approve polling for pending pairing requests...');
+  async approveViaWebSocket() {
+    console.log('[NodeManager] Starting WebSocket auto-approve for node pairing...');
 
     for (let attempt = 0; attempt < APPROVE_POLL_ATTEMPTS; attempt++) {
       if (!this.shouldRun) return;
 
-      // Wait before polling (give the node time to connect and register)
+      // Give the node process time to connect and register with the gateway
       await new Promise((r) => setTimeout(r, APPROVE_POLL_DELAY_MS));
 
       if (!this.shouldRun) return;
 
       try {
-        // Fetch pending pairing requests from the gateway
-        const pendingData = await this.gatewayRequest('GET', '/api/nodes/pending');
-        const pending = pendingData.pending || [];
+        const result = await this._wsApproveAttempt();
 
-        if (pending.length > 0) {
-          console.log(`[NodeManager] Found ${pending.length} pending pairing request(s), approving...`);
-
-          for (const node of pending) {
-            const requestId = node.requestId;
-            if (!requestId) continue;
-
-            try {
-              await this.gatewayRequest('POST', '/api/nodes/approve', { requestId });
-              console.log(`[NodeManager] Approved pairing request: ${requestId}`);
-              this.setConnected(true);
-            } catch (err) {
-              console.warn(`[NodeManager] Failed to approve request ${requestId}:`, err.message);
-            }
-          }
-
-          // Successfully processed pending requests — stop polling
+        if (result.approved) {
+          console.log(`[NodeManager] Node pairing auto-approved successfully (attempt ${attempt + 1})`);
+          this.setConnected(true);
           return;
-        } else {
+        }
+
+        if (result.alreadyPaired) {
+          console.log('[NodeManager] Node is already paired — no approval needed');
+          this.setConnected(true);
+          return;
+        }
+
+        if (result.noPending) {
           console.log(`[NodeManager] No pending requests yet (attempt ${attempt + 1}/${APPROVE_POLL_ATTEMPTS})`);
         }
       } catch (err) {
-        console.warn(`[NodeManager] Pending poll error (attempt ${attempt + 1}):`, err.message);
+        console.warn(`[NodeManager] WS approve attempt ${attempt + 1}/${APPROVE_POLL_ATTEMPTS} failed: ${err.message}`);
       }
     }
 
-    console.warn('[NodeManager] Auto-approve polling exhausted — node may need manual approval in CrackedClaw settings.');
+    console.warn('[NodeManager] Auto-approve polling exhausted — node may need manual approval');
     this.lastError = 'Node pairing pending — please approve in CrackedClaw Settings → Devices';
     this.emit('status', false);
+  }
+
+  /**
+   * Single WebSocket attempt: connect as operator, list pending node pairings, approve all.
+   *
+   * The OpenClaw WS protocol requires:
+   *   1. First frame must be a "connect" request with client info, role, scopes, and auth
+   *   2. Gateway responds with hello (ok/error)
+   *   3. After hello OK, send JSON-RPC method calls
+   *
+   * We connect as role:"operator" with scopes:["operator.pairing"] using token auth
+   * (the gateway's shared-secret auth token). No device identity is needed — when
+   * device is omitted from connect params, the gateway skips pairing for the
+   * approver connection itself.
+   *
+   * @returns {{ approved: boolean, noPending: boolean, alreadyPaired: boolean }}
+   */
+  _wsApproveAttempt() {
+    return new Promise((resolve, reject) => {
+      const { host, port, tls } = this.parseGatewayUrl();
+      const wsUrl = `${tls ? 'wss' : 'ws'}://${host}:${port}`;
+
+      let ws;
+      try {
+        ws = new WebSocket(wsUrl, {
+          // Skip TLS cert verification for self-signed certs (common on VPS instances)
+          rejectUnauthorized: false,
+        });
+      } catch (err) {
+        return reject(new Error(`WebSocket creation failed: ${err.message}`));
+      }
+
+      let reqId = 0;
+      let settled = false;
+      let connectReqId = null;
+      let listReqId = null;
+      const approveReqIds = new Set();
+      let approvedCount = 0;
+      let totalToApprove = 0;
+
+      const finish = (err, val) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        try { ws.close(); } catch (_) {}
+        if (err) reject(err);
+        else resolve(val);
+      };
+
+      const timer = setTimeout(() => {
+        finish(new Error('WebSocket approve attempt timed out'));
+      }, WS_ATTEMPT_TIMEOUT_MS);
+
+      const sendReq = (method, params) => {
+        const id = ++reqId;
+        const frame = JSON.stringify({ type: 'req', id, method, params });
+        ws.send(frame);
+        return id;
+      };
+
+      ws.on('open', () => {
+        // Step 1: Send the connect handshake.
+        // Connect as a backend operator with pairing scope.
+        // Using token auth (gateway shared secret) — no device identity needed.
+        connectReqId = sendReq('connect', {
+          client: {
+            id: 'gateway-client',
+            displayName: 'CrackedClaw Auto-Approver',
+            mode: 'backend',
+            version: '1.0.0',
+            platform: process.platform,
+          },
+          role: 'operator',
+          scopes: ['operator.pairing', 'operator.admin'],
+          auth: { token: this.authToken },
+          minProtocol: 3,
+          maxProtocol: 3,
+        });
+      });
+
+      ws.on('message', (raw) => {
+        if (settled) return;
+
+        let msg;
+        try {
+          msg = JSON.parse(raw.toString());
+        } catch (_) {
+          return; // Ignore malformed frames
+        }
+
+        // We only care about response frames
+        if (msg.type !== 'res') return;
+
+        // --- Handle connect response ---
+        if (msg.id === connectReqId) {
+          if (!msg.ok) {
+            const errMsg = msg.error?.message || msg.error?.code || 'unknown connect error';
+            return finish(new Error(`Gateway connect rejected: ${errMsg}`));
+          }
+          // Connected successfully. Now list pending node pairing requests.
+          listReqId = sendReq('node.pair.list', {});
+          return;
+        }
+
+        // --- Handle node.pair.list response ---
+        if (msg.id === listReqId) {
+          if (!msg.ok) {
+            const errMsg = msg.error?.message || 'list failed';
+            return finish(new Error(`node.pair.list failed: ${errMsg}`));
+          }
+
+          const pending = msg.result?.pending || [];
+          const paired = msg.result?.paired || [];
+
+          // If the node is already paired, we're done
+          if (paired.length > 0 && pending.length === 0) {
+            return finish(null, { approved: false, noPending: false, alreadyPaired: true });
+          }
+
+          // No pending requests yet — the node hasn't connected/registered
+          if (pending.length === 0) {
+            return finish(null, { approved: false, noPending: true, alreadyPaired: false });
+          }
+
+          // Approve all pending node pairing requests
+          totalToApprove = pending.length;
+          console.log(`[NodeManager] Found ${totalToApprove} pending node pairing request(s), approving...`);
+
+          for (const node of pending) {
+            const requestId = node.requestId || node.id;
+            if (!requestId) {
+              totalToApprove--;
+              continue;
+            }
+            const aid = sendReq('node.pair.approve', { requestId });
+            approveReqIds.add(aid);
+          }
+
+          // Edge case: all entries lacked a requestId
+          if (approveReqIds.size === 0) {
+            return finish(null, { approved: false, noPending: true, alreadyPaired: false });
+          }
+          return;
+        }
+
+        // --- Handle node.pair.approve responses ---
+        if (approveReqIds.has(msg.id)) {
+          approveReqIds.delete(msg.id);
+
+          if (msg.ok) {
+            approvedCount++;
+            const nodeId = msg.result?.node?.nodeId || 'unknown';
+            console.log(`[NodeManager] Approved node: ${nodeId}`);
+          } else {
+            const errMsg = msg.error?.message || 'approve failed';
+            console.warn(`[NodeManager] Approve failed for request: ${errMsg}`);
+          }
+
+          // All approve responses received — we're done
+          if (approveReqIds.size === 0) {
+            return finish(null, {
+              approved: approvedCount > 0,
+              noPending: approvedCount === 0,
+              alreadyPaired: false,
+            });
+          }
+          return;
+        }
+      });
+
+      ws.on('error', (err) => {
+        finish(new Error(`WebSocket error: ${err.message}`));
+      });
+
+      ws.on('close', (code, reason) => {
+        const reasonStr = reason ? reason.toString() : '';
+        finish(new Error(`WebSocket closed (code ${code}${reasonStr ? ': ' + reasonStr : ''})`));
+      });
+    });
   }
 
   setConnected(value) {

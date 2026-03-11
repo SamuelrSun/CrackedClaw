@@ -8,7 +8,8 @@
     "build": "electron-builder --mac"
   },
   "dependencies": {
-    "electron-store": "^8.1.0"
+    "electron-store": "^8.1.0",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "electron": "^28.1.0",
@@ -24,8 +25,16 @@
     "dmg": {
       "title": "CrackedClaw Connect",
       "contents": [
-        { "x": 130, "y": 220 },
-        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     },
     "files": [
