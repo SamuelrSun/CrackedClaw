@@ -12,7 +12,7 @@ import { Search, Command } from "lucide-react";
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/commands", label: "Commands" },
+  { href: "/workforce", label: "Workforce" },
   { href: "/chat", label: "Chat" },
   { href: "/agents", label: "Agents" },
   { href: "/memory", label: "Memory" },
