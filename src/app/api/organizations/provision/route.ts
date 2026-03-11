@@ -136,6 +136,12 @@ export async function POST(request: NextRequest) {
           if (provRes.ok) {
             const provData = await provRes.json();
             if (provData.success && provData.instance) {
+              // Store operator_device_token in settings so we can approve node pairings later
+              const settingsUpdate: Record<string, unknown> = {};
+              if (provData.instance.operator_device_token) {
+                settingsUpdate.operator_device_token = provData.instance.operator_device_token;
+              }
+
               await supabase
                 .from("organizations")
                 .update({
@@ -144,6 +150,7 @@ export async function POST(request: NextRequest) {
                   openclaw_instance_id: provData.instance.id,
                   openclaw_status: "running",
                   updated_at: new Date().toISOString(),
+                  ...(Object.keys(settingsUpdate).length > 0 ? { settings: settingsUpdate } : {}),
                 })
                 .eq("id", organizationId);
             }

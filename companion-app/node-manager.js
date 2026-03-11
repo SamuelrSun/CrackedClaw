@@ -11,11 +11,14 @@ const APPROVE_POLL_ATTEMPTS = 12;
 const APPROVE_POLL_DELAY_MS = 3000;
 
 class NodeManager extends EventEmitter {
-  constructor({ gatewayUrl, instanceId, authToken }) {
+  constructor({ gatewayUrl, instanceId, authToken, operatorToken }) {
     super();
     this.gatewayUrl = gatewayUrl;
     this.instanceId = instanceId;
     this.authToken = authToken;
+    // operatorToken is the device token for the bootstrapped operator device
+    // Used to approve node pairing requests via the gateway WS API
+    this.operatorToken = operatorToken || authToken;
     this.connected = false;
     this.lastError = null;
     this.process = null;
@@ -233,7 +236,7 @@ class NodeManager extends EventEmitter {
         path,
         method,
         headers: {
-          'Authorization': `Bearer ${this.authToken}`,
+          'Authorization': `Bearer ${this.operatorToken}`,
           'Content-Type': 'application/json',
           ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {}),
         },

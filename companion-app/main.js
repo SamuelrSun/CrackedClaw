@@ -118,7 +118,7 @@ function setupIPC() {
   ipcMain.handle('connect', async (_event, rawToken) => {
     try {
       const decoded = JSON.parse(Buffer.from(rawToken, 'base64').toString('utf-8'));
-      const { gatewayUrl, instanceId, authToken } = decoded;
+      const { gatewayUrl, instanceId, authToken, operatorToken } = decoded;
 
       if (!gatewayUrl || !instanceId || !authToken) {
         return { ok: false, error: 'Invalid token: missing required fields' };
@@ -128,8 +128,9 @@ function setupIPC() {
       store.set('gatewayUrl', gatewayUrl);
       store.set('instanceId', instanceId);
       store.set('authToken', authToken);
+      if (operatorToken) store.set('operatorToken', operatorToken);
 
-      nodeManager = new NodeManager({ gatewayUrl, instanceId, authToken });
+      nodeManager = new NodeManager({ gatewayUrl, instanceId, authToken, operatorToken });
 
       nodeManager.on('status', (connected) => {
         updateTrayMenu(connected);
