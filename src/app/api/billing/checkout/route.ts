@@ -1,14 +1,32 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { requireApiAuth } from '@/lib/api-auth';
-import { stripe, PLANS } from '@/lib/stripe';
+import { stripe, PLANS, PlanSlug } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 export const dynamic = 'force-dynamic';
 
-export async function POST() {
+const PAID_PLANS: PlanSlug[] = ['starter', 'pro', 'power'];
+
+export async function POST(request: NextRequest) {
   const { user, error } = await requireApiAuth();
   if (error) return error;
 
   const supabase = createAdminClient();
+
+  // Parse requested plan (default to 'pro' for backward compat)
+  let requestedPlan: PlanSlug = 'pro';
+  try {
+    const body = await request.json();
+    if (body.plan && PAID_PLANS.includes(body.plan as PlanSlug)) {
+      requestedPlan = body.plan as PlanSlug;
+    }
+  } catch {
+    // No body or malformed JSON — use default
+  }
+
+  const plan = PLANS[requestedPlan];
+  if (!('priceId' in plan) || !plan.priceId) {
+    return NextResponse.json({ error: `Price ID not configured for plan: ${requestedPlan}` }, { status: 500 });
+  }
 
   const { data: org } = await supabase
     .from('organizations')
@@ -17,7 +35,9 @@ export async function POST() {
     .single();
 
   if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 });
-  if (org.plan === 'pro') return NextResponse.json({ error: 'Already on pro plan' }, { status: 400 });
+  if (org.plan === requestedPlan) {
+    return NextResponse.json({ error: `Already on ${requestedPlan} plan` }, { status: 400 });
+  }
 
   let customerId = org.stripe_customer_id;
   if (!customerId) {
@@ -32,10 +52,10 @@ export async function POST() {
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: 'subscription',
-    line_items: [{ price: PLANS.pro.priceId, quantity: 1 }],
+    line_items: [{ price: plan.priceId, quantity: 1 }],
     success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings?upgraded=true`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings?canceled=true`,
-    metadata: { user_id: user.id, org_id: org.id },
+    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
+    metadata: { user_id: user.id, org_id: org.id, plan: requestedPlan },
   });
 
   return NextResponse.json({ url: session.url });

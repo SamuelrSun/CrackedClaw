@@ -350,9 +350,16 @@ export default function SettingsPageClient({
   const [billingLoading, setBillingLoading] = useState(true);
   const [billingUpgrading, setBillingUpgrading] = useState(false);
   const [upgradedBanner, setUpgradedBanner] = useState(false);
+  const [usageStatus, setUsageStatus] = useState<{
+    weekly: { used: number; limit: number; resetDate: string };
+    monthly: { used: number; limit: number; resetDate: string };
+    percentWeekly: number;
+    percentMonthly: number;
+  } | null>(null);
 
   useEffect(() => {
     fetchBilling();
+    fetchUsage();
     const params = new URLSearchParams(window.location.search);
     if (params.get('upgraded') === 'true') {
       setUpgradedBanner(true);
@@ -375,16 +382,15 @@ export default function SettingsPageClient({
     }
   }
 
-  async function handleUpgrade() {
-    setBillingUpgrading(true);
+  async function fetchUsage() {
     try {
-      const res = await fetch('/api/billing/checkout', { method: 'POST' });
-      const data = await res.json();
-      if (data.url) window.location.href = data.url;
-    } catch (err) {
-      console.error('Failed to start checkout:', err);
-    } finally {
-      setBillingUpgrading(false);
+      const res = await fetch('/api/usage/status');
+      if (res.ok) {
+        const data = await res.json();
+        setUsageStatus(data);
+      }
+    } catch {
+      // non-critical
     }
   }
 
@@ -547,35 +553,63 @@ export default function SettingsPageClient({
               <p className="font-mono text-[13px] text-grid/40">Loading...</p>
             ) : (
               <>
-                <div className="flex items-center gap-2">
-                  <Badge status={billingPlan === 'pro' ? 'active' : 'pending'}>
-                    {billingPlan === 'pro' ? 'Pro' : 'Free'}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge status={billingPlan !== 'free' ? 'active' : 'pending'}>
+                    {billingPlan.charAt(0).toUpperCase() + billingPlan.slice(1)}
                   </Badge>
-                  {billingPlan === 'pro' && billingPeriodEnd && (
+                  {billingPlan !== 'free' && billingPeriodEnd && (
                     <span className="font-mono text-[12px] text-grid/40">
                       Renews {new Date(billingPeriodEnd).toLocaleDateString()}
                     </span>
                   )}
                 </div>
-                <ul className="space-y-1.5">
-                  {(billingPlan === 'pro'
-                    ? ['1 agent instance', 'Unlimited messages', 'Unlimited memories', 'Google + integrations', 'Priority support']
-                    : ['1 agent instance', '100 messages/month', '10 memories']
-                  ).map((f) => (
-                    <li key={f} className="font-mono text-[12px] text-grid/60 flex items-center gap-1.5">
-                      <span className="text-mint">✓</span> {f}
-                    </li>
-                  ))}
-                </ul>
-                {billingPlan === 'pro' ? (
-                  <Button variant="ghost" size="sm" onClick={handleManageBilling} disabled={billingUpgrading}>
-                    {billingUpgrading ? 'Opening...' : 'Manage Billing'}
-                  </Button>
-                ) : (
-                  <Button variant="solid" size="sm" onClick={handleUpgrade} disabled={billingUpgrading}>
-                    {billingUpgrading ? 'Redirecting...' : 'Upgrade to Pro — $29/month'}
-                  </Button>
+
+                {/* Token usage bars */}
+                {usageStatus && (
+                  <div className="space-y-2.5 mt-1">
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50">Weekly</span>
+                        <span className="font-mono text-[10px] text-grid/50">
+                          {Math.round(usageStatus.weekly.used / 1000)}k / {Math.round(usageStatus.weekly.limit / 1000)}k
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-forest/5">
+                        <div
+                          className={`h-full transition-all ${usageStatus.percentWeekly >= 100 ? 'bg-coral' : usageStatus.percentWeekly >= 80 ? 'bg-gold' : 'bg-mint'}`}
+                          style={{ width: `${Math.min(usageStatus.percentWeekly, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50">Monthly</span>
+                        <span className="font-mono text-[10px] text-grid/50">
+                          {Math.round(usageStatus.monthly.used / 1000)}k / {Math.round(usageStatus.monthly.limit / 1000)}k
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-forest/5">
+                        <div
+                          className={`h-full transition-all ${usageStatus.percentMonthly >= 100 ? 'bg-coral' : usageStatus.percentMonthly >= 80 ? 'bg-gold' : 'bg-mint'}`}
+                          style={{ width: `${Math.min(usageStatus.percentMonthly, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 )}
+
+                <div className="flex gap-2 flex-wrap">
+                  {billingPlan !== 'free' ? (
+                    <Button variant="ghost" size="sm" onClick={handleManageBilling} disabled={billingUpgrading}>
+                      {billingUpgrading ? 'Opening...' : 'Manage Billing'}
+                    </Button>
+                  ) : null}
+                  <Link href="/pricing">
+                    <Button variant={billingPlan === 'free' ? 'solid' : 'ghost'} size="sm">
+                      {billingPlan === 'free' ? 'Upgrade Plan' : 'View Plans'}
+                    </Button>
+                  </Link>
+                </div>
               </>
             )}
           </div>

@@ -11,6 +11,7 @@ import { buildSystemPromptForUser } from '@/lib/gateway/system-prompt';
 import { logActivity, incrementTokenUsage } from '@/lib/supabase/data';
 import { processAgentResponse } from '@/lib/memory/service';
 import { incrementUsage } from '@/lib/usage/tracker';
+import { checkTokenLimit } from '@/lib/usage/enforcement';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -29,6 +30,15 @@ export async function POST(request: NextRequest) {
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    }
+
+    // Token limit enforcement
+    const limitCheck = await checkTokenLimit(user!.id);
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Token limit reached', reason: limitCheck.reason, usage: limitCheck.usage },
+        { status: 429 }
+      );
     }
 
     const supabase = await createClient();

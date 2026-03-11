@@ -126,6 +126,52 @@ function getAgentTaskLabel(tool: string, input: Record<string, unknown>): string
   }
 }
 
+function TokenUsageBar() {
+  const [usage, setUsage] = useState<{
+    percentWeekly: number;
+    percentMonthly: number;
+    weekly: { used: number; limit: number };
+    plan: string;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/usage/status')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setUsage(d))
+      .catch(() => {});
+  }, []);
+
+  if (!usage) return null;
+
+  const pct = Math.max(usage.percentWeekly, usage.percentMonthly);
+  const isWarning = pct >= 80 && pct < 100;
+  const isExceeded = pct >= 100;
+
+  if (pct < 60) return null; // hide when usage is low
+
+  return (
+    <div className={`flex-shrink-0 px-4 py-1.5 border-t border-[rgba(58,58,56,0.1)] flex items-center gap-3 ${
+      isExceeded ? 'bg-red-50' : isWarning ? 'bg-amber-50' : 'bg-transparent'
+    }`}>
+      <div className="flex-1 h-1 bg-[rgba(58,58,56,0.08)]">
+        <div
+          className={`h-full transition-all ${isExceeded ? 'bg-red-500' : isWarning ? 'bg-amber-400' : 'bg-emerald-500'}`}
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
+      </div>
+      <span className={`font-mono text-[10px] uppercase tracking-wide flex-shrink-0 ${
+        isExceeded ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-[rgba(58,58,56,0.5)]'
+      }`}>
+        {isExceeded ? (
+          <a href="/pricing" className="underline">Limit reached — Upgrade</a>
+        ) : (
+          `${pct}% of weekly limit`
+        )}
+      </span>
+    </div>
+  );
+}
+
 interface ChatPageClientProps {
   initialConversations: Conversation[];
   initialMessages: Message[];
@@ -1698,6 +1744,9 @@ User message: `
 
         {/* Subagent Dashboard Panel */}
         {/* SubagentPanel removed — replaced by inline subagent cards */}
+
+        {/* Token Usage Indicator */}
+        <TokenUsageBar />
 
         {/* Input */}
         <div className="flex-shrink-0 border-t border-[rgba(58,58,56,0.2)] p-4">

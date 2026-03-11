@@ -18,6 +18,7 @@ const navLinks = [
   { href: "/memory", label: "Memory" },
 
   { href: "/integrations", label: "Integrations" },
+  { href: "/pricing", label: "Pricing" },
   { href: "/settings", label: "Settings" },
 ];
 

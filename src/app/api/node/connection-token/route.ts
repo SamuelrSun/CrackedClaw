@@ -20,6 +20,7 @@ export async function GET() {
     gatewayUrl: org.openclaw_gateway_url,
     instanceId: org.openclaw_instance_id,
     authToken: org.openclaw_auth_token,
+    webAppUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://crackedclaw.com',
     ...(operatorToken ? { operatorToken } : {}),
   };
 

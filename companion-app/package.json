@@ -42,6 +42,7 @@
       "preload.js",
       "renderer.js",
       "node-manager.js",
+      "chat-manager.js",
       "index.html",
       "style.css",
       "assets/**/*"

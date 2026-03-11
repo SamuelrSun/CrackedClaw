@@ -5,6 +5,7 @@ import { logActivity, incrementTokenUsage } from "@/lib/supabase/data";
 import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
 import { processAgentResponse } from "@/lib/memory/service";
 import { incrementUsage } from "@/lib/usage/tracker";
+import { checkTokenLimit } from "@/lib/usage/enforcement";
 import { buildSystemPromptForUser, buildLinkedContextSummary } from "@/lib/gateway/system-prompt";
 import { getUserInstance } from "@/lib/gateway/openclaw-proxy";
 
@@ -20,6 +21,12 @@ export async function POST(request: NextRequest) {
 
     if (!message || typeof message !== "string") {
       return errorResponse("Message is required", 400);
+    }
+
+    // Token limit enforcement
+    const limitCheck = await checkTokenLimit(user.id);
+    if (!limitCheck.allowed) {
+      return errorResponse(`Token limit reached: ${limitCheck.reason}`, 429);
     }
 
     const supabase = await createClient();

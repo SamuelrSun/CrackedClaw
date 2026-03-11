@@ -2,32 +2,85 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';">
   <title>CrackedClaw Connect</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Setup Screen -->
+
+  <!-- ── Setup Screen ─────────────────────────────────────────────────── -->
   <div id="screen-setup" class="screen active">
-    <div class="logo">CrackedClaw</div>
-    <p class="subtitle">Connect your machine to your cloud AI instance</p>
-    <input
-      id="token-input"
-      type="text"
-      placeholder="Paste your connection token"
-      spellcheck="false"
-      autocomplete="off"
-    />
-    <button id="btn-connect" class="btn-primary">Connect</button>
-    <p id="error-msg" class="error"></p>
+    <div class="setup-inner">
+      <div class="logo">CrackedClaw</div>
+      <p class="subtitle">Connect your machine to your cloud AI instance</p>
+      <input
+        id="token-input"
+        type="text"
+        placeholder="Paste your connection token"
+        spellcheck="false"
+        autocomplete="off"
+      />
+      <button id="btn-connect" class="btn-primary">Connect</button>
+      <p id="error-msg" class="error"></p>
+    </div>
   </div>
 
-  <!-- Connected Screen -->
-  <div id="screen-connected" class="screen">
-    <div class="checkmark">&#10003;</div>
-    <p class="status-label">Connected</p>
-    <p id="instance-url" class="instance-url"></p>
-    <button id="btn-disconnect" class="btn-secondary">Disconnect</button>
+  <!-- ── Chat Screen ──────────────────────────────────────────────────── -->
+  <div id="screen-chat" class="screen">
+
+    <!-- Sidebar -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-logo">CrackedClaw</span>
+        <div id="conn-dot" class="conn-dot disconnected" title="Disconnected"></div>
+      </div>
+
+      <button id="btn-new-chat" class="btn-new-chat">+ New Chat</button>
+
+      <div id="conv-list" class="conv-list">
+        <!-- Populated by renderer.js -->
+      </div>
+
+      <div class="sidebar-footer">
+        <button id="btn-disconnect" class="btn-disconnect">Disconnect</button>
+      </div>
+    </aside>
+
+    <!-- Main chat area -->
+    <main id="chat-main">
+
+      <!-- Header bar -->
+      <div id="chat-header" class="chat-header">
+        <span id="chat-title" class="chat-title">Select a conversation</span>
+      </div>
+
+      <!-- Messages -->
+      <div id="messages-area" class="messages-area">
+        <div id="messages-list" class="messages-list">
+          <!-- Messages rendered here -->
+        </div>
+        <div id="typing-indicator" class="typing-indicator hidden">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <!-- Input bar -->
+      <div class="input-bar">
+        <textarea
+          id="msg-input"
+          class="msg-input"
+          placeholder="Message… (Enter to send, Shift+Enter for new line)"
+          rows="1"
+          disabled
+        ></textarea>
+        <button id="btn-send" class="btn-send" disabled>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14.5 1.5L7 9M14.5 1.5L10 14.5L7 9M14.5 1.5L1.5 5.5L7 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+    </main>
   </div>
 
   <script src="renderer.js"></script>

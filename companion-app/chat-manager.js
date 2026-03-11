@@ -1,0 +1,198 @@
+/**
+ * ChatManager — handles all chat API interactions for the companion app.
+ *
+ * Persistence: calls the web app's /api/companion/* endpoints
+ * (authenticated via X-Companion-Token: authToken).
+ *
+ * Streaming: calls the gateway's /v1/chat/completions directly
+ * (bypasses Vercel; authenticated via Authorization: Bearer authToken).
+ */
+class ChatManager {
+  constructor({ gatewayUrl, authToken, webAppUrl }) {
+    this.gatewayUrl = (gatewayUrl || '').replace(/\/$/, '');
+    this.authToken = authToken;
+    this.webAppUrl = (webAppUrl || 'https://crackedclaw.com').replace(/\/$/, '');
+  }
+
+  /** Headers for web app persistence API calls */
+  get _apiHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'X-Companion-Token': this.authToken,
+    };
+  }
+
+  // ─── Conversation CRUD ──────────────────────────────────────────────────────
+
+  async listConversations() {
+    const res = await fetch(`${this.webAppUrl}/api/companion/conversations`, {
+      headers: this._apiHeaders,
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`listConversations HTTP ${res.status}: ${txt}`);
+    }
+    const data = await res.json();
+    return data.conversations || [];
+  }
+
+  async createConversation(title = 'New Chat') {
+    const res = await fetch(`${this.webAppUrl}/api/companion/conversations`, {
+      method: 'POST',
+      headers: this._apiHeaders,
+      body: JSON.stringify({ title }),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`createConversation HTTP ${res.status}: ${txt}`);
+    }
+    return res.json();
+  }
+
+  async loadMessages(conversationId) {
+    const res = await fetch(
+      `${this.webAppUrl}/api/companion/conversations/${conversationId}/messages`,
+      { headers: this._apiHeaders }
+    );
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`loadMessages HTTP ${res.status}: ${txt}`);
+    }
+    const data = await res.json();
+    return data.messages || [];
+  }
+
+  async saveMessage(conversationId, role, content) {
+    const res = await fetch(
+      `${this.webAppUrl}/api/companion/conversations/${conversationId}/messages`,
+      {
+        method: 'POST',
+        headers: this._apiHeaders,
+        body: JSON.stringify({ role, content }),
+      }
+    );
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`saveMessage HTTP ${res.status}: ${txt}`);
+    }
+    return res.json();
+  }
+
+  // ─── Streaming Chat ─────────────────────────────────────────────────────────
+
+  /**
+   * Send a message, stream the response, and persist both messages.
+   *
+   * @param {string} conversationId
+   * @param {string} userContent
+   * @param {(chunk: string) => void} onChunk - called with each streamed text delta
+   * @returns {Promise<string>} the full assistant response
+   */
+  async sendMessage(conversationId, userContent, onChunk) {
+    // 1. Load history for context
+    let history = [];
+    try {
+      history = await this.loadMessages(conversationId);
+    } catch (err) {
+      console.warn('[ChatManager] Could not load history:', err.message);
+    }
+
+    // 2. Save the user message first (fire-and-forget ok, but we await for ordering)
+    try {
+      await this.saveMessage(conversationId, 'user', userContent);
+    } catch (err) {
+      console.warn('[ChatManager] Could not save user message:', err.message);
+    }
+
+    // 3. Build messages array for the gateway (system + history + new message)
+    const messages = [
+      {
+        role: 'system',
+        content:
+          'You are a helpful AI assistant running as part of CrackedClaw. ' +
+          'Be concise, accurate, and friendly. ' +
+          'Today\'s date is ' + new Date().toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+          }) + '.',
+      },
+      // Include up to the last 40 history messages to avoid context overflow
+      ...history.slice(-40).map((m) => ({ role: m.role, content: m.content })),
+      { role: 'user', content: userContent },
+    ];
+
+    // 4. Stream from gateway
+    const response = await fetch(`${this.gatewayUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.authToken}`,
+      },
+      body: JSON.stringify({
+        model: 'default',
+        messages,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`Gateway error ${response.status}: ${text}`);
+    }
+
+    if (!response.body) {
+      throw new Error('Gateway returned no response body');
+    }
+
+    // 5. Parse SSE stream
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        // Keep the last (potentially incomplete) line in the buffer
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data: ')) continue;
+
+          const data = trimmed.slice(6).trim();
+          if (data === '[DONE]') continue;
+
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed.choices?.[0]?.delta?.content;
+            if (delta) {
+              fullContent += delta;
+              onChunk(delta);
+            }
+          } catch (_) {
+            // Ignore malformed SSE chunks
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    // 6. Save assistant response
+    if (fullContent) {
+      try {
+        await this.saveMessage(conversationId, 'assistant', fullContent);
+      } catch (err) {
+        console.warn('[ChatManager] Could not save assistant message:', err.message);
+      }
+    }
+
+    return fullContent;
+  }
+}
+
+module.exports = ChatManager;
