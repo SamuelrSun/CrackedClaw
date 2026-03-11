@@ -24,7 +24,7 @@ export interface NodeStatus {
   }>;
 }
 
-const WS_TIMEOUT_MS = 8000;
+const WS_TIMEOUT_MS = 4000;
 
 /**
  * Query gateway via WebSocket JSON-RPC for paired/connected nodes.

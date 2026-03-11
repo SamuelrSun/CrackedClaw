@@ -14,12 +14,13 @@ export async function GET(request: NextRequest) {
   const { user, error } = await requireApiAuth();
   if (error) return error;
 
-  // Check companion connection status via user's gateway
+  // Check companion connection status via user's gateway.
+  // Use a short timeout so this doesn't block the whole response.
   let companionConnected = false;
-  try {
-    const nodeStatus = await getNodeStatus(user.id);
-    companionConnected = nodeStatus.isOnline;
-  } catch { /* ignore - gateway not available */ }
+  const nodeStatusPromise = Promise.race([
+    getNodeStatus(user.id).catch(() => null),
+    new Promise<null>(r => setTimeout(() => r(null), 3000)), // 3s hard cap
+  ]);
 
   // Check real gateway health
   let gatewayConnected = false;
@@ -82,6 +83,12 @@ export async function GET(request: NextRequest) {
     },
     capabilities: AVAILABLE_TOOLS,
   };
+
+  // Resolve the node status (was running in parallel with gateway health + token usage)
+  const nodeStatus = await nodeStatusPromise;
+  if (nodeStatus && typeof nodeStatus === 'object' && 'isOnline' in nodeStatus) {
+    companionConnected = (nodeStatus as { isOnline: boolean }).isOnline;
+  }
 
   const response = {
     connected: true, // Always true — either gateway or serverless fallback is available
