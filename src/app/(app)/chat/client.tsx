@@ -1657,10 +1657,30 @@ User message: `
             </div>
           )}
           
+          {/* HARDCODED DEMO: Inline subagent cards — remove after wiring */}
+          <div className="px-4 pb-2">
+            <InlineSubagentCard
+              taskLabel="Scanning Gmail for unread emails from the last 24 hours"
+              status="complete"
+              startedAt="2026-03-10T16:00:00Z"
+              completedAt="2026-03-10T16:00:28Z"
+              result="Found 3 urgent emails: Cloudflare interview confirmation (Fri 2pm), EF cohort update from Sarah, USC cybersecurity training reminder."
+            />
+            <InlineSubagentCard
+              taskLabel="Checking Google Calendar for upcoming events this week"
+              status="running"
+              startedAt={new Date(Date.now() - 12000).toISOString()}
+            />
+            <InlineSubagentCard
+              taskLabel="Researching Granola app API documentation"
+              status="queued"
+            />
+          </div>
           <div ref={messagesEndRef} />
+
         </div>
 
-        <ActiveAgentsPanel tasks={activeAgentTasks} />
+        {/* ActiveAgentsPanel hidden — replaced by inline cards above */}
 
         {/* Inline subagent task cards - max-h to prevent pushing input area up */}
         {inlineSubagents.filter((s) => s.status === "running" || !s.status || s.status === "done" || s.status === "failed" || s.status === "killed").length > 0 && (
