@@ -143,7 +143,7 @@ export function PricingPageClient({ currentPlan, isSubscribed }: PricingPageClie
         {planOrder.map((slug) => {
           const plan = PLANS[slug];
           const isCurrent = currentPlan === slug;
-          const isPaid = 'priceId' in plan;
+          const isPaid = slug !== 'free';
           const isPopular = 'popular' in plan && plan.popular;
 
           return (
