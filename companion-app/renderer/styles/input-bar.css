@@ -1,0 +1,201 @@
+/* ── Input Bar Wrapper ───────────────────────────────────────────────────── */
+.input-bar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+/* ── Conversation Dropdown ───────────────────────────────────────────────── */
+.conv-dropdown {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: rgba(15, 15, 15, 0.15);
+  backdrop-filter: blur(50px) saturate(1.8);
+  -webkit-backdrop-filter: blur(50px) saturate(1.8);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--glass-radius-md);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  z-index: 100;
+  animation: dropdown-appear 0.18s ease;
+}
+
+.conv-dropdown.hidden {
+  display: none;
+}
+
+@keyframes dropdown-appear {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.btn-new-chat {
+  display: block;
+  width: 100%;
+  padding: 11px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  text-align: left;
+  background: transparent;
+  color: var(--accent);
+  border: none;
+  border-bottom: 1px solid var(--glass-border);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.btn-new-chat:hover {
+  background: var(--glass-bg-subtle);
+}
+
+.conv-list {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.conv-list::-webkit-scrollbar {
+  width: 3px;
+}
+
+.conv-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.conv-item {
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.conv-item:last-child {
+  border-bottom: none;
+}
+
+.conv-item:hover {
+  background: var(--glass-bg-subtle);
+}
+
+.conv-item.active {
+  background: rgba(16, 185, 129, 0.12);
+  border-left: 2px solid var(--accent);
+  padding-left: 12px;
+}
+
+.conv-item-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conv-item-time {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+
+.conv-list-empty {
+  padding: 14px;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+/* ── Pill-shaped Input Bar ───────────────────────────────────────────────── */
+.input-bar-glass {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(15, 15, 15, 0.15);
+  backdrop-filter: blur(50px) saturate(1.8);
+  -webkit-backdrop-filter: blur(50px) saturate(1.8);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--glass-radius-lg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  -webkit-app-region: drag;
+}
+
+/* ── Conversation Selector Pill ──────────────────────────────────────────── */
+.conv-selector-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: var(--glass-bg-elevated);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-pill);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s, border-color 0.15s;
+  -webkit-app-region: no-drag;
+}
+
+.conv-selector-pill:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: var(--glass-border-bright);
+  color: var(--text-primary);
+}
+
+.conv-selector-pill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conv-selector-pill svg {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+/* ── Message Input ───────────────────────────────────────────────────────── */
+.msg-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+  font-size: 13.5px;
+  font-family: inherit;
+  line-height: 1.45;
+  background: transparent;
+  color: var(--text-primary);
+  border: none;
+  outline: none;
+  resize: none;
+  max-height: 120px;
+  overflow-y: auto;
+  caret-color: var(--accent);
+  -webkit-app-region: no-drag;
+  user-select: text;
+}
+
+.msg-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.msg-input:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+.msg-input::-webkit-scrollbar {
+  width: 3px;
+}
+
+.msg-input::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}

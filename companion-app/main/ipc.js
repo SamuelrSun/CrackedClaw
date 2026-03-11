@@ -1,158 +1,45 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, screen } = require('electron');
-const path = require('path');
-const Store = require('electron-store');
+const { ipcMain } = require('electron');
 const NodeManager = require('./node-manager');
-const ChatManager = require('./chat-manager');
 
-const store = new Store();
-let mainWindow = null;
-let tray = null;
-let nodeManager = null;
-let chatManager = null;
+/**
+ * Set up all IPC handlers.
+ *
+ * @param {object} deps
+ * @param {() => BrowserWindow} deps.getMainWindow
+ * @param {import('electron-store')} deps.store
+ * @param {() => NodeManager|null} deps.getNodeManager
+ * @param {(nm: NodeManager|null) => void} deps.setNodeManager
+ * @param {() => object|null} deps.getChatManager
+ * @param {(cm: object|null) => void} deps.setChatManager
+ * @param {(connected: boolean) => void} deps.updateTrayMenu
+ * @param {(decoded: object) => void} deps.initChatManager
+ */
+function setupIPC(deps) {
+  const {
+    getMainWindow,
+    store,
+    getNodeManager,
+    setNodeManager,
+    getChatManager,
+    setChatManager,
+    updateTrayMenu,
+    initChatManager,
+  } = deps;
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 680,
-    height: 500,
-    minWidth: 400,
-    minHeight: 200,
-    resizable: true,
-    maximizable: false,
-    transparent: true,
-    frame: false,
-    hasShadow: false,
-    backgroundColor: '#00000000',
-    alwaysOnTop: true,
-    skipTaskbar: false,
-    show: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
-
-  mainWindow.loadFile('index.html');
-
-  mainWindow.once('ready-to-show', () => {
-    positionWindowBottomCenter();
-    mainWindow.show();
-  });
-
-  mainWindow.on('close', (e) => {
-    if (!app.isQuitting) {
-      e.preventDefault();
-      mainWindow.hide();
-    }
-  });
-}
-
-function positionWindowBottomCenter() {
-  if (!mainWindow) return;
-  try {
-    const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
-    const [winWidth, winHeight] = mainWindow.getSize();
-    const x = Math.round((screenWidth - winWidth) / 2);
-    const y = Math.round(screenHeight - winHeight - 20); // 20px from bottom
-    mainWindow.setPosition(x, y);
-  } catch (_) {
-    // Ignore positioning errors
-  }
-}
-
-function createTrayIcon(connected) {
-  const size = 16;
-  const canvas = `
-    <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="8" cy="8" r="6" fill="${connected ? '#22C55E' : '#EF4444'}" />
-    </svg>`;
-  return nativeImage.createFromBuffer(
-    Buffer.from(canvas),
-    { width: size, height: size }
-  );
-}
-
-function createTray() {
-  const icon = createTrayIcon(false);
-  tray = new Tray(icon);
-  tray.setToolTip('CrackedClaw Connect');
-  updateTrayMenu(false);
-
-  tray.on('click', () => {
-    if (mainWindow) {
-      if (mainWindow.isVisible()) {
-        mainWindow.hide();
-      } else {
-        positionWindowBottomCenter();
-        mainWindow.show();
-      }
-    }
-  });
-}
-
-function updateTrayMenu(connected) {
-  const statusLabel = connected ? 'Connected' : 'Disconnected';
-  const menu = Menu.buildFromTemplate([
-    { label: `Status: ${statusLabel}`, enabled: false },
-    { type: 'separator' },
-    {
-      label: 'Show Window',
-      click: () => {
-        if (mainWindow) {
-          positionWindowBottomCenter();
-          mainWindow.show();
-        }
-      },
-    },
-    {
-      label: connected ? 'Disconnect' : 'Connect',
-      click: () => {
-        if (connected) {
-          nodeManager && nodeManager.stop();
-        } else {
-          positionWindowBottomCenter();
-          mainWindow && mainWindow.show();
-        }
-      },
-    },
-    { type: 'separator' },
-    {
-      label: 'Quit',
-      click: () => {
-        app.isQuitting = true;
-        if (nodeManager) nodeManager.stop();
-        app.quit();
-      },
-    },
-  ]);
-  tray.setContextMenu(menu);
-
-  try {
-    tray.setImage(createTrayIcon(connected));
-  } catch (_) {
-    // SVG tray icons may not render on all platforms; ignore
-  }
-}
-
-function initChatManager(decoded) {
-  const { gatewayUrl, authToken } = decoded;
-  // webAppUrl might be missing from old tokens — fall back to stored value or default
-  const webAppUrl = decoded.webAppUrl || store.get('webAppUrl') || 'https://crackedclaw.com';
-  chatManager = new ChatManager({ gatewayUrl, authToken, webAppUrl });
-}
-
-function setupIPC() {
   // ── Window Controls IPC ──────────────────────────────────────────────────────
 
   ipcMain.on('window-close', () => {
+    const mainWindow = getMainWindow();
     if (mainWindow) mainWindow.hide();
   });
 
   ipcMain.on('window-minimize', () => {
+    const mainWindow = getMainWindow();
     if (mainWindow) mainWindow.minimize();
   });
 
   ipcMain.on('window-zoom', () => {
+    const mainWindow = getMainWindow();
     if (mainWindow) {
       if (mainWindow.isMaximized()) mainWindow.unmaximize();
       else mainWindow.maximize();
@@ -162,6 +49,7 @@ function setupIPC() {
   // ── Connection IPC ───────────────────────────────────────────────────────────
 
   ipcMain.handle('get-state', () => {
+    const nodeManager = getNodeManager();
     return {
       connected: nodeManager ? nodeManager.connected : false,
       token: store.get('connectionToken') || null,
@@ -191,10 +79,12 @@ function setupIPC() {
       // Init chat manager
       initChatManager(decoded);
 
-      nodeManager = new NodeManager({ gatewayUrl, instanceId, authToken, operatorToken });
+      const nodeManager = new NodeManager({ gatewayUrl, instanceId, authToken, operatorToken });
+      setNodeManager(nodeManager);
 
       nodeManager.on('status', (connected) => {
         updateTrayMenu(connected);
+        const mainWindow = getMainWindow();
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('status-update', {
             connected,
@@ -213,11 +103,12 @@ function setupIPC() {
   });
 
   ipcMain.handle('disconnect', () => {
+    const nodeManager = getNodeManager();
     if (nodeManager) {
       nodeManager.stop();
-      nodeManager = null;
+      setNodeManager(null);
     }
-    chatManager = null;
+    setChatManager(null);
     store.delete('connectionToken');
     store.delete('gatewayUrl');
     store.delete('instanceId');
@@ -230,6 +121,7 @@ function setupIPC() {
   // ── Chat IPC ─────────────────────────────────────────────────────────────────
 
   ipcMain.handle('chat:list-conversations', async () => {
+    const chatManager = getChatManager();
     if (!chatManager) return { ok: false, error: 'Not connected' };
     try {
       const conversations = await chatManager.listConversations();
@@ -240,6 +132,7 @@ function setupIPC() {
   });
 
   ipcMain.handle('chat:create-conversation', async (_event, title) => {
+    const chatManager = getChatManager();
     if (!chatManager) return { ok: false, error: 'Not connected' };
     try {
       const conversation = await chatManager.createConversation(title);
@@ -250,6 +143,7 @@ function setupIPC() {
   });
 
   ipcMain.handle('chat:load-messages', async (_event, conversationId) => {
+    const chatManager = getChatManager();
     if (!chatManager) return { ok: false, error: 'Not connected' };
     try {
       const messages = await chatManager.loadMessages(conversationId);
@@ -260,6 +154,7 @@ function setupIPC() {
   });
 
   ipcMain.handle('chat:save-message', async (_event, { conversationId, role, content }) => {
+    const chatManager = getChatManager();
     if (!chatManager) return { ok: false, error: 'Not connected' };
     try {
       const message = await chatManager.saveMessage(conversationId, role, content);
@@ -270,6 +165,7 @@ function setupIPC() {
   });
 
   ipcMain.handle('chat:send-message', async (event, { conversationId, message }) => {
+    const chatManager = getChatManager();
     if (!chatManager) return { ok: false, error: 'Not connected' };
     try {
       const fullContent = await chatManager.sendMessage(
@@ -277,6 +173,7 @@ function setupIPC() {
         message,
         (chunk) => {
           // Forward streaming chunks to renderer
+          const mainWindow = getMainWindow();
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('chat:stream-chunk', chunk);
           }
@@ -289,46 +186,4 @@ function setupIPC() {
   });
 }
 
-app.whenReady().then(() => {
-  setupIPC();
-  createWindow();
-  createTray();
-
-  // Auto-reconnect if token exists
-  const rawToken = store.get('connectionToken');
-  if (rawToken) {
-    try {
-      const decoded = JSON.parse(Buffer.from(rawToken, 'base64').toString('utf-8'));
-
-      // Init chat manager from stored token
-      initChatManager(decoded);
-
-      nodeManager = new NodeManager(decoded);
-
-      nodeManager.on('status', (connected) => {
-        updateTrayMenu(connected);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('status-update', {
-            connected,
-            gatewayUrl: decoded.gatewayUrl,
-            instanceId: decoded.instanceId,
-            error: nodeManager.lastError,
-          });
-        }
-      });
-
-      nodeManager.start().catch(() => {});
-    } catch (_) {
-      store.delete('connectionToken');
-    }
-  }
-});
-
-app.on('window-all-closed', () => {
-  // Keep running in tray on macOS
-});
-
-app.on('before-quit', () => {
-  app.isQuitting = true;
-  if (nodeManager) nodeManager.stop();
-});
+module.exports = { setupIPC };

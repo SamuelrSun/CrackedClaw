@@ -4,7 +4,12 @@
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';">
   <title>CrackedClaw Connect</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/setup.css">
+  <link rel="stylesheet" href="styles/chat.css">
+  <link rel="stylesheet" href="styles/input-bar.css">
+  <link rel="stylesheet" href="styles/controls.css">
 </head>
 <body>
 
@@ -79,7 +84,7 @@
       <div id="conv-dropdown" class="conv-dropdown hidden">
         <button id="btn-new-chat" class="btn-new-chat">+ New Chat</button>
         <div id="conv-list" class="conv-list">
-          <!-- Populated by renderer.js -->
+          <!-- Populated by conversations.js -->
         </div>
       </div>
 
@@ -135,6 +140,9 @@
 
   </div>
 
-  <script src="renderer.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/conversations.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
