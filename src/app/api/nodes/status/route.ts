@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getOrganization } from "@/lib/supabase/data";
+import { getNodeStatus } from "@/lib/node/status";
 
 export const dynamic = 'force-dynamic';
 
@@ -13,41 +13,13 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const organization = await getOrganization(user.id);
-    if (!organization?.openclaw_gateway_url || !organization?.openclaw_auth_token) {
-      return NextResponse.json({ nodes: [] });
-    }
+    const nodeStatus = await getNodeStatus(user.id);
 
-    // Fetch node status from the gateway
-    const res = await fetch(`${organization.openclaw_gateway_url}/api/nodes/status`, {
-      headers: {
-        "Authorization": `Bearer ${organization.openclaw_auth_token}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!res.ok) {
-      console.error("Failed to fetch node status:", await res.text());
-      return NextResponse.json({ nodes: [] });
-    }
-
-    const data = await res.json();
-    
-    // Transform to expected format
-    const nodes = (data.nodes || []).map((node: {
-      id: string;
-      name?: string;
-      displayName?: string;
-      status?: string;
-      connected?: boolean;
-      deviceType?: string;
-      lastSeen?: string;
-      capabilities?: string[];
-    }) => ({
+    const nodes = nodeStatus.nodes.map(node => ({
       id: node.id,
-      name: node.displayName || node.name || "Unknown Device",
-      status: node.connected || node.status === "connected" ? "connected" : "disconnected",
-      deviceType: node.deviceType || "Mac",
+      name: node.name,
+      status: node.connected ? "connected" : "disconnected",
+      deviceType: "Mac",
       lastSeen: node.lastSeen || new Date().toISOString(),
       capabilities: node.capabilities || [],
     }));

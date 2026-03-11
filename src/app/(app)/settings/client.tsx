@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { TeamSection, TeamMember, TeamInvitation } from "@/components/settings/team-section";
 import type { Organization } from "@/lib/supabase/data";
-import { Sparkles, Radio, ArrowRight, Monitor, Brain, Clock, Zap, Smartphone, Wrench, Download, Copy, Check, ChevronDown, ChevronRight } from "lucide-react";
+import { Sparkles, Radio, ArrowRight, Monitor, Brain, Clock, Zap, Smartphone, Wrench, Download, Copy, Check } from "lucide-react";
 
 
 interface SettingsPageClientProps {
@@ -41,12 +41,12 @@ interface NodeDevice {
 
 function StatusDot({ status }: { status: "green" | "gray" | "red" }) {
   const colors = {
-    green: "bg-mint",
+    green: "bg-emerald-500",
     gray: "bg-grid/30",
     red: "bg-coral",
   };
   return (
-    <span className={`w-3 h-3 rounded-none inline-block flex-shrink-0 ${colors[status]}`} />
+    <span className={`w-3 h-3 rounded-full inline-block flex-shrink-0 ${colors[status]}`} />
   );
 }
 
@@ -82,43 +82,57 @@ function CompanionSetupInline() {
       {/* Download */}
       <a
         href="/downloads/crackedclaw-connect.dmg"
-        className="flex items-center gap-2 w-full px-3 py-2.5 bg-mint/10 border border-mint/40 text-forest font-mono text-[12px] hover:bg-mint/20 transition-colors"
+        className="flex items-center gap-2 w-full px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/30 text-forest font-mono text-[13px] hover:bg-emerald-500/15 transition-colors"
       >
-        <Download className="w-4 h-4 text-mint flex-shrink-0" />
+        <Download className="w-4 h-4 text-emerald-600 flex-shrink-0" />
         Download CrackedClaw Connect (.dmg)
-        <ArrowRight className="w-3 h-3 ml-auto text-mint" />
+        <ArrowRight className="w-3 h-3 ml-auto text-emerald-600" />
       </a>
 
       {/* Steps */}
-      <div className="space-y-3">
-        <p className="font-mono text-[11px] uppercase tracking-wide text-grid/50">Setup Steps</p>
+      <div className="space-y-4">
+        <p className="font-mono text-[11px] uppercase tracking-wide text-grid/50 font-semibold">Setup Steps</p>
         {[
           {
             n: "1",
             title: "Install the app",
-            desc: "Open the downloaded .dmg and drag CrackedClaw Connect to Applications.",
+            desc: "Open the downloaded .dmg and drag CrackedClaw Connect to your Applications folder.",
           },
           {
             n: "2",
-            title: "Grant permissions",
-            desc: "Open System Settings → Privacy & Security → grant Accessibility, Screen Recording, and Full Disk Access.",
+            title: "Grant macOS permissions",
+            desc: "Open System Settings → Privacy & Security, then enable CrackedClaw Connect for each:",
+            details: [
+              "Accessibility — lets your AI interact with apps",
+              "Screen Recording — lets your AI see your screen",
+              "Full Disk Access — lets your AI read and manage files",
+            ],
           },
           {
             n: "3",
             title: "Paste your connection token",
-            desc: "Open the app and paste the token below.",
+            desc: "Open CrackedClaw Connect and paste the token shown below.",
           },
           {
             n: "4",
-            title: "Done!",
-            desc: "Your AI can now see your screen, apps, and files.",
+            title: "You're connected!",
+            desc: "The status above will turn green. Your AI can now use your local apps, files, and browser.",
           },
         ].map(step => (
           <div key={step.n} className="flex gap-3">
-            <span className="font-mono text-[11px] text-mint w-5 flex-shrink-0 pt-0.5">{step.n}.</span>
+            <span className="font-mono text-[13px] text-emerald-600 font-bold w-5 flex-shrink-0 pt-0.5">{step.n}.</span>
             <div>
-              <p className="font-mono text-[12px] text-forest font-semibold">{step.title}</p>
-              <p className="font-mono text-[12px] text-grid/60 mt-0.5 leading-relaxed">{step.desc}</p>
+              <p className="font-mono text-[13px] text-forest font-semibold">{step.title}</p>
+              <p className="font-mono text-[13px] text-grid/60 mt-0.5 leading-relaxed">{step.desc}</p>
+              {"details" in step && step.details && (
+                <ul className="mt-1.5 space-y-1 ml-1">
+                  {step.details.map((d: string) => (
+                    <li key={d} className="font-mono text-[12px] text-grid/50 flex items-start gap-1.5">
+                      <span className="text-emerald-600 mt-0.5">•</span> {d}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         ))}
@@ -136,11 +150,11 @@ function CompanionSetupInline() {
             </code>
             <button
               onClick={copyToken}
-              className="flex-shrink-0 p-2 border border-grid/20 hover:border-mint/40 hover:bg-mint/5 transition-colors"
+              className="flex-shrink-0 p-2 border border-grid/20 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-colors"
               title="Copy token"
             >
               {copied ? (
-                <Check className="w-3.5 h-3.5 text-mint" />
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
               ) : (
                 <Copy className="w-3.5 h-3.5 text-grid/60" />
               )}
@@ -165,7 +179,6 @@ function SystemStatusSection() {
   });
   const [devices, setDevices] = useState<NodeDevice[]>([]);
   const [devicesLoaded, setDevicesLoaded] = useState(false);
-  const [setupExpanded, setSetupExpanded] = useState(false);
 
   useEffect(() => {
     async function fetchAll() {
@@ -292,9 +305,9 @@ function SystemStatusSection() {
           <div className="ml-9 space-y-1.5 mt-2">
             {connectedDevices.map(d => (
               <div key={d.id} className="flex items-center gap-2">
-                <Monitor className="w-3.5 h-3.5 text-mint flex-shrink-0" />
+                <Monitor className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
                 <span className="font-mono text-[12px] text-forest truncate">{d.name}</span>
-                <span className="font-mono text-[10px] uppercase tracking-wide text-mint bg-mint/10 px-1.5 py-0.5 border border-mint/30 ml-auto">
+                <span className="font-mono text-[10px] uppercase tracking-wide text-emerald-700 bg-emerald-500/10 px-1.5 py-0.5 border border-emerald-500/30 ml-auto">
                   Online
                 </span>
               </div>
@@ -309,18 +322,9 @@ function SystemStatusSection() {
           </div>
         )}
 
-        {/* Setup inline when not connected */}
+        {/* Setup instructions shown directly when not connected */}
         {!hasConnectedDevice && status.loaded && devicesLoaded && (
-          <div className="ml-0 mt-3">
-            <button
-              onClick={() => setSetupExpanded(e => !e)}
-              className="flex items-center gap-1.5 font-mono text-[12px] text-mint hover:text-mint/80 transition-colors"
-            >
-              {setupExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-              Set up Companion App
-            </button>
-            {setupExpanded && <CompanionSetupInline />}
-          </div>
+          <CompanionSetupInline />
         )}
       </div>
     </div>
