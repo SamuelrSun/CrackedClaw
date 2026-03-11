@@ -41,12 +41,8 @@ export function buildAuthorizationUrl(
     state,
   });
   
-  // Add scopes (use custom or default)
   const scopeList = scopes?.length ? scopes : config.defaultScopes;
   if (scopeList.length > 0) {
-    // Slack uses comma-separated scopes in 'scope' param
-    // Google uses space-separated scopes in 'scope' param
-    // Notion doesn't use scopes
     if (provider === 'slack') {
       params.set('scope', scopeList.join(','));
     } else if (provider === 'google') {
@@ -54,12 +50,10 @@ export function buildAuthorizationUrl(
     }
   }
   
-  // Add prompt param (e.g. "consent" to force account picker)
   if (prompt) {
     params.set("prompt", prompt);
   }
 
-  // Add provider-specific params
   if (config.additionalAuthParams) {
     Object.entries(config.additionalAuthParams).forEach(([key, value]) => {
       params.set(key, value);
@@ -89,7 +83,6 @@ export async function exchangeCodeForTokens(
     redirect_uri: getCallbackUrl(),
   });
   
-  // Notion and some providers include client credentials in body
   if (!config.useBasicAuth) {
     body.set('client_id', credentials.clientId);
     body.set('client_secret', credentials.clientSecret);
@@ -99,14 +92,12 @@ export async function exchangeCodeForTokens(
     'Content-Type': 'application/x-www-form-urlencoded',
   };
   
-  // Notion uses Basic auth for token exchange
   if (config.useBasicAuth) {
     const basicAuth = Buffer.from(
       `${credentials.clientId}:${credentials.clientSecret}`
     ).toString('base64');
     headers['Authorization'] = `Basic ${basicAuth}`;
     
-    // Notion expects JSON body
     const jsonBody = JSON.stringify({
       grant_type: 'authorization_code',
       code,
@@ -187,7 +178,6 @@ export async function fetchUserInfo(
       }
       
       case 'notion': {
-        // Notion user info is obtained via their users/me endpoint
         const response = await fetch(
           'https://api.notion.com/v1/users/me',
           {
@@ -236,7 +226,7 @@ export async function createOAuthFlow(
       status: 'pending',
       scopes: scopes || [],
       created_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 min expiry
+      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     });
   
   if (error) {
@@ -309,14 +299,32 @@ export async function storeUserIntegration(
 ): Promise<string | null> {
   const supabase = await createClient();
   
-  // Check for existing integration for this user/provider
-  const { data: existing } = await supabase
-    .from('user_integrations')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('provider', provider)
-    .single();
-  
+  // Check for existing integration for this user/provider/account
+  // If same account reconnects → update tokens. If new account → insert.
+  const accountId = userInfo?.id || tokens.bot_user_id || null;
+  let existing = null;
+
+  if (accountId) {
+    const { data } = await supabase
+      .from('user_integrations')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('provider', provider)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    existing = data;
+  } else {
+    // No account_id available — fall back to user+provider match (legacy behavior)
+    const { data } = await supabase
+      .from('user_integrations')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('provider', provider)
+      .is('account_id', null)
+      .maybeSingle();
+    existing = data;
+  }
+
   const integrationData = {
     user_id: userId,
     provider,
@@ -351,11 +359,21 @@ export async function storeUserIntegration(
     }
     return existing.id;
   } else {
+    // Check if this is the first account for this provider
+    const { count } = await supabase
+      .from('user_integrations')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('provider', provider);
+
+    const isFirst = (count || 0) === 0;
+
     // Create new integration
     const { data, error } = await supabase
       .from('user_integrations')
       .insert({
         ...integrationData,
+        is_default: isFirst,
         created_at: new Date().toISOString(),
       })
       .select('id')
@@ -404,17 +422,26 @@ export async function refreshGoogleToken(
  */
 export async function getValidTokens(
   userId: string,
-  provider: OAuthProvider
-): Promise<{ accessToken: string; refreshed: boolean } | null> {
+  provider: OAuthProvider,
+  accountId?: string
+): Promise<{ accessToken: string; refreshed: boolean; accountId?: string; accountEmail?: string } | null> {
   const supabase = await createClient();
   
-  const { data: integration, error } = await supabase
+  let query = supabase
     .from('user_integrations')
     .select('*')
     .eq('user_id', userId)
     .eq('provider', provider)
-    .eq('status', 'connected')
-    .single();
+    .eq('status', 'connected');
+
+  if (accountId) {
+    query = query.eq('account_id', accountId);
+  } else {
+    // Prefer the default account, fall back to any connected account
+    query = query.order('is_default', { ascending: false }).order('created_at', { ascending: true });
+  }
+
+  const { data: integration, error } = await query.limit(1).maybeSingle();
   
   if (error || !integration) {
     return null;
@@ -433,7 +460,6 @@ export async function getValidTokens(
     if (expiresAt - now < fiveMinutes) {
       const refreshed = await refreshGoogleToken(integration.refresh_token);
       if (refreshed) {
-        // Update stored token
         await supabase
           .from('user_integrations')
           .update({
@@ -443,12 +469,159 @@ export async function getValidTokens(
           })
           .eq('id', integration.id);
         
-        return { accessToken: refreshed.access_token, refreshed: true };
+        return {
+          accessToken: refreshed.access_token,
+          refreshed: true,
+          accountId: integration.account_id,
+          accountEmail: integration.account_email,
+        };
       }
     }
   }
   
-  return { accessToken: integration.access_token, refreshed: false };
+  return {
+    accessToken: integration.access_token,
+    refreshed: false,
+    accountId: integration.account_id,
+    accountEmail: integration.account_email,
+  };
+}
+
+/**
+ * Get all connected integrations for a user, optionally filtered by provider
+ */
+export async function getUserIntegrations(
+  userId: string,
+  provider?: OAuthProvider
+): Promise<Array<{
+  id: string;
+  provider: string;
+  accountId: string | null;
+  accountEmail: string | null;
+  accountName: string | null;
+  accountPicture: string | null;
+  teamName: string | null;
+  isDefault: boolean;
+  status: string;
+  createdAt: string;
+}>> {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from('user_integrations')
+    .select('id, provider, account_id, account_email, account_name, account_picture, team_name, is_default, status, created_at')
+    .eq('user_id', userId)
+    .eq('status', 'connected')
+    .order('provider')
+    .order('is_default', { ascending: false })
+    .order('created_at', { ascending: true });
+
+  if (provider) {
+    query = query.eq('provider', provider);
+  }
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  return data.map(d => ({
+    id: d.id,
+    provider: d.provider,
+    accountId: d.account_id,
+    accountEmail: d.account_email,
+    accountName: d.account_name,
+    accountPicture: d.account_picture,
+    teamName: d.team_name,
+    isDefault: d.is_default ?? false,
+    status: d.status,
+    createdAt: d.created_at,
+  }));
+}
+
+/**
+ * Set a specific integration as the default for its provider
+ */
+export async function setDefaultIntegration(
+  userId: string,
+  integrationId: string
+): Promise<boolean> {
+  const supabase = await createClient();
+
+  // Get the integration to find its provider
+  const { data: integration } = await supabase
+    .from('user_integrations')
+    .select('provider')
+    .eq('id', integrationId)
+    .eq('user_id', userId)
+    .single();
+
+  if (!integration) return false;
+
+  // Unset all defaults for this provider
+  await supabase
+    .from('user_integrations')
+    .update({ is_default: false })
+    .eq('user_id', userId)
+    .eq('provider', integration.provider);
+
+  // Set this one as default
+  const { error } = await supabase
+    .from('user_integrations')
+    .update({ is_default: true, updated_at: new Date().toISOString() })
+    .eq('id', integrationId)
+    .eq('user_id', userId);
+
+  return !error;
+}
+
+/**
+ * Disconnect a specific integration account
+ */
+export async function disconnectIntegration(
+  userId: string,
+  integrationId: string
+): Promise<boolean> {
+  const supabase = await createClient();
+
+  // Get info before deleting
+  const { data: integration } = await supabase
+    .from('user_integrations')
+    .select('provider, is_default')
+    .eq('id', integrationId)
+    .eq('user_id', userId)
+    .single();
+
+  if (!integration) return false;
+
+  // Delete the integration
+  const { error } = await supabase
+    .from('user_integrations')
+    .delete()
+    .eq('id', integrationId)
+    .eq('user_id', userId);
+
+  if (error) return false;
+
+  // If it was the default, promote the next one
+  if (integration.is_default) {
+    const { data: next } = await supabase
+      .from('user_integrations')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('provider', integration.provider)
+      .eq('status', 'connected')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (next) {
+      await supabase
+        .from('user_integrations')
+        .update({ is_default: true })
+        .eq('id', next.id);
+    }
+  }
+
+  return true;
 }
 
 // Type definitions

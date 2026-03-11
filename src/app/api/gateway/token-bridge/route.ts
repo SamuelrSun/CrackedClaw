@@ -15,7 +15,7 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
-  const { user_id, provider, bridge_secret } = body;
+  const { user_id, provider, bridge_secret, account_id } = body;
 
   const expectedSecret = process.env.TOKEN_BRIDGE_SECRET || 'crackedclaw-bridge-2026';
   if (bridge_secret !== expectedSecret) {
@@ -26,13 +26,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'user_id and provider required' }, { status: 400 });
   }
 
-  const { data } = await supabase
+  let tokenQuery = supabase
     .from('user_integrations')
     .select('access_token, refresh_token, expires_at')
     .eq('user_id', user_id)
     .eq('provider', provider)
-    .eq('status', 'connected')
-    .single();
+    .eq('status', 'connected');
+
+  if (account_id) {
+    tokenQuery = tokenQuery.eq('account_id', account_id);
+  } else {
+    // Default: prefer is_default=true, fall back to first connected
+    tokenQuery = tokenQuery.order('is_default', { ascending: false }).order('created_at', { ascending: true });
+  }
+
+  const { data } = await tokenQuery.limit(1).maybeSingle();
 
   if (!data?.access_token) {
     return NextResponse.json({ error: 'No ' + provider + ' integration connected' }, { status: 404 });

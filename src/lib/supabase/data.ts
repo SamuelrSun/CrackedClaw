@@ -70,13 +70,16 @@ export async function getIntegrations(): Promise<Integration[]> {
     ])
 
     // Build a map of connected providers from user_integrations
-    const connectedMap: Record<string, { email?: string; name?: string; created_at?: string }[]> = {}
+    const connectedMap: Record<string, { id: string; email?: string; name?: string; picture?: string; created_at?: string; is_default?: boolean }[]> = {}
     for (const ui of userIntegrationsResult.data || []) {
       if (!connectedMap[ui.provider]) connectedMap[ui.provider] = []
       connectedMap[ui.provider].push({
+        id: ui.id,
         email: ui.account_email,
         name: ui.account_name,
+        picture: ui.account_picture,
         created_at: ui.created_at,
+        is_default: ui.is_default ?? false,
       })
     }
 
@@ -106,12 +109,13 @@ export async function getIntegrations(): Promise<Integration[]> {
         type: i.type as IntegrationType,
         status: isConnected ? 'connected' as IntegrationStatus : i.status as IntegrationStatus,
         config: i.config || {},
-        accounts: isConnected ? connected.map((c, idx) => ({
-          id: `oauth-${idx}`,
+        accounts: isConnected ? connected.map((c) => ({
+          id: c.id,
           email: c.email || '',
           name: c.name || c.email || 'Connected',
+          picture: c.picture,
           connectedAt: c.created_at ? new Date(c.created_at).toLocaleDateString() : 'Recently',
-          isPrimary: idx === 0,
+          is_default: c.is_default ?? false,
         })) as IntegrationAccount[] : (i.accounts || []) as IntegrationAccount[],
         last_sync: i.last_sync,
         created_at: i.created_at,
@@ -135,12 +139,13 @@ export async function getIntegrations(): Promise<Integration[]> {
           type: 'oauth' as IntegrationType,
           status: 'connected' as IntegrationStatus,
           config: {},
-          accounts: accounts.map((c, idx) => ({
-            id: `oauth-${idx}`,
+          accounts: accounts.map((c) => ({
+            id: c.id,
             email: c.email || '',
             name: c.name || c.email || 'Connected',
+            picture: c.picture,
             connectedAt: c.created_at ? new Date(c.created_at).toLocaleDateString() : 'Recently',
-            isPrimary: idx === 0,
+            is_default: c.is_default ?? false,
           })) as IntegrationAccount[],
           last_sync: null,
           created_at: new Date().toISOString(),

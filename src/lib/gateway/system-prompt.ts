@@ -10,6 +10,13 @@ export interface SystemPromptContext {
   userName?: string;
   agentName?: string;
   integrations?: string[]; // list of connected provider names e.g. ['google', 'slack']
+  integrationAccounts?: Array<{
+    provider: string;
+    email: string | null;
+    name: string | null;
+    accountId: string | null;
+    isDefault: boolean;
+  }>;
   memoryEntries?: MemoryEntry[];
   secretNames?: string[]; // names only, never values
   skillsPrompt?: string;
@@ -31,6 +38,8 @@ You have these primitive tools that let you do ANYTHING:
 - **memory_search**: Search your memories about this user. ALWAYS check before starting a task.
 - **memory_add**: Store new knowledge. ALWAYS store what you learn.
 - **get_integration_token**: Get an OAuth token for any connected integration. Use with exec+curl to call any API.
+
+**Multiple accounts:** Some integrations may have multiple accounts connected (e.g., personal Gmail + work Gmail). Use the account_id parameter when calling get_integration_token to specify which account: get_integration_token({ provider: 'google', account_id: 'abc123' }). If no account_id is specified, the default account is used.
 - **list_integrations**: See what integrations the user has connected.
 - **scan_integration**: Deep-scan a connected integration (emails, calendar, contacts, topics). Saves everything to memory. Use after a user connects an integration or asks you to learn about them.
 
@@ -230,10 +239,26 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   }
 
   if (ctx.integrations && ctx.integrations.length > 0) {
-    parts.push('\nCONNECTED INTEGRATIONS:\n' + ctx.integrations.map(i => {
-      const reg = INTEGRATIONS.find(r => r.id === i);
-      return reg ? `- ${reg.name} (${reg.id}) — capabilities: ${reg.capabilities.join(', ')}` : `- ${i}`;
-    }).join('\n'));
+    const lines: string[] = [];
+    for (const providerId of ctx.integrations) {
+      const reg = INTEGRATIONS.find(r => r.id === providerId);
+      const providerName = reg?.name || providerId;
+      const accounts = (ctx.integrationAccounts || []).filter(a => a.provider === providerId);
+
+      if (accounts.length <= 1) {
+        const acct = accounts[0];
+        const label = acct?.email || acct?.name || '';
+        lines.push(`- ${providerName} (${providerId})${label ? ` — ${label}` : ''}${reg ? ` — capabilities: ${reg.capabilities.join(', ')}` : ''}`);
+      } else {
+        lines.push(`- ${providerName} (${providerId})${reg ? ` — capabilities: ${reg.capabilities.join(', ')}` : ''}`);
+        for (const acct of accounts) {
+          const defaultTag = acct.isDefault ? ' [DEFAULT]' : '';
+          const label = acct.email || acct.name || acct.accountId || 'unknown';
+          lines.push(`    • ${label}${defaultTag} (account_id: ${acct.accountId || 'unknown'})`);
+        }
+      }
+    }
+    parts.push('\nCONNECTED INTEGRATIONS:\n' + lines.join('\n'));
   }
 
   // Inject available integrations from registry so agent knows the full landscape
@@ -292,12 +317,24 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
     // Get connected integrations
     const { data: integrations } = await supabase
       .from('user_integrations')
-      .select('provider')
+      .select('provider, account_email, account_name, account_id, is_default')
       .eq('user_id', userId)
-      .eq('status', 'connected');
-    
+      .eq('status', 'connected')
+      .order('provider')
+      .order('is_default', { ascending: false });
+
     if (integrations && integrations.length > 0) {
-      ctx.integrations = integrations.map((i: { provider: string }) => i.provider);
+      // Deduplicate provider names for the existing ctx.integrations (used elsewhere)
+      ctx.integrations = Array.from(new Set(integrations.map((i: { provider: string }) => i.provider)));
+
+      // Build detailed account info for the prompt
+      ctx.integrationAccounts = integrations.map((i: { provider: string; account_email: string | null; account_name: string | null; account_id: string | null; is_default: boolean | null }) => ({
+        provider: i.provider,
+        email: i.account_email,
+        name: i.account_name,
+        accountId: i.account_id,
+        isDefault: i.is_default ?? false,
+      }));
     }
 
     // Get memories: semantic search + core high-importance memories

@@ -11,6 +11,7 @@ import { IntegrationGridSkeleton } from "@/components/skeletons/integration-skel
 import type { ResolvedIntegration } from "@/lib/integrations/resolver";
 import { IntegrationIcon } from "@/components/integrations/integration-icon";
 import { INTEGRATIONS } from "@/lib/integrations/registry";
+import { Star, Trash2, Plus } from "lucide-react";
 
 
 // ── Deep Scan types ──────────────────────────────────────────────────────────
@@ -386,8 +387,31 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type === "oauth_complete" && event.data?.provider === provider) {
         window.removeEventListener("message", onMessage);
-        // Refresh integrations list
-        window.location.reload();
+        // Refresh integrations to show new account
+        fetch('/api/integrations/accounts')
+          .then(r => r.json())
+          .then(data => {
+            if (data.accounts) {
+              // Rebuild accounts for this integration from the refreshed data
+              const providerAccounts = data.accounts[provider] || [];
+              setItems(prev => prev.map(item => {
+                if (item.id !== integrationId) return item;
+                return {
+                  ...item,
+                  status: providerAccounts.length > 0 ? 'connected' as const : item.status,
+                  accounts: providerAccounts.map((a: Record<string, unknown>) => ({
+                    id: a.id as string,
+                    email: a.email as string,
+                    name: a.name as string,
+                    picture: a.picture as string,
+                    is_default: a.is_default as boolean,
+                    connectedAt: a.connected_at ? new Date(a.connected_at as string).toLocaleDateString() : 'Recently',
+                  })),
+                };
+              }));
+            }
+          })
+          .catch(() => window.location.reload());
       }
     };
     window.addEventListener("message", onMessage);
@@ -397,8 +421,6 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
       if (popup.closed) {
         clearInterval(poll);
         window.removeEventListener("message", onMessage);
-        // Refresh anyway in case OAuth completed
-        window.location.reload();
       }
     }, 1000);
   };
@@ -475,17 +497,49 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
     }
   };
 
-  const disconnectAccount = (integrationId: string, accountId: string) => {
+  const disconnectAccount = async (integrationId: string, accountId: string) => {
     const integration = items.find(i => i.id === integrationId);
     const account = integration?.accounts.find(a => a.id === accountId);
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.id !== integrationId) return item;
-        const newAccounts = item.accounts.filter((acc) => acc.id !== accountId);
-        return { ...item, accounts: newAccounts, status: newAccounts.length > 0 ? "connected" as const : "disconnected" as const };
-      })
-    );
-    toast.info("Account disconnected", `${account?.email || "Account"} removed from ${integration?.name || "integration"}`);
+    try {
+      const res = await fetch(`/api/integrations/accounts/${accountId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to disconnect');
+      setItems((prev) =>
+        prev.map((item) => {
+          if (item.id !== integrationId) return item;
+          const newAccounts = item.accounts.filter((acc) => acc.id !== accountId);
+          return { ...item, accounts: newAccounts, status: newAccounts.length > 0 ? "connected" as const : "disconnected" as const };
+        })
+      );
+      toast.info("Account disconnected", `${account?.email || "Account"} removed from ${integration?.name || "integration"}`);
+    } catch {
+      toast.error("Error", "Failed to disconnect account");
+    }
+  };
+
+  const setAsDefault = async (integrationId: string, accountId: string) => {
+    try {
+      const res = await fetch(`/api/integrations/accounts/${accountId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_default: true }),
+      });
+      if (!res.ok) throw new Error('Failed to set default');
+      setItems((prev) =>
+        prev.map((item) => {
+          if (item.id !== integrationId) return item;
+          return {
+            ...item,
+            accounts: item.accounts.map((acc) => ({
+              ...acc,
+              is_default: acc.id === accountId,
+            })),
+          };
+        })
+      );
+      toast.success('Default account updated', '');
+    } catch {
+      toast.error('Error', 'Failed to set default account');
+    }
   };
 
   const getScopes = (item: Integration): string[] => {
@@ -653,7 +707,9 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {items.map((integration) => {
             const accountCount = integration.accounts.length;
-            const badgeText = integration.status === "connected" ? accountCount + " Connected" : "Disconnected";
+            const badgeText = integration.status === "connected" 
+              ? (accountCount === 1 ? '1 Account' : accountCount + ' Accounts') + ' Connected' 
+              : 'Disconnected';
             const needsNode = getNeedsNode(integration);
 
             return (
@@ -684,25 +740,55 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                   <div className="mt-4">
                     <span className="font-mono text-[10px] uppercase tracking-wide text-grid/40">Connected Accounts</span>
                     {integration.accounts.length > 0 ? (
-                      <div className="mt-2 space-y-2">
+                      <div className="mt-2 space-y-1.5">
                         {integration.accounts.map((account) => (
-                          <div key={account.id} className="flex items-center justify-between py-1.5 px-2 border border-[rgba(58,58,56,0.1)] bg-cream/30">
-                            <div className="flex flex-col">
-                              <span className="font-mono text-xs text-grid">{account.email || account.name || "Account"}</span>
+                          <div key={account.id} className="flex items-center gap-2 py-1.5 px-2 border border-[rgba(58,58,56,0.1)] bg-cream/30">
+                            {/* Avatar */}
+                            {account.picture ? (
+                              <img src={account.picture} alt="" className="w-6 h-6 rounded-full flex-shrink-0" />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-forest/10 flex items-center justify-center flex-shrink-0">
+                                <span className="font-mono text-[9px] text-forest uppercase">{(account.email || account.name || '?')[0]}</span>
+                              </div>
+                            )}
+                            {/* Account info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-[10px] text-grid truncate">{account.email || account.name || 'Account'}</span>
+                                {account.is_default && (
+                                  <span className="flex-shrink-0 font-mono text-[8px] uppercase tracking-wide bg-forest/10 text-forest px-1.5 py-0.5 border border-forest/20">Default</span>
+                                )}
+                              </div>
                               <span className="font-mono text-[9px] text-grid/40">Connected {account.connectedAt}</span>
                             </div>
-                            <button onClick={() => disconnectAccount(integration.id, account.id)} className="font-mono text-[10px] uppercase tracking-wide text-coral hover:text-coral/70 transition-colors px-2 py-1 border border-coral/20 hover:border-coral/40">
-                              Disconnect
-                            </button>
+                            {/* Actions */}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {!account.is_default && (
+                                <button
+                                  onClick={() => setAsDefault(integration.id, account.id)}
+                                  title="Set as default"
+                                  className="p-1 text-grid/30 hover:text-forest transition-colors"
+                                >
+                                  <Star size={12} />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => disconnectAccount(integration.id, account.id)}
+                                title="Disconnect"
+                                className="p-1 text-grid/30 hover:text-coral transition-colors"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
                     ) : (
                       <p className="mt-2 font-mono text-[11px] text-grid/40 italic">No accounts connected</p>
                     )}
-                    <button onClick={() => addAccount(integration.id)} className="mt-3 w-full py-2 px-3 font-mono text-[11px] uppercase tracking-wide text-forest border border-forest/30 hover:bg-forest/5 transition-colors flex items-center justify-center gap-1">
-                      <span className="text-base leading-none">+</span>
-                      <span>Add Account</span>
+                    <button onClick={() => addAccount(integration.id)} className="mt-3 w-full py-2 px-3 font-mono text-[11px] uppercase tracking-wide text-forest border border-forest/30 hover:bg-forest/5 transition-colors flex items-center justify-center gap-1.5">
+                      <Plus size={14} />
+                      <span>{integration.accounts.length > 0 ? 'Add Account' : 'Connect'}</span>
                     </button>
                   </div>
 

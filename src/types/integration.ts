@@ -15,6 +15,8 @@ export interface IntegrationAccount {
   email?: string;
   name?: string;
   connectedAt: string;
+  is_default?: boolean;
+  picture?: string;
   scopes?: string[];
   metadata?: Record<string, unknown>;
 }
