@@ -10,12 +10,19 @@ const PROVISIONING_API_SECRET = process.env.PROVISIONING_API_SECRET;
 /**
  * POST /api/node/pre-pair
  *
- * Called by the setup script running on the user's machine.
- * Accepts device info and pre-registers it in the gateway's paired.json.
+ * Called by the Companion app (or setup script) running on the user's machine.
+ * Accepts device info and pre-registers it so the gateway can auto-approve the
+ * incoming `openclaw node run` pairing request.
  *
  * Auth: Either session cookie OR X-Gateway-Token header (the org's openclaw_auth_token).
  *
- * Body: { deviceId, publicKey, token, displayName, platform }
+ * Body: { deviceId, token, displayName?, platform?, publicKey? }
+ *
+ * Returns: { success: true, gatewayUrl, instanceId }
+ *
+ * The Companion app follows this up by polling the gateway directly:
+ *   GET  <gatewayUrl>/api/nodes/pending  → find the pending request
+ *   POST <gatewayUrl>/api/nodes/approve  → approve it { requestId }
  */
 export async function POST(req: Request) {
   let org;
@@ -57,34 +64,38 @@ export async function POST(req: Request) {
 
   const { deviceId, publicKey, token, displayName, platform } = body;
 
-  if (!deviceId || !publicKey || !token) {
-    return jsonResponse({ success: false, error: 'deviceId, publicKey, and token are required' }, 400);
+  // publicKey is optional — Companion app flow doesn't use keypair-based auth
+  if (!deviceId || !token) {
+    return jsonResponse({ success: false, error: 'deviceId and token are required' }, 400);
   }
 
-  if (!PROVISIONING_API_URL) {
-    return jsonResponse({ success: false, error: 'Provisioning API not configured' }, 500);
-  }
+  // If provisioning API is configured, call it to pre-register with the instance.
+  // This is best-effort — even if it fails, the Companion app will poll-and-approve directly.
+  if (PROVISIONING_API_URL) {
+    try {
+      const response = await fetch(`${PROVISIONING_API_URL}/instances/${org.openclaw_instance_id}/pre-pair`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(PROVISIONING_API_SECRET ? { Authorization: `Bearer ${PROVISIONING_API_SECRET}` } : {}),
+        },
+        body: JSON.stringify({ deviceId, publicKey, token, displayName, platform }),
+      });
 
-  try {
-    const response = await fetch(`${PROVISIONING_API_URL}/instances/${org.openclaw_instance_id}/pre-pair`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(PROVISIONING_API_SECRET ? { Authorization: `Bearer ${PROVISIONING_API_SECRET}` } : {}),
-      },
-      body: JSON.stringify({ deviceId, publicKey, token, displayName, platform }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      console.error('Pre-pair provisioning error:', text);
-      return jsonResponse({ success: false, error: 'Failed to pre-register device' }, 500);
+      if (!response.ok) {
+        const text = await response.text();
+        console.warn('Pre-pair provisioning returned non-OK (continuing):', text);
+      }
+    } catch (err) {
+      // Non-fatal: log and continue; Companion will auto-approve via gateway poll
+      console.warn('Pre-pair provisioning call failed (continuing):', err);
     }
-
-    const data = await response.json();
-    return jsonResponse(data);
-  } catch (err) {
-    console.error('Pre-pair error:', err);
-    return jsonResponse({ success: false, error: 'Failed to contact provisioning API' }, 500);
   }
+
+  // Return the gateway URL and instance ID so the Companion can poll the gateway directly
+  return jsonResponse({
+    success: true,
+    gatewayUrl: org.openclaw_gateway_url,
+    instanceId: org.openclaw_instance_id,
+  });
 }
