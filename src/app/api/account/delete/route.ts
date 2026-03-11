@@ -123,8 +123,6 @@ export async function POST(request: NextRequest) {
       memberCount = count || 0;
     }
 
-        // No instance cleanup needed — serverless runtime
-
     // If user has other members in org, just leave the org (don't delete it)
     if (org && memberCount > 0) {
       // Transfer ownership first
@@ -231,6 +229,28 @@ export async function POST(request: NextRequest) {
       });
     } catch (err) {
       console.error("Failed to log deletion:", err);
+    }
+
+    // Clean up OpenClaw instance on DigitalOcean
+    if (org?.openclaw_instance_id) {
+      try {
+        const provisioningUrl = process.env.PROVISIONING_API_URL;
+        const provisioningSecret = process.env.PROVISIONING_API_SECRET;
+        if (provisioningUrl && provisioningSecret) {
+          const deleteRes = await fetch(`${provisioningUrl}/api/instances/${org.openclaw_instance_id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${provisioningSecret}`,
+            },
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (!deleteRes.ok) {
+            console.error('Instance cleanup failed:', deleteRes.status, await deleteRes.text().catch(() => ''));
+          }
+        }
+      } catch (err) {
+        console.error('Instance cleanup error (non-fatal):', err);
+      }
     }
 
     // Clean up DO server data (browser sessions, files, exec artifacts)
