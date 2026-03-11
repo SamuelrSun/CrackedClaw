@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
   const { data } = await supabase
     .from('user_integrations')
-    .select('access_token, refresh_token, token_expires_at')
+    .select('access_token, refresh_token, expires_at')
     .eq('user_id', user_id)
     .eq('provider', provider)
     .eq('status', 'connected')
@@ -38,9 +38,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No ' + provider + ' integration connected' }, { status: 404 });
   }
 
-  // Refresh if near expiry
-  const expiresAt = data.token_expires_at ? new Date(data.token_expires_at).getTime() : 0;
-  if (expiresAt && expiresAt - Date.now() < 5 * 60 * 1000 && data.refresh_token) {
+  // Refresh if expired, near expiry, or expiry unknown (null)
+  const expiresAt = data.expires_at ? new Date(data.expires_at).getTime() : 0;
+  const needsRefresh = !expiresAt || (expiresAt - Date.now() < 5 * 60 * 1000);
+  if (needsRefresh && data.refresh_token) {
     try {
       const res = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
         const refreshed = await res.json();
         await supabase.from('user_integrations').update({
           access_token: refreshed.access_token,
-          token_expires_at: new Date(Date.now() + (refreshed.expires_in || 3600) * 1000).toISOString(),
+          expires_at: new Date(Date.now() + (refreshed.expires_in || 3600) * 1000).toISOString(),
         }).eq('user_id', user_id).eq('provider', provider);
         return NextResponse.json({ access_token: refreshed.access_token });
       }

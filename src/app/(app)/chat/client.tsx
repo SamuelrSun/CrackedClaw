@@ -14,6 +14,7 @@ import { ConversationListSkeleton } from "@/components/skeletons/list-skeleton";
 import { ChatSkeleton } from "@/components/skeletons/chat-skeleton";
 import { parseMessageContent, type ParsedSegment } from "@/lib/chat/message-parser";
 import { DynamicIntegrationsCard } from "@/components/chat/dynamic-integrations-card";
+import { InlineSubagentCard } from "@/components/chat/inline-subagent-card";
 import { ScanTriggerCard } from "@/components/chat/scan-trigger-card";
 import { ScanProgressCard } from "@/components/chat/scan-progress-card";
 import type { ScanProgressCardProps } from "@/components/chat/scan-progress-card";
@@ -1414,7 +1415,7 @@ User message: `
           )}
           <button
             onClick={() => setShowSubagentPanel((v) => !v)}
-            className="relative flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-grid/50 hover:text-[#1A3C2B] border border-transparent hover:border-[rgba(26,60,43,0.2)] transition-all rounded-none"
+            className="hidden"
           >
             <span>🔄</span>
             <span>Tasks</span>
@@ -1433,6 +1434,7 @@ User message: `
                 : "text-grid/50 hover:text-[#1A3C2B] border-transparent hover:border-[rgba(26,60,43,0.2)]"
             )}
             title="Toggle agent activity panel"
+            style={{ display: 'none' }}
           >
             <span>📊</span>
             <span>Activity</span>
@@ -1685,16 +1687,7 @@ User message: `
         )}
 
         {/* Subagent Dashboard Panel */}
-        <SubagentPanel
-          isOpen={showSubagentPanel}
-          onClose={() => setShowSubagentPanel(false)}
-          onSubagentCountChange={(count) => {
-            if (count > subagentCount) {
-              setShowSubagentPanel(true);
-            }
-            setSubagentCount(count);
-          }}
-        />
+        {/* SubagentPanel removed — replaced by inline subagent cards */}
 
         {/* Input */}
         <div className="flex-shrink-0 border-t border-[rgba(58,58,56,0.2)] p-4">
