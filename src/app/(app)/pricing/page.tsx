@@ -1,6 +1,4 @@
 import { PricingPageClient } from './client';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,10 +7,13 @@ export default async function PricingPage() {
   let isSubscribed = false;
 
   try {
+    // Dynamic import to avoid crashes if Supabase env vars aren't set
+    const { createClient } = await import('@/lib/supabase/server');
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (user) {
+      const { createAdminClient } = await import('@/lib/supabase/admin');
       const adminClient = createAdminClient();
       const { data: org } = await adminClient
         .from('organizations')
@@ -26,7 +27,7 @@ export default async function PricingPage() {
       }
     }
   } catch {
-    // If not logged in, show public pricing
+    // If not logged in or env missing, show public pricing with defaults
   }
 
   return <PricingPageClient currentPlan={currentPlan} isSubscribed={isSubscribed} />;
