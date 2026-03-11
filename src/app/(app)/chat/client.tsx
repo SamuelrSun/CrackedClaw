@@ -35,7 +35,6 @@ import type { SubagentSession } from "@/components/chat/subagent-card";
 import { ChatError } from "@/components/chat/chat-error";
 import { useNodeStatus } from "@/hooks/use-node-status";
 import { MemoryPanel, type MemoryInsights } from "@/components/chat/memory-panel";
-import { BrowserPopup } from "@/components/chat/browser-popup";
 import { BrowserPreviewCard } from "@/components/chat/browser-preview-card";
 import { BrowserOpenCard } from "@/components/chat/browser-open-card";
 import { getIntegration } from "@/lib/integrations/registry";
@@ -571,7 +570,6 @@ export default function ChatPageClient({
   const [memoryPanelData, setMemoryPanelData] = useState<{ insights?: MemoryInsights; source?: string }>({});
   const [browserPopupOpen, setBrowserPopupOpen] = useState(false);
   const [browserMode, setBrowserMode] = useState<"watching" | "control" | "paused">("watching");
-  const [browserNovncUrl, setBrowserNovncUrl] = useState<string>("");
   const [browserCurrentUrl, setBrowserCurrentUrl] = useState<string | undefined>(undefined);
   const [attachedFiles, setAttachedFiles] = useState<UploadedFile[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -1549,16 +1547,6 @@ User message: `
                         onOpenBrowser={async (url, control) => {
                           setBrowserCurrentUrl(url);
                           setBrowserMode(control ? "control" : "watching");
-                          // Fetch noVNC URL if not already loaded
-                          if (!browserNovncUrl) {
-                            try {
-                              const res = await fetch('/api/gateway/browser/novnc');
-                              if (res.ok) {
-                                const data = await res.json();
-                                setBrowserNovncUrl(data.novncUrl || '');
-                              }
-                            } catch { /* ignore */ }
-                          }
                           setBrowserPopupOpen(true);
                         }}
                         onSendEmail={async (email) => {
@@ -1786,20 +1774,7 @@ User message: `
           insights={memoryPanelData.insights}
         />
 
-        {/* Browser Popup */}
-        <BrowserPopup
-          isOpen={browserPopupOpen}
-          onClose={() => setBrowserPopupOpen(false)}
-          novncUrl={browserNovncUrl}
-          currentUrl={browserCurrentUrl}
-          mode={browserMode}
-          onTakeControl={() => setBrowserMode("control")}
-          onReleaseControl={() => setBrowserMode("watching")}
-          onStop={() => {
-            setBrowserPopupOpen(false);
-            setBrowserMode("watching");
-          }}
-        />
+        {/* Browser Popup — removed (noVNC/headless); browser automation now via Companion node pairing */}
       </div>
 
       {/* Agent Activity Split Panel */}
