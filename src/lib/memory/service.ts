@@ -68,6 +68,48 @@ export function parseSecretMarkers(text: string): Array<{name: string, value: st
   return results;
 }
 
+export function parseWorkerMarkers(text: string): Array<{
+  name: string;
+  title: string;
+  role?: string;
+  schedule?: string;
+  cron_id?: string;
+  hair_color?: string;
+  skin_color?: string;
+}> {
+  const regex = /\[\[WORKER:\s*([^\]]+)\]\]/g;
+  const results: Array<Record<string, string>> = [];
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const fields: Record<string, string> = {};
+    const parts = match[1].split('|').map((p: string) => p.trim());
+    for (const part of parts) {
+      const eqIdx = part.indexOf('=');
+      if (eqIdx > 0) {
+        const key = part.substring(0, eqIdx).trim();
+        const val = part.substring(eqIdx + 1).trim();
+        if (key === 'hair') fields['hair_color'] = val;
+        else if (key === 'skin') fields['skin_color'] = val;
+        else fields[key] = val;
+      }
+    }
+    if (fields.name && fields.title) {
+      results.push(fields);
+    }
+  }
+  return results as any;
+}
+
+export function parseWorkerRemoveMarkers(text: string): string[] {
+  const regex = /\[\[WORKER_REMOVE:\s*([^\]]+)\]\]/g;
+  const results: string[] = [];
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    results.push(match[1].trim());
+  }
+  return results;
+}
+
 export function stripMarkers(text: string): string {
   return text
     .replace(/\[\[REMEMBER(\([^)]*\))?:[^\]]+\]\]/g, '')
@@ -75,6 +117,8 @@ export function stripMarkers(text: string): string {
     .replace(/\[\[STORE_SECRET:[^\]]+\]\]/g, '')
     .replace(/\[\[user_name:[^\]]+\]\]/g, '')
     .replace(/\[\[agent_name:[^\]]+\]\]/g, '')
+    .replace(/\[\[WORKER:[^\]]+\]\]/g, '')
+    .replace(/\[\[WORKER_REMOVE:[^\]]+\]\]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -211,6 +255,8 @@ export async function processAgentResponse(userId: string, responseText: string,
   const memoryMarkers = parseMemoryMarkers(responseText);
   const forgetMarkers = parseForgetMarkers(responseText);
   const secretMarkers = parseSecretMarkers(responseText);
+  const workerMarkers = parseWorkerMarkers(responseText);
+  const workerRemoveMarkers = parseWorkerRemoveMarkers(responseText);
 
   await Promise.all([
     ...memoryMarkers.map(m => mem0Write(userId, `${m.key}: ${m.value}`, {
@@ -225,6 +271,66 @@ export async function processAgentResponse(userId: string, responseText: string,
     }),
     ...secretMarkers.map(s => saveSecret(userId, s.name, s.value)),
   ]);
+
+  // Handle worker markers
+  if (workerMarkers.length > 0 || workerRemoveMarkers.length > 0) {
+    try {
+      const { createAdminClient } = await import('@/lib/supabase/admin');
+      const adminSupabase = createAdminClient();
+
+      await Promise.all([
+        ...workerMarkers.map(async (w) => {
+          // Auto-assign desk position
+          const { data: existing } = await adminSupabase
+            .from('workers')
+            .select('desk_position')
+            .eq('user_id', userId)
+            .order('desk_position', { ascending: false })
+            .limit(1);
+          const nextPosition = (existing?.[0]?.desk_position ?? -1) + 1;
+
+          await adminSupabase.from('workers').insert({
+            user_id: userId,
+            name: w.name,
+            title: w.title,
+            role: w.role || null,
+            cron_job_id: w.cron_id || null,
+            workflow_type: 'cron',
+            schedule: w.schedule || null,
+            status: 'active',
+            desk_position: nextPosition,
+            avatar_config: {
+              hair_color: w.hair_color || '#2D5016',
+              skin_color: w.skin_color || '#F4C17A',
+            },
+          });
+
+          const { data: inserted } = await adminSupabase
+            .from('workers')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('name', w.name)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (inserted?.id) {
+            await adminSupabase.from('worker_activity').insert({
+              worker_id: inserted.id,
+              user_id: userId,
+              event_type: 'created',
+              summary: `${w.name} was hired as ${w.title}`,
+            });
+          }
+        }),
+        ...workerRemoveMarkers.map(async (name) => {
+          await adminSupabase.from('workers').delete().eq('user_id', userId).ilike('name', name);
+        }),
+      ]);
+    } catch (err) {
+      console.error('[workers] Failed to process worker markers:', err);
+    }
+  }
 
   // Auto-extract facts via mem0Add in background (don't block response)
   if (userMessage) {

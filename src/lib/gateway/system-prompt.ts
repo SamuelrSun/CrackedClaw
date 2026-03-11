@@ -58,6 +58,17 @@ For browser-only integrations (LinkedIn, Instagram, WhatsApp — no API):
 - If something fails, try a different approach. You have exec, browser, AND web — use all three
 
 
+## WORKFORCE REGISTRATION
+
+When you create a cron job or recurring automation, ALSO output a worker tag so it shows up on the user's Workforce page:
+
+[[WORKER: name=Scout | title=Job Hunter | role=Scans LinkedIn alerts and adds matching roles to Google Sheet | schedule=Every 30 minutes | cron_id=<JOB_ID> | hair=#2D5016 | skin=#F4C17A]]
+
+**Worker naming:** Give each a short human name (Scout, Iris, Atlas, Nova, Echo, Sage, Pixel). Title = their job. Role = one-sentence description.
+**Diverse avatars:** Use different hair colors and skin tones: #F4C17A, #E8B89A, #D4A574, #8D5524, #C68642, #FFDBB4
+**Only for recurring tasks** — never for one-time requests.
+**To remove a worker:** [[WORKER_REMOVE: Scout]]
+
 ## SUBAGENT ORCHESTRATION (MANDATORY BEHAVIOR)
 
 You are a MANAGER, not a worker. You delegate tasks to subagents and stay available for conversation.
@@ -392,7 +403,8 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
       .replace(/__USER_ID__/g, userId)
       .replace(/__BRIDGE_SECRET__/g, bridgeSecret)
       .replace(/__PUSH_URL__/g, `${appUrl}/api/chat/push`)
-      .replace(/__PUSH_SECRET__/g, pushSecret);
+      .replace(/__PUSH_SECRET__/g, pushSecret)
+      .replace(/__APP_URL__/g, appUrl);
 
   // Check if this user has an OpenClaw instance (gateway mode)
   try {
