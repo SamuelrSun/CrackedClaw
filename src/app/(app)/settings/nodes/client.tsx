@@ -106,7 +106,8 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
   const { host, port } = parseGatewayUrl(organization?.openclaw_gateway_url || null);
   const token = organization?.openclaw_auth_token || "";
 
-  const connectionCommand = `crackedclaw-connect --token ${showToken ? token : maskToken(token)} --server wss://companion.crackedclaw.com/api/companion/ws`;
+  // Connection is handled via the CrackedClaw Connect desktop app
+  const connectionCommand = `Use CrackedClaw Connect app — download from crackedclaw.com/connect`;
 
   // Fetch pending nodes
   const fetchPendingNodes = useCallback(async () => {
@@ -171,10 +172,8 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
 
   // Copy command to clipboard
   async function handleCopy() {
-    const fullCommand = `crackedclaw-connect --token ${token} --server wss://companion.crackedclaw.com/api/companion/ws`;
-    
     try {
-      await navigator.clipboard.writeText(fullCommand);
+      await navigator.clipboard.writeText("https://crackedclaw.com/connect");
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -362,18 +361,18 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
             <div className="grid grid-cols-2 gap-4 p-4 border border-[rgba(58,58,56,0.1)] bg-forest/5">
               <div>
                 <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50 block mb-1">
-                  Server
+                  Method
                 </span>
                 <span className="font-mono text-xs text-forest">
-                  companion.crackedclaw.com
+                  CrackedClaw Connect app
                 </span>
               </div>
               <div>
                 <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50 block mb-1">
-                  Protocol
+                  Connection
                 </span>
                 <span className="font-mono text-xs text-forest">
-                  WSS (encrypted)
+                  Direct to your gateway
                 </span>
               </div>
             </div>

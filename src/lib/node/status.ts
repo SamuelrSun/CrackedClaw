@@ -1,9 +1,10 @@
 /**
  * Node Status Service
- * Checks if the user's locally paired node is online via the companion relay.
+ * Checks if the user's locally paired node is online via their OpenClaw gateway.
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { getOrganization } from '@/lib/supabase/data';
 
 export interface NodeStatus {
   isOnline: boolean;
@@ -15,23 +16,21 @@ export interface NodeStatus {
   hasBrowser: boolean;
 }
 
-const COMPANION_STATUS_URL = 'https://companion.crackedclaw.com/api/companion/status';
-
 export async function getNodeStatus(userId: string): Promise<NodeStatus> {
   const offline: NodeStatus = { isOnline: false, capabilities: [], hasBrowser: false };
 
   try {
-    const supabase = await createClient();
-    const { data: org } = await supabase
-      .from('organizations')
-      .select('id')
-      .eq('owner_id', userId)
-      .single();
+    const organization = await getOrganization(userId);
 
-    if (!org) return offline;
+    if (!organization?.openclaw_gateway_url || !organization?.openclaw_auth_token) {
+      return offline;
+    }
 
-    const res = await fetch(COMPANION_STATUS_URL, {
-      headers: { 'x-org-id': org.id },
+    const res = await fetch(`${organization.openclaw_gateway_url}/api/nodes/status`, {
+      headers: {
+        'Authorization': `Bearer ${organization.openclaw_auth_token}`,
+        'Content-Type': 'application/json',
+      },
       signal: AbortSignal.timeout(8000),
     });
 
@@ -43,12 +42,13 @@ export async function getNodeStatus(userId: string): Promise<NodeStatus> {
       name?: string;
       displayName?: string;
       connected?: boolean;
+      status?: string;
       lastSeen?: string;
       connectedAt?: string;
       capabilities?: string[];
     }> = data.nodes || [];
 
-    const online = nodes.find(n => n.connected);
+    const online = nodes.find(n => n.connected || n.status === 'connected');
     if (!online) return offline;
 
     const caps: string[] = online.capabilities || ['browser', 'files'];

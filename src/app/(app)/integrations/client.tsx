@@ -730,9 +730,8 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                   {needsNode && integration.status === "disconnected" && (
                     <div className="mt-3 p-2 bg-amber-50 border border-amber-200">
                       <p className="font-mono text-[9px] text-amber-700">
-                        Uses browser automation. Connect via{' '}
-                        <a href="/settings/connect" className="underline">Settings → Connect</a>{' '}
-                        or run: <code className="bg-amber-100 px-1">crackedclaw-connect --token YOUR_TOKEN --server wss://companion.crackedclaw.com/api/companion/ws</code>
+                        Uses browser automation.{' '}
+                        <a href="/settings/nodes" className="underline">Connect your desktop via Settings</a>.
                       </p>
                     </div>
                   )}

@@ -20,8 +20,6 @@ interface CardState {
 interface NodeStatus {
   isOnline: boolean;
   nodeName?: string;
-  gatewayUrl?: string;
-  authToken?: string;
 }
 
 function openOAuthPopup(provider: string): Promise<boolean> {
@@ -55,16 +53,6 @@ function openOAuthPopup(provider: string): Promise<boolean> {
   });
 }
 
-// Parse gateway URL to extract host
-function parseGatewayHost(url: string | null): string {
-  if (!url) return "your-workspace.crackedclaw.com";
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname;
-  } catch {
-    return "your-workspace.crackedclaw.com";
-  }
-}
 
 function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }: { name: string; onClose: () => void; gatewayHost?: string; loginUrl?: string; onConnected?: () => void }) {
   const [nodeStatus, setNodeStatus] = useState<NodeStatus | null>(null);
@@ -73,13 +61,16 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
 
   const checkNodeStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/node/status');
+      const res = await fetch('/api/nodes/status');
       if (res.ok) {
         const data = await res.json();
+        const nodes: Array<{ status?: string; name?: string }> = data.nodes || [];
+        const connected = nodes.find(n => n.status === 'connected');
+        const next = { isOnline: !!connected, nodeName: connected?.name };
         // Only update if status actually changed to avoid flickering
         setNodeStatus(prev => {
-          if (!prev) return data;
-          if (prev.isOnline !== data.isOnline || prev.nodeName !== data.nodeName) return data;
+          if (!prev) return next;
+          if (prev.isOnline !== next.isOnline || prev.nodeName !== next.nodeName) return next;
           return prev;
         });
       }
@@ -102,11 +93,8 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
   };
 
   const handleCopy = async () => {
-    const token = nodeStatus?.authToken || "YOUR_TOKEN";
-    const fullCommand = `crackedclaw-connect --token ${token} --server wss://companion.crackedclaw.com/api/companion/ws`;
-    
     try {
-      await navigator.clipboard.writeText(fullCommand);
+      await navigator.clipboard.writeText("https://crackedclaw.com/connect");
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -114,13 +102,7 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
     }
   };
 
-  const displayHost = nodeStatus?.gatewayUrl 
-    ? parseGatewayHost(nodeStatus.gatewayUrl) 
-    : (gatewayHost || "your-workspace.crackedclaw.com");
 
-  const maskedCommand = nodeStatus?.authToken
-    ? `crackedclaw-connect --token ${nodeStatus.authToken} --server wss://companion.crackedclaw.com/api/companion/ws`
-    : `crackedclaw-connect --token YOUR_TOKEN --server wss://companion.crackedclaw.com/api/companion/ws`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -203,13 +185,14 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
             <div className="space-y-2">
               <p className="font-mono text-[11px] text-grid/70 font-bold">Here&apos;s how to set that up:</p>
               <p className="font-mono text-[10px] text-grid/60">1. Download CrackedClaw Connect from crackedclaw.com/connect</p>
-              <p className="font-mono text-[10px] text-grid/60">2. Open <strong>Terminal</strong> on your Mac and paste the command below:</p>
+              <p className="font-mono text-[10px] text-grid/60">2. Open the app and sign in with your CrackedClaw account</p>
+              <p className="font-mono text-[10px] text-grid/60">3. Leave the app running in the background — that&apos;s it!</p>
             </div>
-            
-            {/* Command box with Copy button */}
+
+            {/* Download link with Copy button */}
             <div className="relative bg-forest/5 border border-[rgba(58,58,56,0.15)] p-3">
               <code className="font-mono text-[11px] text-forest break-all pr-16">
-                {maskedCommand}
+                crackedclaw.com/connect
               </code>
               <button
                 onClick={handleCopy}
@@ -316,10 +299,11 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
     
     const check = async () => {
       try {
-        const res = await fetch('/api/node/status');
+        const res = await fetch('/api/nodes/status');
         if (res.ok) {
           const data = await res.json();
-          setNodeOnline(data.isOnline);
+          const nodes: Array<{ status?: string }> = data.nodes || [];
+          setNodeOnline(nodes.some(n => n.status === 'connected'));
         }
       } catch { /* ignore */ }
     };

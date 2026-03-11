@@ -7,3 +7,6 @@ tsconfig.tsbuildinfo
 supabase/.temp/
 .env.local
 .vercel
+companion-app/dist/
+companion-app/.DS_Store
+.DS_Store

@@ -27,10 +27,7 @@ function createWindow() {
   mainWindow.loadFile('index.html');
 
   mainWindow.once('ready-to-show', () => {
-    const token = store.get('connectionToken');
-    if (!token) {
-      mainWindow.show();
-    }
+    mainWindow.show();
   });
 
   mainWindow.on('close', (e) => {

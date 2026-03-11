@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requireApiAuth, jsonResponse } from "@/lib/api-auth";
 import { createClient } from "@/lib/supabase/server";
 import { getUserInstance } from "@/lib/gateway/openclaw-proxy";
+import { getNodeStatus } from "@/lib/node/status";
 import type { GatewayStatusInfo } from "@/types/gateway";
 
 export const dynamic = 'force-dynamic';
@@ -13,15 +14,12 @@ export async function GET(request: NextRequest) {
   const { user, error } = await requireApiAuth();
   if (error) return error;
 
-  // Check companion connection status
+  // Check companion connection status via user's gateway
   let companionConnected = false;
   try {
-    const statusRes = await fetch('https://companion.crackedclaw.com/api/companion/status', { signal: AbortSignal.timeout(2000) });
-    if (statusRes.ok) {
-      const companionStatus = await statusRes.json();
-      companionConnected = (companionStatus.connected || []).includes(user.id);
-    }
-  } catch { /* ignore - companion not available */ }
+    const nodeStatus = await getNodeStatus(user.id);
+    companionConnected = nodeStatus.isOnline;
+  } catch { /* ignore - gateway not available */ }
 
   // Check real gateway health
   let gatewayConnected = false;

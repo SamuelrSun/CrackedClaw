@@ -31,15 +31,20 @@ export function useNodeStatus(pollIntervalMs = 30000): NodeStatusState {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/node/status");
+      const res = await fetch("/api/nodes/status");
       if (!res.ok) throw new Error("Failed to fetch node status");
       const data = await res.json();
 
-      const online: boolean = data.isOnline ?? false;
+      // /api/nodes/status returns { nodes: [...] }
+      const nodes: Array<{ id: string; name?: string; status?: string; capabilities?: string[] }> = data.nodes || [];
+      const connectedNode = nodes.find(n => n.status === "connected");
+      const online: boolean = !!connectedNode;
+      const caps: string[] = connectedNode?.capabilities ?? [];
+
       setIsOnline(online);
-      setNodeName(data.nodeName);
-      setCapabilities(data.capabilities ?? []);
-      setHasBrowser(data.hasBrowser ?? false);
+      setNodeName(connectedNode?.name);
+      setCapabilities(caps);
+      setHasBrowser(caps.includes("browser"));
       setError(null);
 
       if (online) {

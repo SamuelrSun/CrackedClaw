@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { TeamSection, TeamMember, TeamInvitation } from "@/components/settings/team-section";
 import type { Organization } from "@/lib/supabase/data";
-import { Sparkles, Radio, ArrowRight, Monitor, Brain, Clock, Zap, Smartphone, Wrench } from "lucide-react";
+import { Sparkles, Radio, ArrowRight, Monitor, Brain, Clock, Zap, Smartphone, Wrench, Download, Copy, Check, ChevronDown, ChevronRight } from "lucide-react";
 
 
 interface SettingsPageClientProps {
@@ -32,6 +32,13 @@ interface SystemStatus {
   loaded: boolean;
 }
 
+interface NodeDevice {
+  id: string;
+  name: string;
+  status: string;
+  lastSeen?: string;
+}
+
 function StatusDot({ status }: { status: "green" | "gray" | "red" }) {
   const colors = {
     green: "bg-mint",
@@ -39,7 +46,111 @@ function StatusDot({ status }: { status: "green" | "gray" | "red" }) {
     red: "bg-coral",
   };
   return (
-    <span className={`w-2.5 h-2.5 rounded-none inline-block flex-shrink-0 ${colors[status]}`} />
+    <span className={`w-3 h-3 rounded-none inline-block flex-shrink-0 ${colors[status]}`} />
+  );
+}
+
+function CompanionSetupInline() {
+  const [token, setToken] = useState<string | null>(null);
+  const [tokenLoading, setTokenLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/node/connection-token")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setToken(d?.token ?? null))
+      .catch(() => setToken(null))
+      .finally(() => setTokenLoading(false));
+  }, []);
+
+  function copyToken() {
+    if (!token) return;
+    navigator.clipboard.writeText(token).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="mt-3 border border-grid/20 bg-forest/[0.03] p-4 space-y-4">
+      <div>
+        <p className="font-mono text-[12px] text-grid/70 leading-relaxed">
+          The companion app runs on your Mac and gives your AI access to local apps, files, and your browser.
+        </p>
+      </div>
+
+      {/* Download */}
+      <a
+        href="/downloads/crackedclaw-connect.dmg"
+        className="flex items-center gap-2 w-full px-3 py-2.5 bg-mint/10 border border-mint/40 text-forest font-mono text-[12px] hover:bg-mint/20 transition-colors"
+      >
+        <Download className="w-4 h-4 text-mint flex-shrink-0" />
+        Download CrackedClaw Connect (.dmg)
+        <ArrowRight className="w-3 h-3 ml-auto text-mint" />
+      </a>
+
+      {/* Steps */}
+      <div className="space-y-3">
+        <p className="font-mono text-[11px] uppercase tracking-wide text-grid/50">Setup Steps</p>
+        {[
+          {
+            n: "1",
+            title: "Install the app",
+            desc: "Open the downloaded .dmg and drag CrackedClaw Connect to Applications.",
+          },
+          {
+            n: "2",
+            title: "Grant permissions",
+            desc: "Open System Settings → Privacy & Security → grant Accessibility, Screen Recording, and Full Disk Access.",
+          },
+          {
+            n: "3",
+            title: "Paste your connection token",
+            desc: "Open the app and paste the token below.",
+          },
+          {
+            n: "4",
+            title: "Done!",
+            desc: "Your AI can now see your screen, apps, and files.",
+          },
+        ].map(step => (
+          <div key={step.n} className="flex gap-3">
+            <span className="font-mono text-[11px] text-mint w-5 flex-shrink-0 pt-0.5">{step.n}.</span>
+            <div>
+              <p className="font-mono text-[12px] text-forest font-semibold">{step.title}</p>
+              <p className="font-mono text-[12px] text-grid/60 mt-0.5 leading-relaxed">{step.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Token */}
+      <div className="space-y-2">
+        <p className="font-mono text-[11px] uppercase tracking-wide text-grid/50">Connection Token</p>
+        {tokenLoading ? (
+          <div className="h-9 bg-grid/10 animate-pulse" />
+        ) : token ? (
+          <div className="flex items-center gap-2">
+            <code className="flex-1 font-mono text-[11px] text-forest bg-forest/5 border border-grid/20 px-2.5 py-2 truncate">
+              {token}
+            </code>
+            <button
+              onClick={copyToken}
+              className="flex-shrink-0 p-2 border border-grid/20 hover:border-mint/40 hover:bg-mint/5 transition-colors"
+              title="Copy token"
+            >
+              {copied ? (
+                <Check className="w-3.5 h-3.5 text-mint" />
+              ) : (
+                <Copy className="w-3.5 h-3.5 text-grid/60" />
+              )}
+            </button>
+          </div>
+        ) : (
+          <p className="font-mono text-[12px] text-coral">Failed to load token — refresh and try again.</p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -52,183 +163,166 @@ function SystemStatusSection() {
     integrationsCount: 0,
     loaded: false,
   });
+  const [devices, setDevices] = useState<NodeDevice[]>([]);
+  const [devicesLoaded, setDevicesLoaded] = useState(false);
+  const [setupExpanded, setSetupExpanded] = useState(false);
 
   useEffect(() => {
-    async function fetchStatus() {
-      try {
-        const [gatewayRes, memoryRes, intRes] = await Promise.allSettled([
-          fetch("/api/gateway/status"),
-          fetch("/api/memory?limit=1"),
-          fetch("/api/integrations"),
-        ]);
+    async function fetchAll() {
+      const [gatewayRes, memoryRes, intRes, nodesRes] = await Promise.allSettled([
+        fetch("/api/gateway/status"),
+        fetch("/api/memory?limit=1"),
+        fetch("/api/integrations"),
+        fetch("/api/nodes/status"),
+      ]);
 
-        let toolServer: "connected" | "error" | "unknown" = "unknown";
-        let companion = false;
-        if (gatewayRes.status === "fulfilled" && gatewayRes.value.ok) {
-          const data = await gatewayRes.value.json();
-          toolServer = data.tools?.length > 0 ? "connected" : "unknown";
-          companion = data.companion === true;
-        }
-
-        let memoryCount = 0;
-        if (memoryRes.status === "fulfilled" && memoryRes.value.ok) {
-          const data = await memoryRes.value.json();
-          memoryCount = data.total ?? data.count ?? 0;
-        }
-
-        let integrationsCount = 0;
-        if (intRes.status === "fulfilled" && intRes.value.ok) {
-          const data = await intRes.value.json();
-          integrationsCount = Array.isArray(data.integrations)
-            ? data.integrations.filter((i: { connected?: boolean }) => i.connected).length
-            : 0;
-        }
-
-        setStatus({
-          runtime: "connected",
-          toolServer,
-          companion,
-          memoryCount,
-          integrationsCount,
-          loaded: true,
-        });
-      } catch {
-        setStatus(prev => ({ ...prev, runtime: "error", loaded: true }));
+      let toolServer: "connected" | "error" | "unknown" = "unknown";
+      let companion = false;
+      if (gatewayRes.status === "fulfilled" && gatewayRes.value.ok) {
+        const data = await gatewayRes.value.json();
+        toolServer = data.tools?.length > 0 ? "connected" : "unknown";
+        companion = data.companion === true;
       }
+
+      let memoryCount = 0;
+      if (memoryRes.status === "fulfilled" && memoryRes.value.ok) {
+        const data = await memoryRes.value.json();
+        memoryCount = data.total ?? data.count ?? 0;
+      }
+
+      let integrationsCount = 0;
+      if (intRes.status === "fulfilled" && intRes.value.ok) {
+        const data = await intRes.value.json();
+        integrationsCount = Array.isArray(data.integrations)
+          ? data.integrations.filter((i: { connected?: boolean }) => i.connected).length
+          : 0;
+      }
+
+      setStatus({
+        runtime: "connected",
+        toolServer,
+        companion,
+        memoryCount,
+        integrationsCount,
+        loaded: true,
+      });
+
+      if (nodesRes.status === "fulfilled" && nodesRes.value.ok) {
+        const data = await nodesRes.value.json();
+        setDevices(data.nodes || []);
+      }
+      setDevicesLoaded(true);
     }
-    fetchStatus();
+
+    fetchAll().catch(() =>
+      setStatus(prev => ({ ...prev, runtime: "error", loaded: true }))
+    );
   }, []);
 
-  const rows: { icon: React.ReactNode; label: string; dot: "green" | "gray" | "red"; text: string }[] = [
+  const connectedDevices = devices.filter(d => d.status === "connected");
+  const hasConnectedDevice = connectedDevices.length > 0 || status.companion;
+
+  const statusRows: { icon: React.ReactNode; label: string; dot: "green" | "gray" | "red"; text: string }[] = [
     {
       icon: <Zap className="w-4 h-4 text-mint" />,
       label: "AI Runtime",
       dot: status.runtime === "connected" ? "green" : "red",
-      text: status.runtime === "connected" ? "Connected (Serverless)" : "Error",
+      text: status.runtime === "connected" ? "Online (Cloud)" : "Error",
     },
     {
       icon: <Wrench className="w-4 h-4 text-mint" />,
       label: "Tool Server",
       dot: status.toolServer === "connected" ? "green" : status.toolServer === "unknown" ? "gray" : "red",
-      text: status.toolServer === "connected" ? "Connected" : status.toolServer === "unknown" ? "Checking..." : "Unavailable",
-    },
-    {
-      icon: <Smartphone className="w-4 h-4 text-grid/40" />,
-      label: "Companion App",
-      dot: status.companion ? "green" : "gray",
-      text: status.companion ? "Connected" : "Not connected",
+      text: status.toolServer === "connected" ? "Connected" : status.toolServer === "unknown" ? "Checking…" : "Unavailable",
     },
     {
       icon: <Brain className="w-4 h-4 text-mint" />,
-      label: "Memory System",
+      label: "Memory",
       dot: "green",
-      text: status.loaded ? `Active (${status.memoryCount} memories)` : "Loading...",
+      text: status.loaded ? `Active · ${status.memoryCount} memories` : "Loading…",
     },
     {
       icon: <Radio className="w-4 h-4 text-mint" />,
       label: "Integrations",
       dot: status.integrationsCount > 0 ? "green" : "gray",
-      text: status.loaded ? `${status.integrationsCount} connected` : "Loading...",
+      text: status.loaded ? `${status.integrationsCount} connected` : "Loading…",
     },
   ];
 
   return (
-    <div className="mt-2 space-y-3">
+    <div className="mt-3 space-y-4">
+      {/* Explanation */}
+      <p className="font-mono text-[13px] text-grid/60 leading-relaxed border-l-2 border-mint/30 pl-3">
+        Your AI runs on a cloud server for 24/7 availability. The companion app connects your desktop so your AI can use your local apps, files, and browser.
+      </p>
+
+      {/* Status grid */}
       {!status.loaded ? (
         <div className="space-y-2">
-          {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="h-6 bg-forest/5 animate-pulse rounded" />
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-6 bg-forest/5 animate-pulse" />
           ))}
         </div>
       ) : (
         <div className="space-y-2.5">
-          {rows.map((row) => (
+          {statusRows.map((row) => (
             <div key={row.label} className="flex items-center gap-3">
               {row.icon}
-              <span className="font-mono text-[11px] text-grid/60 w-32 flex-shrink-0">{row.label}</span>
+              <span className="font-mono text-[12px] text-grid/60 w-28 flex-shrink-0">{row.label}</span>
               <StatusDot status={row.dot} />
-              <span className="font-mono text-[11px] text-forest">{row.text}</span>
+              <span className="font-mono text-[12px] text-forest">{row.text}</span>
             </div>
           ))}
         </div>
       )}
-      {!status.companion && status.loaded && (
-        <Link href="/settings/connect">
-          <Button variant="ghost" size="sm" className="w-full justify-between mt-2">
-            Set up Companion App
-            <ArrowRight className="w-3 h-3" />
-          </Button>
-        </Link>
-      )}
-    </div>
-  );
-}
 
-function DevicesInlineSection() {
-  const [devices, setDevices] = useState<{ id: string; name: string; status: string; lastSeen: string }[]>([]);
-  const [loading, setLoading] = useState(true);
+      {/* Companion / Device status */}
+      <div className="border-t border-grid/10 pt-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Smartphone className="w-4 h-4 text-grid/40" />
+          <span className="font-mono text-[12px] text-grid/60 w-28 flex-shrink-0">Companion App</span>
+          <StatusDot status={hasConnectedDevice ? "green" : "gray"} />
+          <span className="font-mono text-[12px] text-forest">
+            {hasConnectedDevice ? (connectedDevices[0]?.name ?? "Connected") : "Not connected"}
+          </span>
+        </div>
 
-  useEffect(() => {
-    fetch("/api/nodes/status")
-      .then(r => r.ok ? r.json() : { nodes: [] })
-      .then(d => setDevices(d.nodes || []))
-      .catch(() => setDevices([]))
-      .finally(() => setLoading(false));
-  }, []);
+        {/* Connected devices list */}
+        {devicesLoaded && connectedDevices.length > 0 && (
+          <div className="ml-9 space-y-1.5 mt-2">
+            {connectedDevices.map(d => (
+              <div key={d.id} className="flex items-center gap-2">
+                <Monitor className="w-3.5 h-3.5 text-mint flex-shrink-0" />
+                <span className="font-mono text-[12px] text-forest truncate">{d.name}</span>
+                <span className="font-mono text-[10px] uppercase tracking-wide text-mint bg-mint/10 px-1.5 py-0.5 border border-mint/30 ml-auto">
+                  Online
+                </span>
+              </div>
+            ))}
+            {devices.filter(d => d.status !== "connected").map(d => (
+              <div key={d.id} className="flex items-center gap-2 opacity-40">
+                <Monitor className="w-3.5 h-3.5 text-grid/40 flex-shrink-0" />
+                <span className="font-mono text-[12px] text-grid/60 truncate">{d.name}</span>
+                <span className="font-mono text-[10px] uppercase tracking-wide text-grid/40 ml-auto">Offline</span>
+              </div>
+            ))}
+          </div>
+        )}
 
-  if (loading) {
-    return (
-      <div className="mt-2">
-        <div className="h-8 bg-grid/10 animate-pulse rounded" />
+        {/* Setup inline when not connected */}
+        {!hasConnectedDevice && status.loaded && devicesLoaded && (
+          <div className="ml-0 mt-3">
+            <button
+              onClick={() => setSetupExpanded(e => !e)}
+              className="flex items-center gap-1.5 font-mono text-[12px] text-mint hover:text-mint/80 transition-colors"
+            >
+              {setupExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+              Set up Companion App
+            </button>
+            {setupExpanded && <CompanionSetupInline />}
+          </div>
+        )}
       </div>
-    );
-  }
-
-  const connected = devices.filter(d => d.status === "connected");
-
-  return (
-    <div className="mt-2 space-y-3">
-      {connected.length > 0 ? (
-        <div className="space-y-2">
-          {connected.map(d => (
-            <div key={d.id} className="flex items-center gap-2">
-              <Monitor className="w-4 h-4 text-mint flex-shrink-0" />
-              <span className="font-mono text-[11px] text-forest flex-1 truncate">{d.name}</span>
-              <span className="font-mono text-[9px] uppercase tracking-wide text-mint bg-mint/10 px-2 py-0.5 border border-mint/30">
-                Connected
-              </span>
-            </div>
-          ))}
-          {devices.filter(d => d.status !== "connected").map(d => (
-            <div key={d.id} className="flex items-center gap-2 opacity-50">
-              <Monitor className="w-4 h-4 text-grid/40 flex-shrink-0" />
-              <span className="font-mono text-[11px] text-grid/60 flex-1 truncate">{d.name}</span>
-              <span className="font-mono text-[9px] uppercase tracking-wide text-grid/40">Offline</span>
-            </div>
-          ))}
-        </div>
-      ) : devices.length > 0 ? (
-        <div className="space-y-2">
-          {devices.map(d => (
-            <div key={d.id} className="flex items-center gap-2 opacity-50">
-              <Monitor className="w-4 h-4 text-grid/40 flex-shrink-0" />
-              <span className="font-mono text-[11px] text-grid/60 flex-1 truncate">{d.name}</span>
-              <span className="font-mono text-[9px] uppercase tracking-wide text-grid/40">Offline</span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <Monitor className="w-4 h-4 text-grid/40" />
-          <span className="font-mono text-[11px] text-grid/40">No devices connected</span>
-        </div>
-      )}
-      <Link href="/settings/nodes">
-        <Button variant="ghost" size="sm" className="w-full justify-between">
-          {devices.length === 0 ? "Add a device" : "Manage devices"}
-          <ArrowRight className="w-3 h-3" />
-        </Button>
-      </Link>
     </div>
   );
 }
@@ -357,27 +451,26 @@ export default function SettingsPageClient({
         <h1 className="font-header text-3xl font-bold tracking-tight leading-tight">
           Settings
         </h1>
-        <p className="font-mono text-[10px] uppercase tracking-wide text-grid/50 mt-1">
+        <p className="font-mono text-[12px] uppercase tracking-wide text-grid/50 mt-1">
           Configuration and account
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-[rgba(58,58,56,0.2)]">
+
         {/* Organization Card */}
         {organization && (
           <Card label="Organization" accentColor="#9EFFBF" bordered={false} className="lg:col-span-2">
-            <div className="mt-2 space-y-2">
-              <div>
-                <h3 className="font-header text-xl font-bold text-forest">{organization.name}</h3>
-                <p className="font-mono text-[10px] uppercase tracking-wide text-grid/50">
-                  {organization.plan} plan
-                </p>
-              </div>
+            <div className="mt-2 space-y-1">
+              <h3 className="font-header text-xl font-bold text-forest">{organization.name}</h3>
+              <p className="font-mono text-[12px] uppercase tracking-wide text-grid/50">
+                {organization.plan} plan
+              </p>
             </div>
           </Card>
         )}
 
-        {/* System Status Card */}
+        {/* System Status Card — full width, with inline device + companion setup */}
         <Card label="⚡ System Status" accentColor="#9EFFBF" bordered={false} className="lg:col-span-2">
           <SystemStatusSection />
         </Card>
@@ -387,7 +480,7 @@ export default function SettingsPageClient({
           <div className="mt-2 space-y-3">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-mint" />
-              <span className="font-mono text-[11px] text-grid/60">
+              <span className="font-mono text-[13px] text-grid/60">
                 Model selection and API key configuration
               </span>
             </div>
@@ -405,7 +498,7 @@ export default function SettingsPageClient({
           <div className="mt-2 space-y-3">
             <div className="flex items-center gap-2">
               <Radio className="w-5 h-5 text-gold" />
-              <span className="font-mono text-[11px] text-grid/60">
+              <span className="font-mono text-[13px] text-grid/60">
                 Connect Slack, Discord, Telegram, WhatsApp
               </span>
             </div>
@@ -423,7 +516,7 @@ export default function SettingsPageClient({
           <div className="mt-2 space-y-3">
             <div className="flex items-center gap-2">
               <Brain className="w-5 h-5 text-mint" />
-              <span className="font-mono text-[11px] text-grid/60">
+              <span className="font-mono text-[13px] text-grid/60">
                 View and manage what your AI remembers about you
               </span>
             </div>
@@ -436,21 +529,18 @@ export default function SettingsPageClient({
           </div>
         </Card>
 
-        {/* Devices */}
-        <Card label="Devices" accentColor="#9EFFBF" bordered={false}>
-          <DevicesInlineSection />
-        </Card>
-
-        {/* Billing */}
+        {/* Billing banner */}
         {upgradedBanner && (
           <div className="p-3 border border-mint bg-mint/10 lg:col-span-2">
-            <span className="font-mono text-[11px] text-forest font-bold">🎉 You&apos;re now on Pro! Enjoy unlimited access.</span>
+            <span className="font-mono text-[13px] text-forest font-bold">🎉 You&apos;re now on Pro! Enjoy unlimited access.</span>
           </div>
         )}
+
+        {/* Plan & Billing */}
         <Card label="Plan & Billing" accentColor="#9EFFBF" bordered={false}>
           <div className="mt-2 space-y-3">
             {billingLoading ? (
-              <p className="font-mono text-[11px] text-grid/40">Loading...</p>
+              <p className="font-mono text-[13px] text-grid/40">Loading...</p>
             ) : (
               <>
                 <div className="flex items-center gap-2">
@@ -458,17 +548,17 @@ export default function SettingsPageClient({
                     {billingPlan === 'pro' ? 'Pro' : 'Free'}
                   </Badge>
                   {billingPlan === 'pro' && billingPeriodEnd && (
-                    <span className="font-mono text-[10px] text-grid/40">
+                    <span className="font-mono text-[12px] text-grid/40">
                       Renews {new Date(billingPeriodEnd).toLocaleDateString()}
                     </span>
                   )}
                 </div>
-                <ul className="space-y-1">
+                <ul className="space-y-1.5">
                   {(billingPlan === 'pro'
                     ? ['1 agent instance', 'Unlimited messages', 'Unlimited memories', 'Google + integrations', 'Priority support']
                     : ['1 agent instance', '100 messages/month', '10 memories']
                   ).map((f) => (
-                    <li key={f} className="font-mono text-[10px] text-grid/60 flex items-center gap-1">
+                    <li key={f} className="font-mono text-[12px] text-grid/60 flex items-center gap-1.5">
                       <span className="text-mint">✓</span> {f}
                     </li>
                   ))}
@@ -492,14 +582,14 @@ export default function SettingsPageClient({
           <div className="mt-2 space-y-3">
             <div className="flex justify-between items-baseline">
               <span className="font-header text-3xl font-bold">{pct}%</span>
-              <span className="font-mono text-[10px] text-grid/50">
+              <span className="font-mono text-[12px] text-grid/50">
                 {(initialTokenUsage.used / 1000).toFixed(0)}K / {(initialTokenUsage.limit / 1000).toFixed(0)}K tokens
               </span>
             </div>
             <div className="w-full h-2 bg-[rgba(58,58,56,0.1)] rounded-none">
               <div className="h-full bg-forest rounded-none" style={{ width: `${pct}%` }} />
             </div>
-            <p className="font-mono text-[10px] text-grid/40">
+            <p className="font-mono text-[12px] text-grid/40">
               Resets {initialTokenUsage.resetDate}
             </p>
           </div>
@@ -508,7 +598,7 @@ export default function SettingsPageClient({
         {/* Usage & Billing */}
         <Card label="Usage & Billing" accentColor="#9EFFBF" bordered={false}>
           <div className="mt-2 space-y-3">
-            <p className="font-mono text-[11px] text-grid/60">
+            <p className="font-mono text-[13px] text-grid/60">
               View detailed usage statistics and manage your billing.
             </p>
             <Link href="/settings/usage">
@@ -524,7 +614,7 @@ export default function SettingsPageClient({
           <div className="mt-2 space-y-3">
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-mint" />
-              <span className="font-mono text-[11px] text-grid/60">
+              <span className="font-mono text-[13px] text-grid/60">
                 Schedule recurring cron jobs
               </span>
             </div>
@@ -540,7 +630,7 @@ export default function SettingsPageClient({
         {/* Export Data */}
         <Card label="Export Data" accentColor="#9EFFBF" bordered={false}>
           <div className="mt-2 space-y-3">
-            <p className="font-mono text-[11px] text-grid/60">
+            <p className="font-mono text-[13px] text-grid/60">
               Download your conversations, memory, and workflows for backup or analysis.
             </p>
             <Link href="/settings/export">
@@ -580,7 +670,7 @@ export default function SettingsPageClient({
         {/* Account Settings */}
         <Card label="Account" accentColor="#FF8C69" bordered={false}>
           <div className="mt-2 space-y-3">
-            <p className="font-mono text-[11px] text-grid/60">
+            <p className="font-mono text-[13px] text-grid/60">
               Manage your account settings, security, and delete your account.
             </p>
             <Link href="/settings/account">
@@ -591,6 +681,7 @@ export default function SettingsPageClient({
             </Link>
           </div>
         </Card>
+
       </div>
     </div>
   );

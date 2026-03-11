@@ -51,14 +51,56 @@ class NodeManager extends EventEmitter {
   }
 
   async ensureCLI() {
+    // On macOS, Electron doesn't inherit the full login shell PATH.
+    // Homebrew installs to /opt/homebrew/bin (Apple Silicon) or /usr/local/bin (Intel).
+    // We ALWAYS expand process.env.PATH first so every subsequent spawn finds binaries.
+    const commonPaths = [
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+      '/usr/bin',
+      '/opt/local/bin',
+    ];
+    const envPath = [
+      ...(process.env.PATH ? process.env.PATH.split(':') : []),
+      ...commonPaths,
+    ].filter(Boolean).join(':');
+
+    // Patch the global PATH immediately — spawnNode() reads process.env directly.
+    process.env.PATH = envPath;
+
+    const execOpts = {
+      stdio: 'pipe',
+      env: { ...process.env, PATH: envPath },
+    };
+
+    // Check if openclaw is already installed (use expanded PATH)
     try {
-      execSync('which openclaw', { stdio: 'ignore' });
-    } catch (_) {
+      execSync('which openclaw', { ...execOpts, stdio: 'ignore' });
+      return; // Already on PATH — good to go
+    } catch (_) {}
+
+    // Try direct path lookup as a fallback (in case 'which' fails for other reasons)
+    for (const dir of commonPaths) {
       try {
-        execSync('npm install -g openclaw', { stdio: 'pipe', timeout: 60000 });
-      } catch (err) {
-        throw new Error('Failed to install openclaw CLI: ' + err.message);
-      }
+        execSync(`test -x "${dir}/openclaw"`, { stdio: 'ignore' });
+        return; // Found it — PATH already patched above
+      } catch (_) {}
+    }
+
+    // openclaw not found — install via npm (find npm in common locations first)
+    let npmBin = 'npm';
+    for (const dir of commonPaths) {
+      try {
+        execSync(`test -x "${dir}/npm"`, { stdio: 'ignore' });
+        npmBin = `${dir}/npm`;
+        break;
+      } catch (_) {}
+    }
+
+    try {
+      execSync(`${npmBin} install -g openclaw`, { ...execOpts, timeout: 60000 });
+    } catch (err) {
+      throw new Error('Failed to install openclaw CLI: ' + err.message);
     }
   }
 
@@ -104,8 +146,24 @@ class NodeManager extends EventEmitter {
     ];
     if (tls) args.push('--tls');
 
+    // Track whether we've already scheduled a reconnect for this spawn cycle.
+    // Both 'error' and 'close' can fire for the same process — without this guard,
+    // two reconnect timers would stack, doubling processes on each failure.
+    let reconnectScheduled = false;
+
+    const scheduleReconnect = (reason) => {
+      if (reconnectScheduled || !this.shouldRun) return;
+      reconnectScheduled = true;
+      this.lastError = reason;
+      this.emit('status', false);
+      this.reconnectTimer = setTimeout(() => this.spawnNode(), RECONNECT_DELAY_MS);
+    };
+
     this.process = spawn('openclaw', args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
+      // Use 'pipe' for all three (not 'ignore' for stdin) — Electron v28 on macOS
+      // throws EBADF on reconnect attempts when stdin is 'ignore' and the parent
+      // process's fd 0 is in a bad state after a previous failed spawn.
+      stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
         // Auth via env var — openclaw node run resolves token from OPENCLAW_GATEWAY_TOKEN
@@ -113,7 +171,14 @@ class NodeManager extends EventEmitter {
       },
     });
 
+    // We don't write to stdin — close it so the child doesn't hang waiting for input.
+    this.process.stdin.end();
+
+    // Track whether the process actually started (vs immediate spawn error)
+    let processStarted = false;
+
     this.process.stdout.on('data', (data) => {
+      processStarted = true;
       const line = data.toString().trim();
       console.log('[openclaw node]', line);
       if (line.toLowerCase().includes('connected') || line.toLowerCase().includes('ready')) {
@@ -122,6 +187,7 @@ class NodeManager extends EventEmitter {
     });
 
     this.process.stderr.on('data', (data) => {
+      processStarted = true;
       const line = data.toString().trim();
       console.error('[openclaw node stderr]', line);
       this.lastError = line;
@@ -130,28 +196,24 @@ class NodeManager extends EventEmitter {
     this.process.on('close', (code) => {
       this.process = null;
       this.setConnected(false);
-
-      if (this.shouldRun) {
-        this.lastError = `Process exited with code ${code}, reconnecting...`;
-        this.emit('status', false);
-        this.reconnectTimer = setTimeout(() => this.spawnNode(), RECONNECT_DELAY_MS);
-      }
+      scheduleReconnect(`Process exited with code ${code}, reconnecting...`);
     });
 
     this.process.on('error', (err) => {
-      this.lastError = err.message;
       this.process = null;
       this.setConnected(false);
+      scheduleReconnect(`Spawn error: ${err.message}, reconnecting...`);
+    });
 
-      if (this.shouldRun) {
-        this.reconnectTimer = setTimeout(() => this.spawnNode(), RECONNECT_DELAY_MS);
+    // Only start auto-approve polling after a short delay to confirm the process
+    // actually spawned. If it fails immediately (ENOENT), don't waste 30s on WS polling.
+    setTimeout(() => {
+      if (processStarted && this.shouldRun) {
+        this.approveViaWebSocket().catch((err) => {
+          console.warn('[NodeManager] auto-approve failed:', err.message);
+        });
       }
-    });
-
-    // After spawning the node process, poll via WebSocket to auto-approve its pairing request.
-    this.approveViaWebSocket().catch((err) => {
-      console.warn('[NodeManager] auto-approve failed:', err.message);
-    });
+    }, 1000);
   }
 
   // ---------------------------------------------------------------------------
