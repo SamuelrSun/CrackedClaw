@@ -80,7 +80,7 @@ export default function ExportPage() {
     <div className="p-6 max-w-2xl mx-auto">
       <Breadcrumbs 
         items={[
-          { label: "Dashboard", href: "/" },
+          { label: "Home", href: "/" },
           { label: "Settings", href: "/settings" },
           { label: "Export" },
         ]} 

@@ -22,7 +22,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "CrackedClaw",
-  description: "AI Agent Management Dashboard",
+  description: "AI Agent Management Platform",
 };
 
 export default function RootLayout({

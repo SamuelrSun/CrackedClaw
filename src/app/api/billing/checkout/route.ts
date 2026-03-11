@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     mode: 'subscription',
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings?upgraded=true`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
+    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?canceled=true`,
     metadata: { user_id: user.id, org_id: org.id, plan: requestedPlan },
   });
 

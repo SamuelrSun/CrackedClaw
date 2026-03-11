@@ -10,7 +10,18 @@
 
   <!-- ── Setup Screen ─────────────────────────────────────────────────── -->
   <div id="screen-setup" class="screen active">
-    <div class="setup-inner">
+    <div class="setup-card">
+      <div class="window-controls">
+        <button class="wc-btn wc-close" id="wc-close-setup" title="Close">
+          <svg width="6" height="6" viewBox="0 0 6 6"><path d="M0.5 0.5L5.5 5.5M5.5 0.5L0.5 5.5" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+        <button class="wc-btn wc-minimize" id="wc-min-setup" title="Minimize">
+          <svg width="6" height="2" viewBox="0 0 6 2"><path d="M0.5 1H5.5" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+        <button class="wc-btn wc-zoom" id="wc-zoom-setup" title="Zoom">
+          <svg width="6" height="6" viewBox="0 0 6 6"><path d="M0.5 2L3 0.5L5.5 2M0.5 4L3 5.5L5.5 4" stroke="currentColor" stroke-width="1"/></svg>
+        </button>
+      </div>
       <div class="logo">CrackedClaw</div>
       <p class="subtitle">Connect your machine to your cloud AI instance</p>
       <input
@@ -28,30 +39,26 @@
   <!-- ── Chat Screen ──────────────────────────────────────────────────── -->
   <div id="screen-chat" class="screen">
 
-    <!-- Sidebar -->
-    <aside id="sidebar">
-      <div class="sidebar-header">
-        <span class="sidebar-logo">CrackedClaw</span>
-        <div id="conn-dot" class="conn-dot disconnected" title="Disconnected"></div>
-      </div>
-
-      <button id="btn-new-chat" class="btn-new-chat">+ New Chat</button>
-
-      <div id="conv-list" class="conv-list">
-        <!-- Populated by renderer.js -->
-      </div>
-
-      <div class="sidebar-footer">
-        <button id="btn-disconnect" class="btn-disconnect">Disconnect</button>
-      </div>
-    </aside>
-
-    <!-- Main chat area -->
-    <main id="chat-main">
-
-      <!-- Header bar -->
-      <div id="chat-header" class="chat-header">
+    <!-- Chat Panel (collapsible, floats above input bar) -->
+    <div id="chat-panel" class="chat-panel">
+      <div id="chat-header" class="chat-panel-header">
+        <div class="window-controls">
+          <button class="wc-btn wc-close" id="wc-close-chat" title="Close">
+            <svg width="6" height="6" viewBox="0 0 6 6"><path d="M0.5 0.5L5.5 5.5M5.5 0.5L0.5 5.5" stroke="currentColor" stroke-width="1.2"/></svg>
+          </button>
+          <button class="wc-btn wc-minimize" id="wc-min-chat" title="Minimize">
+            <svg width="6" height="2" viewBox="0 0 6 2"><path d="M0.5 1H5.5" stroke="currentColor" stroke-width="1.2"/></svg>
+          </button>
+          <button class="wc-btn wc-zoom" id="wc-zoom-chat" title="Zoom">
+            <svg width="6" height="6" viewBox="0 0 6 6"><path d="M0.5 2L3 0.5L5.5 2M0.5 4L3 5.5L5.5 4" stroke="currentColor" stroke-width="1"/></svg>
+          </button>
+        </div>
         <span id="chat-title" class="chat-title">Select a conversation</span>
+        <button id="btn-disconnect" class="btn-icon btn-disconnect-icon" title="Disconnect">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
       </div>
 
       <!-- Messages -->
@@ -63,24 +70,69 @@
           <span></span><span></span><span></span>
         </div>
       </div>
+    </div>
 
-      <!-- Input bar -->
-      <div class="input-bar">
+    <!-- Input bar wrapper (houses dropdown + pill bar) -->
+    <div class="input-bar-wrapper">
+
+      <!-- Conversation Dropdown (appears above the input bar) -->
+      <div id="conv-dropdown" class="conv-dropdown hidden">
+        <button id="btn-new-chat" class="btn-new-chat">+ New Chat</button>
+        <div id="conv-list" class="conv-list">
+          <!-- Populated by renderer.js -->
+        </div>
+      </div>
+
+      <!-- Pill-shaped Input Bar -->
+      <div class="input-bar-glass">
+
+        <!-- Connection status dot -->
+        <div id="conn-dot" class="conn-dot disconnected" title="Disconnected"></div>
+
+        <!-- Conversation selector pill -->
+        <button id="conv-selector" class="conv-selector-pill">
+          <span id="conv-selector-text">New Chat</span>
+          <svg width="8" height="5" viewBox="0 0 8 5" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M7 4L4 1L1 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <!-- Text input -->
         <textarea
           id="msg-input"
           class="msg-input"
-          placeholder="Message… (Enter to send, Shift+Enter for new line)"
+          placeholder="Message… (Enter to send)"
           rows="1"
           disabled
         ></textarea>
-        <button id="btn-send" class="btn-send" disabled>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+        <!-- Audio transcription button (placeholder) -->
+        <button id="btn-audio" class="btn-icon" title="Audio transcription (coming soon)">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4.5" y="0.75" width="6" height="8.5" rx="3" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M2 7.5C2 10.538 4.5 12.5 7.5 12.5S13 10.538 13 7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            <path d="M7.5 12.5V14.25" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+        </button>
+
+        <!-- Send button -->
+        <button id="btn-send" class="btn-icon btn-send-icon" disabled>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M14.5 1.5L7 9M14.5 1.5L10 14.5L7 9M14.5 1.5L1.5 5.5L7 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-      </div>
 
-    </main>
+        <!-- Toggle chat panel button -->
+        <button id="btn-toggle-chat" class="btn-icon" title="Toggle chat">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="1" width="13" height="13" rx="2.5" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M1 5h13" stroke="currentColor" stroke-width="1.3"/>
+          </svg>
+        </button>
+
+      </div>
+    </div>
+
   </div>
 
   <script src="renderer.js"></script>

@@ -1,8 +1,8 @@
-import { PricingPageClient } from './client';
+import { BillingPageClient } from './client';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PricingPage() {
+export default async function BillingPage() {
   let currentPlan = 'free';
   let isSubscribed = false;
 
@@ -30,5 +30,5 @@ export default async function PricingPage() {
     // If not logged in or env missing, show public pricing with defaults
   }
 
-  return <PricingPageClient currentPlan={currentPlan} isSubscribed={isSubscribed} />;
+  return <BillingPageClient currentPlan={currentPlan} isSubscribed={isSubscribed} />;
 }

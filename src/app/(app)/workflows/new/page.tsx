@@ -49,7 +49,7 @@ export default function NewWorkflowPage() {
     <div className="p-6 max-w-2xl mx-auto">
       <Breadcrumbs 
         items={[
-          { label: "Dashboard", href: "/" },
+          { label: "Home", href: "/" },
           { label: "Workflows", href: "/workflows" },
           { label: "New" },
         ]} 

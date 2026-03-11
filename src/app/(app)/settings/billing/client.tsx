@@ -12,7 +12,7 @@ interface UsageStatus {
   percentMonthly: number;
 }
 
-interface PricingPageClientProps {
+interface BillingPageClientProps {
   currentPlan: string;
   isSubscribed: boolean;
 }
@@ -50,7 +50,7 @@ function UsageBar({ label, used, limit, percent, resetDate }: {
   );
 }
 
-export function PricingPageClient({ currentPlan, isSubscribed }: PricingPageClientProps) {
+export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClientProps) {
   const [upgrading, setUpgrading] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [usage, setUsage] = useState<UsageStatus | null>(null);
@@ -108,7 +108,7 @@ export function PricingPageClient({ currentPlan, isSubscribed }: PricingPageClie
           </Link>
         </div>
         <h1 className="font-mono text-4xl font-bold text-[#1A3C2B] tracking-tight">
-          Pricing
+          Plan & Billing
         </h1>
         <p className="font-mono text-[13px] text-[rgba(58,58,56,0.55)] mt-2 uppercase tracking-wide">
           Choose the plan that fits your workflow

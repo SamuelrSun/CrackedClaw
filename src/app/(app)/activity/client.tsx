@@ -119,7 +119,7 @@ export default function ActivityPageClient({ initialActivities }: ActivityPageCl
     <div className="p-6">
       <Breadcrumbs 
         items={[
-          { label: "Dashboard", href: "/" },
+          { label: "Home", href: "/" },
           { label: "Activity" },
         ]} 
       />

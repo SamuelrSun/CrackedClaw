@@ -87,7 +87,7 @@ export default async function WorkflowRunsPage({ params }: PageProps) {
       <div className="p-6">
         <Breadcrumbs 
           items={[
-            { label: "Dashboard", href: "/" },
+            { label: "Home", href: "/" },
             { label: "Workflows", href: "/workflows" },
             { label: "Not Found" },
           ]} 
@@ -104,7 +104,7 @@ export default async function WorkflowRunsPage({ params }: PageProps) {
 
   // Build breadcrumbs with workflow name
   const breadcrumbItems = [
-    { label: "Dashboard", href: "/" },
+    { label: "Home", href: "/" },
     { label: "Workflows", href: "/workflows" },
     { label: workflow.name, href: `/workflows/${id}` },
     { label: "Run History" },

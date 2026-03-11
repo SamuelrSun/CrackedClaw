@@ -162,7 +162,7 @@ export default function WorkflowDetailPage({
 
   // Breadcrumbs with dynamic workflow name
   const breadcrumbItems = useMemo(() => [
-    { label: "Dashboard", href: "/" },
+    { label: "Home", href: "/" },
     { label: "Workflows", href: "/workflows" },
     { label: workflow?.name || "Loading..." },
   ], [workflow?.name]);
@@ -172,7 +172,7 @@ export default function WorkflowDetailPage({
       <div className="p-6 max-w-2xl mx-auto">
         <Breadcrumbs 
           items={[
-            { label: "Dashboard", href: "/" },
+            { label: "Home", href: "/" },
             { label: "Workflows", href: "/workflows" },
             { label: "Loading..." },
           ]} 
@@ -190,7 +190,7 @@ export default function WorkflowDetailPage({
       <div className="p-6 max-w-2xl mx-auto">
         <Breadcrumbs 
           items={[
-            { label: "Dashboard", href: "/" },
+            { label: "Home", href: "/" },
             { label: "Workflows", href: "/workflows" },
             { label: "Error" },
           ]} 

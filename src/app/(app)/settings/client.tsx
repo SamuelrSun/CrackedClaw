@@ -604,7 +604,7 @@ export default function SettingsPageClient({
                       {billingUpgrading ? 'Opening...' : 'Manage Billing'}
                     </Button>
                   ) : null}
-                  <Link href="/pricing">
+                  <Link href="/settings/billing">
                     <Button variant={billingPlan === 'free' ? 'solid' : 'ghost'} size="sm">
                       {billingPlan === 'free' ? 'Upgrade Plan' : 'View Plans'}
                     </Button>

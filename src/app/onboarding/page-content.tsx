@@ -672,13 +672,13 @@ function CompleteStep({
             </svg>
           </div>
           <span className="font-mono text-[11px] text-forest">
-            Dashboard Ready
+            Setup Complete
           </span>
         </div>
       </div>
       
       <Button variant="solid" onClick={onFinish} className="px-8 py-3">
-        Go to Dashboard
+        Go to Chat
       </Button>
     </div>
   );

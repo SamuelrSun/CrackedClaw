@@ -163,7 +163,7 @@ function TokenUsageBar() {
         isExceeded ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-[rgba(58,58,56,0.5)]'
       }`}>
         {isExceeded ? (
-          <a href="/pricing" className="underline">Limit reached — Upgrade</a>
+          <a href="/settings/billing" className="underline">Limit reached — Upgrade</a>
         ) : (
           `${pct}% of weekly limit`
         )}

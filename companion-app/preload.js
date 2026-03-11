@@ -1,6 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('crackedclaw', {
+  // ── Window Controls ────────────────────────────────────────────────────────
+  windowClose: () => ipcRenderer.send('window-close'),
+  windowMinimize: () => ipcRenderer.send('window-minimize'),
+  windowZoom: () => ipcRenderer.send('window-zoom'),
+
   // ── Connection ────────────────────────────────────────────────────────────
   getState: () => ipcRenderer.invoke('get-state'),
   connect: (token) => ipcRenderer.invoke('connect', token),

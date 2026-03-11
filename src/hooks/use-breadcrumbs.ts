@@ -6,7 +6,7 @@ import type { BreadcrumbItem } from "@/components/ui/breadcrumbs";
 
 // Static page labels for known routes
 const pageLabels: Record<string, string> = {
-  "": "Dashboard",
+  "": "Home",
   settings: "Settings",
   workflows: "Workflows",
   chat: "Chat",
@@ -38,12 +38,12 @@ export function useBreadcrumbs(options: UseBreadcrumbsOptions = {}): BreadcrumbI
     // Split pathname into segments, filtering out empty strings
     const segments = pathname.split("/").filter(Boolean);
 
-    // Always start with Dashboard
+    // Always start with Home
     const items: BreadcrumbItem[] = [
-      { label: "Dashboard", href: "/" },
+      { label: "Home", href: "/" },
     ];
 
-    // If we're on the dashboard, don't show it as a breadcrumb
+    // If we're on the home page, don't show it as a breadcrumb
     if (segments.length === 0) {
       return [];
     }
@@ -101,7 +101,7 @@ export function generateBreadcrumbs(
   }
 
   const items: BreadcrumbItem[] = [
-    { label: "Dashboard", href: "/" },
+    { label: "Home", href: "/" },
   ];
 
   let currentPath = "";

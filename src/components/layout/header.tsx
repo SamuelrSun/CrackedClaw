@@ -11,14 +11,12 @@ import { useGateway } from "@/hooks/use-gateway";
 import { Search, Command } from "lucide-react";
 
 const navLinks = [
-  { href: "/dashboard", label: "Dashboard" },
   { href: "/workforce", label: "Workforce" },
   { href: "/chat", label: "Chat" },
   { href: "/agents", label: "Agents" },
   { href: "/memory", label: "Memory" },
 
   { href: "/integrations", label: "Integrations" },
-  { href: "/pricing", label: "Pricing" },
   { href: "/settings", label: "Settings" },
 ];
 

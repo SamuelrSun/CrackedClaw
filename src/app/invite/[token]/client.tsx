@@ -86,7 +86,7 @@ export function InviteAcceptClient({
         <div className="mb-4">
           <Breadcrumbs 
             items={[
-              { label: "Dashboard", href: "/" },
+              { label: "Home", href: "/" },
               { label: "Team Invitation" },
             ]} 
           />

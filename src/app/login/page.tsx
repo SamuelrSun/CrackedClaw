@@ -239,7 +239,7 @@ function LoginContent() {
             Welcome to CrackedClaw
           </h1>
           <p className="font-mono text-[11px] text-grid/60 uppercase tracking-wide">
-            AI Agent Management Dashboard
+            AI Agent Management Platform
           </p>
         </div>
 

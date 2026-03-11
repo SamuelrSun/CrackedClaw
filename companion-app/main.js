@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, screen } = require('electron');
 const path = require('path');
 const Store = require('electron-store');
 const NodeManager = require('./node-manager');
@@ -12,14 +12,18 @@ let chatManager = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 900,
-    height: 620,
-    minWidth: 640,
-    minHeight: 480,
+    width: 680,
+    height: 500,
+    minWidth: 400,
+    minHeight: 200,
     resizable: true,
-    maximizable: true,
-    titleBarStyle: 'hiddenInset',
-    backgroundColor: '#F7F7F5',
+    maximizable: false,
+    transparent: true,
+    frame: false,
+    hasShadow: false,
+    backgroundColor: '#00000000',
+    alwaysOnTop: true,
+    skipTaskbar: false,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -31,6 +35,7 @@ function createWindow() {
   mainWindow.loadFile('index.html');
 
   mainWindow.once('ready-to-show', () => {
+    positionWindowBottomCenter();
     mainWindow.show();
   });
 
@@ -40,6 +45,19 @@ function createWindow() {
       mainWindow.hide();
     }
   });
+}
+
+function positionWindowBottomCenter() {
+  if (!mainWindow) return;
+  try {
+    const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+    const [winWidth, winHeight] = mainWindow.getSize();
+    const x = Math.round((screenWidth - winWidth) / 2);
+    const y = Math.round(screenHeight - winHeight - 20); // 20px from bottom
+    mainWindow.setPosition(x, y);
+  } catch (_) {
+    // Ignore positioning errors
+  }
 }
 
 function createTrayIcon(connected) {
@@ -62,7 +80,12 @@ function createTray() {
 
   tray.on('click', () => {
     if (mainWindow) {
-      mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        positionWindowBottomCenter();
+        mainWindow.show();
+      }
     }
   });
 }
@@ -74,7 +97,12 @@ function updateTrayMenu(connected) {
     { type: 'separator' },
     {
       label: 'Show Window',
-      click: () => mainWindow && mainWindow.show(),
+      click: () => {
+        if (mainWindow) {
+          positionWindowBottomCenter();
+          mainWindow.show();
+        }
+      },
     },
     {
       label: connected ? 'Disconnect' : 'Connect',
@@ -82,6 +110,7 @@ function updateTrayMenu(connected) {
         if (connected) {
           nodeManager && nodeManager.stop();
         } else {
+          positionWindowBottomCenter();
           mainWindow && mainWindow.show();
         }
       },
@@ -113,6 +142,23 @@ function initChatManager(decoded) {
 }
 
 function setupIPC() {
+  // ── Window Controls IPC ──────────────────────────────────────────────────────
+
+  ipcMain.on('window-close', () => {
+    if (mainWindow) mainWindow.hide();
+  });
+
+  ipcMain.on('window-minimize', () => {
+    if (mainWindow) mainWindow.minimize();
+  });
+
+  ipcMain.on('window-zoom', () => {
+    if (mainWindow) {
+      if (mainWindow.isMaximized()) mainWindow.unmaximize();
+      else mainWindow.maximize();
+    }
+  });
+
   // ── Connection IPC ───────────────────────────────────────────────────────────
 
   ipcMain.handle('get-state', () => {

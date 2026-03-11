@@ -16,18 +16,37 @@ const tokenInput = document.getElementById('token-input');
 const btnConnect = document.getElementById('btn-connect');
 const errorMsg   = document.getElementById('error-msg');
 
-// Chat screen
-const connDot       = document.getElementById('conn-dot');
-const btnNewChat    = document.getElementById('btn-new-chat');
-const convList      = document.getElementById('conv-list');
-const btnDisconnect = document.getElementById('btn-disconnect');
-const chatHeader    = document.getElementById('chat-header');
-const chatTitle     = document.getElementById('chat-title');
-const messagesList  = document.getElementById('messages-list');
-const messagesArea  = document.getElementById('messages-area');
+// Chat screen — core elements
+const connDot         = document.getElementById('conn-dot');
+const chatHeader      = document.getElementById('chat-header');
+const chatTitle       = document.getElementById('chat-title');
+const messagesList    = document.getElementById('messages-list');
+const messagesArea    = document.getElementById('messages-area');
 const typingIndicator = document.getElementById('typing-indicator');
-const msgInput      = document.getElementById('msg-input');
-const btnSend       = document.getElementById('btn-send');
+const msgInput        = document.getElementById('msg-input');
+const btnSend         = document.getElementById('btn-send');
+
+// Chat screen — panel + navigation
+const chatPanel       = document.getElementById('chat-panel');
+const convDropdown    = document.getElementById('conv-dropdown');
+const convList        = document.getElementById('conv-list');
+const convSelector    = document.getElementById('conv-selector');
+const convSelectorText = document.getElementById('conv-selector-text');
+const btnNewChat      = document.getElementById('btn-new-chat');
+const btnDisconnect   = document.getElementById('btn-disconnect');
+const btnToggleChat   = document.getElementById('btn-toggle-chat');
+const btnAudio        = document.getElementById('btn-audio');
+
+// ── Window Controls ───────────────────────────────────────────────────────────
+document.querySelectorAll('.wc-close').forEach(btn => {
+  btn.addEventListener('click', () => window.crackedclaw.windowClose());
+});
+document.querySelectorAll('.wc-minimize').forEach(btn => {
+  btn.addEventListener('click', () => window.crackedclaw.windowMinimize());
+});
+document.querySelectorAll('.wc-zoom').forEach(btn => {
+  btn.addEventListener('click', () => window.crackedclaw.windowZoom());
+});
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -35,6 +54,8 @@ let currentConversationId = null;
 let conversations = [];
 let isStreaming = false;
 let streamingBubble = null; // The DOM element being built during streaming
+let chatPanelVisible = true;
+let dropdownOpen = false;
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
@@ -170,6 +191,57 @@ function setConnectedIndicator(connected) {
   connDot.title = connected ? 'Connected' : 'Disconnected';
 }
 
+// ── Chat Panel Toggle ──────────────────────────────────────────────────────────
+
+function setChatPanelVisible(visible) {
+  chatPanelVisible = visible;
+  chatPanel.classList.toggle('panel-hidden', !visible);
+}
+
+btnToggleChat.addEventListener('click', () => {
+  setChatPanelVisible(!chatPanelVisible);
+});
+
+// ── Conversation Dropdown ──────────────────────────────────────────────────────
+
+function openDropdown() {
+  dropdownOpen = true;
+  convDropdown.classList.remove('hidden');
+}
+
+function closeDropdown() {
+  dropdownOpen = false;
+  convDropdown.classList.add('hidden');
+}
+
+// Toggle dropdown when clicking the selector pill
+convSelector.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (dropdownOpen) {
+    closeDropdown();
+  } else {
+    openDropdown();
+  }
+});
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  if (dropdownOpen && !convDropdown.contains(e.target) && e.target !== convSelector) {
+    closeDropdown();
+  }
+});
+
+// Prevent dropdown clicks from propagating to document (so clicking inside doesn't close it)
+convDropdown.addEventListener('click', (e) => {
+  e.stopPropagation();
+});
+
+// ── Audio Button (Placeholder) ─────────────────────────────────────────────────
+
+btnAudio.addEventListener('click', () => {
+  console.log('Audio transcription coming soon');
+});
+
 // ── Conversation List ──────────────────────────────────────────────────────────
 
 async function loadConversations() {
@@ -198,7 +270,10 @@ function renderConversationList(convs) {
 
   // Bind click events
   convList.querySelectorAll('.conv-item').forEach((el) => {
-    el.addEventListener('click', () => selectConversation(el.dataset.id));
+    el.addEventListener('click', () => {
+      selectConversation(el.dataset.id);
+      closeDropdown();
+    });
   });
 }
 
@@ -206,14 +281,21 @@ async function selectConversation(id) {
   if (currentConversationId === id) return;
   currentConversationId = id;
 
-  // Update active state in sidebar
+  // Update active state in conversation list
   convList.querySelectorAll('.conv-item').forEach((el) => {
     el.classList.toggle('active', el.dataset.id === id);
   });
 
-  // Update title
+  // Update titles
   const conv = conversations.find((c) => c.id === id);
-  chatTitle.textContent = conv ? conv.title : 'Chat';
+  const title = conv ? conv.title : 'Chat';
+  chatTitle.textContent = title;
+  convSelectorText.textContent = title;
+
+  // Show chat panel if hidden
+  if (!chatPanelVisible) {
+    setChatPanelVisible(true);
+  }
 
   // Enable input BEFORE loading messages (so user can type immediately)
   msgInput.disabled = false;
@@ -234,6 +316,7 @@ async function selectConversation(id) {
 // ── New Chat ───────────────────────────────────────────────────────────────────
 
 btnNewChat.addEventListener('click', async () => {
+  closeDropdown();
   btnNewChat.disabled = true;
   btnNewChat.textContent = 'Creating…';
   try {
@@ -370,7 +453,7 @@ async function sendMessage() {
   if (result.ok && result.content) {
     streamingBubble.innerHTML = renderMarkdown(result.content);
   } else if (!result.ok) {
-    streamingBubble.innerHTML = `<span style="color:#DC2626">Error: ${escapeHtml(result.error || 'Unknown error')}</span>`;
+    streamingBubble.innerHTML = `<span style="color:var(--error)">Error: ${escapeHtml(result.error || 'Unknown error')}</span>`;
   }
   time.textContent = formatTimestamp(new Date().toISOString());
   streamingBubble = null;
@@ -465,6 +548,7 @@ btnDisconnect.addEventListener('click', async () => {
 async function enterChatScreen() {
   showScreen('chat');
   setConnectedIndicator(false); // Will be updated via status-update event
+  setChatPanelVisible(true);
   await loadConversations();
 }
 
@@ -474,8 +558,10 @@ function leaveChatScreen() {
   convList.innerHTML = '';
   messagesList.innerHTML = '';
   chatTitle.textContent = 'Select a conversation';
+  convSelectorText.textContent = 'New Chat';
   msgInput.disabled = true;
   btnSend.disabled = true;
+  closeDropdown();
   showScreen('setup');
 }
 
