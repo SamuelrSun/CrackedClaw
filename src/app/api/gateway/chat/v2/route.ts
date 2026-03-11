@@ -13,7 +13,7 @@ import { processAgentResponse } from '@/lib/memory/service';
 import { incrementUsage } from '@/lib/usage/tracker';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 function encode(data: string): Uint8Array {
   return new TextEncoder().encode(data);

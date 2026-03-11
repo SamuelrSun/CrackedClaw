@@ -4,7 +4,7 @@
       "maxDuration": 60
     },
     "src/app/api/gateway/chat/v2/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "src/app/api/gateway/status/route.ts": {
       "maxDuration": 15
