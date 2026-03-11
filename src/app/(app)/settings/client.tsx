@@ -599,19 +599,7 @@ export default function SettingsPageClient({
           </div>
         </Card>
 
-        {/* Usage & Billing */}
-        <Card label="Usage & Billing" accentColor="#9EFFBF" bordered={false}>
-          <div className="mt-2 space-y-3">
-            <p className="font-mono text-[13px] text-grid/60">
-              View detailed usage statistics and manage your billing.
-            </p>
-            <Link href="/settings/usage">
-              <Button variant="ghost" size="sm" className="w-full">
-                View Usage Details
-              </Button>
-            </Link>
-          </div>
-        </Card>
+
 
         {/* Workflows */}
         <Card label="Workflows" accentColor="#9EFFBF" bordered={false}>

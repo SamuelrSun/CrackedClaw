@@ -215,9 +215,7 @@ export default function DashboardClient({ initialTokenUsage }: DashboardClientPr
             <p className="font-mono text-[10px] text-grid/40">
               {daysUntilReset !== null ? `${daysUntilReset} days until reset` : `Resets ${tokenUsage.resetDate || 'Unknown'}`}
             </p>
-            <Link href="/settings/usage" className="font-mono text-[9px] text-forest hover:text-mint transition-colors underline underline-offset-2">
-              Details
-            </Link>
+
           </div>
         </div>
       </Card>
