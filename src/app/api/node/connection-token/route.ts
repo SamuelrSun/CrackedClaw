@@ -13,7 +13,7 @@ export async function GET() {
   }
 
   // Include operator_device_token from settings so Companion can approve node pairings
-  const settings = (org as Record<string, unknown>).settings as Record<string, unknown> | null;
+  const settings = (org as unknown as Record<string, unknown>).settings as Record<string, unknown> | null;
   const operatorToken = settings?.operator_device_token as string | undefined;
 
   const payload = {
