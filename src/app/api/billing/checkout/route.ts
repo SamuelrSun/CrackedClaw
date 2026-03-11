@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiAuth } from '@/lib/api-auth';
-import { stripe, PLANS, PlanSlug } from '@/lib/stripe';
+import { stripe, PLANS, PlanSlug, getPriceId } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 export const dynamic = 'force-dynamic';
 
@@ -23,8 +23,8 @@ export async function POST(request: NextRequest) {
     // No body or malformed JSON — use default
   }
 
-  const plan = PLANS[requestedPlan];
-  if (!('priceId' in plan) || !plan.priceId) {
+  const priceId = getPriceId(requestedPlan);
+  if (!priceId) {
     return NextResponse.json({ error: `Price ID not configured for plan: ${requestedPlan}` }, { status: 500 });
   }
 
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: 'subscription',
-    line_items: [{ price: plan.priceId, quantity: 1 }],
+    line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings?upgraded=true`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
     metadata: { user_id: user.id, org_id: org.id, plan: requestedPlan },

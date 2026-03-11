@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe, PLANS } from '@/lib/stripe';
+import { stripe, PRICE_IDS } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 export const dynamic = 'force-dynamic';
 
@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic';
  * Falls back to 'free' if not found.
  */
 function getPlanSlugFromPriceId(priceId: string): string {
-  for (const [slug, plan] of Object.entries(PLANS)) {
-    if ('priceId' in plan && plan.priceId && plan.priceId === priceId) return slug;
+  for (const [slug, id] of Object.entries(PRICE_IDS)) {
+    if (id === priceId) return slug;
   }
   return 'free';
 }

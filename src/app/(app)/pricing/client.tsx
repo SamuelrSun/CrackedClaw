@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { PLANS, type PlanSlug } from "@/lib/stripe";
+import { PLANS, type PlanSlug } from "@/lib/plans";
 
 interface UsageStatus {
   plan: string;
