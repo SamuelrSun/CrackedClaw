@@ -344,15 +344,34 @@ export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatew
     };
   }, [refreshStatus]); // stable → runs once on mount
 
-  // Health-check interval — created once, reads isConnectedRef inside (no isConnected in deps)
+  // Health-check + initial connection polling
+  // For connected users: health check every 30s
+  // For new users who were never connected: poll every 8s for up to ~60s (provisioning race)
   useEffect(() => {
-    const healthCheckInterval = setInterval(() => {
-      if (isConnectedRef.current) {
-        refreshStatus(true);
-      }
-    }, 30000);
-    return () => clearInterval(healthCheckInterval);
-  }, [refreshStatus]); // refreshStatus is stable → interval created once, never recreated
+    let initialRetries = 0;
+    const MAX_INITIAL_RETRIES = 8;
+    let timerId: ReturnType<typeof setTimeout>;
+    
+    function scheduleNext() {
+      const delay = isConnectedRef.current ? 30000 : 8000;
+      timerId = setTimeout(() => {
+        if (isConnectedRef.current) {
+          // Already connected — standard health check
+          refreshStatus(true).then(scheduleNext);
+        } else if (!wasConnectedRef.current && !isCanceledRef.current && initialRetries < MAX_INITIAL_RETRIES) {
+          // Never connected — keep polling (provisioning may still be running)
+          initialRetries++;
+          refreshStatus(true).then(scheduleNext);
+        } else {
+          // Give up initial polling, but keep scheduling for reconnect scenarios
+          scheduleNext();
+        }
+      }, delay);
+    }
+    
+    scheduleNext();
+    return () => clearTimeout(timerId);
+  }, [refreshStatus]); // refreshStatus is stable → effect runs once
 
   // Visibility change — stable deps
   useEffect(() => {

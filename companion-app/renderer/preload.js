@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('crackedclaw', {
   windowClose: () => ipcRenderer.send('window-close'),
   windowMinimize: () => ipcRenderer.send('window-minimize'),
   windowZoom: () => ipcRenderer.send('window-zoom'),
+  windowSetSize: (width, height, animate) => ipcRenderer.send('window-set-size', { width, height, animate }),
+  windowGetSize: () => ipcRenderer.invoke('window-get-size'),
 
   // ── Connection ────────────────────────────────────────────────────────────
   getState: () => ipcRenderer.invoke('get-state'),

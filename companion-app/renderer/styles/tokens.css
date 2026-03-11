@@ -1,15 +1,13 @@
 /* ── Design Tokens ───────────────────────────────────────────────────────── */
 :root {
-  /* Glass */
-  --glass-bg: rgba(255, 255, 255, 0.12);
-  --glass-bg-elevated: rgba(255, 255, 255, 0.16);
-  --glass-bg-subtle: rgba(255, 255, 255, 0.08);
-  --glass-border: rgba(255, 255, 255, 0.2);
-  --glass-border-bright: rgba(255, 255, 255, 0.28);
-  --glass-blur: blur(20px) saturate(1.8);
-  --glass-blur-heavy: blur(30px) saturate(2.0);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  /* Glass — native vibrancy handles desktop blur, these are light tints on top */
+  --glass-bg: rgba(15, 15, 15, 0.12);
+  --glass-bg-elevated: rgba(20, 20, 20, 0.16);
+  --glass-bg-subtle: rgba(10, 10, 10, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.15);
+  --glass-border-bright: rgba(255, 255, 255, 0.25);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
+  --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.3), inset 0 0.5px 0 rgba(255, 255, 255, 0.12);
   --glass-radius-lg: 24px;
   --glass-radius-md: 16px;
   --glass-radius-sm: 12px;

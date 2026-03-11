@@ -46,6 +46,32 @@ function setupIPC(deps) {
     }
   });
 
+  ipcMain.on('window-set-size', (_event, { width, height, animate }) => {
+    const mainWindow = getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const [curWidth] = mainWindow.getSize();
+      // Keep current width, only change height; anchor to bottom of screen
+      const bounds = mainWindow.getBounds();
+      const oldHeight = bounds.height;
+      const newHeight = height;
+      const newY = bounds.y + (oldHeight - newHeight);
+      mainWindow.setBounds({
+        x: bounds.x,
+        y: newY,
+        width: width || curWidth,
+        height: newHeight,
+      }, !!animate);
+    }
+  });
+
+  ipcMain.handle('window-get-size', () => {
+    const mainWindow = getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      return mainWindow.getSize();
+    }
+    return [680, 500];
+  });
+
   // ── Connection IPC ───────────────────────────────────────────────────────────
 
   ipcMain.handle('get-state', () => {

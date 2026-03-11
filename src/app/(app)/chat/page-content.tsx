@@ -21,8 +21,8 @@ export default function ChatPage() {
 
     async function loadData() {
       try {
-        // Fire ALL independent requests in parallel
-        const [convResult, , gwResult] = await Promise.allSettled([
+        // Step 1: Conversations + org check in parallel
+        const [convResult, provisionResult] = await Promise.allSettled([
           // 1. Conversations (also serves as auth check)
           fetch('/api/conversations').then(async res => {
             if (res.status === 401) {
@@ -33,18 +33,21 @@ export default function ChatPage() {
             return res.json();
           }),
 
-          // 2. Org/instance check — runs in background, doesn't block render
+          // 2. Org/instance check — provision if needed, WAIT for it to complete
           fetch('/api/organizations/provision').then(async res => {
             if (!res.ok) return null;
             const data = await res.json();
             if (!data.organization || !data.organization.openclaw_instance_id) {
               if (!cancelled) setProvisioning(true);
               try {
-                await fetch('/api/organizations/provision', {
+                const provRes = await fetch('/api/organizations/provision', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({}),
                 });
+                if (provRes.ok) {
+                  return await provRes.json();
+                }
               } catch (err) {
                 console.error('Auto-provision error:', err);
               } finally {
@@ -52,13 +55,6 @@ export default function ChatPage() {
               }
             }
             return data;
-          }),
-
-          // 3. Gateway status
-          fetch('/api/gateway/connect').then(async res => {
-            if (res.status === 401) return null;
-            if (!res.ok) return null;
-            return res.json();
           }),
         ]);
 
@@ -80,17 +76,21 @@ export default function ChatPage() {
           }
         }
 
-        // Process gateway status
-        if (gwResult.status === 'fulfilled' && gwResult.value) {
-          const gwData = gwResult.value;
-          setHasGateway(!!gwData.gateway);
-          if (gwData.gateway?.gateway_url) {
-            try {
-              const url = new URL(gwData.gateway.gateway_url);
-              setGatewayHost(url.hostname);
-            } catch {}
+        // Step 2: Now that provisioning is done, check gateway status
+        try {
+          const gwRes = await fetch('/api/gateway/connect');
+          if (gwRes.ok && !cancelled) {
+            const gwData = await gwRes.json();
+            setHasGateway(!!gwData.gateway);
+            if (gwData.gateway?.gateway_url) {
+              try {
+                const url = new URL(gwData.gateway.gateway_url);
+                setGatewayHost(url.hostname);
+              } catch {}
+            }
           }
-        }
+        } catch {}
+
       } catch (err) {
         console.error('Failed to load chat data:', err);
       } finally {

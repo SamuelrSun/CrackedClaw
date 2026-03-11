@@ -12,6 +12,10 @@ async function loadMessages(conversationId) {
   typingIndicator.classList.add('hidden');
 
   const result = await window.crackedclaw.chat.loadMessages(conversationId);
+
+  // If user switched conversations while we were fetching, discard this response
+  if (currentConversationId !== conversationId) return;
+
   if (!result.ok) {
     messagesList.innerHTML = '<div class="msg-empty">Could not load messages</div>';
     return;
@@ -64,10 +68,36 @@ function scrollToBottom(smooth = false) {
 
 async function sendMessage() {
   const text = msgInput.value.trim();
-  if (!text || isStreaming || !currentConversationId) return;
+  if (!text || isStreaming) return;
 
   isStreaming = true;
   setInputEnabled(false);
+
+  // Auto-create conversation if none selected
+  if (!currentConversationId) {
+    try {
+      // Use first ~50 chars of the message as the title
+      const autoTitle = text.length > 50 ? text.slice(0, 50) + '…' : text;
+      const result = await window.crackedclaw.chat.createConversation(autoTitle);
+      if (!result.ok) {
+        console.error('[Chat] Failed to auto-create conversation:', result.error);
+        isStreaming = false;
+        setInputEnabled(true);
+        return;
+      }
+      const newConv = result.conversation;
+      currentConversationId = newConv.id;
+      conversations.unshift(newConv);
+      renderConversationList(conversations);
+      chatTitle.textContent = newConv.title;
+      convSelectorText.textContent = newConv.title;
+    } catch (err) {
+      console.error('[Chat] Auto-create conversation error:', err);
+      isStreaming = false;
+      setInputEnabled(true);
+      return;
+    }
+  }
 
   // Show user message immediately
   appendMessage('user', text, new Date().toISOString());

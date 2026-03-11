@@ -47,6 +47,10 @@ async function selectConversation(id) {
   if (currentConversationId === id) return;
   currentConversationId = id;
 
+  // Clear old messages IMMEDIATELY (prevents overlay of old + new)
+  messagesList.innerHTML = '';
+  typingIndicator.classList.add('hidden');
+
   // Update active state in conversation list
   convList.querySelectorAll('.conv-item').forEach((el) => {
     el.classList.toggle('active', el.dataset.id === id);
@@ -68,10 +72,13 @@ async function selectConversation(id) {
   msgInput.placeholder = 'Message… (Enter to send, Shift+Enter for new line)';
   btnSend.disabled = false;
 
-  // Load messages (non-blocking — failures don't prevent chatting)
+  // Load messages — guard against stale responses from a previous switch
   try {
     await loadMessages(id);
+    // If user switched again while we were loading, don't touch the DOM
+    if (currentConversationId !== id) return;
   } catch (err) {
+    if (currentConversationId !== id) return;
     console.warn('[Chat] Failed to load messages:', err);
     messagesList.innerHTML = '<div class="msg-empty">Start a conversation below</div>';
   }

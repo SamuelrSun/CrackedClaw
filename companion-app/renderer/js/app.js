@@ -67,9 +67,22 @@ function setConnectedIndicator(connected) {
 
 // ── Chat Panel Toggle ──────────────────────────────────────────────────────────
 
-function setChatPanelVisible(visible) {
+const INPUT_BAR_HEIGHT = 70; // input bar + padding when panel is collapsed
+let expandedHeight = 500;    // remember the height when panel is open
+
+async function setChatPanelVisible(visible) {
   chatPanelVisible = visible;
   chatPanel.classList.toggle('panel-hidden', !visible);
+
+  if (visible) {
+    // Expand back to saved height
+    window.crackedclaw.windowSetSize(null, expandedHeight, true);
+  } else {
+    // Save current height, then shrink to just the input bar
+    const size = await window.crackedclaw.windowGetSize();
+    expandedHeight = size[1];
+    window.crackedclaw.windowSetSize(null, INPUT_BAR_HEIGHT, true);
+  }
 }
 
 // ── Conversation Dropdown ──────────────────────────────────────────────────────
@@ -130,30 +143,22 @@ btnAudio.addEventListener('click', () => {
   console.log('Audio transcription coming soon');
 });
 
-// New chat button
-btnNewChat.addEventListener('click', async () => {
+// New chat button — just resets state; conversation is created on first send
+btnNewChat.addEventListener('click', () => {
   closeDropdown();
-  btnNewChat.disabled = true;
-  btnNewChat.textContent = 'Creating…';
-  try {
-    const result = await window.crackedclaw.chat.createConversation('New Chat');
-    if (!result.ok) {
-      console.warn('[Chat] Failed to create conversation:', result.error);
-      // Still let the user chat — create a local-only conversation placeholder
-      const localConv = { id: 'local-' + Date.now(), title: 'New Chat', updated_at: new Date().toISOString() };
-      conversations.unshift(localConv);
-      renderConversationList(conversations);
-      await selectConversation(localConv.id);
-      return;
-    }
-    const newConv = result.conversation;
-    conversations.unshift(newConv);
-    renderConversationList(conversations);
-    await selectConversation(newConv.id);
-  } finally {
-    btnNewChat.disabled = false;
-    btnNewChat.textContent = '+ New Chat';
-  }
+  currentConversationId = null;
+  messagesList.innerHTML = '<div class="msg-empty">Start a conversation below</div>';
+  chatTitle.textContent = 'New Chat';
+  convSelectorText.textContent = 'New Chat';
+  msgInput.disabled = false;
+  btnSend.disabled = false;
+  msgInput.placeholder = 'Message… (Enter to send)';
+  msgInput.focus();
+
+  // Deselect in conversation list
+  convList.querySelectorAll('.conv-item').forEach((el) => {
+    el.classList.remove('active');
+  });
 });
 
 // Input: auto-resize and keydown
@@ -162,7 +167,7 @@ msgInput.addEventListener('input', autoResizeInput);
 msgInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
-    if (!isStreaming && msgInput.value.trim() && currentConversationId) {
+    if (!isStreaming && msgInput.value.trim()) {
       sendMessage();
     }
   }
@@ -170,7 +175,7 @@ msgInput.addEventListener('keydown', (e) => {
 
 // Send button
 btnSend.addEventListener('click', () => {
-  if (!isStreaming && msgInput.value.trim() && currentConversationId) {
+  if (!isStreaming && msgInput.value.trim()) {
     sendMessage();
   }
 });
@@ -212,6 +217,10 @@ async function enterChatScreen() {
   showScreen('chat');
   setConnectedIndicator(false); // Will be updated via status-update event
   setChatPanelVisible(true);
+  // Enable input immediately — sendMessage will auto-create a conversation if needed
+  msgInput.disabled = false;
+  msgInput.placeholder = 'Message… (Enter to send)';
+  btnSend.disabled = false;
   await loadConversations();
 }
 
