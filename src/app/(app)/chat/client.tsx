@@ -552,6 +552,8 @@ export default function ChatPageClient({
   const [activeConvo, setActiveConvo] = useState(initialConversationId || initialConversations[0]?.id || "");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<StreamingMessage[]>(initialMessages as StreamingMessage[]);
+  // Sync messages when initialMessages prop updates (async load from page-content)
+  useEffect(() => { if (initialMessages.length > 0) setMessages(initialMessages as StreamingMessage[]); }, [initialMessages]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<GatewayError | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
