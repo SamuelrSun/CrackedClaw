@@ -17,70 +17,72 @@ export default function ChatPage() {
   const [initialConversationId, setInitialConversationId] = useState<string | undefined>();
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadData() {
       try {
-        // Redirect to login if not authenticated
-        const authCheck = await fetch('/api/conversations');
-        if (authCheck.status === 401) {
-          window.location.href = '/login';
-          return;
-        }
-
-        // Check organization / OpenClaw instance
-        const orgRes = await fetch('/api/organizations/provision');
-        if (orgRes.ok) {
-          const orgData = await orgRes.json();
-          if (!orgData.organization || !orgData.organization.openclaw_instance_id) {
-            // Auto-provision
-            setProvisioning(true);
-            try {
-              const provRes = await fetch('/api/organizations/provision', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({}),
-              });
-              if (!provRes.ok) {
-                console.error('Auto-provision failed:', await provRes.text());
-              }
-            } catch (err) {
-              console.error('Auto-provision error:', err);
-            } finally {
-              setProvisioning(false);
+        // Fire ALL independent requests in parallel
+        const [convResult, , gwResult] = await Promise.allSettled([
+          // 1. Conversations (also serves as auth check)
+          fetch('/api/conversations').then(async res => {
+            if (res.status === 401) {
+              window.location.href = '/login';
+              return null;
             }
-          }
-        }
+            if (!res.ok) return { conversations: [] };
+            return res.json();
+          }),
 
-        // Fetch conversations
-        const convRes = authCheck;
-        if (convRes.ok) {
-          const convData = await convRes.json();
-          const convos = convData.conversations || [];
+          // 2. Org/instance check — runs in background, doesn't block render
+          fetch('/api/organizations/provision').then(async res => {
+            if (!res.ok) return null;
+            const data = await res.json();
+            if (!data.organization || !data.organization.openclaw_instance_id) {
+              if (!cancelled) setProvisioning(true);
+              try {
+                await fetch('/api/organizations/provision', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({}),
+                });
+              } catch (err) {
+                console.error('Auto-provision error:', err);
+              } finally {
+                if (!cancelled) setProvisioning(false);
+              }
+            }
+            return data;
+          }),
+
+          // 3. Gateway status
+          fetch('/api/gateway/connect').then(async res => {
+            if (res.status === 401) return null;
+            if (!res.ok) return null;
+            return res.json();
+          }),
+        ]);
+
+        if (cancelled) return;
+
+        // Process conversations — show UI immediately
+        if (convResult.status === 'fulfilled' && convResult.value) {
+          const convos = convResult.value.conversations || [];
           setConversations(convos);
 
-          // Load the most recent conversation
+          // Load messages non-blocking — page renders while this completes
           if (convos.length > 0) {
-            const latestConvo = convos[0]; // already sorted by updated_at desc
+            const latestConvo = convos[0];
             setInitialConversationId(latestConvo.id);
-            try {
-              const msgRes = await fetch(`/api/conversations/${latestConvo.id}/messages`);
-              if (msgRes.ok) {
-                const msgData = await msgRes.json();
-                setMessages(msgData.messages || []);
-              }
-            } catch {
-              // Continue without messages
-            }
+            fetch(`/api/conversations/${latestConvo.id}/messages`)
+              .then(res => res.ok ? res.json() : { messages: [] })
+              .then(data => { if (!cancelled) setMessages(data.messages || []); })
+              .catch(() => {});
           }
         }
 
-        // Fetch gateway status
-        const gwRes = await fetch('/api/gateway/connect');
-        if (gwRes.status === 401) {
-          window.location.href = '/login';
-          return;
-        }
-        if (gwRes.ok) {
-          const gwData = await gwRes.json();
+        // Process gateway status
+        if (gwResult.status === 'fulfilled' && gwResult.value) {
+          const gwData = gwResult.value;
           setHasGateway(!!gwData.gateway);
           if (gwData.gateway?.gateway_url) {
             try {
@@ -92,10 +94,12 @@ export default function ChatPage() {
       } catch (err) {
         console.error('Failed to load chat data:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
+
     loadData();
+    return () => { cancelled = true; };
   }, []);
 
   if (loading || provisioning) {

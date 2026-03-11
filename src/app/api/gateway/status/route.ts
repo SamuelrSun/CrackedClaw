@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   // Check companion connection status
   let companionConnected = false;
   try {
-    const statusRes = await fetch('https://companion.crackedclaw.com/api/companion/status');
+    const statusRes = await fetch('https://companion.crackedclaw.com/api/companion/status', { signal: AbortSignal.timeout(2000) });
     if (statusRes.ok) {
       const companionStatus = await statusRes.json();
       companionConnected = (companionStatus.connected || []).includes(user.id);
