@@ -209,20 +209,21 @@ export function PricingPageClient({ currentPlan, isSubscribed }: PricingPageClie
 
                 {/* CTA */}
                 {isCurrent ? (
-                  isSubscribed ? (
-                    <button
-                      onClick={handleManageBilling}
-                      disabled={portalLoading}
-                      className="w-full font-mono text-[11px] uppercase tracking-wide px-4 py-2.5 border border-[rgba(58,58,56,0.3)] text-[rgba(58,58,56,0.6)] hover:border-[#1A3C2B] hover:text-[#1A3C2B] transition-colors disabled:opacity-50"
-                    >
-                      {portalLoading ? 'Loading...' : 'Manage Billing'}
-                    </button>
-                  ) : (
-                    <div className="w-full font-mono text-[11px] uppercase tracking-wide px-4 py-2.5 border border-[rgba(58,58,56,0.15)] text-[rgba(58,58,56,0.4)] text-center">
+                  <>
+                    <div className="w-full font-mono text-[11px] uppercase tracking-wide px-4 py-2.5 border border-emerald-500/30 bg-emerald-500/5 text-emerald-700 text-center font-semibold">
                       Current Plan
                     </div>
-                  )
-                ) : isPaid ? (
+                    {isSubscribed && (
+                      <button
+                        onClick={handleManageBilling}
+                        disabled={portalLoading}
+                        className="w-full mt-2 font-mono text-[11px] uppercase tracking-wide px-4 py-2 border border-[rgba(58,58,56,0.2)] text-[rgba(58,58,56,0.5)] hover:border-[#1A3C2B] hover:text-[#1A3C2B] transition-colors disabled:opacity-50"
+                      >
+                        {portalLoading ? 'Loading...' : 'Manage Billing'}
+                      </button>
+                    )}
+                  </>
+                ) : (
                   <button
                     onClick={() => handleUpgrade(slug)}
                     disabled={upgrading === slug}
@@ -234,10 +235,6 @@ export function PricingPageClient({ currentPlan, isSubscribed }: PricingPageClie
                   >
                     {upgrading === slug ? 'Redirecting...' : `Get ${plan.name}`}
                   </button>
-                ) : (
-                  <div className="w-full font-mono text-[11px] uppercase tracking-wide px-4 py-2.5 border border-[rgba(58,58,56,0.15)] text-[rgba(58,58,56,0.4)] text-center">
-                    Default Plan
-                  </div>
                 )}
               </div>
             </div>
