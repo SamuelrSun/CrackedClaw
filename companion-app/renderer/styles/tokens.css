@@ -7,8 +7,8 @@
   --glass-bg: rgba(15, 15, 15, 0.12);
   --glass-bg-elevated: rgba(20, 20, 20, 0.16);
   --glass-bg-subtle: rgba(10, 10, 10, 0.08);
-  --glass-border: rgba(255, 255, 255, 0.15);
-  --glass-border-bright: rgba(255, 255, 255, 0.25);
+  --glass-border: rgba(255, 255, 255, 0.30);
+  --glass-border-bright: rgba(255, 255, 255, 0.45);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
   --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.3), inset 0 0.5px 0 rgba(255, 255, 255, 0.12);
   --glass-radius-lg: 24px;

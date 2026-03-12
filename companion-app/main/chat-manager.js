@@ -11,7 +11,11 @@ class ChatManager {
   constructor({ gatewayUrl, authToken, webAppUrl }) {
     this.gatewayUrl = (gatewayUrl || '').replace(/\/$/, '');
     this.authToken = authToken;
-    this.webAppUrl = (webAppUrl || 'https://crackedclaw.com').replace(/\/$/, '');
+    // Normalize: always use www.crackedclaw.com (non-www returns 307 redirects
+    // which break Node.js fetch for POST requests)
+    let normalizedUrl = (webAppUrl || 'https://www.crackedclaw.com').replace(/\/$/, '');
+    normalizedUrl = normalizedUrl.replace('://crackedclaw.com', '://www.crackedclaw.com');
+    this.webAppUrl = normalizedUrl;
   }
 
   /** Headers for web app persistence API calls */
@@ -37,16 +41,23 @@ class ChatManager {
   }
 
   async createConversation(title = 'New Chat') {
-    const res = await fetch(`${this.webAppUrl}/api/companion/conversations`, {
-      method: 'POST',
-      headers: this._apiHeaders,
-      body: JSON.stringify({ title }),
-    });
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      throw new Error(`createConversation HTTP ${res.status}: ${txt}`);
+    const url = `${this.webAppUrl}/api/companion/conversations`;
+    console.log('[ChatManager] createConversation →', url, '| webAppUrl:', this.webAppUrl);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: this._apiHeaders,
+        body: JSON.stringify({ title }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`createConversation HTTP ${res.status}: ${txt}`);
+      }
+      return res.json();
+    } catch (err) {
+      console.error('[ChatManager] createConversation FAILED:', err.message, '| url:', url);
+      throw err;
     }
-    return res.json();
   }
 
   async loadMessages(conversationId) {
