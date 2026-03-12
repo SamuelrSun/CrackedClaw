@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
         } catch { /* ignore */ }
       }
 
-      // Post-stream: save assistant message, log activity
+      // Post-stream: save assistant message, log activity, process task cards
       try {
         const cleanedContent = fullContent ? await processAgentResponse(user!.id, fullContent, message) : fullContent;
 
@@ -172,6 +172,61 @@ export async function POST(request: NextRequest) {
           await supabase.from('conversations').update({
             updated_at: new Date().toISOString(),
           }).eq('id', capturedConvoId).then(() => {}, () => {});
+        }
+
+        // Extract [[task:...]] tags and create/update agent_tasks records
+        // This makes inline task cards update via Realtime
+        if (fullContent) {
+          const taskTagRegex = /\[\[task:([^:]+):([^:\]]+)(?::([^\]]+))?\]\]/g;
+          let match;
+          while ((match = taskTagRegex.exec(fullContent)) !== null) {
+            const taskName = match[1];
+            const taskStatus = match[2]; // running, complete, failed
+            const taskDetails = match[3] || null;
+
+            try {
+              if (taskStatus === 'running') {
+                // Create a new running task
+                await supabase.from('agent_tasks').insert({
+                  user_id: user!.id,
+                  conversation_id: capturedConvoId || null,
+                  name: taskName,
+                  label: taskName,
+                  status: 'running',
+                  started_at: new Date().toISOString(),
+                });
+              } else if (taskStatus === 'complete' || taskStatus === 'completed') {
+                // Update the most recent matching running task
+                await supabase
+                  .from('agent_tasks')
+                  .update({ 
+                    status: 'completed',
+                    result: taskDetails,
+                    completed_at: new Date().toISOString(),
+                  })
+                  .eq('user_id', user!.id)
+                  .eq('name', taskName)
+                  .in('status', ['running', 'pending'])
+                  .order('created_at', { ascending: false })
+                  .limit(1);
+              } else if (taskStatus === 'failed') {
+                await supabase
+                  .from('agent_tasks')
+                  .update({ 
+                    status: 'failed',
+                    error: taskDetails,
+                    completed_at: new Date().toISOString(),
+                  })
+                  .eq('user_id', user!.id)
+                  .eq('name', taskName)
+                  .in('status', ['running', 'pending'])
+                  .order('created_at', { ascending: false })
+                  .limit(1);
+              }
+            } catch (taskErr) {
+              console.error('[v2/chat] Failed to process task tag:', taskErr);
+            }
+          }
         }
 
         await logActivity('Chat message sent', message.length > 50 ? message.substring(0, 50) + '...' : message, { conversation_id: capturedConvoId })

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       .from("agent_tasks")
       .select("*")
       .eq("user_id", user.id)
-      .in("status", ["pending", "running", "completed", "killed"])
+      .in("status", ["pending", "running", "completed", "done", "killed", "failed"])
       .order("created_at", { ascending: false })
       .limit(50);
 
@@ -24,7 +24,19 @@ export async function GET(request: NextRequest) {
       return jsonResponse({ subagents: [], connected: true });
     }
 
-    return jsonResponse({ subagents: tasks || [], connected: true });
+    // Map agent_tasks columns to SubagentSession shape expected by the client
+    const mapped = (tasks || []).map((t: Record<string, unknown>) => ({
+      id: t.id,
+      label: t.label || t.name || 'Background Task',
+      task: t.prompt || t.name,
+      model: t.model || undefined,
+      status: t.status === 'completed' ? 'done' : t.status === 'pending' ? 'running' : t.status,
+      startedAt: t.started_at ? new Date(t.started_at as string).getTime() : undefined,
+      endedAt: t.completed_at ? new Date(t.completed_at as string).getTime() : undefined,
+      output: t.result || t.error || undefined,
+    }));
+
+    return jsonResponse({ subagents: mapped, connected: true });
   } catch (err) {
     console.error("Failed to list subagents:", err);
     return jsonResponse({ subagents: [], connected: true, error: String(err) }, 500);

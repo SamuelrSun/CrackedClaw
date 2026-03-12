@@ -30,7 +30,6 @@ export async function spawnSubagent(options: {
     .from('agent_tasks')
     .insert({
       user_id: context.userId,
-      org_id: context.orgId,
       conversation_id: context.conversationId,
       name,
       status: 'pending',

@@ -14,7 +14,7 @@ import { ConversationListSkeleton } from "@/components/skeletons/list-skeleton";
 import { ChatSkeleton } from "@/components/skeletons/chat-skeleton";
 import { parseMessageContent, type ParsedSegment } from "@/lib/chat/message-parser";
 import { DynamicIntegrationsCard } from "@/components/chat/dynamic-integrations-card";
-import { InlineSubagentCard } from "@/components/chat/inline-subagent-card";
+
 import { ScanTriggerCard } from "@/components/chat/scan-trigger-card";
 import { ScanProgressCard } from "@/components/chat/scan-progress-card";
 import type { ScanProgressCardProps } from "@/components/chat/scan-progress-card";
@@ -782,10 +782,13 @@ export default function ChatPageClient({
     return () => clearInterval(interval);
   }, []);
 
-  // Inline subagent polling — runs independently of the slide-out panel
+  // Inline subagent tracking — Supabase Realtime + fallback polling
   useEffect(() => {
     let cancelled = false;
-    const poll = async () => {
+    const supabase = createSupabaseClient();
+
+    // Fetch full task list from API (used for initial load + fallback)
+    const fetchTasks = async () => {
       if (cancelled) return;
       try {
         const res = await fetch("/api/gateway/subagents");
@@ -799,13 +802,40 @@ export default function ChatPageClient({
         }
       } catch { /* ignore */ }
     };
-    poll();
-    const interval = setInterval(poll, 5000);
-    return () => { cancelled = true; clearInterval(interval); };
+
+    // Initial fetch
+    fetchTasks();
+
+    // Subscribe to Realtime changes on agent_tasks table
+    const channel = supabase
+      .channel('agent-tasks-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'agent_tasks',
+        },
+        () => {
+          // On any change (INSERT, UPDATE, DELETE), refetch the full list
+          // This is simpler and more reliable than trying to merge individual changes
+          fetchTasks();
+        }
+      )
+      .subscribe();
+
+    // Fallback poll every 30s in case Realtime misses something
+    const fallbackInterval = setInterval(fetchTasks, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(fallbackInterval);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleStopSubagent = async (sessionId: string) => {
-    await fetch(`/api/gateway/subagents?sessionId=${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+    await fetch(`/api/gateway/subagents?id=${encodeURIComponent(sessionId)}`, { method: "DELETE" });
     setInlineSubagents((prev) =>
       prev.map((s) => s.id === sessionId ? { ...s, status: "killed" as const } : s)
     );
@@ -1717,25 +1747,6 @@ User message: `
             </div>
           )}
           
-          {/* HARDCODED DEMO: Inline subagent cards — remove after wiring */}
-          <div className="px-4 pb-2">
-            <InlineSubagentCard
-              taskLabel="Scanning Gmail for unread emails from the last 24 hours"
-              status="complete"
-              startedAt="2026-03-10T16:00:00Z"
-              completedAt="2026-03-10T16:00:28Z"
-              result="Found 3 urgent emails: Cloudflare interview confirmation (Fri 2pm), EF cohort update from Sarah, USC cybersecurity training reminder."
-            />
-            <InlineSubagentCard
-              taskLabel="Checking Google Calendar for upcoming events this week"
-              status="running"
-              startedAt={new Date(Date.now() - 12000).toISOString()}
-            />
-            <InlineSubagentCard
-              taskLabel="Researching Granola app API documentation"
-              status="queued"
-            />
-          </div>
           <div ref={messagesEndRef} />
 
         </div>

@@ -250,6 +250,43 @@ export async function POST(request: NextRequest) {
           try { await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", capturedConvoId); } catch { }
         }
 
+        // Extract [[task:...]] tags and create/update agent_tasks records
+        if (fullContent) {
+          const taskTagRegex = /\[\[task:([^:]+):([^:\]]+)(?::([^\]]+))?\]\]/g;
+          let taskMatch;
+          while ((taskMatch = taskTagRegex.exec(fullContent)) !== null) {
+            const taskName = taskMatch[1];
+            const taskStatus = taskMatch[2];
+            const taskDetails = taskMatch[3] || null;
+            try {
+              if (taskStatus === 'running') {
+                await supabase.from('agent_tasks').insert({
+                  user_id: user.id,
+                  conversation_id: capturedConvoId || null,
+                  name: taskName,
+                  label: taskName,
+                  status: 'running',
+                  started_at: new Date().toISOString(),
+                });
+              } else if (taskStatus === 'complete' || taskStatus === 'completed') {
+                await supabase.from('agent_tasks').update({
+                  status: 'completed',
+                  result: taskDetails,
+                  completed_at: new Date().toISOString(),
+                }).eq('user_id', user.id).eq('name', taskName).in('status', ['running', 'pending']).order('created_at', { ascending: false }).limit(1);
+              } else if (taskStatus === 'failed') {
+                await supabase.from('agent_tasks').update({
+                  status: 'failed',
+                  error: taskDetails,
+                  completed_at: new Date().toISOString(),
+                }).eq('user_id', user.id).eq('name', taskName).in('status', ['running', 'pending']).order('created_at', { ascending: false }).limit(1);
+              }
+            } catch (taskErr) {
+              console.error('[stream/chat] Failed to process task tag:', taskErr);
+            }
+          }
+        }
+
         await logActivity("Chat message sent", message.length > 50 ? message.substring(0, 50) + "..." : message, { conversation_id: capturedConvoId })
           .catch(e => console.error("Failed to log activity:", e));
 
