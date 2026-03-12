@@ -31,7 +31,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const organization_name: string = body.organization_name || generateWorkspaceName();
-    const user_display_name: string | undefined = body.user_display_name;
+    // Pull display name from: explicit body param → Supabase Auth metadata → fallback
+    const authFullName = user.user_metadata?.full_name || user.user_metadata?.name || '';
+    const user_display_name: string | undefined = body.user_display_name || authFullName || undefined;
     const agent_name: string | undefined = body.agent_name;
     const use_case: string | undefined = body.use_case;
     const force_new: boolean = body.force_new === true;

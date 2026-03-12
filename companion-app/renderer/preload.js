@@ -16,6 +16,10 @@ contextBridge.exposeInMainWorld('crackedclaw', {
     ipcRenderer.on('status-update', (_event, data) => callback(data));
   },
 
+  // ── Glass Tint ───────────────────────────────────────────────────────────
+  getGlassTint: () => ipcRenderer.invoke('glass-tint:get'),
+  setGlassTint: (value) => ipcRenderer.invoke('glass-tint:set', value),
+
   // ── Chat ─────────────────────────────────────────────────────────────────
   chat: {
     listConversations: () =>

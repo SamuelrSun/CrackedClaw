@@ -20,8 +20,11 @@
     "productName": "CrackedClaw Connect",
     "mac": {
       "target": "dmg",
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "identity": null,
+      "forceCodeSigning": false
     },
+    "afterPack": "./scripts/sign.js",
     "dmg": {
       "title": "CrackedClaw Connect",
       "contents": [

@@ -67,3 +67,16 @@
   color: var(--error) !important;
   background: rgba(239, 68, 68, 0.12) !important;
 }
+
+/* Tint toggle button */
+.btn-tint-icon {
+  color: var(--text-tertiary);
+  width: 26px;
+  height: 26px;
+  -webkit-app-region: no-drag;
+}
+
+.btn-tint-icon.active {
+  color: var(--text-secondary);
+  background: var(--glass-bg-elevated);
+}

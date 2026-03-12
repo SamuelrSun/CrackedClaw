@@ -87,7 +87,28 @@ class NodeManager extends EventEmitter {
       } catch (_) {}
     }
 
-    // openclaw not found — install via npm (find npm in common locations first)
+    // openclaw not found — check Node version before attempting install
+    let nodeVersion = '';
+    try {
+      nodeVersion = execSync('node -v', { ...execOpts, encoding: 'utf-8' }).trim();
+    } catch (_) {}
+
+    const vMatch = nodeVersion.match(/^v(\d+)\.(\d+)/);
+    const major = vMatch ? parseInt(vMatch[1], 10) : 0;
+    const minor = vMatch ? parseInt(vMatch[2], 10) : 0;
+
+    if (major < 22 || (major === 22 && minor < 12)) {
+      throw new Error(
+        `OpenClaw requires Node.js >= 22.12.0 but your system has ${nodeVersion || 'none'}.\n\n` +
+        `To fix this:\n` +
+        `1. Install Node.js 22+ from https://nodejs.org\n` +
+        `2. Then run: sudo npm install -g openclaw\n` +
+        `3. Restart CrackedClaw Connect\n\n` +
+        `The companion app will work without the CLI — you just won't get device features (browser automation, screen context).`
+      );
+    }
+
+    // Try to install openclaw via npm
     let npmBin = 'npm';
     for (const dir of commonPaths) {
       try {
@@ -98,9 +119,19 @@ class NodeManager extends EventEmitter {
     }
 
     try {
-      execSync(`${npmBin} install -g openclaw`, { ...execOpts, timeout: 60000 });
+      // Try without sudo first, then with sudo
+      execSync(`${npmBin} install -g openclaw`, { ...execOpts, timeout: 120000 });
     } catch (err) {
-      throw new Error('Failed to install openclaw CLI: ' + err.message);
+      const errMsg = err.message || '';
+      if (errMsg.includes('EACCES') || errMsg.includes('permission denied')) {
+        throw new Error(
+          `Permission denied installing OpenClaw CLI.\n\n` +
+          `Please run this in Terminal:\n` +
+          `  sudo npm install -g openclaw\n\n` +
+          `Then restart CrackedClaw Connect.`
+        );
+      }
+      throw new Error('Failed to install openclaw CLI: ' + errMsg);
     }
   }
 

@@ -144,6 +144,19 @@ function setupIPC(deps) {
     return { ok: true };
   });
 
+  // ── Glass Tint IPC ──────────────────────────────────────────────────────────
+
+  ipcMain.handle('glass-tint:get', () => {
+    const saved = store.get('glassTintOpacity');
+    return (saved !== undefined && saved !== null) ? saved : 0.15;
+  });
+
+  ipcMain.handle('glass-tint:set', (_event, value) => {
+    const clamped = Math.max(0, Math.min(0.7, Number(value)));
+    store.set('glassTintOpacity', clamped);
+    return clamped;
+  });
+
   // ── Chat IPC ─────────────────────────────────────────────────────────────────
 
   ipcMain.handle('chat:list-conversations', async () => {

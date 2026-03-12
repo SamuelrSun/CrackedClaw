@@ -56,9 +56,11 @@ async function selectConversation(id) {
     el.classList.toggle('active', el.dataset.id === id);
   });
 
-  // Update titles
+  // Update titles — clear first, then set, to prevent ghost-text overlay artifact
   const conv = conversations.find((c) => c.id === id);
   const title = conv ? conv.title : 'Chat';
+  chatTitle.textContent = '';
+  void chatTitle.offsetHeight; // force reflow to flush vibrancy ghost render
   chatTitle.textContent = title;
   convSelectorText.textContent = title;
 

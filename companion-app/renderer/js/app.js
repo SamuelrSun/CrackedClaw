@@ -38,6 +38,12 @@ const btnDisconnect    = document.getElementById('btn-disconnect');
 const btnToggleChat    = document.getElementById('btn-toggle-chat');
 const btnAudio         = document.getElementById('btn-audio');
 
+// Tint controls
+const btnTint        = document.getElementById('btn-tint');
+const tintRow        = document.getElementById('tint-row');
+const tintSlider     = document.getElementById('tint-slider');
+const tintValueLabel = document.getElementById('tint-value-label');
+
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let currentConversationId = null;
@@ -46,6 +52,26 @@ let isStreaming = false;
 let streamingBubble = null; // The DOM element being built during streaming
 let chatPanelVisible = true;
 let dropdownOpen = false;
+let tintRowOpen = false;
+
+// ── Glass Tint ────────────────────────────────────────────────────────────────
+
+function applyGlassTint(value) {
+  const v = parseFloat(value);
+  document.documentElement.style.setProperty('--glass-tint-opacity', v);
+  tintSlider.value = v;
+  tintValueLabel.textContent = Math.round(v * 100) + '%';
+}
+
+async function loadAndApplyGlassTint() {
+  try {
+    const saved = await window.crackedclaw.getGlassTint();
+    applyGlassTint(saved);
+  } catch (e) {
+    // Fallback: use CSS default (0.15)
+    applyGlassTint(0.15);
+  }
+}
 
 // ── Screen Management ──────────────────────────────────────────────────────────
 
@@ -55,7 +81,12 @@ function showScreen(name) {
 }
 
 function showSetupError(msg) {
-  errorMsg.textContent = msg || '';
+  if (!msg) { errorMsg.textContent = ''; return; }
+  // Show a clean, short error — full details go to console
+  console.error('[Setup Error]', msg);
+  // Extract the first meaningful line (before npm noise)
+  const firstLine = msg.split('\n')[0].replace(/^Error:\s*/, '');
+  errorMsg.textContent = firstLine.length > 200 ? firstLine.slice(0, 200) + '…' : firstLine;
 }
 
 // ── Connection Status ──────────────────────────────────────────────────────────
@@ -67,8 +98,20 @@ function setConnectedIndicator(connected) {
 
 // ── Chat Panel Toggle ──────────────────────────────────────────────────────────
 
-const INPUT_BAR_HEIGHT = 70; // input bar + padding when panel is collapsed
-let expandedHeight = 500;    // remember the height when panel is open
+let expandedHeight = 500; // remember the height when panel is open (no tint row)
+
+/**
+ * Dynamically measure the window height needed when the chat panel is collapsed
+ * (only the input bar wrapper is visible).
+ */
+function measureCollapsedHeight() {
+  const inputWrapper = document.querySelector('.input-bar-wrapper');
+  const screenEl = document.getElementById('screen-chat');
+  if (!inputWrapper || !screenEl) return 70; // safe fallback
+  const style = window.getComputedStyle(screenEl);
+  const vPad = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+  return Math.ceil(inputWrapper.offsetHeight + vPad);
+}
 
 async function setChatPanelVisible(visible) {
   chatPanelVisible = visible;
@@ -78,10 +121,20 @@ async function setChatPanelVisible(visible) {
     // Expand back to saved height
     window.crackedclaw.windowSetSize(null, expandedHeight, true);
   } else {
-    // Save current height, then shrink to just the input bar
+    // Close tint row first so expandedHeight stays clean for the next expand
+    if (tintRowOpen) {
+      tintRowOpen = false;
+      tintRow.classList.add('hidden');
+      btnTint.classList.remove('active');
+    }
+    // Save current height (before collapse) so we can restore it on expand
     const size = await window.crackedclaw.windowGetSize();
     expandedHeight = size[1];
-    window.crackedclaw.windowSetSize(null, INPUT_BAR_HEIGHT, true);
+    // Measure after DOM reflects panel-hidden, then animate to exact input-bar height
+    requestAnimationFrame(() => {
+      const h = measureCollapsedHeight();
+      window.crackedclaw.windowSetSize(null, h, true);
+    });
   }
 }
 
@@ -110,6 +163,43 @@ document.querySelectorAll('.wc-zoom').forEach(btn => {
 });
 
 // ── Event Bindings ─────────────────────────────────────────────────────────────
+
+// Tint button: toggle the tint slider row and resize window accordingly
+btnTint.addEventListener('click', (e) => {
+  e.stopPropagation();
+  tintRowOpen = !tintRowOpen;
+  btnTint.classList.toggle('active', tintRowOpen);
+
+  if (tintRowOpen) {
+    // Show tint row, then measure its rendered height and grow the window
+    tintRow.classList.remove('hidden');
+    if (chatPanelVisible) {
+      requestAnimationFrame(() => {
+        const rowH = tintRow.offsetHeight;
+        expandedHeight = expandedHeight + rowH;
+        window.crackedclaw.windowSetSize(null, expandedHeight, true);
+      });
+    }
+  } else {
+    // Measure before hiding so we know how much to shrink
+    const rowH = tintRow.offsetHeight;
+    tintRow.classList.add('hidden');
+    if (chatPanelVisible) {
+      expandedHeight = Math.max(200, expandedHeight - rowH);
+      window.crackedclaw.windowSetSize(null, expandedHeight, true);
+    }
+  }
+});
+
+// Tint slider: update CSS variable in real-time; persist on release
+tintSlider.addEventListener('input', (e) => {
+  applyGlassTint(e.target.value);
+});
+
+tintSlider.addEventListener('change', (e) => {
+  const value = parseFloat(e.target.value);
+  window.crackedclaw.setGlassTint(value).catch(() => {});
+});
 
 // Chat panel toggle
 btnToggleChat.addEventListener('click', () => {
@@ -217,6 +307,9 @@ async function enterChatScreen() {
   showScreen('chat');
   setConnectedIndicator(false); // Will be updated via status-update event
   setChatPanelVisible(true);
+  // Reset title to clean state — prevents "Select a conversation" ghost when switching conversations
+  chatTitle.textContent = 'New Chat';
+  convSelectorText.textContent = 'New Chat';
   // Enable input immediately — sendMessage will auto-create a conversation if needed
   msgInput.disabled = false;
   msgInput.placeholder = 'Message… (Enter to send)';
@@ -246,6 +339,9 @@ window.crackedclaw.onStatusUpdate((data) => {
 // ── Initialization ─────────────────────────────────────────────────────────────
 
 (async () => {
+  // Load and apply saved glass tint preference immediately
+  await loadAndApplyGlassTint();
+
   const state = await window.crackedclaw.getState();
 
   if (state.token) {

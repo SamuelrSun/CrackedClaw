@@ -6,11 +6,17 @@
   gap: 14px;
   width: 340px;
   padding: 32px 28px;
-  background: var(--glass-bg);
+  background: rgba(0, 0, 0, var(--glass-tint-opacity));
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  backdrop-filter: blur(40px) saturate(180%);
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius-md);
   box-shadow: var(--glass-shadow);
   -webkit-app-region: no-drag;
+  /* Force GPU compositing layer — prevents vibrancy ghost/double-render artifacts */
+  isolation: isolate;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 .logo {
@@ -34,8 +40,7 @@ input[type="text"] {
   font-family: inherit;
   border: 1px solid var(--glass-border);
   background: var(--glass-bg-subtle);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /* No backdrop-filter: vibrancy already provides the blur; double-blurring causes ghost artifacts */
   color: var(--text-primary);
   border-radius: var(--glass-radius-sm);
   outline: none;
@@ -65,8 +70,7 @@ input[type="text"]:focus {
   background: rgba(255, 255, 255, 0.12);
   color: var(--text-primary);
   letter-spacing: 0.01em;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /* No backdrop-filter: vibrancy already provides the blur; double-blurring causes ghost artifacts */
 }
 
 .btn-primary:hover {

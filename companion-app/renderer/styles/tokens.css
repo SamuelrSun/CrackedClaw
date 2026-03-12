@@ -1,5 +1,8 @@
 /* ── Design Tokens ───────────────────────────────────────────────────────── */
 :root {
+  /* Glass tint — controls darkness of the frosted glass panel overlay (0.0 = nearly clear, 0.7 = dark) */
+  --glass-tint-opacity: 0.15;
+
   /* Glass — native vibrancy handles desktop blur, these are light tints on top */
   --glass-bg: rgba(15, 15, 15, 0.12);
   --glass-bg-elevated: rgba(20, 20, 20, 0.16);
