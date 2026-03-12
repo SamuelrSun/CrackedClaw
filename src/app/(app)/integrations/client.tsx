@@ -247,14 +247,89 @@ const POPULAR_INTEGRATIONS = [
   { id: 'figma', slug: 'figma' },
 ];
 
+// Live status indicator types
+interface LiveStatus {
+  connected: boolean;
+  tokenStatus: 'valid' | 'expired' | 'refreshed' | 'checking' | 'error' | 'browser';
+  lastChecked: number;
+}
+
 export default function IntegrationsPageClient({ initialIntegrations, isLoading = false }: IntegrationsPageClientProps) {
   const [items, setItems] = useState(initialIntegrations);
   const [query, setQuery] = useState("");
   const [resolving, setResolving] = useState(false);
   const [resolvedCards, setResolvedCards] = useState<ResolvedCard[]>([]);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  const [liveStatuses, setLiveStatuses] = useState<Record<string, LiveStatus>>({});
+  const [statusCheckInProgress, setStatusCheckInProgress] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
+
+  // Check live status for all connected OAuth integrations
+  const checkAllStatuses = useCallback(async () => {
+    const connected = items.filter(i => i.status === 'connected');
+    if (connected.length === 0) return;
+
+    setStatusCheckInProgress(true);
+
+    // Mark all as checking
+    const checking: Record<string, LiveStatus> = {};
+    connected.forEach(item => {
+      checking[item.slug] = { connected: true, tokenStatus: 'checking', lastChecked: Date.now() };
+    });
+    setLiveStatuses(prev => ({ ...prev, ...checking }));
+
+    // Check each provider in parallel
+    await Promise.allSettled(
+      connected.map(async (item) => {
+        const slug = item.slug;
+        // Browser-login integrations don't have token status
+        const regEntry = INTEGRATIONS.find(r => r.id === slug);
+        if (regEntry?.authType === 'browser-login') {
+          setLiveStatuses(prev => ({
+            ...prev,
+            [slug]: { connected: true, tokenStatus: 'browser', lastChecked: Date.now() },
+          }));
+          return;
+        }
+
+        try {
+          const res = await fetch(`/api/integrations/status/${slug}`);
+          if (!res.ok) {
+            setLiveStatuses(prev => ({
+              ...prev,
+              [slug]: { connected: false, tokenStatus: 'error', lastChecked: Date.now() },
+            }));
+            return;
+          }
+          const data = await res.json();
+          setLiveStatuses(prev => ({
+            ...prev,
+            [slug]: {
+              connected: data.connected ?? false,
+              tokenStatus: data.tokenStatus || (data.connected ? 'valid' : 'expired'),
+              lastChecked: Date.now(),
+            },
+          }));
+        } catch {
+          setLiveStatuses(prev => ({
+            ...prev,
+            [slug]: { connected: false, tokenStatus: 'error', lastChecked: Date.now() },
+          }));
+        }
+      })
+    );
+
+    setStatusCheckInProgress(false);
+  }, [items]);
+
+  // Auto-check statuses when items load or change
+  useEffect(() => {
+    const connected = items.filter(i => i.status === 'connected');
+    if (connected.length > 0) {
+      checkAllStatuses();
+    }
+  }, [items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     try {
@@ -445,12 +520,69 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
       return;
     }
 
-    // Node-based: show instruction
+    // Browser-login: initiate browser connection flow
     if (regEntry.authType === 'browser-login') {
-      toast.info(
-        regEntry.name + ' uses browser automation',
-        "I'll open it in a browser — you log in, then I take over. No CLI needed."
-      );
+      try {
+        toast.info(
+          `Opening ${regEntry.name}...`,
+          "A browser window will open — log in, and I'll detect it automatically."
+        );
+        const res = await fetch('/api/integrations/browser-connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: registryId }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error('Connection failed', data.error || 'Could not start browser login');
+          return;
+        }
+        // Add to items as pending
+        const newInt = {
+          id: data.integration_id,
+          name: regEntry.name,
+          slug: regEntry.id,
+          icon: regEntry.icon,
+          type: 'browser' as const,
+          status: 'syncing' as const, // Pending = yellow state
+          config: { needs_node: true },
+          accounts: [],
+          last_sync: null,
+        };
+        setItems(prev => {
+          const exists = prev.some(i => i.slug === registryId);
+          if (exists) {
+            return prev.map(i => i.slug === registryId ? { ...i, status: 'syncing' as const } : i);
+          }
+          return [...prev, newInt];
+        });
+        // Start polling for status change (pending → connected)
+        const pollBrowserStatus = async () => {
+          for (let i = 0; i < 60; i++) { // Poll for up to 5 minutes
+            await new Promise(r => setTimeout(r, 5000)); // Check every 5s
+            try {
+              const statusRes = await fetch(`/api/integrations/status-by-slugs`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slugs: [registryId] }),
+              });
+              const statusData = await statusRes.json();
+              if (statusData.connected?.includes(registryId)) {
+                setItems(prev => prev.map(i => 
+                  i.slug === registryId ? { ...i, status: 'connected' as const } : i
+                ));
+                toast.success(`${regEntry.name} connected!`, 'Browser login verified successfully.');
+                return;
+              }
+            } catch { /* continue polling */ }
+          }
+          // Timeout — still show as pending
+          toast.info(`${regEntry.name} login`, 'Still waiting for login. The card will update when detected.');
+        };
+        pollBrowserStatus(); // Fire and forget
+      } catch {
+        toast.error('Error', `Failed to connect ${regEntry.name}`);
+      }
       return;
     }
 
@@ -565,11 +697,23 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
             Connect any app or service
           </p>
         </div>
-        <Link href="/integrations/add">
-          <Button variant="solid">
-            <span className="mr-1">+</span> Add Integration
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          {items.filter(i => i.status === 'connected').length > 0 && (
+            <button
+              onClick={checkAllStatuses}
+              disabled={statusCheckInProgress}
+              className="font-mono text-[10px] uppercase tracking-wide px-3 py-2 border border-[rgba(58,58,56,0.2)] text-grid/60 hover:text-grid hover:border-grid/40 transition-colors disabled:opacity-50"
+              title="Verify all integration connections"
+            >
+              {statusCheckInProgress ? '⟳ Checking...' : '⟳ Verify All'}
+            </button>
+          )}
+          <Link href="/integrations/add">
+            <Button variant="solid">
+              <span className="mr-1">+</span> Add Integration
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Popular Integrations Quick Connect */}
@@ -709,8 +853,10 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
             const accountCount = integration.accounts.length;
             const badgeText = integration.status === "connected" 
               ? (accountCount === 1 ? '1 Account' : accountCount + ' Accounts') + ' Connected' 
+              : integration.status === 'syncing' ? 'Waiting for login...'
               : 'Disconnected';
             const needsNode = getNeedsNode(integration);
+            const liveStatus = liveStatuses[integration.slug];
 
             return (
               <Card key={integration.id} label={<IntegrationIcon provider={integration.slug || ""} size={36} />} accentColor={integration.status === "connected" ? "#9EFFBF" : undefined} bordered={true}>
@@ -723,6 +869,36 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                           Node
                         </span>
                       )}
+                      {/* Live status indicator */}
+                      {liveStatus && integration.status === "connected" && (
+                        <span className="relative flex-shrink-0" title={
+                          liveStatus.tokenStatus === 'checking' ? 'Checking connection...' :
+                          liveStatus.tokenStatus === 'valid' ? 'Connection verified' :
+                          liveStatus.tokenStatus === 'refreshed' ? 'Token refreshed' :
+                          liveStatus.tokenStatus === 'expired' ? 'Token expired — re-authenticate' :
+                          liveStatus.tokenStatus === 'browser' ? 'Browser-based connection' :
+                          'Connection error'
+                        }>
+                          {liveStatus.tokenStatus === 'checking' ? (
+                            <span className="flex h-2.5 w-2.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400" />
+                            </span>
+                          ) : liveStatus.tokenStatus === 'valid' || liveStatus.tokenStatus === 'refreshed' ? (
+                            <span className="flex h-2.5 w-2.5">
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                            </span>
+                          ) : liveStatus.tokenStatus === 'expired' || liveStatus.tokenStatus === 'error' ? (
+                            <span className="flex h-2.5 w-2.5">
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+                            </span>
+                          ) : liveStatus.tokenStatus === 'browser' ? (
+                            <span className="flex h-2.5 w-2.5">
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-400" />
+                            </span>
+                          ) : null}
+                        </span>
+                      )}
                       <Badge status={integration.status === "connected" ? "active" : "inactive"}>{badgeText}</Badge>
                     </div>
                   </div>
@@ -733,6 +909,21 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                         Uses browser automation.{' '}
                         <a href="/settings/nodes" className="underline">Connect your desktop via Settings</a>.
                       </p>
+                    </div>
+                  )}
+
+                  {/* Token expired warning */}
+                  {liveStatus?.tokenStatus === 'expired' && (
+                    <div className="mt-3 p-2 bg-red-50 border border-red-200 flex items-center justify-between">
+                      <p className="font-mono text-[9px] text-red-700">
+                        ⚠ Token expired — re-authenticate to restore access
+                      </p>
+                      <button
+                        onClick={() => addAccount(integration.id)}
+                        className="font-mono text-[9px] uppercase tracking-wide px-2 py-0.5 bg-red-600 text-white hover:bg-red-700 transition-colors"
+                      >
+                        Re-auth
+                      </button>
                     </div>
                   )}
 

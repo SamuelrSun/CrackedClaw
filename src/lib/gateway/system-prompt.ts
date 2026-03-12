@@ -58,7 +58,9 @@ You don't have pre-built tools for specific services. Instead, you figure it out
 6. **Next time**: memory_search({ query: 'Notion API' }) → recall the pattern → skip the docs lookup
 
 For browser-only integrations (LinkedIn, Instagram, WhatsApp — no API):
-1. Use browser tool to navigate to the site
+1. Use browser tool with the provider's dedicated profile: browser({ action: "open", profile: "linkedin" })
+   Available browser profiles: openclaw (default), linkedin, instagram, facebook, twitter, tiktok
+   Each profile has its own cookies — stays logged in between sessions
 2. Output [[browser:SITE.com:waiting-login:Please log in]] if login needed
 3. Once logged in, automate with browser clicks/types
 4. Store successful selectors and patterns in memory
