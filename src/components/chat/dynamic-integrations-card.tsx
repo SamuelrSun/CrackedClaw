@@ -291,6 +291,90 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
   );
 }
 
+/** Inline companion onboarding with download + copy-token button */
+function CompanionOnboardingInline({ name }: { name: string }) {
+  const [token, setToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [loadingToken, setLoadingToken] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/node/connection-token")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.token) setToken(data.token); })
+      .catch(() => {})
+      .finally(() => setLoadingToken(false));
+  }, []);
+
+  const handleCopy = async () => {
+    if (!token) return;
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* ignore */ }
+  };
+
+  const maskedToken = token ? `${token.slice(0, 8)}…${token.slice(-4)}` : "Loading…";
+
+  return (
+    <div className="mt-3 border-t border-[rgba(58,58,56,0.15)] pt-3 space-y-3">
+      <div className="space-y-2">
+        <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
+          <strong className="text-forest">{name}</strong> doesn&apos;t have an API, so I need to browse it on your computer — just like you would.
+        </p>
+        <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
+          <strong>CrackedClaw Connect</strong> is a lightweight desktop app that lets me do that.
+        </p>
+      </div>
+
+      {/* Download button */}
+      <a
+        href="/downloads/Dopl-Connect.dmg"
+        download
+        className="block w-full py-2.5 font-mono text-[10px] uppercase tracking-wide bg-grid text-paper hover:bg-grid/80 transition-colors text-center"
+      >
+        ⬇ Download for macOS
+      </a>
+
+      {/* Copy token button */}
+      <div className="bg-forest/5 border border-[rgba(58,58,56,0.15)] p-2.5 space-y-2">
+        <p className="font-mono text-[9px] uppercase tracking-wide text-grid/50">Connection Token</p>
+        <div className="flex items-center gap-2">
+          <code className="font-mono text-[10px] text-forest/70 truncate flex-1 select-none">
+            {loadingToken ? "Loading…" : maskedToken}
+          </code>
+          <button
+            onClick={handleCopy}
+            disabled={!token}
+            className="flex-shrink-0 px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-wide bg-forest text-white hover:bg-forest/90 disabled:opacity-40 transition-colors flex items-center gap-1"
+          >
+            {copied ? (
+              <><Check className="w-3 h-3" /> Copied!</>
+            ) : (
+              <><Copy className="w-3 h-3" /> Copy Token</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Live connection status */}
+      <div className="flex items-center gap-2 py-1.5">
+        <div className="relative w-2.5 h-2.5">
+          <div className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-75" />
+          <div className="relative w-2.5 h-2.5 rounded-full bg-amber-500" />
+        </div>
+        <span className="font-mono text-[10px] text-amber-700">
+          Waiting for connection...
+        </span>
+      </div>
+
+      <p className="font-mono text-[9px] text-grid/40 leading-relaxed">
+        Open the app, paste the token, and you&apos;re connected. Runs quietly in your menu bar.
+      </p>
+    </div>
+  );
+}
+
 export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }: DynamicIntegrationsCardProps) {
   const [cards, setCards] = useState<CardState[]>([]);
   const [loading, setLoading] = useState(true);
@@ -657,41 +741,7 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
 
               {/* Inline Companion onboarding for browser-gated cards when node is offline */}
               {(card.resolved.needsNode || card.resolved.authType === 'browser') && card.status === "idle" && !nodeOnline && !nodeJustConnected && (
-                <div className="mt-3 border-t border-[rgba(58,58,56,0.15)] pt-3 space-y-3">
-                  {/* Explanation */}
-                  <div className="space-y-2">
-                    <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
-                      <strong className="text-forest">{card.resolved.name}</strong> doesn&apos;t have an API, so I need to browse it on your computer — just like you would.
-                    </p>
-                    <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
-                      <strong>Dopl Connect</strong> is a lightweight desktop app that lets me do that. You can also chat with me directly from it — no browser needed.
-                    </p>
-                  </div>
-
-                  {/* Download button */}
-                  <a
-                    href="/downloads/Dopl-Connect.dmg"
-                    download
-                    className="block w-full py-2.5 font-mono text-[10px] uppercase tracking-wide bg-grid text-paper hover:bg-grid/80 transition-colors text-center"
-                  >
-                    ⬇ Download Dopl Connect for macOS
-                  </a>
-
-                  {/* Live connection status */}
-                  <div className="flex items-center gap-2 py-1.5">
-                    <div className="relative w-2.5 h-2.5">
-                      <div className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-75" />
-                      <div className="relative w-2.5 h-2.5 rounded-full bg-amber-500" />
-                    </div>
-                    <span className="font-mono text-[10px] text-amber-700">
-                      Waiting for connection...
-                    </span>
-                  </div>
-
-                  <p className="font-mono text-[9px] text-grid/40 leading-relaxed">
-                    Download, open, and sign in with your Dopl account. The app runs quietly in your menu bar.
-                  </p>
-                </div>
+                <CompanionOnboardingInline name={card.resolved.name} />
               )}
 
               {/* Connected Accounts section */}

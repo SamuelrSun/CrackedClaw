@@ -350,7 +350,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   }
 
   if (ctx.gatewayHost) {
-    parts.push(`\nDEVICE CONNECTION COMMAND:\nWhen a user needs to connect their computer (for browser-based services like LinkedIn, Instagram, etc.), tell them to copy the command from Settings → Devices. Do NOT include tokens or credentials in chat messages. Just say: "Go to Settings → Devices and copy the connection command. Then paste it in Terminal on your Mac."\n\nAdd this reassurance: "This just lets me interact with apps when you ask me to. I\'m not monitoring your screen or accessing anything without your permission. The connection is encrypted and secure."`);
+    parts.push(`\nDESKTOP APP CONNECTION:\nSome integrations (LinkedIn, Instagram, etc.) require the CrackedClaw desktop companion app running on the user's computer.\n\nWhen the user needs to connect their computer, the integration card in the chat already shows:\n- A download button for the desktop app\n- A "Copy Token" button with their connection token\n- A live connection status indicator\n\nJust tell them: "You'll see a download link and connection token right in the card below. Download the app, paste the token, and you're connected."\n\nDo NOT tell users to go to Settings, use Terminal, or run CLI commands. Everything they need is in the integration card.\n\nReassurance: "The desktop app lets me interact with apps on your behalf when you ask. I'm not monitoring your screen or accessing anything without your permission. The connection is encrypted and secure."`);
   }
 
   if (ctx.skillsPrompt) {
