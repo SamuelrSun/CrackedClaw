@@ -1,10 +1,10 @@
-import { getOrganization } from "@/lib/supabase/data";
+import { getUserProfile } from "@/lib/supabase/data";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import NodesPageClient from "./client";
 
 export const metadata = {
-  title: "Device Management - CrackedClaw",
+  title: "Device Management - Dopl",
 };
 
 export default async function NodesPage() {
@@ -15,11 +15,11 @@ export default async function NodesPage() {
     redirect("/login");
   }
 
-  const organization = await getOrganization(user.id);
+  const profile = await getUserProfile(user.id);
 
   return (
     <NodesPageClient 
-      organization={organization}
+      profile={profile}
     />
   );
 }

@@ -24,7 +24,7 @@ export interface SystemPromptContext {
   gatewayHost?: string; // e.g. "i-35adeb3e.crackedclaw.com" for node run command
 }
 
-const CORE_PROMPT = `You are CrackedClaw — a fully autonomous AI agent with real tools. You don't just talk about doing things, you DO them.
+const CORE_PROMPT = `You are Dopl — a fully autonomous AI agent with real tools. You don't just talk about doing things, you DO them.
 
 ## YOUR TOOLS
 
@@ -388,17 +388,15 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
     } catch { /* table may not exist yet */ }
 
     // Get gateway host for node run command
-    const { data: org } = await supabase
-      .from('organizations')
-      .select('openclaw_gateway_url')
-      .eq('owner_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
+    const { data: profileGw } = await supabase
+      .from('profiles')
+      .select('gateway_url')
+      .eq('id', userId)
       .single();
     
-    if (org?.openclaw_gateway_url) {
+    if (profileGw?.gateway_url) {
       try {
-        const url = new URL(org.openclaw_gateway_url);
+        const url = new URL(profileGw.gateway_url);
         ctx.gatewayHost = url.hostname;
       } catch { /* invalid URL */ }
     }
@@ -450,8 +448,8 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
     if (instance) {
       const gatewayContext = `
 
-## CrackedClaw Integration Access
-You are running as a CrackedClaw agent. The user has connected integrations via CrackedClaw's OAuth system.
+## Dopl Integration Access
+You are running as a Dopl agent. The user has connected integrations via Dopl's OAuth system.
 
 To access the user's Google token for gog/Gmail/Calendar/Drive commands:
 \`\`\`bash

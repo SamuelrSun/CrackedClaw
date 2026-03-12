@@ -1,5 +1,5 @@
 /**
- * CrackedClaw Connect — Chat Panel Window
+ * Dopl Connect — Chat Panel Window
  *
  * Handles: message display, streaming, conversation list,
  * open-in-browser button, close (X) button.
@@ -39,7 +39,7 @@ function applyGlassTint(value) {
 
 async function loadAndApplyGlassTint() {
   try {
-    const saved = await window.crackedclaw.getGlassTint();
+    const saved = await window.dopl.getGlassTint();
     applyGlassTint(saved);
   } catch (_) {
     applyGlassTint(0.15);
@@ -93,7 +93,7 @@ async function loadMessages(conversationId) {
   clearMessages('');
   typingIndicator.classList.add('hidden');
 
-  const result = await window.crackedclaw.chat.loadMessages(conversationId);
+  const result = await window.dopl.chat.loadMessages(conversationId);
 
   // Guard: user may have switched conversation while loading
   if (currentConversationId !== conversationId) return;
@@ -181,7 +181,7 @@ function renderConversationList(convs) {
 }
 
 async function loadConversations() {
-  const result = await window.crackedclaw.chat.listConversations();
+  const result = await window.dopl.chat.listConversations();
   if (result.ok) {
     conversations = result.conversations || [];
     renderConversationList(conversations);
@@ -208,7 +208,7 @@ function selectConversation(id, title, broadcast) {
 
   if (broadcast) {
     // Notify input bar (and re-notify ourselves — we guard against no-op above)
-    window.crackedclaw.selectConversation(id, title);
+    window.dopl.selectConversation(id, title);
   }
 
   if (id === null) {
@@ -231,7 +231,7 @@ function openInBrowser() {
   const url = currentConversationId
     ? `${webAppUrl}/chat/${currentConversationId}`
     : webAppUrl;
-  window.crackedclaw.openInBrowser(url);
+  window.dopl.openInBrowser(url);
 }
 
 // ── Dropdown ──────────────────────────────────────────────────────────────────
@@ -253,7 +253,7 @@ function closeDropdown() {
 
 // X button — close this window
 btnClosePanel.addEventListener('click', () => {
-  window.crackedclaw.closeChatPanel();
+  window.dopl.closeChatPanel();
 });
 
 // Open in browser
@@ -287,17 +287,17 @@ btnNewChat.addEventListener('click', () => {
 
 // ── IPC Listeners ──────────────────────────────────────────────────────────────
 
-window.crackedclaw.onStatusUpdate((data) => {
+window.dopl.onStatusUpdate((data) => {
   console.log('[ChatPanel] Status:', data.connected);
 });
 
 // Tint changed from input bar settings dropdown
-window.crackedclaw.onGlassTintChanged((value) => {
+window.dopl.onGlassTintChanged((value) => {
   applyGlassTint(value);
 });
 
 // Input bar selected a conversation (or new chat)
-window.crackedclaw.onConversationSelected((data) => {
+window.dopl.onConversationSelected((data) => {
   const { id, title } = data;
   if (id !== currentConversationId) {
     selectConversation(id, title || 'New Chat', false);
@@ -305,7 +305,7 @@ window.crackedclaw.onConversationSelected((data) => {
 });
 
 // User message received from main (sent before streaming starts)
-window.crackedclaw.chat.onShowUserMessage((data) => {
+window.dopl.chat.onShowUserMessage((data) => {
   // Only show if it's for the current conversation
   if (data.conversationId !== currentConversationId) return;
 
@@ -318,7 +318,7 @@ window.crackedclaw.chat.onShowUserMessage((data) => {
 });
 
 // Streaming chunk
-window.crackedclaw.chat.onStreamChunk((chunk) => {
+window.dopl.chat.onStreamChunk((chunk) => {
   // Hide typing indicator once we start streaming
   typingIndicator.classList.add('hidden');
 
@@ -333,7 +333,7 @@ window.crackedclaw.chat.onStreamChunk((chunk) => {
 });
 
 // Message complete
-window.crackedclaw.chat.onMessageFinalized((data) => {
+window.dopl.chat.onMessageFinalized((data) => {
   typingIndicator.classList.add('hidden');
   finalizeStreamingBubble(data.ok, data.content, data.error);
 
@@ -354,7 +354,7 @@ window.crackedclaw.chat.onMessageFinalized((data) => {
 (async () => {
   await loadAndApplyGlassTint();
 
-  const state = await window.crackedclaw.getState();
+  const state = await window.dopl.getState();
 
   // Cache webAppUrl for the open-in-browser feature
   if (state.webAppUrl) {

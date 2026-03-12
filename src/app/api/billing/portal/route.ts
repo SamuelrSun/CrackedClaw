@@ -9,18 +9,18 @@ export async function POST() {
   if (error) return error;
 
   const supabase = createAdminClient();
-  const { data: org } = await supabase
-    .from('organizations')
+  const { data: profile } = await supabase
+    .from('profiles')
     .select('stripe_customer_id')
-    .eq('owner_id', user.id)
+    .eq('id', user.id)
     .single();
 
-  if (!org?.stripe_customer_id) {
+  if (!profile?.stripe_customer_id) {
     return NextResponse.json({ error: 'No billing account found' }, { status: 404 });
   }
 
   const session = await stripe.billingPortal.sessions.create({
-    customer: org.stripe_customer_id,
+    customer: profile.stripe_customer_id,
     return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
   });
 

@@ -79,7 +79,7 @@ const channelInstructions: Record<ChannelType, {
     icon: <MessageCircle className="w-6 h-6" />,
     steps: [
       "Requires a Mac with Messages.app signed in",
-      "Install the CrackedClaw Connect companion app",
+      "Install the Dopl Connect companion app",
       "The companion app bridges iMessage to your cloud agent",
       "Messages are processed locally on your Mac",
     ],

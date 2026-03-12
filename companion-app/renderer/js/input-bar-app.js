@@ -1,5 +1,5 @@
 /**
- * CrackedClaw Connect — Input Bar Window
+ * Dopl Connect — Input Bar Window
  *
  * Handles: setup screen, connection dot, text input, message sending,
  * chat panel toggle, settings gear dropdown (tint slider + relink).
@@ -79,12 +79,12 @@ function showScreen(name) {
     screenSetup.classList.add('active');
     screenChat.classList.remove('active');
     // Expand window upward to show setup card
-    window.crackedclaw.windowSetSize(680, SETUP_HEIGHT, true);
+    window.dopl.windowSetSize(680, SETUP_HEIGHT, true);
   } else {
     screenSetup.classList.remove('active');
     screenChat.classList.add('active');
     // Collapse to just the input bar
-    window.crackedclaw.windowSetSize(680, INPUT_BAR_HEIGHT, false);
+    window.dopl.windowSetSize(680, INPUT_BAR_HEIGHT, false);
   }
 }
 
@@ -99,7 +99,7 @@ function applyGlassTint(value) {
 
 async function loadAndApplyGlassTint() {
   try {
-    const saved = await window.crackedclaw.getGlassTint();
+    const saved = await window.dopl.getGlassTint();
     applyGlassTint(saved);
   } catch (_) {
     applyGlassTint(0.15);
@@ -117,7 +117,7 @@ function openSettings() {
   // Expand window upward to show dropdown + gap + pill
   requestAnimationFrame(() => {
     const dropdownH = settingsDropdown.offsetHeight;
-    window.crackedclaw.windowSetSize(680, dropdownH + DROPDOWN_GAP + INPUT_BAR_HEIGHT, false);
+    window.dopl.windowSetSize(680, dropdownH + DROPDOWN_GAP + INPUT_BAR_HEIGHT, false);
   });
 }
 
@@ -127,7 +127,7 @@ function closeSettings() {
   btnSettings.classList.remove('active');
   settingsDropdown.classList.add('hidden');
   // Shrink window back to just the pill
-  window.crackedclaw.windowSetSize(680, INPUT_BAR_HEIGHT, false);
+  window.dopl.windowSetSize(680, INPUT_BAR_HEIGHT, false);
 }
 
 // ── Toggle chat panel ──────────────────────────────────────────────────────────
@@ -152,7 +152,7 @@ async function sendMessage() {
   if (!convId) {
     try {
       const autoTitle = text.length > 50 ? text.slice(0, 50) + '…' : text;
-      const result = await window.crackedclaw.chat.createConversation(autoTitle);
+      const result = await window.dopl.chat.createConversation(autoTitle);
       if (!result.ok) {
         console.error('[InputBar] Failed to auto-create conversation:', result.error);
         isStreaming = false;
@@ -163,7 +163,7 @@ async function sendMessage() {
       convId = newConv.id;
       currentConversationId = convId;
       // Tell both windows which conversation is now active
-      window.crackedclaw.selectConversation(newConv.id, newConv.title);
+      window.dopl.selectConversation(newConv.id, newConv.title);
     } catch (err) {
       console.error('[InputBar] Auto-create conversation error:', err);
       isStreaming = false;
@@ -174,14 +174,14 @@ async function sendMessage() {
 
   // Open chat panel if it's closed so the user sees the response
   if (!chatPanelOpen) {
-    window.crackedclaw.showChatPanel();
+    window.dopl.showChatPanel();
   }
 
   msgInput.value = '';
   autoResizeInput();
 
   // Send — main pushes user message + stream chunks to chat panel
-  const result = await window.crackedclaw.chat.sendMessage(convId, text);
+  const result = await window.dopl.chat.sendMessage(convId, text);
 
   if (!result.ok) {
     console.error('[InputBar] Send error:', result.error);
@@ -221,7 +221,7 @@ tintSlider.addEventListener('input', (e) => {
 // Tint slider — commit + broadcast on release
 tintSlider.addEventListener('change', (e) => {
   const value = parseFloat(e.target.value);
-  window.crackedclaw.setGlassTint(value).catch(() => {});
+  window.dopl.setGlassTint(value).catch(() => {});
 });
 
 // Relink button — close settings and show setup screen
@@ -232,7 +232,7 @@ btnRelink.addEventListener('click', () => {
 
 // Toggle chat panel
 btnToggleChat.addEventListener('click', () => {
-  window.crackedclaw.toggleChatPanel();
+  window.dopl.toggleChatPanel();
 });
 
 // Audio (placeholder)
@@ -268,7 +268,7 @@ btnConnect.addEventListener('click', async () => {
   btnConnect.textContent = 'Connecting…';
   showSetupError('');
 
-  const result = await window.crackedclaw.connect(token);
+  const result = await window.dopl.connect(token);
   if (result.ok) {
     tokenInput.value = '';
     enterChatScreen();
@@ -301,7 +301,7 @@ function leaveChatScreen() {
 
 // ── IPC Listeners ──────────────────────────────────────────────────────────────
 
-window.crackedclaw.onStatusUpdate((data) => {
+window.dopl.onStatusUpdate((data) => {
   setConnectedIndicator(data.connected);
   // If explicitly disconnected (token cleared), go back to setup screen
   if (data.disconnected) {
@@ -309,17 +309,17 @@ window.crackedclaw.onStatusUpdate((data) => {
   }
 });
 
-window.crackedclaw.onChatPanelState((data) => {
+window.dopl.onChatPanelState((data) => {
   updateToggleButton(data.visible);
 });
 
 // When the chat panel selects a conversation, sync our local currentConversationId
-window.crackedclaw.onConversationSelected((data) => {
+window.dopl.onConversationSelected((data) => {
   currentConversationId = data.id || null;
 });
 
 // Keep tint in sync if changed from another source
-window.crackedclaw.onGlassTintChanged((value) => {
+window.dopl.onGlassTintChanged((value) => {
   applyGlassTint(value);
 });
 
@@ -328,8 +328,8 @@ window.crackedclaw.onGlassTintChanged((value) => {
 (async () => {
   await loadAndApplyGlassTint();
 
-  const state = await window.crackedclaw.getState();
-  const panelVisible = await window.crackedclaw.getChatPanelVisible();
+  const state = await window.dopl.getState();
+  const panelVisible = await window.dopl.getChatPanelVisible();
   updateToggleButton(panelVisible);
 
   if (state.token) {

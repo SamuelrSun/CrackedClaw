@@ -13,9 +13,9 @@ export function createAdminClient() {
 }
 
 /**
- * Validate the X-Companion-Token header by looking up the organization
- * whose openclaw_auth_token matches the provided token.
- * Returns { userId } (the org's owner_id) on success, null on failure.
+ * Validate the X-Companion-Token header by looking up the profile
+ * whose auth_token matches the provided token.
+ * Returns { userId } on success, null on failure.
  */
 export async function validateCompanionToken(
   request: NextRequest
@@ -26,13 +26,13 @@ export async function validateCompanionToken(
   const supabase = createAdminClient()
 
   const { data, error } = await supabase
-    .from('organizations')
-    .select('owner_id')
-    .eq('openclaw_auth_token', token)
+    .from('profiles')
+    .select('id')
+    .eq('auth_token', token)
     .limit(1)
     .single()
 
-  if (error || !data?.owner_id) return null
+  if (error || !data?.id) return null
 
-  return { userId: data.owner_id }
+  return { userId: data.id }
 }

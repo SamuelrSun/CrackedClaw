@@ -1,5 +1,5 @@
 /**
- * CrackedClaw Connect — Chat / Messaging
+ * Dopl Connect — Chat / Messaging
  *
  * Depends on globals from utils.js: escapeHtml, renderMarkdown, formatTimestamp
  * Depends on globals from app.js (DOM refs + state): messagesList, messagesArea,
@@ -11,7 +11,7 @@ async function loadMessages(conversationId) {
   messagesList.innerHTML = '';
   typingIndicator.classList.add('hidden');
 
-  const result = await window.crackedclaw.chat.loadMessages(conversationId);
+  const result = await window.dopl.chat.loadMessages(conversationId);
 
   // If user switched conversations while we were fetching, discard this response
   if (currentConversationId !== conversationId) return;
@@ -78,7 +78,7 @@ async function sendMessage() {
     try {
       // Use first ~50 chars of the message as the title
       const autoTitle = text.length > 50 ? text.slice(0, 50) + '…' : text;
-      const result = await window.crackedclaw.chat.createConversation(autoTitle);
+      const result = await window.dopl.chat.createConversation(autoTitle);
       if (!result.ok) {
         console.error('[Chat] Failed to auto-create conversation:', result.error);
         isStreaming = false;
@@ -130,8 +130,8 @@ async function sendMessage() {
 
   // Register stream chunk handler
   let streamedText = '';
-  window.crackedclaw.chat.removeStreamListeners();
-  window.crackedclaw.chat.onStreamChunk((chunk) => {
+  window.dopl.chat.removeStreamListeners();
+  window.dopl.chat.onStreamChunk((chunk) => {
     streamedText += chunk;
     // Update the streaming bubble with rendered markdown
     streamingBubble.innerHTML = renderMarkdown(streamedText);
@@ -139,7 +139,7 @@ async function sendMessage() {
   });
 
   // Send — this awaits the full response
-  const result = await window.crackedclaw.chat.sendMessage(currentConversationId, text);
+  const result = await window.dopl.chat.sendMessage(currentConversationId, text);
 
   // Finalize the bubble
   streamingBubble.classList.remove('streaming');
@@ -152,7 +152,7 @@ async function sendMessage() {
   streamingBubble = null;
 
   // Clean up listeners
-  window.crackedclaw.chat.removeStreamListeners();
+  window.dopl.chat.removeStreamListeners();
 
   scrollToBottom(true);
 

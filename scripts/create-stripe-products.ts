@@ -14,12 +14,13 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 async function main() {
-  console.log('Creating CrackedClaw Stripe products...\n');
+  console.log('Creating Dopl Stripe products...
+');
 
   // Create product
   const product = await stripe.products.create({
-    name: 'CrackedClaw Subscription',
-    description: 'AI assistant plans for CrackedClaw',
+    name: 'Dopl Subscription',
+    description: 'AI assistant plans for Dopl',
   });
   console.log('Product created:', product.id);
 

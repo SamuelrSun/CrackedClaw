@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('crackedclaw', {
+contextBridge.exposeInMainWorld('dopl', {
   // ── Window Controls (input bar resize) ────────────────────────────────────
   windowSetSize: (width, height, animate) => ipcRenderer.send('window-set-size', { width, height, animate }),
   windowGetSize: () => ipcRenderer.invoke('window-get-size'),

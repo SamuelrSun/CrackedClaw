@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import MemorySettingsClient from "./client";
 
-export const metadata = { title: "Memory — CrackedClaw" };
+export const metadata = { title: "Memory — Dopl" };
 
 export default async function MemorySettingsPage() {
   const supabase = await createClient();

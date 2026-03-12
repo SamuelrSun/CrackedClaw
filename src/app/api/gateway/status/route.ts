@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
   } catch { /* ignore */ }
 
   const statusInfo: GatewayStatusInfo = {
-    agentName: "CrackedClaw Agent",
+    agentName: "Dopl Agent",
     model: "Claude Sonnet 4",
     uptime: gatewayConnected ? "live" : "serverless",
     runtime: {

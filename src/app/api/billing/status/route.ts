@@ -7,11 +7,15 @@ export async function GET() {
   if (error) return error;
 
   const supabase = createAdminClient();
-  const { data: org } = await supabase
-    .from('organizations')
+  const { data: profile } = await supabase
+    .from('profiles')
     .select('plan, plan_status, current_period_end, stripe_customer_id')
-    .eq('owner_id', user.id)
+    .eq('id', user.id)
     .single();
 
-  return jsonResponse({ plan: org?.plan || 'free', status: org?.plan_status || 'active', periodEnd: org?.current_period_end });
+  return jsonResponse({
+    plan: profile?.plan || 'free',
+    status: profile?.plan_status || 'active',
+    periodEnd: profile?.current_period_end,
+  });
 }

@@ -1,9 +1,9 @@
 {
-  "name": "crackedclaw-connect",
+  "name": "dopl-connect",
   "version": "1.0.0",
-  "description": "CrackedClaw Companion - Connect your computer to CrackedClaw",
+  "description": "Dopl Companion - Connect your computer to Dopl",
   "main": "dist/index.js",
-  "bin": { "crackedclaw-connect": "./dist/index.js" },
+  "bin": { "dopl-connect": "./dist/index.js" },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",

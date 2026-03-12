@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireApiAuth, jsonResponse, errorResponse } from '@/lib/api-auth';
 import { createClient } from '@/lib/supabase/server';
-import { getOrganization } from '@/lib/supabase/data';
+import { getUserProfile } from '@/lib/supabase/data';
 import { buildWorkflowFromPrompt } from '@/lib/workflows/builder';
 import { initWorkflowMemory } from '@/lib/workflows/memory';
 import { createWorkflow } from '@/lib/supabase/data';
@@ -20,9 +20,9 @@ export async function POST(request: NextRequest) {
     let gatewayUrl = '';
     let authToken = '';
     try {
-      const org = await getOrganization(user.id);
-      gatewayUrl = org?.openclaw_gateway_url || '';
-      authToken = org?.openclaw_auth_token || '';
+      const profile = await getUserProfile(user.id);
+      gatewayUrl = profile?.gateway_url || '';
+      authToken = profile?.auth_token || '';
     } catch {}
 
     // Build structured workflow from prompt

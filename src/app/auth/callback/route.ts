@@ -10,23 +10,16 @@ async function getPostAuthRedirect(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return `${origin}/login`;
 
-    // Check if user has an organization (completed workspace setup)
-    const { data: org } = await supabase
-      .from("organizations")
-      .select("id")
-      .eq("owner_id", user.id)
-      .limit(1)
-      .maybeSingle();
-
-    if (org) return `${origin}/chat`;
-
+    // Check if user has completed onboarding via their profile
     const { data: profile } = await supabase
       .from("profiles")
-      .select("onboarding_completed")
+      .select("onboarding_completed, instance_id")
       .eq("id", user.id)
       .single();
 
-    if (profile?.onboarding_completed) return `${origin}/chat`;
+    if (profile?.onboarding_completed || profile?.instance_id) {
+      return `${origin}/chat`;
+    }
   } catch {
     // Default to onboarding on DB errors
   }

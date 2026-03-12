@@ -5,12 +5,12 @@ const commander_1 = require("commander");
 const client_1 = require("./client");
 const program = new commander_1.Command();
 program
-    .name('crackedclaw-connect')
-    .description('Connect your computer to CrackedClaw')
-    .requiredOption('--token <token>', 'Your CrackedClaw connection token')
+    .name('dopl-connect')
+    .description('Connect your computer to Dopl')
+    .requiredOption('--token <token>', 'Your Dopl connection token')
     .option('--server <url>', 'Server URL', 'wss://www.crackedclaw.com/api/companion/ws')
     .action(async (opts) => {
-    console.log('🔌 CrackedClaw Connect');
+    console.log('🔌 Dopl Connect');
     console.log('   Connecting to server...');
     const client = new client_1.CompanionClient(opts.server, opts.token);
     // Handle graceful shutdown

@@ -4,18 +4,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = 'force-dynamic';
 
-interface DeletionInfo {
-  has_organization: boolean;
-  organization_id?: string;
-  organization_name?: string;
-  is_owner: boolean;
-  has_other_members: boolean;
-  member_count?: number;
-  instance_id?: string;
-  instance_status?: string;
-  can_delete_instance: boolean;
-}
-
 /**
  * GET /api/account/delete
  * Returns information about what will be deleted
@@ -29,56 +17,36 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get deletion info using the database function
-    const { data, error } = await supabase.rpc("get_account_deletion_info", {
-      target_user_id: user.id,
-    });
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("instance_id, instance_status")
+      .eq("id", user.id)
+      .single();
 
-    if (error) {
-      console.error("Failed to get deletion info:", error);
-      
-      // Fallback: manually query the data
-      const { data: org } = await supabase
-        .from("organizations")
-        .select("*")
-        .eq("owner_id", user.id)
-        .single();
-      
-      let memberCount = 0;
-      if (org) {
-        const { count } = await supabase
-          .from("team_members")
-          .select("*", { count: "exact", head: true })
-          .eq("org_id", org.id)
-          .neq("user_id", user.id)
-          .not("accepted_at", "is", null);
-        memberCount = count || 0;
-      }
+    const dataToDelete = [
+      "All conversations and messages",
+      "All memories (semantic memory, secrets, learned context)",
+      "All AI agents and their chat history",
+      "All workflows and their run history",
+      "All integrations and OAuth tokens",
+      "All uploaded files and embeddings",
+      "All installed skills",
+      "Usage history and token records",
+      "Browser sessions and server-side data",
+      "Onboarding state and preferences",
+    ];
 
-      const deletionInfo: DeletionInfo = {
-        has_organization: !!org,
-        organization_id: org?.id,
-        organization_name: org?.name,
-        is_owner: !!org,
-        has_other_members: memberCount > 0,
-        member_count: memberCount,
-                instance_status: org?.openclaw_status,
-        can_delete_instance: !!org && memberCount === 0,
-      };
-
-      return NextResponse.json({
-        requiresConfirmation: true,
-        ...deletionInfo,
-        dataToDelete: getDataSummary(deletionInfo),
-      });
+    if (profile?.instance_id) {
+      dataToDelete.push("Your Dopl cloud instance");
     }
-
-    const deletionInfo = data as DeletionInfo;
 
     return NextResponse.json({
       requiresConfirmation: true,
-      ...deletionInfo,
-      dataToDelete: getDataSummary(deletionInfo),
+      has_organization: false,
+      instance_id: profile?.instance_id || null,
+      instance_status: profile?.instance_status || null,
+      can_delete_instance: !!profile?.instance_id,
+      dataToDelete,
     });
   } catch (error) {
     console.error("Get deletion info error:", error);
@@ -90,8 +58,7 @@ export async function GET() {
 
 /**
  * POST /api/account/delete
- * Performs the account deletion
- * Body: { confirmDeleteInstance?: boolean }
+ * Performs the account deletion using delete_user_cascade RPC
  */
 export async function POST(request: NextRequest) {
   try {
@@ -102,146 +69,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json().catch(() => ({}));
-    const { confirmDeleteInstance = false } = body;
-
-    // Get current state
-    const { data: org } = await supabase
-      .from("organizations")
-      .select("*")
-      .eq("owner_id", user.id)
+    // Get instance_id before deletion for cleanup
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("instance_id")
+      .eq("id", user.id)
       .single();
 
-    let memberCount = 0;
-    if (org) {
-      const { count } = await supabase
-        .from("team_members")
-        .select("*", { count: "exact", head: true })
-        .eq("org_id", org.id)
-        .neq("user_id", user.id)
-        .not("accepted_at", "is", null);
-      memberCount = count || 0;
-    }
+    const instanceId = profile?.instance_id;
 
-    // If user has other members in org, just leave the org (don't delete it)
-    if (org && memberCount > 0) {
-      // Transfer ownership first
-      const { data: newOwner } = await supabase
-        .from("team_members")
-        .select("id, user_id")
-        .eq("org_id", org.id)
-        .neq("user_id", user.id)
-        .not("accepted_at", "is", null)
-        .order("role", { ascending: true }) // admins first
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .single();
-
-      if (newOwner) {
-        // Update the new owner's role
-        await supabase
-          .from("team_members")
-          .update({ role: "owner" })
-          .eq("id", newOwner.id);
-
-        // Update organization owner
-        await supabase
-          .from("organizations")
-          .update({ owner_id: newOwner.user_id })
-          .eq("id", org.id);
-      }
-
-      // Remove user from team
-      await supabase
-        .from("team_members")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("org_id", org.id);
-    } else if (org) {
-      // Solo user - delete the organization
-      await supabase
-        .from("organizations")
-        .delete()
-        .eq("id", org.id);
-    }
-
-    // Delete user data
-    // Delete ALL user data — belt and suspenders with FK cascades
-    // Order matters: children before parents, catch errors so partial deletes don't abort
-    const deletions = [
-      // Agent system
-      supabase.from("agent_instances").delete().eq("user_id", user.id),  // agent_messages cascade via FK
-      supabase.from("agent_tasks").delete().eq("user_id", user.id),
-      // Chat
-      supabase.from("conversations").delete().eq("user_id", user.id),  // messages + conversation_links cascade via FK
-      // Memory (both old and new)
-      supabase.from("memories").delete().eq("user_id", user.id),
-      supabase.from("user_memory").delete().eq("user_id", user.id),
-      supabase.from("user_secrets").delete().eq("user_id", user.id),
-      // Files
-      supabase.from("file_chunks").delete().eq("user_id", user.id),
-      supabase.from("files").delete().eq("user_id", user.id),
-      // Integrations
-      supabase.from("user_integrations").delete().eq("user_id", user.id),
-      supabase.from("oauth_flows").delete().eq("user_id", user.id),
-      // Skills
-      supabase.from("installed_skills").delete().eq("user_id", user.id),
-      // Workflows
-      supabase.from("workflow_runs").delete().eq("user_id", user.id),
-      supabase.from("workflow_memory").delete().eq("user_id", user.id),
-      supabase.from("workflows").delete().eq("user_id", user.id),
-      // Usage & activity
-      supabase.from("activity_log").delete().eq("user_id", user.id),
-      supabase.from("token_usage").delete().eq("user_id", user.id),
-      supabase.from("usage_history").delete().eq("user_id", user.id),
-      supabase.from("daily_usage").delete().eq("user_id", user.id),
-      // Config
-      supabase.from("instructions").delete().eq("user_id", user.id),
-      supabase.from("user_gateways").delete().eq("user_id", user.id),
-      supabase.from("user_context").delete().eq("user_id", user.id),
-      supabase.from("onboarding_state").delete().eq("user_id", user.id),
-      // Profile last (other tables may FK to it)
-      supabase.from("profiles").delete().eq("id", user.id),
-    ];
-    // Run all deletes, don't let individual failures block the rest
-    await Promise.allSettled(deletions);
-
-
-
-
-
-
-
-
-
-    // Log the deletion (for audit)
-    try {
-      await supabase.from("account_deletion_log").insert({
-        user_id: user.id,
-        user_email: user.email,
-        organization_id: org?.id,
-        organization_name: org?.name,
-                        deletion_type: memberCount > 0 ? "leave_org" : org ? "delete_org" : "solo",
-        deleted_by: user.id,
-        metadata: {
-          member_count: memberCount,
-                  },
-      });
-    } catch (err) {
-      console.error("Failed to log deletion:", err);
-    }
-
-    // Clean up OpenClaw instance on DigitalOcean
-    if (org?.openclaw_instance_id) {
+    // Clean up OpenClaw instance on DigitalOcean (before user data deletion)
+    if (instanceId) {
       try {
         const provisioningUrl = process.env.PROVISIONING_API_URL;
         const provisioningSecret = process.env.PROVISIONING_API_SECRET;
         if (provisioningUrl && provisioningSecret) {
-          const deleteRes = await fetch(`${provisioningUrl}/api/instances/${org.openclaw_instance_id}`, {
+          const deleteRes = await fetch(`${provisioningUrl}/api/instances/${instanceId}`, {
             method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${provisioningSecret}`,
-            },
+            headers: { 'Authorization': `Bearer ${provisioningSecret}` },
             signal: AbortSignal.timeout(30_000),
           });
           if (!deleteRes.ok) {
@@ -253,7 +98,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Clean up DO server data (browser sessions, files, exec artifacts)
+    // Clean up DO server data
     try {
       const doUrl = process.env.DO_SERVER_URL;
       const doSecret = process.env.DO_SERVER_SECRET;
@@ -272,21 +117,38 @@ export async function POST(request: NextRequest) {
       console.error('DO server cleanup error (non-fatal):', err);
     }
 
-    // Sign out the user first
-    await supabase.auth.signOut();
-
-    // Delete from auth.users using admin client
+    // Use the database function to delete all user data atomically
     const adminClient = createAdminClient();
-    const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(user.id);
-    if (deleteAuthError) {
-      console.error("Failed to delete auth user:", deleteAuthError);
-      // Non-fatal: user data is gone, they just can't log in anyway since profile is deleted
+    const { data: result, error: deleteError } = await adminClient
+      .rpc('delete_user_cascade', { target_user_id: user.id });
+
+    if (deleteError) {
+      console.error('delete_user_cascade error:', deleteError);
+      // Fall back to manual deletion
+      const deletions = [
+        adminClient.from("agent_instances").delete().eq("user_id", user.id),
+        adminClient.from("conversations").delete().eq("user_id", user.id),
+        adminClient.from("memories").delete().eq("user_id", user.id),
+        adminClient.from("user_integrations").delete().eq("user_id", user.id),
+        adminClient.from("workflows").delete().eq("user_id", user.id),
+        adminClient.from("activity_log").delete().eq("user_id", user.id),
+        adminClient.from("instructions").delete().eq("user_id", user.id),
+        adminClient.from("user_gateways").delete().eq("user_id", user.id),
+        adminClient.from("profiles").delete().eq("id", user.id),
+      ];
+      await Promise.allSettled(deletions);
+      await adminClient.auth.admin.deleteUser(user.id);
+    } else if (result && typeof result === 'object' && 'success' in result && !result.success) {
+      console.error('delete_user_cascade returned failure:', result);
+      return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 });
     }
+
+    // Sign out
+    await supabase.auth.signOut();
 
     return NextResponse.json({
       success: true,
       message: "Account deleted successfully",
-            organizationDeleted: !!(org && memberCount === 0),
     });
   } catch (error) {
     console.error("Delete account error:", error);
@@ -294,35 +156,4 @@ export async function POST(request: NextRequest) {
       error: error instanceof Error ? error.message : "Internal server error",
     }, { status: 500 });
   }
-}
-
-/**
- * Helper to generate data deletion summary
- */
-function getDataSummary(info: DeletionInfo): string[] {
-  const items = [
-    "All conversations and messages",
-    "All memories (semantic memory, secrets, learned context)",
-    "All AI agents and their chat history",
-    "All workflows and their run history",
-    "All integrations and OAuth tokens",
-    "All uploaded files and embeddings",
-    "All installed skills",
-    "Usage history and token records",
-    "Browser sessions and server-side data",
-    "Onboarding state and preferences",
-  ];
-
-  if (info.has_organization) {
-    if (info.has_other_members) {
-      items.push("Your team membership (organization will be transferred)");
-    } else {
-      items.push("Your organization");
-      if (info.instance_id) {
-        items.push("Your CrackedClaw cloud instance");
-      }
-    }
-  }
-
-  return items;
 }

@@ -103,7 +103,7 @@ export function WhatsAppSetupModal({
 
             <div className="space-y-3">
               <p className="text-sm text-forest leading-relaxed">
-                Link your WhatsApp account to CrackedClaw using the same QR code
+                Link your WhatsApp account to Dopl using the same QR code
                 pairing method as WhatsApp Web.
               </p>
               <div className="bg-forest/5 border border-[rgba(58,58,56,0.1)] p-4">

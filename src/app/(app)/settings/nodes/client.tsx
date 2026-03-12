@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { Organization } from "@/lib/supabase/data";
+import type { UserProfile } from "@/lib/supabase/data";
 import { 
   ArrowLeft, 
   Monitor, 
@@ -46,7 +46,7 @@ interface NodeCapabilities {
 }
 
 interface NodesPageClientProps {
-  organization: Organization | null;
+  profile: UserProfile | null;
 }
 
 // Helper to mask token
@@ -85,7 +85,7 @@ function parseGatewayUrl(url: string | null): { host: string; port: string } {
   }
 }
 
-export default function NodesPageClient({ organization }: NodesPageClientProps) {
+export default function NodesPageClient({ profile }: NodesPageClientProps) {
   // State
   const [pendingNodes, setPendingNodes] = useState<PendingNode[]>([]);
   const [connectedNodes, setConnectedNodes] = useState<ConnectedNode[]>([]);
@@ -103,11 +103,11 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
   const [copiedConnectionToken, setCopiedConnectionToken] = useState(false);
 
   // Derived values
-  const { host, port } = parseGatewayUrl(organization?.openclaw_gateway_url || null);
-  const token = organization?.openclaw_auth_token || "";
+  const { host, port } = parseGatewayUrl(profile?.gateway_url || null);
+  const token = profile?.auth_token || "";
 
-  // Connection is handled via the CrackedClaw Connect desktop app
-  const connectionCommand = `Use CrackedClaw Connect app — download from crackedclaw.com/connect`;
+  // Connection is handled via the Dopl Connect desktop app
+  const connectionCommand = `Use Dopl Connect app — download from crackedclaw.com/connect`;
 
   // Fetch pending nodes
   const fetchPendingNodes = useCallback(async () => {
@@ -269,7 +269,7 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
               Nodes
             </h1>
             <p className="font-mono text-[10px] uppercase tracking-wide text-grid/50 mt-1">
-              Connect your Mac via CrackedClaw Connect
+              Connect your Mac via Dopl Connect
             </p>
           </div>
           <Button
@@ -289,7 +289,7 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
         <Card label="Desktop App Token" accentColor="#FF6B6B" bordered>
           <div className="mt-2 space-y-4">
             <span className="font-mono text-[11px] text-grid/60">
-              For CrackedClaw Connect (Desktop App)
+              For Dopl Connect (Desktop App)
             </span>
 
             {/* Token display */}
@@ -341,7 +341,7 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
                 className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-forest hover:text-mint transition-colors"
               >
                 <ExternalLink className="w-3 h-3" />
-                Download CrackedClaw Connect
+                Download Dopl Connect
               </a>
             </div>
           </div>
@@ -364,7 +364,7 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
                   Method
                 </span>
                 <span className="font-mono text-xs text-forest">
-                  CrackedClaw Connect app
+                  Dopl Connect app
                 </span>
               </div>
               <div>
@@ -417,7 +417,7 @@ export default function NodesPageClient({ organization }: NodesPageClientProps) 
                 className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-forest hover:text-mint transition-colors"
               >
                 <ExternalLink className="w-3 h-3" />
-                Download CrackedClaw Connect
+                Download Dopl Connect
               </a>
             </div>
           </div>

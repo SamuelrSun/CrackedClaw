@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
-export const metadata = { title: "Onboarding — CrackedClaw" };
+export const metadata = { title: "Onboarding — Dopl" };
 export const dynamic = "force-dynamic";
 
 export default async function OnboardingPage() {

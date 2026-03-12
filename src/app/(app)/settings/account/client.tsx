@@ -19,12 +19,6 @@ interface UserInfo {
 
 interface DeletionInfo {
   requiresConfirmation: boolean;
-  has_organization: boolean;
-  organization_id?: string;
-  organization_name?: string;
-  is_owner: boolean;
-  has_other_members: boolean;
-  member_count?: number;
   dataToDelete: string[];
 }
 
@@ -223,15 +217,6 @@ export default function AccountSettingsClient({ user }: AccountSettingsClientPro
                       ))}
                     </ul>
                   </div>
-
-                  {deletionInfo.has_other_members && (
-                    <div className="p-3 bg-amber-50 border border-amber-300">
-                      <p className="font-mono text-[11px] text-amber-800">
-                        <strong>Note:</strong> Your organization has {deletionInfo.member_count} other
-                        member(s). Ownership will be transferred to another team member.
-                      </p>
-                    </div>
-                  )}
 
                   <div>
                     <label className="font-mono text-[11px] text-grid/70 block mb-2">

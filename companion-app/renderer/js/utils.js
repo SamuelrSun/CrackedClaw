@@ -1,5 +1,5 @@
 /**
- * CrackedClaw Connect — Renderer Utilities
+ * Dopl Connect — Renderer Utilities
  * Pure functions, no dependencies on DOM or state.
  */
 

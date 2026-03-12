@@ -208,7 +208,7 @@ function updateTrayMenu(connected) {
 function createTray() {
   const icon = createTrayIcon(false);
   tray = new Tray(icon);
-  tray.setToolTip('CrackedClaw Connect');
+  tray.setToolTip('Dopl Connect');
   updateTrayMenu(false);
 
   tray.on('click', () => {

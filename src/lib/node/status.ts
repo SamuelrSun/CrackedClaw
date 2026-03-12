@@ -4,7 +4,7 @@
  * Uses WebSocket JSON-RPC (the gateway doesn't expose REST endpoints for node status).
  */
 
-import { getOrganization } from '@/lib/supabase/data';
+import { getUserProfile } from '@/lib/supabase/data';
 import WebSocket from 'ws';
 
 export interface NodeStatus {
@@ -74,8 +74,8 @@ async function queryGatewayNodes(gatewayUrl: string, authToken: string): Promise
     ws.on('open', () => {
       connectReqId = sendReq('connect', {
         client: {
-          id: 'crackedclaw-web',
-          displayName: 'CrackedClaw Web',
+          id: 'dopl-web',
+          displayName: 'Dopl Web',
           mode: 'backend',
           version: '1.0.0',
           platform: 'web',
@@ -133,14 +133,14 @@ export async function getNodeStatus(userId: string): Promise<NodeStatus> {
   const offline: NodeStatus = { isOnline: false, capabilities: [], hasBrowser: false, nodes: [] };
 
   try {
-    const organization = await getOrganization(userId);
-    if (!organization?.openclaw_gateway_url || !organization?.openclaw_auth_token) {
+    const profile = await getUserProfile(userId);
+    if (!profile?.gateway_url || !profile?.auth_token) {
       return offline;
     }
 
     const { paired } = await queryGatewayNodes(
-      organization.openclaw_gateway_url,
-      organization.openclaw_auth_token
+      profile.gateway_url,
+      profile.auth_token
     );
 
     const allNodes = paired.map(n => ({

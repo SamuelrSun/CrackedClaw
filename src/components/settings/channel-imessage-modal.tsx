@@ -108,7 +108,7 @@ export function IMessageSetupModal({
             <div className="space-y-3">
               <p className="text-sm text-forest leading-relaxed">
                 iMessage integration requires the{" "}
-                <span className="font-bold">CrackedClaw Connect</span> desktop
+                <span className="font-bold">Dopl Connect</span> desktop
                 companion app running on a Mac with an active iMessage account.
               </p>
 
@@ -120,7 +120,7 @@ export function IMessageSetupModal({
                   {[
                     "macOS 13 (Ventura) or later",
                     "Signed into iMessage on your Mac",
-                    "CrackedClaw Connect companion app installed",
+                    "Dopl Connect companion app installed",
                     "Your Mac must stay powered on and connected",
                   ].map((item, i) => (
                     <li
@@ -172,7 +172,7 @@ export function IMessageSetupModal({
 
             <div className="space-y-4">
               <p className="text-sm text-forest leading-relaxed">
-                Download and install the CrackedClaw Connect companion app on
+                Download and install the Dopl Connect companion app on
                 your Mac, then sign in with your account.
               </p>
 
@@ -184,7 +184,7 @@ export function IMessageSetupModal({
                 </div>
                 <div>
                   <p className="font-header text-sm font-bold text-forest">
-                    CrackedClaw Connect for macOS
+                    Dopl Connect for macOS
                   </p>
                   <p className="font-mono text-[10px] text-grid/50">
                     Version 1.0.0 — Universal Binary (Apple Silicon + Intel)
@@ -273,7 +273,7 @@ export function IMessageSetupModal({
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-2 h-2 block bg-mint" />
                 <span className="font-mono text-[11px] font-bold text-forest">
-                  CrackedClaw Connect is active
+                  Dopl Connect is active
                 </span>
               </div>
               <p className="font-mono text-[10px] text-grid/60">
@@ -320,7 +320,7 @@ export function IMessageSetupModal({
                   iMessage Connected
                 </h3>
                 <p className="text-[13px] text-grid/60 mt-1 max-w-[280px]">
-                  Your iMessage account is now linked through CrackedClaw
+                  Your iMessage account is now linked through Dopl
                   Connect. Contact and group configuration is available in
                   channel settings.
                 </p>

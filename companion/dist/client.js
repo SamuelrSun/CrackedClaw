@@ -19,7 +19,7 @@ class CompanionClient {
             const url = `${this.serverUrl}?token=${this.token}`;
             this.ws = new ws_1.default(url);
             this.ws.on('open', () => {
-                console.log('✅ Connected to CrackedClaw');
+                console.log('✅ Connected to Dopl');
                 this.send({
                     id: 'init',
                     type: 'capabilities',
@@ -45,7 +45,7 @@ class CompanionClient {
                 }
             });
             this.ws.on('close', () => {
-                console.log('🔌 Disconnected from CrackedClaw');
+                console.log('🔌 Disconnected from Dopl');
                 if (this.shouldReconnect) {
                     this.reconnect();
                 }

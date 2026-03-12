@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getOrganization } from "@/lib/supabase/data";
+import { getUserProfile } from "@/lib/supabase/data";
 
 export const dynamic = 'force-dynamic';
 
@@ -20,15 +20,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "nodeId is required" }, { status: 400 });
     }
 
-    const organization = await getOrganization(user.id);
-    if (!organization?.openclaw_gateway_url || !organization?.openclaw_auth_token) {
+    const profile = await getUserProfile(user.id);
+    if (!profile?.gateway_url || !profile?.auth_token) {
       return NextResponse.json({ error: "No gateway configured" }, { status: 400 });
     }
 
     // Fetch node description from the gateway
-    const res = await fetch(`${organization.openclaw_gateway_url}/api/nodes/describe?node=${nodeId}`, {
+    const res = await fetch(`${profile.gateway_url}/api/nodes/describe?node=${nodeId}`, {
       headers: {
-        "Authorization": `Bearer ${organization.openclaw_auth_token}`,
+        "Authorization": `Bearer ${profile.auth_token}`,
         "Content-Type": "application/json",
       },
     });

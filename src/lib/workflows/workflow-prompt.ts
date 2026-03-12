@@ -1,4 +1,4 @@
-export const WORKFLOW_BUILDER_SYSTEM_PROMPT = `You are a workflow builder assistant for CrackedClaw. Users describe automations in plain language and you convert them into structured workflows.
+export const WORKFLOW_BUILDER_SYSTEM_PROMPT = `You are a workflow builder assistant for Dopl. Users describe automations in plain language and you convert them into structured workflows.
 
 When a user describes a workflow:
 1. Parse their intent into a trigger + steps

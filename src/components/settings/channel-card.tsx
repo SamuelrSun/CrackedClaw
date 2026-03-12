@@ -50,7 +50,7 @@ const channelConfig: Record<
     name: "iMessage",
     icon: <Smartphone className="w-5 h-5" />,
     color: "#007AFF",
-    description: "Requires CrackedClaw Connect desktop companion app",
+    description: "Requires Dopl Connect desktop companion app",
   },
   discord: {
     name: "Discord",

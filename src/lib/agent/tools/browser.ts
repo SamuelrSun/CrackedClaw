@@ -20,7 +20,7 @@ export const browserTool: ToolDefinition = {
   },
   async execute(_input: unknown, _context: AgentContext): Promise<unknown> {
     return {
-      error: 'Browser automation requires a connected Companion device. The user needs to install CrackedClaw Connect and pair their machine. Browser commands are executed locally on the user\'s device via OpenClaw node pairing — not on the server.',
+      error: 'Browser automation requires a connected Companion device. The user needs to install Dopl Connect and pair their machine. Browser commands are executed locally on the user\'s device via OpenClaw node pairing — not on the server.',
       hint: 'Tell the user to go to Settings → Devices to set up their Companion connection.',
     };
   },

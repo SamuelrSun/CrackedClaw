@@ -1,5 +1,5 @@
 /**
- * CrackedClaw Connect — App Glue
+ * Dopl Connect — App Glue
  *
  * Loads LAST. Declares all DOM references and state as globals,
  * binds all event listeners, and runs the init IIFE.
@@ -65,7 +65,7 @@ function applyGlassTint(value) {
 
 async function loadAndApplyGlassTint() {
   try {
-    const saved = await window.crackedclaw.getGlassTint();
+    const saved = await window.dopl.getGlassTint();
     applyGlassTint(saved);
   } catch (e) {
     // Fallback: use CSS default (0.15)
@@ -119,7 +119,7 @@ async function setChatPanelVisible(visible) {
 
   if (visible) {
     // Expand back to saved height
-    window.crackedclaw.windowSetSize(null, expandedHeight, true);
+    window.dopl.windowSetSize(null, expandedHeight, true);
   } else {
     // Close tint row first so expandedHeight stays clean for the next expand
     if (tintRowOpen) {
@@ -128,12 +128,12 @@ async function setChatPanelVisible(visible) {
       btnTint.classList.remove('active');
     }
     // Save current height (before collapse) so we can restore it on expand
-    const size = await window.crackedclaw.windowGetSize();
+    const size = await window.dopl.windowGetSize();
     expandedHeight = size[1];
     // Measure after DOM reflects panel-hidden, then animate to exact input-bar height
     requestAnimationFrame(() => {
       const h = measureCollapsedHeight();
-      window.crackedclaw.windowSetSize(null, h, true);
+      window.dopl.windowSetSize(null, h, true);
     });
   }
 }
@@ -153,13 +153,13 @@ function closeDropdown() {
 // ── Window Controls ───────────────────────────────────────────────────────────
 
 document.querySelectorAll('.wc-close').forEach(btn => {
-  btn.addEventListener('click', () => window.crackedclaw.windowClose());
+  btn.addEventListener('click', () => window.dopl.windowClose());
 });
 document.querySelectorAll('.wc-minimize').forEach(btn => {
-  btn.addEventListener('click', () => window.crackedclaw.windowMinimize());
+  btn.addEventListener('click', () => window.dopl.windowMinimize());
 });
 document.querySelectorAll('.wc-zoom').forEach(btn => {
-  btn.addEventListener('click', () => window.crackedclaw.windowZoom());
+  btn.addEventListener('click', () => window.dopl.windowZoom());
 });
 
 // ── Event Bindings ─────────────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ btnTint.addEventListener('click', (e) => {
       requestAnimationFrame(() => {
         const rowH = tintRow.offsetHeight;
         expandedHeight = expandedHeight + rowH;
-        window.crackedclaw.windowSetSize(null, expandedHeight, true);
+        window.dopl.windowSetSize(null, expandedHeight, true);
       });
     }
   } else {
@@ -186,7 +186,7 @@ btnTint.addEventListener('click', (e) => {
     tintRow.classList.add('hidden');
     if (chatPanelVisible) {
       expandedHeight = Math.max(200, expandedHeight - rowH);
-      window.crackedclaw.windowSetSize(null, expandedHeight, true);
+      window.dopl.windowSetSize(null, expandedHeight, true);
     }
   }
 });
@@ -198,7 +198,7 @@ tintSlider.addEventListener('input', (e) => {
 
 tintSlider.addEventListener('change', (e) => {
   const value = parseFloat(e.target.value);
-  window.crackedclaw.setGlassTint(value).catch(() => {});
+  window.dopl.setGlassTint(value).catch(() => {});
 });
 
 // Chat panel toggle
@@ -282,7 +282,7 @@ btnConnect.addEventListener('click', async () => {
   btnConnect.textContent = 'Connecting…';
   showSetupError('');
 
-  const result = await window.crackedclaw.connect(token);
+  const result = await window.dopl.connect(token);
 
   if (result.ok) {
     tokenInput.value = '';
@@ -297,7 +297,7 @@ btnConnect.addEventListener('click', async () => {
 
 // Disconnect button
 btnDisconnect.addEventListener('click', async () => {
-  await window.crackedclaw.disconnect();
+  await window.dopl.disconnect();
   leaveChatScreen();
 });
 
@@ -332,7 +332,7 @@ function leaveChatScreen() {
 
 // ── Status Updates ─────────────────────────────────────────────────────────────
 
-window.crackedclaw.onStatusUpdate((data) => {
+window.dopl.onStatusUpdate((data) => {
   setConnectedIndicator(data.connected);
 });
 
@@ -342,7 +342,7 @@ window.crackedclaw.onStatusUpdate((data) => {
   // Load and apply saved glass tint preference immediately
   await loadAndApplyGlassTint();
 
-  const state = await window.crackedclaw.getState();
+  const state = await window.dopl.getState();
 
   if (state.token) {
     // We have a stored token — go straight to chat

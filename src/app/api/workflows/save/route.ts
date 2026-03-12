@@ -19,22 +19,9 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
 
-    // Get org_id if available
-    let orgId: string | null = null;
-    try {
-      const { data: orgData } = await supabase
-        .from("organizations")
-        .select("id")
-        .eq("owner_id", user.id)
-        .limit(1)
-        .single();
-      orgId = orgData?.id || null;
-    } catch { /* org optional */ }
-
     const now = new Date().toISOString();
     const workflowData = {
       user_id: user.id,
-      org_id: orgId,
       name,
       description: description || "",
       trigger_config: trigger,

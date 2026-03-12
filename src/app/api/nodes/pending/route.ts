@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getOrganization } from "@/lib/supabase/data";
+import { getUserProfile } from "@/lib/supabase/data";
 
 export const dynamic = 'force-dynamic';
 
@@ -11,13 +11,8 @@ const PROVISIONING_API_SECRET = process.env.PROVISIONING_API_SECRET;
  * GET /api/nodes/pending
  *
  * Lists pending node pairing requests for the user's gateway instance.
- *
- * OpenClaw gateways don't expose REST endpoints for node pairing — it's all
- * WebSocket JSON-RPC. This route proxies through the provisioning server on the
- * VPS, which can open a short-lived WS connection to call `node.pair.list`.
- *
- * Falls back to empty list if provisioning server is unavailable or doesn't
- * support this endpoint yet.
+ * Proxies through the provisioning server which can open a short-lived WS
+ * connection to call `node.pair.list`.
  */
 export async function GET() {
   try {
@@ -28,8 +23,8 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const organization = await getOrganization(user.id);
-    if (!organization?.openclaw_instance_id || !organization?.openclaw_auth_token) {
+    const profile = await getUserProfile(user.id);
+    if (!profile?.instance_id || !profile?.auth_token) {
       return NextResponse.json({ nodes: [] });
     }
 
@@ -37,7 +32,7 @@ export async function GET() {
     if (PROVISIONING_API_URL) {
       try {
         const res = await fetch(
-          `${PROVISIONING_API_URL}/instances/${organization.openclaw_instance_id}/nodes/pending`,
+          `${PROVISIONING_API_URL}/instances/${profile.instance_id}/nodes/pending`,
           {
             headers: {
               "Content-Type": "application/json",
@@ -68,7 +63,6 @@ export async function GET() {
           return NextResponse.json({ nodes });
         }
 
-        // Provisioning server returned error — fall through to empty response
         console.warn(
           "Provisioning nodes/pending returned non-OK:",
           res.status,
@@ -79,10 +73,6 @@ export async function GET() {
       }
     }
 
-    // Fallback: return empty list.
-    // Auto-approve via companion app handles most cases.
-    // If provisioning server doesn't support this endpoint yet, the UI will just
-    // show an empty device list (not broken, just no manual approval available).
     return NextResponse.json({ nodes: [] });
   } catch (err) {
     console.error("Error fetching pending nodes:", err);
@@ -92,10 +82,7 @@ export async function GET() {
 
 /**
  * POST /api/nodes/pending
- *
  * Approve or reject a pending node pairing request.
- * Proxies through the provisioning server which calls `node.pair.approve`
- * or `node.pair.reject` via WebSocket on the gateway.
  */
 export async function POST(request: Request) {
   try {
@@ -106,8 +93,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const organization = await getOrganization(user.id);
-    if (!organization?.openclaw_instance_id || !organization?.openclaw_auth_token) {
+    const profile = await getUserProfile(user.id);
+    if (!profile?.instance_id || !profile?.auth_token) {
       return NextResponse.json({ error: "No gateway configured" }, { status: 400 });
     }
 
@@ -124,9 +111,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Proxy the approve/reject through the provisioning server
     const res = await fetch(
-      `${PROVISIONING_API_URL}/instances/${organization.openclaw_instance_id}/nodes/${action}`,
+      `${PROVISIONING_API_URL}/instances/${profile.instance_id}/nodes/${action}`,
       {
         method: "POST",
         headers: {

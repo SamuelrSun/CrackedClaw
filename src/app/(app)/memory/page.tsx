@@ -4,7 +4,7 @@ import { MemoryClient } from './client';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata = { title: "Memory — CrackedClaw" };
+export const metadata = { title: "Memory — Dopl" };
 
 export default async function MemoryPage() {
   const supabase = await createClient();

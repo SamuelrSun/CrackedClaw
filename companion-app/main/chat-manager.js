@@ -120,7 +120,7 @@ class ChatManager {
       {
         role: 'system',
         content:
-          'You are a helpful AI assistant running as part of CrackedClaw. ' +
+          'You are a helpful AI assistant running as part of Dopl. ' +
           'Be concise, accurate, and friendly. ' +
           'Today\'s date is ' + new Date().toLocaleDateString('en-US', {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',

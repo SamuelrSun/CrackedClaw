@@ -1,7 +1,7 @@
 import ChannelsSettingsClient from "./client";
 
 export const metadata = {
-  title: "Channel Settings - CrackedClaw",
+  title: "Channel Settings - Dopl",
 };
 
 export default function ChannelsSettingsPage() {

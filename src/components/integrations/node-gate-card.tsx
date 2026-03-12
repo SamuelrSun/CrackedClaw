@@ -57,7 +57,7 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
     if (!nodeStatus?.isOnline || !loginUrl) return;
     setError(null);
     try {
-      // Open the login URL directly in a new tab — CrackedClaw Connect handles browser automation
+      // Open the login URL directly in a new tab — Dopl Connect handles browser automation
       window.open(loginUrl, '_blank', 'noopener,noreferrer');
       onLaunch?.();
     } catch {
@@ -148,8 +148,8 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
           <p className="font-mono text-[10px] font-bold text-amber-800">Here&apos;s how to connect:</p>
           <div className="space-y-2">
             {[
-              { n: 1, text: 'Download CrackedClaw Connect from crackedclaw.com/connect' },
-              { n: 2, text: 'Open the app and sign in with your CrackedClaw account' },
+              { n: 1, text: 'Download Dopl Connect from crackedclaw.com/connect' },
+              { n: 2, text: 'Open the app and sign in with your Dopl account' },
               { n: 3, text: 'Leave the app running in the background — that\'s it!' },
             ].map(step => (
               <div key={step.n} className="flex items-start gap-2">

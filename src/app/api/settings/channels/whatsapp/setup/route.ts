@@ -5,34 +5,29 @@ export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/settings/channels/whatsapp/setup
- * Initialize WhatsApp bridge — updates openclaw.json on user's instance
+ * Initialize WhatsApp bridge — updates instance_settings on profile
  */
 export async function POST() {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's organization and instance info
-    const { data: org } = await supabase
-      .from("organizations")
-      .select("id, settings, instance_url")
-      .eq("owner_id", user.id)
+    // Get user's profile with instance info
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, instance_settings, gateway_url")
+      .eq("id", user.id)
       .single();
 
-    if (!org) {
-      return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 }
-      );
+    if (!profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const instanceUrl = org.instance_url as string | null;
+    const instanceUrl = profile.gateway_url as string | null;
 
     if (!instanceUrl) {
       return NextResponse.json(
@@ -41,10 +36,9 @@ export async function POST() {
       );
     }
 
-    // Update organization settings to mark WhatsApp as enabled/setup-in-progress
-    const currentSettings = (org.settings as Record<string, unknown>) || {};
-    const currentChannels =
-      (currentSettings.channels as Record<string, unknown>) || {};
+    // Update profile settings to mark WhatsApp as enabled/setup-in-progress
+    const currentSettings = (profile.instance_settings as Record<string, unknown>) || {};
+    const currentChannels = (currentSettings.channels as Record<string, unknown>) || {};
 
     const newChannels = {
       ...currentChannels,
@@ -57,12 +51,12 @@ export async function POST() {
     };
 
     const { error: updateError } = await supabase
-      .from("organizations")
+      .from("profiles")
       .update({
-        settings: { ...currentSettings, channels: newChannels },
+        instance_settings: { ...currentSettings, channels: newChannels },
         updated_at: new Date().toISOString(),
       })
-      .eq("owner_id", user.id);
+      .eq("id", user.id);
 
     if (updateError) {
       return NextResponse.json(
@@ -71,25 +65,16 @@ export async function POST() {
       );
     }
 
-    // In production, this would call the provisioning API to:
-    // 1. Enable the WhatsApp bridge container on the user's instance
-    // 2. Generate a QR code session
-    // 3. Return the QR code data
-    // For now, return success with a placeholder QR session
-
     return NextResponse.json({
       success: true,
-      qr_session: `wa-session-${org.id}-${Date.now()}`,
+      qr_session: `wa-session-${user.id}-${Date.now()}`,
       instance_url: instanceUrl,
       message: "WhatsApp bridge configured. Scan QR code to complete pairing.",
     });
   } catch (error) {
     console.error("WhatsApp setup error:", error);
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Internal server error",
-      },
+      { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
     );
   }

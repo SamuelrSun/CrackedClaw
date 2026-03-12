@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — CrackedClaw",
-  description: "CrackedClaw Terms of Service",
+  title: "Terms of Service — Dopl",
+  description: "Dopl Terms of Service",
 };
 
 export default function TermsPage() {
@@ -13,7 +13,7 @@ export default function TermsPage() {
       <nav className="border-b border-[rgba(58,58,56,0.15)] px-6 py-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <Link href="/" className="font-mono text-sm font-semibold tracking-tight hover:opacity-80 transition-opacity">
-            CrackedClaw
+            Dopl
           </Link>
           <Link href="/login" className="font-mono text-xs text-grid/60 hover:text-forest transition-colors">
             Sign in →
@@ -30,14 +30,14 @@ export default function TermsPage() {
           <section>
             <h2 className="text-base font-semibold mb-3 text-forest">1. Acceptance of Terms</h2>
             <p>
-              By accessing or using CrackedClaw (&ldquo;Service&rdquo;), operated by CrackedClaw Inc. (&ldquo;Company,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;), you agree to be bound by these Terms of Service. If you do not agree, do not use the Service.
+              By accessing or using Dopl (&ldquo;Service&rdquo;), operated by Dopl Inc. (&ldquo;Company,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;), you agree to be bound by these Terms of Service. If you do not agree, do not use the Service.
             </p>
           </section>
 
           <section>
             <h2 className="text-base font-semibold mb-3 text-forest">2. Description of Service</h2>
             <p>
-              CrackedClaw provides a cloud-hosted AI agent platform that allows users to deploy, manage, and interact with AI agents. The Service includes agent provisioning, conversation history, memory management, workflow automation, and integrations with third-party services.
+              Dopl provides a cloud-hosted AI agent platform that allows users to deploy, manage, and interact with AI agents. The Service includes agent provisioning, conversation history, memory management, workflow automation, and integrations with third-party services.
             </p>
           </section>
 
@@ -103,8 +103,8 @@ export default function TermsPage() {
             <h2 className="text-base font-semibold mb-3 text-forest">13. Contact</h2>
             <p>
               Questions? Email{" "}
-              <a href="mailto:legal@crackedclaw.com" className="underline hover:text-mint transition-colors">
-                legal@crackedclaw.com
+              <a href="mailto:legal@dopl.com" className="underline hover:text-mint transition-colors">
+                legal@dopl.com
               </a>
             </p>
           </section>
@@ -113,7 +113,7 @@ export default function TermsPage() {
 
       <footer className="border-t border-[rgba(58,58,56,0.1)] px-6 py-8 mt-16">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <p className="font-mono text-[10px] text-grid/40">© 2025 CrackedClaw Inc.</p>
+          <p className="font-mono text-[10px] text-grid/40">© 2025 Dopl Inc.</p>
           <div className="flex items-center gap-6">
             <Link href="/terms" className="font-mono text-[10px] text-grid/40 hover:text-forest transition-colors">Terms</Link>
             <Link href="/privacy" className="font-mono text-[10px] text-grid/40 hover:text-forest transition-colors">Privacy</Link>

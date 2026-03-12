@@ -73,7 +73,7 @@ export const webFetchTool: ToolDefinition = {
     const { url, maxChars = 20_000 } = input as FetchInput;
 
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 CrackedClaw/1.0' },
+      headers: { 'User-Agent': 'Mozilla/5.0 Dopl/1.0' },
       signal: AbortSignal.timeout(15_000),
     });
 

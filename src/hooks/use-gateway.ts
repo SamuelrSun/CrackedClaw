@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getActiveWorkspaceId } from "@/components/layout/workspace-switcher";
+
 import type { 
   GatewayStatusInfo, 
   GatewayStatusResponse,
@@ -191,9 +191,7 @@ export function useGateway(reconnectConfig?: Partial<ReconnectConfig>): UseGatew
     setError(null);
     
     try {
-      const orgId = getActiveWorkspaceId();
-      const statusUrl = orgId ? `/api/gateway/status?org_id=${orgId}` : '/api/gateway/status';
-      const res = await fetch(statusUrl);
+      const res = await fetch('/api/gateway/status');
       const data: GatewayStatusResponse = await res.json();
       
       if (data.connected && data.status) {

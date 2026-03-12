@@ -41,13 +41,13 @@ export async function GET() {
     const supabase = createAdminClient();
 
     // Get user's plan
-    const { data: org } = await supabase
-      .from('organizations')
+    const { data: profile } = await supabase
+      .from('profiles')
       .select('plan')
-      .eq('owner_id', user.id)
+      .eq('id', user.id)
       .single();
 
-    const planSlug = org?.plan || 'free';
+    const planSlug = profile?.plan || 'free';
     const { monthly: monthlyLimit, weekly: weeklyLimit } = getTokenLimit(planSlug);
 
     const now = new Date();

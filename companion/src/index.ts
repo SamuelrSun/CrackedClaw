@@ -5,12 +5,12 @@ import { CompanionClient } from './client';
 const program = new Command();
 
 program
-  .name('crackedclaw-connect')
-  .description('Connect your computer to CrackedClaw')
-  .requiredOption('--token <token>', 'Your CrackedClaw connection token')
+  .name('dopl-connect')
+  .description('Connect your computer to Dopl')
+  .requiredOption('--token <token>', 'Your Dopl connection token')
   .option('--server <url>', 'Server URL', 'wss://www.crackedclaw.com/api/companion/ws')
   .action(async (opts: { token: string; server: string }) => {
-    console.log('🔌 CrackedClaw Connect');
+    console.log('🔌 Dopl Connect');
     console.log('   Connecting to server...');
     const client = new CompanionClient(opts.server, opts.token);
 

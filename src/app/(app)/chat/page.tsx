@@ -4,7 +4,7 @@ import ChatPageContent from "./page-content";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Chat — CrackedClaw" };
+export const metadata = { title: "Chat — Dopl" };
 
 export default async function ChatPage() {
   const supabase = await createClient();

@@ -236,7 +236,7 @@ function LoginContent() {
             <span className="text-white font-header text-lg font-bold">CC</span>
           </div>
           <h1 className="font-header text-xl font-bold text-forest mb-2">
-            Welcome to CrackedClaw
+            Welcome to Dopl
           </h1>
           <p className="font-mono text-[11px] text-grid/60 uppercase tracking-wide">
             AI Agent Management Platform

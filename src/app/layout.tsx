@@ -21,7 +21,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CrackedClaw",
+  title: "Dopl",
   description: "AI Agent Management Platform",
 };
 

@@ -19,26 +19,24 @@ interface InstanceInfo {
 }
 
 /**
- * Get the user's OpenClaw instance connection info from the organizations table.
+ * Get the user's OpenClaw instance connection info from the profiles table.
  */
 export async function getUserInstance(userId: string): Promise<InstanceInfo | null> {
-  const { data: org } = await supabase
-    .from('organizations')
-    .select('openclaw_instance_id, openclaw_gateway_url, openclaw_auth_token, openclaw_status')
-    .eq('owner_id', userId)
-    .eq('openclaw_status', 'running')
-    .order('created_at', { ascending: false })
-    .limit(1)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('instance_id, gateway_url, auth_token, instance_status')
+    .eq('id', userId)
+    .eq('instance_status', 'running')
     .single();
 
-  if (org?.openclaw_gateway_url && org?.openclaw_auth_token) {
+  if (profile?.gateway_url && profile?.auth_token) {
     // Parse gateway_url to extract host and port
     // gateway_url is like "https://i-f2da86c0.crackedclaw.com" or "http://164.92.75.153:18100"
     let host: string;
     let port: number;
 
     try {
-      const parsed = new URL(org.openclaw_gateway_url);
+      const parsed = new URL(profile.gateway_url);
       host = parsed.hostname;
       port = parsed.port ? parseInt(parsed.port, 10) : (parsed.protocol === 'https:' ? 443 : 80);
     } catch {
@@ -46,10 +44,10 @@ export async function getUserInstance(userId: string): Promise<InstanceInfo | nu
     }
 
     return {
-      instanceId: org.openclaw_instance_id || 'unknown',
+      instanceId: profile.instance_id || 'unknown',
       host,
       port,
-      gatewayToken: org.openclaw_auth_token,
+      gatewayToken: profile.auth_token,
     };
   }
 

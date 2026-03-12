@@ -40,14 +40,14 @@ export async function checkTokenLimit(userId: string): Promise<TokenLimitResult>
   try {
     const supabase = createAdminClient();
 
-    // Get the user's organization plan
-    const { data: org } = await supabase
-      .from('organizations')
+    // Get the user's plan from profile
+    const { data: profile } = await supabase
+      .from('profiles')
       .select('plan')
-      .eq('owner_id', userId)
+      .eq('id', userId)
       .single();
 
-    const planSlug = org?.plan || 'free';
+    const planSlug = profile?.plan || 'free';
     const { monthly: monthlyLimit, weekly: weeklyLimit } = getTokenLimit(planSlug);
 
     const now = new Date();

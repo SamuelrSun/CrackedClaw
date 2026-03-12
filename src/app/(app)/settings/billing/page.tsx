@@ -13,17 +13,15 @@ export default async function BillingPage() {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (user) {
-      const { createAdminClient } = await import('@/lib/supabase/admin');
-      const adminClient = createAdminClient();
-      const { data: org } = await adminClient
-        .from('organizations')
+      const { data: profile } = await supabase
+        .from('profiles')
         .select('plan, plan_status')
-        .eq('owner_id', user.id)
+        .eq('id', user.id)
         .single();
 
-      if (org) {
-        currentPlan = org.plan || 'free';
-        isSubscribed = org.plan_status === 'active' && org.plan !== 'free';
+      if (profile) {
+        currentPlan = profile.plan || 'free';
+        isSubscribed = profile.plan_status === 'active' && profile.plan !== 'free';
       }
     }
   } catch {

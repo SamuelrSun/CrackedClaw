@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
-import { getUserGateway, saveUserGateway, deleteUserGateway, logActivity, getOrganization } from "@/lib/supabase/data";
+import { getUserGateway, saveUserGateway, deleteUserGateway, logActivity, getUserProfile } from "@/lib/supabase/data";
 import type { GatewayConnectionInput } from "@/types/gateway";
 
 export const dynamic = 'force-dynamic';
@@ -11,33 +11,17 @@ export async function GET(request: NextRequest) {
   if (error) return error;
 
   try {
-    const { searchParams } = new URL(request.url);
-    const activeOrgId = searchParams.get("org_id") || request.headers.get("x-org-id");
-
-    // First check for cloud-provisioned organization
-    let org = null;
-    if (activeOrgId) {
-      const { createClient } = await import("@/lib/supabase/server");
-      const supabase = await createClient();
-      const { data } = await supabase
-        .from("organizations")
-        .select("*")
-        .eq("id", activeOrgId)
-        .eq("owner_id", user.id)
-        .single();
-      org = data;
-    } else {
-      org = await getOrganization(user.id);
-    }
+    // First check for cloud-provisioned profile instance
+    const profile = await getUserProfile(user.id);
     // Check for URL + token (don't gate on status — instance may be running even if status field is stale)
-    if (org?.openclaw_gateway_url && org?.openclaw_auth_token) {
+    if (profile?.gateway_url && profile?.auth_token) {
       return jsonResponse({
         gateway: {
-          id: org.id,
-          name: org.name,
-          gateway_url: org.openclaw_gateway_url,
+          id: profile.id,
+          name: profile.full_name || profile.email || "My Account",
+          gateway_url: profile.gateway_url,
           auth_token: "••••••••",
-          status: ["running", "connected", "stopped"].includes(org.openclaw_status) ? "connected" : "disconnected",
+          status: ["running", "connected", "stopped"].includes(profile.instance_status) ? "connected" : "disconnected",
           is_cloud: true,
         },
       });

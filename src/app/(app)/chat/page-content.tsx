@@ -33,11 +33,11 @@ export default function ChatPage() {
             return res.json();
           }),
 
-          // 2. Org/instance check — provision if needed, WAIT for it to complete
+          // 2. Instance check — provision if needed, WAIT for it to complete
           fetch('/api/organizations/provision').then(async res => {
             if (!res.ok) return null;
             const data = await res.json();
-            if (!data.organization || !data.organization.openclaw_instance_id) {
+            if (!data.instance || !data.instance.id) {
               if (!cancelled) setProvisioning(true);
               try {
                 const provRes = await fetch('/api/organizations/provision', {
@@ -131,7 +131,7 @@ export default function ChatPage() {
               <div className="text-center">
                 <div className="w-8 h-8 border-2 border-forest border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                 <p className="font-mono text-[11px] text-grid/60 uppercase tracking-wide">
-                  Setting up your workspace...
+                  Setting up your instance...
                 </p>
               </div>
             </div>

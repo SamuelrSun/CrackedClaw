@@ -184,8 +184,8 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
           <>
             <div className="space-y-2">
               <p className="font-mono text-[11px] text-grid/70 font-bold">Here&apos;s how to set that up:</p>
-              <p className="font-mono text-[10px] text-grid/60">1. Download CrackedClaw Connect from crackedclaw.com/connect</p>
-              <p className="font-mono text-[10px] text-grid/60">2. Open the app and sign in with your CrackedClaw account</p>
+              <p className="font-mono text-[10px] text-grid/60">1. Download Dopl Connect from crackedclaw.com/connect</p>
+              <p className="font-mono text-[10px] text-grid/60">2. Open the app and sign in with your Dopl account</p>
               <p className="font-mono text-[10px] text-grid/60">3. Leave the app running in the background — that&apos;s it!</p>
             </div>
 

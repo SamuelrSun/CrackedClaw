@@ -28,25 +28,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Price ID not configured for plan: ${requestedPlan}` }, { status: 500 });
   }
 
-  const { data: org } = await supabase
-    .from('organizations')
+  const { data: profile } = await supabase
+    .from('profiles')
     .select('id, stripe_customer_id, plan')
-    .eq('owner_id', user.id)
+    .eq('id', user.id)
     .single();
 
-  if (!org) return NextResponse.json({ error: 'No organization found' }, { status: 404 });
-  if (org.plan === requestedPlan) {
+  if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+  if (profile.plan === requestedPlan) {
     return NextResponse.json({ error: `Already on ${requestedPlan} plan` }, { status: 400 });
   }
 
-  let customerId = org.stripe_customer_id;
+  let customerId = profile.stripe_customer_id;
   if (!customerId) {
     const customer = await stripe.customers.create({
       email: user.email,
-      metadata: { user_id: user.id, org_id: org.id },
+      metadata: { user_id: user.id },
     });
     customerId = customer.id;
-    await supabase.from('organizations').update({ stripe_customer_id: customerId }).eq('id', org.id);
+    await supabase.from('profiles').update({ stripe_customer_id: customerId }).eq('id', user.id);
   }
 
   const session = await stripe.checkout.sessions.create({
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings?upgraded=true`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?canceled=true`,
-    metadata: { user_id: user.id, org_id: org.id, plan: requestedPlan },
+    metadata: { user_id: user.id, plan: requestedPlan },
   });
 
   return NextResponse.json({ url: session.url });

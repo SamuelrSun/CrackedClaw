@@ -29,22 +29,22 @@ export async function POST(request: NextRequest) {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as {
-      metadata?: { org_id?: string; plan?: string };
+      metadata?: { user_id?: string; org_id?: string; plan?: string };
       subscription?: string;
     };
-    const orgId = session.metadata?.org_id;
-    if (orgId && session.subscription) {
+    // Support both user_id (new) and org_id (legacy) in metadata
+    const userId = session.metadata?.user_id || session.metadata?.org_id;
+    if (userId && session.subscription) {
       const sub = await stripe.subscriptions.retrieve(session.subscription as string);
-      // Determine plan from price ID on the subscription
       const priceId = (sub as unknown as { items: { data: Array<{ price: { id: string } }> } }).items?.data?.[0]?.price?.id;
       const planSlug = priceId ? getPlanSlugFromPriceId(priceId) : (session.metadata?.plan || 'pro');
 
-      await supabase.from('organizations').update({
+      await supabase.from('profiles').update({
         plan: planSlug,
         plan_status: 'active',
         stripe_subscription_id: sub.id,
         current_period_end: new Date((sub as unknown as { current_period_end: number }).current_period_end * 1000).toISOString(),
-      }).eq('id', orgId);
+      }).eq('id', userId);
     }
   }
 
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     const priceId = sub.items?.data?.[0]?.price?.id;
     const planSlug = priceId ? getPlanSlugFromPriceId(priceId) : 'pro';
 
-    await supabase.from('organizations')
+    await supabase.from('profiles')
       .update({
         plan: planSlug,
         plan_status: sub.status,
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       status: string;
       current_period_end: number;
     };
-    await supabase.from('organizations')
+    await supabase.from('profiles')
       .update({
         plan: 'free',
         plan_status: sub.status,

@@ -1,5 +1,5 @@
 /**
- * CrackedClaw Connect — Conversation Management
+ * Dopl Connect — Conversation Management
  *
  * Depends on globals from utils.js: escapeHtml, relativeTime
  * Depends on globals from app.js (loaded after): convList, convDropdown, convSelectorText,
@@ -11,7 +11,7 @@
  */
 
 async function loadConversations() {
-  const result = await window.crackedclaw.chat.listConversations();
+  const result = await window.dopl.chat.listConversations();
   if (!result.ok) {
     console.warn('[Chat] Failed to load conversations:', result.error);
     renderConversationList([]);

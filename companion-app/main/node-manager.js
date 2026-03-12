@@ -103,7 +103,7 @@ class NodeManager extends EventEmitter {
         `To fix this:\n` +
         `1. Install Node.js 22+ from https://nodejs.org\n` +
         `2. Then run: sudo npm install -g openclaw\n` +
-        `3. Restart CrackedClaw Connect\n\n` +
+        `3. Restart Dopl Connect\n\n` +
         `The companion app will work without the CLI — you just won't get device features (browser automation, screen context).`
       );
     }
@@ -128,7 +128,7 @@ class NodeManager extends EventEmitter {
           `Permission denied installing OpenClaw CLI.\n\n` +
           `Please run this in Terminal:\n` +
           `  sudo npm install -g openclaw\n\n` +
-          `Then restart CrackedClaw Connect.`
+          `Then restart Dopl Connect.`
         );
       }
       throw new Error('Failed to install openclaw CLI: ' + errMsg);
@@ -167,7 +167,7 @@ class NodeManager extends EventEmitter {
     if (!this.shouldRun) return;
 
     const { host, port, tls } = this.parseGatewayUrl();
-    const displayName = os.hostname() + ' (CrackedClaw Companion)';
+    const displayName = os.hostname() + ' (Dopl Companion)';
 
     const args = [
       'node', 'run',
@@ -298,7 +298,7 @@ class NodeManager extends EventEmitter {
     }
 
     console.warn('[NodeManager] Auto-approve polling exhausted — node may need manual approval');
-    this.lastError = 'Node pairing pending — please approve in CrackedClaw Settings → Devices';
+    this.lastError = 'Node pairing pending — please approve in Dopl Settings → Devices';
     this.emit('status', false);
   }
 
@@ -367,7 +367,7 @@ class NodeManager extends EventEmitter {
         connectReqId = sendReq('connect', {
           client: {
             id: 'gateway-client',
-            displayName: 'CrackedClaw Auto-Approver',
+            displayName: 'Dopl Auto-Approver',
             mode: 'backend',
             version: '1.0.0',
             platform: process.platform,

@@ -5,7 +5,7 @@ import IntegrationsPageClient from "./client";
 
 export const dynamic = 'force-dynamic';
 
-export const metadata = { title: "Integrations — CrackedClaw" };
+export const metadata = { title: "Integrations — Dopl" };
 
 export default async function IntegrationsPage() {
   const supabase = await createClient();

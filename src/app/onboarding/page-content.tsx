@@ -32,7 +32,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
       </div>
       
       <h1 className="font-header text-4xl font-bold text-forest mb-4">
-        Welcome to CrackedClaw
+        Welcome to Dopl
       </h1>
       
       <p className="font-body text-lg text-grid/70 max-w-md mx-auto mb-8">
@@ -88,7 +88,6 @@ function ConnectStep({
   const router = useRouter();
   const [gatewayUrl, setGatewayUrl] = useState("");
   const [authToken, setAuthToken] = useState("");
-  const [organizationName, setOrganizationName] = useState("");
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [provisioning, setProvisioning] = useState(false);
@@ -146,11 +145,6 @@ function ConnectStep({
   }
 
   async function provisionCloudAgent() {
-    if (!organizationName.trim()) {
-      setProvisionError("Please enter a name for your workspace");
-      return;
-    }
-
     setProvisioning(true);
     setProvisionError(null);
 
@@ -158,14 +152,14 @@ function ConnectStep({
       const res = await fetch("/api/organizations/provision", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organization_name: organizationName.trim() }),
+        body: JSON.stringify({}),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
         // Already provisioned — just go to chat
-        if (data.organization?.openclaw_gateway_url || (data.error && data.error.includes("already has a provisioned"))) {
+        if (data.instance?.id || (data.error && data.error.includes("already has a provisioned"))) {
           router.push("/chat");
           return;
         }
@@ -173,8 +167,7 @@ function ConnectStep({
         return;
       }
 
-      // Success! Agent is provisioned - redirect to onboarding chat
-      // Redirect to chat for AI-guided onboarding
+      // Success! Agent is provisioned - redirect to chat
       router.push("/chat");
     } catch (err) {
       console.error("Provisioning error:", err);
@@ -270,16 +263,6 @@ function ConnectStep({
         </p>
         
         <div className="space-y-4">
-          <Input
-            label="Workspace Name"
-            placeholder="My Workspace"
-            value={organizationName}
-            onChange={(e) => {
-              setOrganizationName(e.target.value);
-              setProvisionError(null);
-            }}
-          />
-          
           {provisionError && (
             <div className="p-3 border border-coral bg-coral/10">
               <div className="flex items-center gap-2">
@@ -308,7 +291,7 @@ function ConnectStep({
           <Button
             variant="solid"
             onClick={provisionCloudAgent}
-            disabled={provisioning || !organizationName.trim()}
+            disabled={provisioning}
             className="w-full"
           >
             {provisioning ? "Creating..." : "Create My Agent"}
@@ -722,12 +705,12 @@ export default function OnboardingPage() {
 
   // Check if already provisioned on mount — redirect to chat if so
   useEffect(() => {
-    async function checkExistingOrg() {
+    async function checkExistingInstance() {
       try {
         const res = await fetch("/api/organizations/provision");
         if (res.ok) {
           const data = await res.json();
-          if (data.organization?.openclaw_status === "running" && data.organization?.openclaw_gateway_url) {
+          if (data.instance?.id && data.instance?.gateway_url) {
             router.replace("/chat");
           }
         }
@@ -735,7 +718,7 @@ export default function OnboardingPage() {
         // ignore, let onboarding proceed
       }
     }
-    checkExistingOrg();
+    checkExistingInstance();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

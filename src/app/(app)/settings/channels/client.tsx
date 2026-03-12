@@ -162,7 +162,7 @@ export default function ChannelsSettingsClient() {
           Channels
         </h1>
         <p className="font-mono text-[10px] uppercase tracking-wide text-grid/50 mt-1">
-          Connect your messaging platforms to CrackedClaw
+          Connect your messaging platforms to Dopl
         </p>
       </div>
 

@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { TeamSection, TeamMember, TeamInvitation } from "@/components/settings/team-section";
-import type { Organization } from "@/lib/supabase/data";
+import type { UserProfile } from "@/lib/supabase/data";
 import { Sparkles, Radio, ArrowRight, Monitor, Brain, Clock, Zap, Smartphone, Wrench, Download, Copy, Check } from "lucide-react";
 
 
@@ -17,10 +15,7 @@ interface SettingsPageClientProps {
     limit: number;
     resetDate: string;
   };
-  initialTeamMembers: TeamMember[];
-  initialInvitations: TeamInvitation[];
-  currentUserRole: "owner" | "admin" | "member";
-  initialOrganization: Organization | null;
+  initialProfile: UserProfile | null;
 }
 
 interface SystemStatus {
@@ -81,11 +76,11 @@ function CompanionSetupInline() {
 
       {/* Download */}
       <a
-        href="/downloads/crackedclaw-connect.dmg"
+        href="/downloads/dopl-connect.dmg"
         className="flex items-center gap-2 w-full px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/30 text-forest font-mono text-[13px] hover:bg-emerald-500/15 transition-colors"
       >
         <Download className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-        Download CrackedClaw Connect (.dmg)
+        Download Dopl Connect (.dmg)
         <ArrowRight className="w-3 h-3 ml-auto text-emerald-600" />
       </a>
 
@@ -96,12 +91,12 @@ function CompanionSetupInline() {
           {
             n: "1",
             title: "Install the app",
-            desc: "Open the downloaded .dmg and drag CrackedClaw Connect to your Applications folder.",
+            desc: "Open the downloaded .dmg and drag Dopl Connect to your Applications folder.",
           },
           {
             n: "2",
             title: "Grant macOS permissions",
-            desc: "Open System Settings → Privacy & Security, then enable CrackedClaw Connect for each:",
+            desc: "Open System Settings → Privacy & Security, then enable Dopl Connect for each:",
             details: [
               "Accessibility — lets your AI interact with apps",
               "Screen Recording — lets your AI see your screen",
@@ -111,7 +106,7 @@ function CompanionSetupInline() {
           {
             n: "3",
             title: "Paste your connection token",
-            desc: "Open CrackedClaw Connect and paste the token shown below.",
+            desc: "Open Dopl Connect and paste the token shown below.",
           },
           {
             n: "4",
@@ -333,20 +328,13 @@ function SystemStatusSection() {
 
 export default function SettingsPageClient({ 
   initialTokenUsage, 
-  initialTeamMembers,
-  initialInvitations,
-  currentUserRole,
-  initialOrganization,
+  initialProfile,
 }: SettingsPageClientProps) {
   const pct = Math.round((initialTokenUsage.used / initialTokenUsage.limit) * 100);
 
-  const [organization] = useState<Organization | null>(initialOrganization);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(initialTeamMembers);
-  const [pendingInvitations, setPendingInvitations] = useState<TeamInvitation[]>(initialInvitations);
-
   // Billing state
-  const [billingPlan, setBillingPlan] = useState<string>('free');
-  const [billingPeriodEnd, setBillingPeriodEnd] = useState<string | null>(null);
+  const [billingPlan, setBillingPlan] = useState<string>(initialProfile?.plan || 'free');
+  const [billingPeriodEnd, setBillingPeriodEnd] = useState<string | null>(initialProfile?.current_period_end || null);
   const [billingLoading, setBillingLoading] = useState(true);
   const [billingUpgrading, setBillingUpgrading] = useState(false);
   const [upgradedBanner, setUpgradedBanner] = useState(false);
@@ -407,54 +395,6 @@ export default function SettingsPageClient({
     }
   }
 
-  // Team management handlers
-  const handleInvite = useCallback(async (email: string, role: string) => {
-    const res = await fetch("/api/team", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, role }),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "Failed to send invitation");
-    }
-    const data = await res.json();
-    setPendingInvitations(prev => [...prev, data.invitation]);
-  }, []);
-
-  const handleUpdateRole = useCallback(async (memberId: string, role: string) => {
-    const res = await fetch(`/api/team/${memberId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role }),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "Failed to update role");
-    }
-    setTeamMembers(prev => prev.map(m => 
-      m.id === memberId ? { ...m, role: role as "owner" | "admin" | "member" } : m
-    ));
-  }, []);
-
-  const handleRemove = useCallback(async (memberId: string) => {
-    const res = await fetch(`/api/team/${memberId}`, { method: "DELETE" });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "Failed to remove member");
-    }
-    setTeamMembers(prev => prev.filter(m => m.id !== memberId));
-  }, []);
-
-  const handleCancelInvitation = useCallback(async (invitationId: string) => {
-    const res = await fetch(`/api/team/${invitationId}?type=invitation`, { method: "DELETE" });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "Failed to cancel invitation");
-    }
-    setPendingInvitations(prev => prev.filter(i => i.id !== invitationId));
-  }, []);
-
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -467,18 +407,6 @@ export default function SettingsPageClient({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-[rgba(58,58,56,0.2)]">
-
-        {/* Organization Card */}
-        {organization && (
-          <Card label="Organization" accentColor="#9EFFBF" bordered={false} className="lg:col-span-2">
-            <div className="mt-2 space-y-1">
-              <h3 className="font-header text-xl font-bold text-forest">{organization.name}</h3>
-              <p className="font-mono text-[12px] uppercase tracking-wide text-grid/50">
-                {organization.plan} plan
-              </p>
-            </div>
-          </Card>
-        )}
 
         {/* System Status Card — full width, with inline device + companion setup */}
         <Card label="⚡ System Status" accentColor="#9EFFBF" bordered={false} className="lg:col-span-2">
@@ -633,8 +561,6 @@ export default function SettingsPageClient({
           </div>
         </Card>
 
-
-
         {/* Workflows */}
         <Card label="Workflows" accentColor="#9EFFBF" bordered={false}>
           <div className="mt-2 space-y-3">
@@ -666,32 +592,6 @@ export default function SettingsPageClient({
             </Link>
           </div>
         </Card>
-
-        {/* API Key */}
-        <Card label="API Key" accentColor="#FF8C69" bordered={false}>
-          <div className="mt-2 space-y-3">
-            <Input
-              label="Your API Key"
-              value="sk-oc-****************************3f7a"
-              readOnly
-            />
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm">Copy</Button>
-              <Button variant="ghost" size="sm">Regenerate</Button>
-            </div>
-          </div>
-        </Card>
-
-        {/* Team Section */}
-        <TeamSection
-          members={teamMembers}
-          pendingInvitations={pendingInvitations}
-          currentUserRole={currentUserRole}
-          onInvite={handleInvite}
-          onUpdateRole={handleUpdateRole}
-          onRemove={handleRemove}
-          onCancelInvitation={handleCancelInvitation}
-        />
 
         {/* Account Settings */}
         <Card label="Account" accentColor="#FF8C69" bordered={false}>

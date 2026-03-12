@@ -19,21 +19,19 @@ const DEFAULT_CHANNELS = {
 export async function GET() {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: org } = await supabase
-      .from("organizations")
-      .select("settings, instance_url")
-      .eq("owner_id", user.id)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("instance_settings, gateway_url")
+      .eq("id", user.id)
       .single();
 
-    const settings = (org?.settings as Record<string, unknown>) || {};
+    const settings = (profile?.instance_settings as Record<string, unknown>) || {};
     const rawChannels =
       (settings.channels as Record<string, { enabled: boolean; connected: boolean }>) || {};
 
@@ -48,11 +46,8 @@ export async function GET() {
       }
     }
 
-    const connectedCount = Object.values(channels).filter(
-      (c) => c.connected
-    ).length;
-
-    const hasInstance = !!org?.instance_url;
+    const connectedCount = Object.values(channels).filter((c) => c.connected).length;
+    const hasInstance = !!profile?.gateway_url;
 
     return NextResponse.json({
       channels,
@@ -65,10 +60,7 @@ export async function GET() {
   } catch (error) {
     console.error("Get channel status error:", error);
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Internal server error",
-      },
+      { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
     );
   }

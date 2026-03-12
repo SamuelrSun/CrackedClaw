@@ -123,7 +123,7 @@ const steps = [
 
 const testimonials = [
   {
-    quote: "CrackedClaw replaced three SaaS tools and an intern. It just handles things.",
+    quote: "Dopl replaced three SaaS tools and an intern. It just handles things.",
     name: "Alex Chen",
     role: "Founder, Stealth Startup",
   },
@@ -153,7 +153,7 @@ export default function LandingPage() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-paper/90 backdrop-blur-sm border-b border-[rgba(58,58,56,0.1)]">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="/" className="font-header text-lg font-bold text-forest tracking-tight">
-            CrackedClaw
+            Dopl
           </Link>
           <nav className="hidden md:flex items-center gap-8">
             <a href="#features" className="font-mono text-[10px] uppercase tracking-widest text-grid/50 hover:text-forest transition-colors">
@@ -461,7 +461,7 @@ export default function LandingPage() {
             your productivity?
           </h2>
           <p className="text-paper/50 text-[15px] mb-10 max-w-md mx-auto leading-relaxed">
-            Join thousands of operators who automated their busywork with CrackedClaw.
+            Join thousands of operators who automated their busywork with Dopl.
           </p>
           <Link
             href="/login"
@@ -477,7 +477,7 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
             <div>
-              <span className="font-header text-base font-bold text-forest tracking-tight block mb-2">CrackedClaw</span>
+              <span className="font-header text-base font-bold text-forest tracking-tight block mb-2">Dopl</span>
               <span className="font-mono text-[10px] text-grid/35 uppercase tracking-wide">Your AI agent, in the cloud</span>
             </div>
             <div className="flex flex-wrap gap-x-8 gap-y-3">
@@ -500,7 +500,7 @@ export default function LandingPage() {
           </div>
           <div className="mt-8 pt-6 border-t border-[rgba(58,58,56,0.08)]">
             <span className="font-mono text-[10px] text-grid/30 uppercase tracking-wide">
-              &copy; 2026 CrackedClaw. All rights reserved.
+              &copy; 2026 Dopl. All rights reserved.
             </span>
           </div>
         </div>

@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/settings/ai
- * Get current AI settings for the user's organization
+ * Get current AI settings from the user's profile instance_settings
  */
 export async function GET() {
   try {
@@ -16,14 +16,13 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's organization
-    const { data: org } = await supabase
-      .from("organizations")
-      .select("*")
-      .eq("owner_id", user.id)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("instance_settings")
+      .eq("id", user.id)
       .single();
 
-    const settings = (org?.settings as Record<string, unknown>) || {};
+    const settings = (profile?.instance_settings as Record<string, unknown>) || {};
 
     return NextResponse.json({
       model: (settings.model as string) || "claude-sonnet-4",
@@ -40,7 +39,7 @@ export async function GET() {
 
 /**
  * PUT /api/settings/ai
- * Update AI settings for the user's organization
+ * Update AI settings in the user's profile instance_settings
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -62,20 +61,17 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Get user's organization
-    const { data: org } = await supabase
-      .from("organizations")
-      .select("*")
-      .eq("owner_id", user.id)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("instance_settings")
+      .eq("id", user.id)
       .single();
 
-    if (!org) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    if (!profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const currentSettings = (org.settings as Record<string, unknown>) || {};
-
-    // Build settings update
+    const currentSettings = (profile.instance_settings as Record<string, unknown>) || {};
     const newSettings: Record<string, unknown> = { ...currentSettings };
 
     if (model) {
@@ -90,11 +86,10 @@ export async function PUT(request: NextRequest) {
       newSettings.ai_api_key = ai_api_key;
     }
 
-    // Save to Supabase
     const { error: updateError } = await supabase
-      .from("organizations")
-      .update({ settings: newSettings, updated_at: new Date().toISOString() })
-      .eq("id", org.id);
+      .from("profiles")
+      .update({ instance_settings: newSettings, updated_at: new Date().toISOString() })
+      .eq("id", user.id);
 
     if (updateError) {
       return NextResponse.json({
