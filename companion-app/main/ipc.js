@@ -1,22 +1,16 @@
-const { ipcMain } = require('electron');
+const { ipcMain, shell } = require('electron');
 const NodeManager = require('./node-manager');
 
 /**
- * Set up all IPC handlers.
+ * Set up all IPC handlers for the two-window architecture.
  *
- * @param {object} deps
- * @param {() => BrowserWindow} deps.getMainWindow
- * @param {import('electron-store')} deps.store
- * @param {() => NodeManager|null} deps.getNodeManager
- * @param {(nm: NodeManager|null) => void} deps.setNodeManager
- * @param {() => object|null} deps.getChatManager
- * @param {(cm: object|null) => void} deps.setChatManager
- * @param {(connected: boolean) => void} deps.updateTrayMenu
- * @param {(decoded: object) => void} deps.initChatManager
+ * Window 1 (inputBarWindow): setup screen + input pill
+ * Window 2 (chatPanelWindow): messages + tint + conversation list
  */
 function setupIPC(deps) {
   const {
-    getMainWindow,
+    getInputBarWindow,
+    getChatPanelWindow,
     store,
     getNodeManager,
     setNodeManager,
@@ -24,55 +18,90 @@ function setupIPC(deps) {
     setChatManager,
     updateTrayMenu,
     initChatManager,
+    showChatPanel,
+    hideChatPanel,
+    toggleChatPanel,
+    getChatPanelVisible,
+    broadcastToAll,
+    INPUT_BAR_HEIGHT,
+    INPUT_BAR_WIDTH,
   } = deps;
 
-  // ── Window Controls IPC ──────────────────────────────────────────────────────
+  // ── Open in Browser ───────────────────────────────────────────────────────
+
+  ipcMain.on('open-in-browser', (_event, url) => {
+    if (url && typeof url === 'string') {
+      shell.openExternal(url).catch((err) => {
+        console.error('[IPC] open-in-browser failed:', err);
+      });
+    }
+  });
+
+  // ── Input-bar window resize helpers ────────────────────────────────────────
+
+  /**
+   * Resize the input bar window, anchoring the bottom edge.
+   * The bottom of the window stays fixed; height grows upward.
+   */
+  function resizeInputBar(newWidth, newHeight, animate) {
+    const win = getInputBarWindow();
+    if (!win || win.isDestroyed()) return;
+    const bounds = win.getBounds();
+    const bottomEdge = bounds.y + bounds.height; // keep this fixed
+    const newY = bottomEdge - newHeight;
+    win.setBounds({
+      x: bounds.x,
+      y: newY,
+      width: newWidth || bounds.width,
+      height: newHeight,
+    }, !!animate);
+  }
+
+  // ── Window Controls IPC (input bar window) ─────────────────────────────────
 
   ipcMain.on('window-close', () => {
-    const mainWindow = getMainWindow();
-    if (mainWindow) mainWindow.hide();
+    // Input bar cannot be closed by user; this is a no-op
   });
 
   ipcMain.on('window-minimize', () => {
-    const mainWindow = getMainWindow();
-    if (mainWindow) mainWindow.minimize();
+    // No-op — input bar has no minimize
   });
 
   ipcMain.on('window-zoom', () => {
-    const mainWindow = getMainWindow();
-    if (mainWindow) {
-      if (mainWindow.isMaximized()) mainWindow.unmaximize();
-      else mainWindow.maximize();
-    }
+    // No-op
   });
 
   ipcMain.on('window-set-size', (_event, { width, height, animate }) => {
-    const mainWindow = getMainWindow();
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      const [curWidth] = mainWindow.getSize();
-      // Keep current width, only change height; anchor to bottom of screen
-      const bounds = mainWindow.getBounds();
-      const oldHeight = bounds.height;
-      const newHeight = height;
-      const newY = bounds.y + (oldHeight - newHeight);
-      mainWindow.setBounds({
-        x: bounds.x,
-        y: newY,
-        width: width || curWidth,
-        height: newHeight,
-      }, !!animate);
-    }
+    resizeInputBar(width, height, animate);
   });
 
   ipcMain.handle('window-get-size', () => {
-    const mainWindow = getMainWindow();
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      return mainWindow.getSize();
+    const win = getInputBarWindow();
+    if (win && !win.isDestroyed()) {
+      return win.getSize();
     }
-    return [680, 500];
+    return [INPUT_BAR_WIDTH, INPUT_BAR_HEIGHT];
   });
 
-  // ── Connection IPC ───────────────────────────────────────────────────────────
+  // ── Chat Panel Window Controls ─────────────────────────────────────────────
+
+  ipcMain.on('toggle-chat-panel', () => {
+    toggleChatPanel();
+  });
+
+  ipcMain.on('show-chat-panel', () => {
+    showChatPanel();
+  });
+
+  ipcMain.on('close-chat-panel', () => {
+    hideChatPanel();
+  });
+
+  ipcMain.handle('get-chat-panel-visible', () => {
+    return getChatPanelVisible();
+  });
+
+  // ── Connection IPC ─────────────────────────────────────────────────────────
 
   ipcMain.handle('get-state', () => {
     const nodeManager = getNodeManager();
@@ -102,7 +131,6 @@ function setupIPC(deps) {
       store.set('webAppUrl', webAppUrl || 'https://crackedclaw.com');
       if (operatorToken) store.set('operatorToken', operatorToken);
 
-      // Init chat manager
       initChatManager(decoded);
 
       const nodeManager = new NodeManager({ gatewayUrl, instanceId, authToken, operatorToken });
@@ -110,15 +138,12 @@ function setupIPC(deps) {
 
       nodeManager.on('status', (connected) => {
         updateTrayMenu(connected);
-        const mainWindow = getMainWindow();
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('status-update', {
-            connected,
-            gatewayUrl,
-            instanceId,
-            error: nodeManager.lastError,
-          });
-        }
+        broadcastToAll('status-update', {
+          connected,
+          gatewayUrl,
+          instanceId,
+          error: nodeManager.lastError,
+        });
       });
 
       await nodeManager.start();
@@ -141,10 +166,12 @@ function setupIPC(deps) {
     store.delete('authToken');
     store.delete('webAppUrl');
     updateTrayMenu(false);
+    // Broadcast disconnect to all windows
+    broadcastToAll('status-update', { connected: false, disconnected: true });
     return { ok: true };
   });
 
-  // ── Glass Tint IPC ──────────────────────────────────────────────────────────
+  // ── Glass Tint IPC ─────────────────────────────────────────────────────────
 
   ipcMain.handle('glass-tint:get', () => {
     const saved = store.get('glassTintOpacity');
@@ -154,10 +181,22 @@ function setupIPC(deps) {
   ipcMain.handle('glass-tint:set', (_event, value) => {
     const clamped = Math.max(0, Math.min(0.7, Number(value)));
     store.set('glassTintOpacity', clamped);
+    // Broadcast to both windows so tint stays in sync
+    broadcastToAll('glass-tint-changed', clamped);
     return clamped;
   });
 
-  // ── Chat IPC ─────────────────────────────────────────────────────────────────
+  // ── Conversation selection cross-window sync ───────────────────────────────
+
+  /**
+   * Called when either window selects a conversation.
+   * Broadcasts to BOTH windows so each can update its UI.
+   */
+  ipcMain.on('chat:select-conversation', (_event, { id, title }) => {
+    broadcastToAll('conversation-selected', { id, title });
+  });
+
+  // ── Chat IPC ───────────────────────────────────────────────────────────────
 
   ipcMain.handle('chat:list-conversations', async () => {
     const chatManager = getChatManager();
@@ -203,23 +242,51 @@ function setupIPC(deps) {
     }
   });
 
-  ipcMain.handle('chat:send-message', async (event, { conversationId, message }) => {
+  /**
+   * chat:send-message — invoked by the input bar window.
+   *
+   * Flow:
+   *  1. Push the user message to the chat panel immediately so it appears.
+   *  2. Stream assistant chunks to the chat panel.
+   *  3. Return the full response to the input bar.
+   */
+  ipcMain.handle('chat:send-message', async (_event, { conversationId, message }) => {
     const chatManager = getChatManager();
     if (!chatManager) return { ok: false, error: 'Not connected' };
+
+    const chatPanel = getChatPanelWindow();
+
+    // Push the user message to the chat panel right away
+    if (chatPanel && !chatPanel.isDestroyed()) {
+      chatPanel.webContents.send('chat:show-user-message', {
+        conversationId,
+        role: 'user',
+        content: message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     try {
       const fullContent = await chatManager.sendMessage(
         conversationId,
         message,
         (chunk) => {
-          // Forward streaming chunks to renderer
-          const mainWindow = getMainWindow();
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('chat:stream-chunk', chunk);
+          if (chatPanel && !chatPanel.isDestroyed()) {
+            chatPanel.webContents.send('chat:stream-chunk', chunk);
           }
         }
       );
+
+      // Signal message complete to chat panel
+      if (chatPanel && !chatPanel.isDestroyed()) {
+        chatPanel.webContents.send('chat:message-finalized', { ok: true, content: fullContent });
+      }
+
       return { ok: true, content: fullContent };
     } catch (err) {
+      if (chatPanel && !chatPanel.isDestroyed()) {
+        chatPanel.webContents.send('chat:message-finalized', { ok: false, error: err.message });
+      }
       return { ok: false, error: err.message };
     }
   });

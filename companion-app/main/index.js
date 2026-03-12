@@ -6,25 +6,51 @@ const ChatManager = require('./chat-manager');
 const { setupIPC } = require('./ipc');
 
 const store = new Store();
-let mainWindow = null;
+let inputBarWindow = null;
+let chatPanelWindow = null;
 let tray = null;
 let nodeManager = null;
 let chatManager = null;
+let chatPanelVisible = false;
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 680,
-    height: 500,
+// ── Dimensions ────────────────────────────────────────────────────────────────
+
+const INPUT_BAR_WIDTH  = 680;
+const INPUT_BAR_HEIGHT = 68;   // just the pill — chat mode
+const SETUP_HEIGHT     = 340;  // setup card mode
+const CHAT_PANEL_WIDTH  = 680;
+const CHAT_PANEL_HEIGHT = 460;
+const PANEL_GAP = 7; // px between input bar and chat panel
+
+// ── Window creation ───────────────────────────────────────────────────────────
+
+function getInputBarPosition(height) {
+  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
+  const h = height || INPUT_BAR_HEIGHT;
+  const x = Math.round((sw - INPUT_BAR_WIDTH) / 2);
+  const y = Math.round(sh - h - 20);
+  return { x, y };
+}
+
+function createInputBarWindow() {
+  const { x, y } = getInputBarPosition();
+  inputBarWindow = new BrowserWindow({
+    x,
+    y,
+    width: INPUT_BAR_WIDTH,
+    height: INPUT_BAR_HEIGHT,
     minWidth: 400,
-    minHeight: 200,
-    resizable: true,
+    minHeight: INPUT_BAR_HEIGHT,
+    resizable: false,
     maximizable: false,
+    minimizable: false,
+    closable: false,        // no native close
     transparent: true,
     frame: false,
     hasShadow: false,
     backgroundColor: '#00000000',
     alwaysOnTop: true,
-    skipTaskbar: false,
+    skipTaskbar: true,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, '../renderer/preload.js'),
@@ -33,62 +59,106 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  inputBarWindow.loadFile(path.join(__dirname, '../renderer/input-bar.html'));
 
-  mainWindow.once('ready-to-show', () => {
-    positionWindowBottomCenter();
-    mainWindow.show();
+  inputBarWindow.once('ready-to-show', () => {
+    inputBarWindow.show();
   });
 
-  mainWindow.on('close', (e) => {
+  // Never let the user close the input bar — only quit does that
+  inputBarWindow.on('close', (e) => {
     if (!app.isQuitting) {
       e.preventDefault();
-      mainWindow.hide();
     }
   });
 }
 
-function positionWindowBottomCenter() {
-  if (!mainWindow) return;
-  try {
-    const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
-    const [winWidth, winHeight] = mainWindow.getSize();
-    const x = Math.round((screenWidth - winWidth) / 2);
-    const y = Math.round(screenHeight - winHeight - 20); // 20px from bottom
-    mainWindow.setPosition(x, y);
-  } catch (_) {
-    // Ignore positioning errors
+function createChatPanelWindow() {
+  chatPanelWindow = new BrowserWindow({
+    width: CHAT_PANEL_WIDTH,
+    height: CHAT_PANEL_HEIGHT,
+    minWidth: 400,
+    minHeight: 200,
+    resizable: true,
+    maximizable: false,
+    minimizable: false,
+    closable: false,        // no native close — custom X button instead
+    transparent: true,
+    frame: false,
+    hasShadow: false,
+    backgroundColor: '#00000000',
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, '../renderer/preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  chatPanelWindow.loadFile(path.join(__dirname, '../renderer/chat-panel.html'));
+
+  // Intercept native close → hide (the custom X button calls close-chat-panel IPC)
+  chatPanelWindow.on('close', (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      hideChatPanel();
+    }
+  });
+}
+
+// ── Chat panel positioning ────────────────────────────────────────────────────
+
+function positionChatPanel() {
+  if (!chatPanelWindow || !inputBarWindow) return;
+  if (chatPanelWindow.isDestroyed() || inputBarWindow.isDestroyed()) return;
+
+  const ibBounds = inputBarWindow.getBounds();
+  const [cpW, cpH] = chatPanelWindow.getSize();
+  const x = ibBounds.x;
+  const y = ibBounds.y - cpH - PANEL_GAP;
+  const { height: screenH } = screen.getPrimaryDisplay().workAreaSize;
+  const safeY = Math.max(20, Math.min(y, screenH - cpH - 20));
+
+  chatPanelWindow.setPosition(x, safeY);
+}
+
+function showChatPanel() {
+  if (!chatPanelWindow || chatPanelWindow.isDestroyed()) return;
+  positionChatPanel();
+  chatPanelWindow.show();
+  chatPanelVisible = true;
+  if (inputBarWindow && !inputBarWindow.isDestroyed()) {
+    inputBarWindow.webContents.send('chat-panel-state', { visible: true });
   }
 }
 
-function createTrayIcon(connected) {
-  const size = 16;
-  const canvas = `
-    <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="8" cy="8" r="6" fill="${connected ? '#22C55E' : '#EF4444'}" />
-    </svg>`;
-  return nativeImage.createFromBuffer(
-    Buffer.from(canvas),
-    { width: size, height: size }
-  );
+function hideChatPanel() {
+  if (!chatPanelWindow || chatPanelWindow.isDestroyed()) return;
+  chatPanelWindow.hide();
+  chatPanelVisible = false;
+  if (inputBarWindow && !inputBarWindow.isDestroyed()) {
+    inputBarWindow.webContents.send('chat-panel-state', { visible: false });
+  }
 }
 
-function createTray() {
-  const icon = createTrayIcon(false);
-  tray = new Tray(icon);
-  tray.setToolTip('CrackedClaw Connect');
-  updateTrayMenu(false);
+function toggleChatPanel() {
+  if (chatPanelVisible) {
+    hideChatPanel();
+  } else {
+    showChatPanel();
+  }
+}
 
-  tray.on('click', () => {
-    if (mainWindow) {
-      if (mainWindow.isVisible()) {
-        mainWindow.hide();
-      } else {
-        positionWindowBottomCenter();
-        mainWindow.show();
-      }
-    }
-  });
+// ── Tray ──────────────────────────────────────────────────────────────────────
+
+function createTrayIcon(connected) {
+  const size = 16;
+  const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="8" cy="8" r="6" fill="${connected ? '#22C55E' : '#EF4444'}" />
+  </svg>`;
+  return nativeImage.createFromBuffer(Buffer.from(svg), { width: size, height: size });
 }
 
 function updateTrayMenu(connected) {
@@ -97,13 +167,16 @@ function updateTrayMenu(connected) {
     { label: `Status: ${statusLabel}`, enabled: false },
     { type: 'separator' },
     {
-      label: 'Show Window',
+      label: 'Show Input Bar',
       click: () => {
-        if (mainWindow) {
-          positionWindowBottomCenter();
-          mainWindow.show();
+        if (inputBarWindow) {
+          inputBarWindow.show();
         }
       },
+    },
+    {
+      label: 'Toggle Chat Panel',
+      click: () => toggleChatPanel(),
     },
     {
       label: connected ? 'Disconnect' : 'Connect',
@@ -111,8 +184,7 @@ function updateTrayMenu(connected) {
         if (connected) {
           nodeManager && nodeManager.stop();
         } else {
-          positionWindowBottomCenter();
-          mainWindow && mainWindow.show();
+          inputBarWindow && inputBarWindow.show();
         }
       },
     },
@@ -130,21 +202,47 @@ function updateTrayMenu(connected) {
 
   try {
     tray.setImage(createTrayIcon(connected));
-  } catch (_) {
-    // SVG tray icons may not render on all platforms; ignore
-  }
+  } catch (_) {}
 }
+
+function createTray() {
+  const icon = createTrayIcon(false);
+  tray = new Tray(icon);
+  tray.setToolTip('CrackedClaw Connect');
+  updateTrayMenu(false);
+
+  tray.on('click', () => {
+    if (inputBarWindow) {
+      inputBarWindow.show();
+    }
+  });
+}
+
+// ── Chat Manager ──────────────────────────────────────────────────────────────
 
 function initChatManager(decoded) {
   const { gatewayUrl, authToken } = decoded;
-  // webAppUrl might be missing from old tokens — fall back to stored value or default
   const webAppUrl = decoded.webAppUrl || store.get('webAppUrl') || 'https://crackedclaw.com';
   chatManager = new ChatManager({ gatewayUrl, authToken, webAppUrl });
 }
 
+// ── Broadcast helpers ─────────────────────────────────────────────────────────
+
+function broadcastToAll(channel, data) {
+  if (inputBarWindow && !inputBarWindow.isDestroyed()) {
+    inputBarWindow.webContents.send(channel, data);
+  }
+  if (chatPanelWindow && !chatPanelWindow.isDestroyed()) {
+    chatPanelWindow.webContents.send(channel, data);
+  }
+}
+
+// ── App lifecycle ─────────────────────────────────────────────────────────────
+
 app.whenReady().then(() => {
   setupIPC({
-    getMainWindow: () => mainWindow,
+    getInputBarWindow: () => inputBarWindow,
+    getChatPanelWindow: () => chatPanelWindow,
     store,
     getNodeManager: () => nodeManager,
     setNodeManager: (nm) => { nodeManager = nm; },
@@ -152,9 +250,18 @@ app.whenReady().then(() => {
     setChatManager: (cm) => { chatManager = cm; },
     updateTrayMenu,
     initChatManager,
+    showChatPanel,
+    hideChatPanel,
+    toggleChatPanel,
+    getChatPanelVisible: () => chatPanelVisible,
+    broadcastToAll,
+    SETUP_HEIGHT,
+    INPUT_BAR_HEIGHT,
+    INPUT_BAR_WIDTH,
   });
 
-  createWindow();
+  createInputBarWindow();
+  createChatPanelWindow();
   createTray();
 
   // Auto-reconnect if token exists
@@ -162,24 +269,18 @@ app.whenReady().then(() => {
   if (rawToken) {
     try {
       const decoded = JSON.parse(Buffer.from(rawToken, 'base64').toString('utf-8'));
-
-      // Init chat manager from stored token
       initChatManager(decoded);
 
       nodeManager = new NodeManager(decoded);
-
       nodeManager.on('status', (connected) => {
         updateTrayMenu(connected);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('status-update', {
-            connected,
-            gatewayUrl: decoded.gatewayUrl,
-            instanceId: decoded.instanceId,
-            error: nodeManager.lastError,
-          });
-        }
+        broadcastToAll('status-update', {
+          connected,
+          gatewayUrl: decoded.gatewayUrl,
+          instanceId: decoded.instanceId,
+          error: nodeManager.lastError,
+        });
       });
-
       nodeManager.start().catch(() => {});
     } catch (_) {
       store.delete('connectionToken');
@@ -188,7 +289,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  // Keep running in tray on macOS
+  // Keep running in tray
 });
 
 app.on('before-quit', () => {

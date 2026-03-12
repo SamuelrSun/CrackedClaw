@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';">
+  <title>CrackedClaw Connect</title>
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/setup.css">
+  <link rel="stylesheet" href="styles/input-bar.css">
+  <link rel="stylesheet" href="styles/controls.css">
+  <style>
+    /* ── Input Bar Window overrides ─────────────────────────────────────── */
+
+    /* The whole window is a flex column */
+    body {
+      display: flex;
+      flex-direction: column;
+      padding: 8px;
+      overflow: hidden;
+      justify-content: flex-end; /* default: pill at bottom */
+    }
+
+    /* Setup screen: takes up all space and centers the card */
+    #screen-setup {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      flex: 1;
+      min-height: 0;
+    }
+    #screen-setup.active {
+      display: flex;
+    }
+
+    /* When setup is active, let body fill the whole window */
+    body:has(#screen-setup.active) {
+      justify-content: flex-start;
+    }
+
+    /* Remove window controls from setup card — no traffic lights */
+    .setup-card .window-controls {
+      display: none;
+    }
+
+    /* Chat screen: just holds the settings dropdown + pill */
+    #screen-chat {
+      display: none;
+      flex-direction: column;
+      padding: 0;
+      height: auto;
+    }
+    #screen-chat.active {
+      display: flex;
+    }
+
+    /* ── Settings Dropdown ─────────────────────────────────────────────── */
+    /* In normal flow so it appears above the pill inside the window bounds */
+    .settings-dropdown {
+      position: static;
+      margin-bottom: 6px;
+      border-radius: var(--glass-radius-md);
+      background: var(--glass-bg-elevated);
+      -webkit-backdrop-filter: blur(40px) saturate(180%);
+      backdrop-filter: blur(40px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow-lg);
+      overflow: hidden;
+      animation: dropdown-appear 0.18s ease;
+    }
+    .settings-dropdown.hidden {
+      display: none;
+    }
+
+    @keyframes dropdown-appear {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Tint row inside settings dropdown */
+    .settings-tint-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--glass-border);
+      -webkit-app-region: no-drag;
+    }
+
+    .settings-tint-row .tint-label {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+      letter-spacing: 0.3px;
+      flex-shrink: 0;
+    }
+
+    .settings-tint-row .tint-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      flex: 1;
+      height: 3px;
+      border-radius: 9999px;
+      background: linear-gradient(
+        to right,
+        rgba(255, 255, 255, 0.5) 0%,
+        rgba(255, 255, 255, 0.15) 100%
+      );
+      outline: none;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
+
+    .settings-tint-row .tint-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.9);
+      border: none;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+
+    .settings-tint-row .tint-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    .settings-tint-row .tint-slider::-webkit-slider-thumb:active {
+      transform: scale(1.25);
+    }
+
+    /* Relink row */
+    .settings-relink-row {
+      display: flex;
+      align-items: center;
+      padding: 8px 14px;
+      -webkit-app-region: no-drag;
+    }
+
+    .btn-relink {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      padding: 7px 10px;
+      font-size: 12.5px;
+      font-weight: 500;
+      font-family: inherit;
+      text-align: left;
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--glass-radius-sm);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      -webkit-app-region: no-drag;
+    }
+
+    .btn-relink:hover {
+      background: var(--glass-bg-elevated);
+      color: var(--text-primary);
+      border-color: var(--glass-border-bright);
+    }
+
+    /* Settings gear button active state */
+    .btn-settings-icon.active {
+      color: var(--text-secondary);
+      background: var(--glass-bg-elevated);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Setup Screen ───────────────────────────────────────────────────── -->
+  <div id="screen-setup">
+    <div class="setup-card">
+      <div class="logo">CrackedClaw</div>
+      <p class="subtitle">Connect your machine to your cloud AI instance</p>
+      <input
+        id="token-input"
+        type="text"
+        placeholder="Paste your connection token"
+        spellcheck="false"
+        autocomplete="off"
+      />
+      <button id="btn-connect" class="btn-primary">Connect</button>
+      <p id="error-msg" class="error"></p>
+    </div>
+  </div>
+
+  <!-- ── Chat Screen ─────────────────────────────────────────────────────── -->
+  <div id="screen-chat">
+
+    <!-- Settings Dropdown (above the pill, in normal flow) -->
+    <div id="settings-dropdown" class="settings-dropdown hidden">
+
+      <!-- Tint slider row -->
+      <div class="settings-tint-row">
+        <span class="tint-label">TINT</span>
+        <input id="tint-slider" class="tint-slider" type="range" min="0" max="0.7" step="0.01" value="0.15">
+        <span class="tint-label" id="tint-value-label">15%</span>
+      </div>
+
+      <!-- Relink row -->
+      <div class="settings-relink-row">
+        <button id="btn-relink" class="btn-relink">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8.5 1.5H11.5V4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M11.5 1.5L6.5 6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            <path d="M5.5 3H2.5C1.948 3 1.5 3.448 1.5 4V10.5C1.5 11.052 1.948 11.5 2.5 11.5H9C9.552 11.5 10 11.052 10 10.5V7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+          Link / Relink Instance
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Pill-shaped Input Bar -->
+    <div class="input-bar-wrapper">
+      <div class="input-bar-glass">
+
+        <!-- Connection status dot -->
+        <div id="conn-dot" class="conn-dot disconnected" title="Disconnected"></div>
+
+        <!-- Text input -->
+        <textarea
+          id="msg-input"
+          class="msg-input"
+          placeholder="Message… (Enter to send)"
+          rows="1"
+          disabled
+        ></textarea>
+
+        <!-- Audio transcription button (placeholder) -->
+        <button id="btn-audio" class="btn-icon" title="Audio transcription (coming soon)">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4.5" y="0.75" width="6" height="8.5" rx="3" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M2 7.5C2 10.538 4.5 12.5 7.5 12.5S13 10.538 13 7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            <path d="M7.5 12.5V14.25" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+        </button>
+
+        <!-- Send button -->
+        <button id="btn-send" class="btn-icon btn-send-icon" disabled>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14.5 1.5L7 9M14.5 1.5L10 14.5L7 9M14.5 1.5L1.5 5.5L7 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <!-- Settings gear button -->
+        <button id="btn-settings" class="btn-icon btn-settings-icon" title="Settings">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="7.5" cy="7.5" r="2" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M7.5 1.5V3M7.5 12V13.5M1.5 7.5H3M12 7.5H13.5M3.197 3.197l1.06 1.06M10.743 10.743l1.06 1.06M3.197 11.803l1.06-1.06M10.743 4.257l1.06-1.06" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+        </button>
+
+        <!-- Toggle chat panel button -->
+        <button id="btn-toggle-chat" class="btn-icon" title="Toggle chat panel">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="1" width="13" height="13" rx="2.5" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M1 5h13" stroke="currentColor" stroke-width="1.3"/>
+          </svg>
+        </button>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/input-bar-app.js"></script>
+</body>
+</html>

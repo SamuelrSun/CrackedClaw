@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';">
+  <title>CrackedClaw Chat</title>
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/chat.css">
+  <link rel="stylesheet" href="styles/controls.css">
+  <style>
+    /* ── Chat Panel Window overrides ──────────────────────────────────── */
+
+    /* The window IS the chat panel — fills everything */
+    body {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 0;
+    }
+
+    /* The outer chat-panel fills the window */
+    .chat-panel {
+      flex: 1;
+      border-radius: var(--glass-radius-md);
+      /* Slight inset so the glass border is visible */
+      margin: 0;
+    }
+
+    /* Custom X close button in the header */
+    #btn-close-panel {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      color: var(--text-tertiary);
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+      -webkit-app-region: no-drag;
+      padding: 0;
+    }
+    #btn-close-panel:hover {
+      color: var(--error);
+      background: rgba(239, 68, 68, 0.12);
+    }
+
+    /* Conversation dropdown in the chat panel header */
+    .panel-conv-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      background: var(--glass-bg-elevated);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--glass-radius-md);
+      box-shadow: var(--glass-shadow-lg);
+      overflow: hidden;
+      z-index: 200;
+      animation: dropdown-appear 0.18s ease;
+      -webkit-backdrop-filter: blur(40px) saturate(180%);
+      backdrop-filter: blur(40px) saturate(180%);
+    }
+    .panel-conv-dropdown.hidden {
+      display: none;
+    }
+    @keyframes dropdown-appear {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Wrapper to anchor dropdown */
+    .conv-selector-wrapper {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+    }
+
+    /* Open in Web App button */
+    .btn-open-browser-icon {
+      color: var(--text-tertiary);
+      width: 26px;
+      height: 26px;
+      -webkit-app-region: no-drag;
+    }
+
+    .btn-open-browser-icon:hover:not(:disabled) {
+      color: var(--accent);
+    }
+
+    .btn-open-browser-icon:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    /* Conv selector button in header */
+    .panel-conv-selector {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--glass-radius-sm);
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      -webkit-app-region: no-drag;
+      max-width: 100%;
+    }
+    .panel-conv-selector:hover {
+      background: var(--glass-bg-elevated);
+      border-color: var(--glass-border);
+    }
+    .panel-conv-selector span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .panel-conv-selector svg {
+      flex-shrink: 0;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- The chat panel fills the entire window -->
+  <div class="chat-panel" id="chat-panel">
+
+    <!-- Header -->
+    <div id="chat-header" class="chat-panel-header">
+      <!-- Conversation selector (click to open dropdown) -->
+      <div class="conv-selector-wrapper">
+        <button id="panel-conv-selector" class="panel-conv-selector" title="Switch conversation">
+          <span id="chat-title">New Chat</span>
+          <svg width="8" height="5" viewBox="0 0 8 5" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1 1L4 4L7 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <!-- Conversation dropdown (anchored inside wrapper) -->
+        <div id="panel-conv-dropdown" class="panel-conv-dropdown hidden">
+          <button id="btn-new-chat" class="btn-new-chat">+ New Chat</button>
+          <div id="conv-list" class="conv-list">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:2px;-webkit-app-region:no-drag;flex-shrink:0;">
+        <!-- Open in Web App button -->
+        <button id="btn-open-in-browser" class="btn-icon btn-open-browser-icon" title="Open in web app">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 2H2.5C1.948 2 1.5 2.448 1.5 3V10.5C1.5 11.052 1.948 11.5 2.5 11.5H10C10.552 11.5 11 11.052 11 10.5V8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            <path d="M8 1.5H11.5V5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M11.5 1.5L6 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+        </button>
+
+        <!-- Custom X button — closes this window only -->
+        <button id="btn-close-panel" title="Close chat panel">
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1 1L7 7M7 1L1 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div id="messages-area" class="messages-area">
+      <div id="messages-list" class="messages-list">
+        <!-- Messages rendered here -->
+      </div>
+      <div id="typing-indicator" class="typing-indicator hidden">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/chat-panel-app.js"></script>
+</body>
+</html>
