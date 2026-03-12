@@ -39,9 +39,15 @@ BEGIN
   BEGIN DELETE FROM onboarding_state WHERE user_id = target_user_id; EXCEPTION WHEN undefined_table THEN NULL; END;
   BEGIN DELETE FROM cron_jobs WHERE user_id = target_user_id; EXCEPTION WHEN undefined_table THEN NULL; END;
 
-  INSERT INTO account_deletion_log (user_id, user_email, instance_id, deletion_type, deleted_by, metadata)
-  VALUES (target_user_id, v_user_email, v_instance_id, 'full_delete', target_user_id,
-    jsonb_build_object('had_instance', v_instance_id IS NOT NULL));
+  -- Log deletion (non-fatal: skip gracefully if table doesn't exist yet)
+  BEGIN
+    INSERT INTO account_deletion_log (user_id, user_email, instance_id, deletion_type, deleted_by, metadata)
+    VALUES (target_user_id, v_user_email, v_instance_id, 'full_delete', target_user_id,
+      jsonb_build_object('had_instance', v_instance_id IS NOT NULL));
+  EXCEPTION WHEN undefined_table THEN
+    -- account_deletion_log not yet created; skip silently
+    NULL;
+  END;
 
   DELETE FROM profiles WHERE id = target_user_id;
   DELETE FROM auth.users WHERE id = target_user_id;

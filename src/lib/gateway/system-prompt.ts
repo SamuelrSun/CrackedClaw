@@ -4,6 +4,7 @@ import { buildSkillsSystemPrompt } from '@/lib/skills/store';
 import { MemoryEntry } from '@/lib/memory/service';
 import { mem0Search, mem0GetCore, formatMemoriesForPrompt, type Mem0Memory } from '@/lib/memory/mem0-client';
 import { searchFileChunks } from '@/lib/files/storage';
+import { getNodeStatus } from '@/lib/node/status';
 
 export interface SystemPromptContext {
   userId?: string;
@@ -22,6 +23,8 @@ export interface SystemPromptContext {
   skillsPrompt?: string;
   fileContext?: string;
   gatewayHost?: string; // e.g. "i-35adeb3e.crackedclaw.com" for node run command
+  companionConnected?: boolean;
+  companionDeviceName?: string | null;
 }
 
 const CORE_PROMPT = `You are Dopl — a fully autonomous AI agent with real tools. You don't just talk about doing things, you DO them.
@@ -267,6 +270,20 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   ).join('\n');
   parts.push('\nAVAILABLE INTEGRATIONS (one connection per provider covers all its capabilities):\n' + integrationMap);
 
+  // Companion App status
+  {
+    const lines: string[] = [];
+    lines.push(`\n## Companion App`);
+    if (ctx.companionConnected) {
+      lines.push(`Status: ✅ Connected${ctx.companionDeviceName ? ` (${ctx.companionDeviceName})` : ''}`);
+      lines.push(`You can use browser automation on the user's machine for services like LinkedIn, Instagram, etc.`);
+    } else {
+      lines.push(`Status: ❌ Not connected`);
+      lines.push(`Browser automation is not available. If the user asks to use LinkedIn, Instagram, or other browser-only services, let them know they'll need Dopl Connect (the integration cards in the chat will guide them through setup).`);
+    }
+    parts.push(lines.join('\n'));
+  }
+
   if (ctx.secretNames && ctx.secretNames.length > 0) {
     parts.push('\nAVAILABLE SECRETS (reference by name):\n' + ctx.secretNames.map(n => `- ${n}`).join('\n'));
   }
@@ -336,6 +353,21 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
         isDefault: i.is_default ?? false,
       }));
     }
+
+    // Check Companion (node) connection status with 2-second timeout
+    try {
+      const nodeStatusResult = await Promise.race([
+        getNodeStatus(userId),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+      ]);
+      if (nodeStatusResult && nodeStatusResult.nodes?.length > 0) {
+        const connectedNode = nodeStatusResult.nodes.find((n) => n.connected);
+        if (connectedNode) {
+          ctx.companionConnected = true;
+          ctx.companionDeviceName = connectedNode.name || null;
+        }
+      }
+    } catch { /* ignore */ }
 
     // Get memories: semantic search + core high-importance memories
     try {

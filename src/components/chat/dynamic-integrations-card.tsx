@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Check, Copy, Loader2, Monitor, RefreshCw, X } from "lucide-react";
+import { Check, ChevronDown, Copy, Loader2, Monitor, Plus, RefreshCw, X } from "lucide-react";
 import type { ResolvedIntegration } from "@/lib/integrations/resolver";
 import { IntegrationIcon } from "@/components/integrations/integration-icon";
 
@@ -11,10 +11,20 @@ interface DynamicIntegrationsCardProps {
   onOpenBrowser?: (url: string) => void;
 }
 
+interface ConnectedAccount {
+  id: string;
+  email: string | null;
+  name: string | null;
+  picture: string | null;
+  is_default: boolean;
+}
+
 interface CardState {
   resolved: ResolvedIntegration;
   status: "idle" | "adding" | "added" | "error" | "needs_key";
   apiKeyValue?: string;
+  accounts?: ConnectedAccount[];
+  showAccounts?: boolean;
 }
 
 interface NodeStatus {
@@ -53,6 +63,55 @@ function openOAuthPopup(provider: string): Promise<boolean> {
   });
 }
 
+async function fetchAccountsForProvider(oauthSlug: string): Promise<ConnectedAccount[]> {
+  try {
+    const res = await fetch(`/api/integrations/accounts?provider=${oauthSlug}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const accountsMap: Record<string, ConnectedAccount[]> = data.accounts || {};
+    return accountsMap[oauthSlug] || [];
+  } catch {
+    return [];
+  }
+}
+
+/** Colored initial circle fallback for avatars */
+function InitialAvatar({ name, email }: { name: string | null; email: string | null }) {
+  const label = name?.[0] || email?.[0] || "?";
+  // Deterministic hue based on the first character
+  const hue = ((label.toUpperCase().charCodeAt(0) - 65) * 23) % 360;
+  return (
+    <div
+      className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-white"
+      style={{ backgroundColor: `hsl(${hue},55%,45%)`, fontSize: 8 }}
+    >
+      {label.toUpperCase()}
+    </div>
+  );
+}
+
+function AccountRow({ account }: { account: ConnectedAccount }) {
+  const displayName = account.email || account.name || account.id;
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5 bg-forest/5 rounded-sm">
+      {account.picture ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={account.picture}
+          alt={displayName}
+          className="w-4 h-4 rounded-full flex-shrink-0 object-cover"
+          onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+        />
+      ) : (
+        <InitialAvatar name={account.name} email={account.email} />
+      )}
+      <span className="font-mono text-[11px] text-grid/80 truncate flex-1">{displayName}</span>
+      {account.is_default && (
+        <span className="text-[8px] uppercase tracking-wide text-forest/60 flex-shrink-0">(default)</span>
+      )}
+    </div>
+  );
+}
 
 function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }: { name: string; onClose: () => void; gatewayHost?: string; loginUrl?: string; onConnected?: () => void }) {
   const [nodeStatus, setNodeStatus] = useState<NodeStatus | null>(null);
@@ -94,7 +153,7 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText("https://crackedclaw.com/connect");
+      await navigator.clipboard.writeText("https://dopl.com/connect");
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -102,7 +161,8 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
     }
   };
 
-
+  // gatewayHost is available for future use
+  void gatewayHost;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -184,7 +244,7 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
           <>
             <div className="space-y-2">
               <p className="font-mono text-[11px] text-grid/70 font-bold">Here&apos;s how to set that up:</p>
-              <p className="font-mono text-[10px] text-grid/60">1. Download Dopl Connect from crackedclaw.com/connect</p>
+              <p className="font-mono text-[10px] text-grid/60">1. Download Dopl Connect from dopl.com/connect</p>
               <p className="font-mono text-[10px] text-grid/60">2. Open the app and sign in with your Dopl account</p>
               <p className="font-mono text-[10px] text-grid/60">3. Leave the app running in the background — that&apos;s it!</p>
             </div>
@@ -192,7 +252,7 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
             {/* Download link with Copy button */}
             <div className="relative bg-forest/5 border border-[rgba(58,58,56,0.15)] p-3">
               <code className="font-mono text-[11px] text-forest break-all pr-16">
-                crackedclaw.com/connect
+                dopl.com/connect
               </code>
               <button
                 onClick={handleCopy}
@@ -264,10 +324,29 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
           }
         } catch { /* ignore */ }
 
-        setCards(resolved.map(r => ({
-          resolved: r,
-          status: connectedSlugs.has(r.slug) ? "added" : "idle",
-        })));
+        // Fetch all accounts for connected integrations in one call
+        let allAccounts: Record<string, ConnectedAccount[]> = {};
+        if (connectedSlugs.size > 0) {
+          try {
+            const accountsRes = await fetch('/api/integrations/accounts');
+            if (accountsRes.ok) {
+              const accountsData = await accountsRes.json();
+              allAccounts = accountsData.accounts || {};
+            }
+          } catch { /* ignore */ }
+        }
+
+        setCards(resolved.map(r => {
+          const isConnected = connectedSlugs.has(r.slug);
+          const oauthSlug = r.oauthProvider || r.slug;
+          const accounts = isConnected ? (allAccounts[oauthSlug] || []) : [];
+          return {
+            resolved: r,
+            status: isConnected ? "added" : "idle",
+            accounts: accounts.length > 0 ? accounts : undefined,
+            showAccounts: accounts.length > 0,
+          };
+        }));
       } catch {
         setCards(services.map(name => ({
           resolved: {
@@ -293,6 +372,8 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
 
   // Track node online status for node-gated integrations
   const [nodeOnline, setNodeOnline] = useState(false);
+  const [nodeJustConnected, setNodeJustConnected] = useState(false);
+  const prevNodeOnlineRef = useRef(false);
   useEffect(() => {
     const hasNodeCards = cards.some(c => c.resolved.needsNode || c.resolved.authType === "browser");
     if (!hasNodeCards) return;
@@ -303,7 +384,14 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
         if (res.ok) {
           const data = await res.json();
           const nodes: Array<{ status?: string }> = data.nodes || [];
-          setNodeOnline(nodes.some(n => n.status === 'connected'));
+          const isOnline = nodes.some(n => n.status === 'connected');
+          // Detect false → true transition
+          if (isOnline && !prevNodeOnlineRef.current) {
+            setNodeJustConnected(true);
+            setTimeout(() => setNodeJustConnected(false), 1500);
+          }
+          prevNodeOnlineRef.current = isOnline;
+          setNodeOnline(isOnline);
         }
       } catch { /* ignore */ }
     };
@@ -352,7 +440,22 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
 
       if (provider) {
         const success = await openOAuthPopup(provider);
-        setCards(prev => prev.map((c, i) => i === index ? { ...c, status: success ? "added" : "idle" } : c));
+        if (success) {
+          // Fetch accounts after successful connection
+          const accounts = await fetchAccountsForProvider(oauthSlug);
+          setCards(prev => prev.map((c, i) =>
+            i === index
+              ? {
+                  ...c,
+                  status: "added",
+                  accounts: accounts.length > 0 ? accounts : undefined,
+                  showAccounts: accounts.length > 0,
+                }
+              : c
+          ));
+        } else {
+          setCards(prev => prev.map((c, i) => i === index ? { ...c, status: "idle" } : c));
+        }
         return;
       }
 
@@ -368,6 +471,38 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
       ));
     } catch {
       setCards(prev => prev.map((c, i) => i === index ? { ...c, status: "error" } : c));
+    }
+  };
+
+  /** Add another account for an already-connected OAuth provider */
+  const handleAddAnother = async (index: number) => {
+    const card = cards[index];
+    if (!card) return;
+    const { resolved } = card;
+
+    const knownOauth = ["google", "slack", "notion", "github", "discord", "linear", "airtable", "hubspot"];
+    const oauthSlug = resolved.oauthProvider || resolved.slug;
+    const provider = knownOauth.includes(oauthSlug) ? oauthSlug : null;
+    if (!provider) return;
+
+    // Show spinner while popup is open
+    setCards(prev => prev.map((c, i) => i === index ? { ...c, status: "adding" } : c));
+    const success = await openOAuthPopup(provider);
+    if (success) {
+      const accounts = await fetchAccountsForProvider(oauthSlug);
+      setCards(prev => prev.map((c, i) =>
+        i === index
+          ? {
+              ...c,
+              status: "added",
+              accounts: accounts.length > 0 ? accounts : c.accounts,
+              showAccounts: true,
+            }
+          : c
+      ));
+    } else {
+      // Restore added state even if popup was cancelled
+      setCards(prev => prev.map((c, i) => i === index ? { ...c, status: "added" } : c));
     }
   };
 
@@ -421,83 +556,192 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
         />
       )}
       <div className="flex flex-col gap-2 my-2">
-        {cards.map((card, i) => (
-          <div key={card.resolved.slug} className="border border-[rgba(58,58,56,0.2)] bg-gray-100 p-3 max-w-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <IntegrationIcon provider={card.resolved.slug} size={24} />
-                <div className="min-w-0">
-                  <p className="font-header font-bold text-sm truncate">{card.resolved.name}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {card.resolved.needsNode ? (
-                      <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 border border-amber-200">
-                        Uses your browser
-                      </span>
-                    ) : (
-                      <span className="font-mono text-[8px] uppercase tracking-wide text-grid/40">
-                        {card.resolved.authType === "api_key" ? "API Key" : "OAuth"}
-                      </span>
-                    )}
+        {cards.map((card, i) => {
+          const accountCount = card.accounts?.length ?? 0;
+          const isOAuth = card.resolved.authType === "oauth" && !card.resolved.needsNode;
+          const showAccountsSection = card.status === "added" && isOAuth && accountCount > 0 && card.showAccounts;
+
+          return (
+            <div key={card.resolved.slug} className="border border-[rgba(58,58,56,0.2)] bg-gray-100 p-3 max-w-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <IntegrationIcon provider={card.resolved.slug} size={24} />
+                  <div className="min-w-0">
+                    <p className="font-header font-bold text-sm truncate">{card.resolved.name}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {card.resolved.needsNode ? (
+                        <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 border border-amber-200">
+                          Uses your browser
+                        </span>
+                      ) : (
+                        <span className="font-mono text-[8px] uppercase tracking-wide text-grid/40">
+                          {card.resolved.authType === "api_key" ? "API Key" : "OAuth"}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
+
+                {card.status === "idle" && (
+                  <>
+                    {(card.resolved.needsNode || card.resolved.authType === "browser") ? (
+                      nodeOnline ? (
+                        <button
+                          onClick={() => {
+                            const urls: Record<string, string> = {
+                              linkedin: 'https://linkedin.com',
+                              instagram: 'https://instagram.com',
+                              facebook: 'https://facebook.com',
+                              whatsapp: 'https://web.whatsapp.com',
+                              youtube: 'https://youtube.com',
+                              twitter: 'https://twitter.com',
+                              reddit: 'https://reddit.com',
+                            };
+                            const url = card.resolved.loginUrl || urls[card.resolved.slug] || `https://${card.resolved.slug}.com`;
+                            window.open(url, '_blank', 'noopener,noreferrer');
+                            setCards(prev => prev.map((c, idx) => idx === i ? { ...c, status: "added" } : c));
+                          }}
+                          className="flex-shrink-0 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1"
+                        >
+                          <Check className="w-3 h-3" /> Ready
+                        </button>
+                      ) : nodeJustConnected ? (
+                        <span className="flex-shrink-0 font-mono text-[10px] text-green-600 flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Connected!
+                        </span>
+                      ) : null
+                    ) : (
+                      <button
+                        onClick={() => handleConnect(i)}
+                        className="flex-shrink-0 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-grid text-paper hover:bg-grid/80 transition-colors"
+                      >
+                        Connect
+                      </button>
+                    )}
+                  </>
+                )}
+                {card.status === "adding" && <Loader2 className="flex-shrink-0 w-4 h-4 animate-spin text-grid/40" />}
+                {card.status === "added" && (
+                  <button
+                    onClick={() =>
+                      isOAuth && accountCount > 0
+                        ? setCards(prev => prev.map((c, idx) => idx === i ? { ...c, showAccounts: !c.showAccounts } : c))
+                        : undefined
+                    }
+                    className={`flex-shrink-0 flex items-center gap-1 font-mono text-[10px] text-forest ${isOAuth && accountCount > 0 ? "cursor-pointer hover:text-forest/80" : "cursor-default"}`}
+                  >
+                    <Check className="w-3 h-3" />
+                    Connected{accountCount > 1 ? ` (${accountCount})` : ""}
+                    {isOAuth && accountCount > 0 && (
+                      <ChevronDown className={`w-3 h-3 transition-transform ${card.showAccounts ? "rotate-180" : ""}`} />
+                    )}
+                  </button>
+                )}
+                {card.status === "error" && (
+                  <button
+                    onClick={() => setCards(prev => prev.map((c, idx) => idx === i ? { ...c, status: "idle" } : c))}
+                    className="flex-shrink-0 font-mono text-[10px] text-coral hover:underline"
+                  >
+                    Try again
+                  </button>
+                )}
+                {card.status === "needs_key" && (
+                  <button
+                    onClick={() => setCards(prev => prev.map((c, idx) => idx === i ? { ...c, status: "idle" } : c))}
+                    className="flex-shrink-0 text-grid/40 hover:text-grid"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </div>
 
-              {card.status === "idle" && (
-                <button
-                  onClick={() => handleConnect(i)}
-                  className="flex-shrink-0 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-grid text-paper hover:bg-grid/80 transition-colors"
-                >
-                  {(card.resolved.needsNode || card.resolved.authType === "browser") && nodeOnline
-                    ? "Ready ✓"
-                    : "Connect"}
-                </button>
+              {/* Inline Companion onboarding for browser-gated cards when node is offline */}
+              {(card.resolved.needsNode || card.resolved.authType === 'browser') && card.status === "idle" && !nodeOnline && !nodeJustConnected && (
+                <div className="mt-3 border-t border-[rgba(58,58,56,0.15)] pt-3 space-y-3">
+                  {/* Explanation */}
+                  <div className="space-y-2">
+                    <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
+                      <strong className="text-forest">{card.resolved.name}</strong> doesn&apos;t have an API, so I need to browse it on your computer — just like you would.
+                    </p>
+                    <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
+                      <strong>Dopl Connect</strong> is a lightweight desktop app that lets me do that. You can also chat with me directly from it — no browser needed.
+                    </p>
+                  </div>
+
+                  {/* Download button */}
+                  <a
+                    href="/downloads/Dopl-Connect.dmg"
+                    download
+                    className="block w-full py-2.5 font-mono text-[10px] uppercase tracking-wide bg-grid text-paper hover:bg-grid/80 transition-colors text-center"
+                  >
+                    ⬇ Download Dopl Connect for macOS
+                  </a>
+
+                  {/* Live connection status */}
+                  <div className="flex items-center gap-2 py-1.5">
+                    <div className="relative w-2.5 h-2.5">
+                      <div className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-75" />
+                      <div className="relative w-2.5 h-2.5 rounded-full bg-amber-500" />
+                    </div>
+                    <span className="font-mono text-[10px] text-amber-700">
+                      Waiting for connection...
+                    </span>
+                  </div>
+
+                  <p className="font-mono text-[9px] text-grid/40 leading-relaxed">
+                    Download, open, and sign in with your Dopl account. The app runs quietly in your menu bar.
+                  </p>
+                </div>
               )}
-              {card.status === "adding" && <Loader2 className="flex-shrink-0 w-4 h-4 animate-spin text-grid/40" />}
-              {card.status === "added" && (
-                <span className="flex-shrink-0 flex items-center gap-1 font-mono text-[10px] text-forest">
-                  <Check className="w-3 h-3" /> Connected
-                </span>
+
+              {/* Connected Accounts section */}
+              {showAccountsSection && (
+                <div className="mt-2 border border-[rgba(58,58,56,0.2)] p-2 space-y-1">
+                  <p className="font-mono text-[8px] uppercase tracking-wide text-grid/40 mb-1.5">Connected Accounts</p>
+                  {card.accounts!.map(account => (
+                    <AccountRow key={account.id} account={account} />
+                  ))}
+                  <button
+                    onClick={() => handleAddAnother(i)}
+                    className="mt-1.5 flex items-center gap-1 font-mono text-[10px] text-forest hover:text-forest/80 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Connect another account
+                  </button>
+                </div>
               )}
-              {card.status === "error" && (
-                <button
-                  onClick={() => setCards(prev => prev.map((c, idx) => idx === i ? { ...c, status: "idle" } : c))}
-                  className="flex-shrink-0 font-mono text-[10px] text-coral hover:underline"
-                >
-                  Try again
-                </button>
+
+              {/* "adding another" spinner when re-opening OAuth from already-connected state */}
+              {card.status === "adding" && accountCount > 0 && (
+                <div className="mt-2 flex items-center gap-1.5">
+                  <Loader2 className="w-3 h-3 animate-spin text-grid/40" />
+                  <span className="font-mono text-[10px] text-grid/40">Connecting…</span>
+                </div>
               )}
+
               {card.status === "needs_key" && (
-                <button
-                  onClick={() => setCards(prev => prev.map((c, idx) => idx === i ? { ...c, status: "idle" } : c))}
-                  className="flex-shrink-0 text-grid/40 hover:text-grid"
-                >
-                  <X className="w-3 h-3" />
-                </button>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    ref={el => { apiKeyRefs.current[i] = el; }}
+                    type="password"
+                    placeholder={card.resolved.apiKeyLabel || "Paste API key…"}
+                    value={card.apiKeyValue || ""}
+                    onChange={e => setCards(prev => prev.map((c, idx) => idx === i ? { ...c, apiKeyValue: e.target.value } : c))}
+                    onKeyDown={e => e.key === "Enter" && handleSaveApiKey(i)}
+                    className="flex-1 font-mono text-[11px] border border-[rgba(58,58,56,0.2)] px-2 py-1.5 bg-white focus:outline-none focus:border-forest"
+                  />
+                  <button
+                    onClick={() => handleSaveApiKey(i)}
+                    disabled={!card.apiKeyValue?.trim()}
+                    className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-forest text-white hover:bg-forest/90 disabled:opacity-40 transition-colors"
+                  >
+                    Save
+                  </button>
+                </div>
               )}
             </div>
-
-            {card.status === "needs_key" && (
-              <div className="mt-3 flex gap-2">
-                <input
-                  ref={el => { apiKeyRefs.current[i] = el; }}
-                  type="password"
-                  placeholder={card.resolved.apiKeyLabel || "Paste API key…"}
-                  value={card.apiKeyValue || ""}
-                  onChange={e => setCards(prev => prev.map((c, idx) => idx === i ? { ...c, apiKeyValue: e.target.value } : c))}
-                  onKeyDown={e => e.key === "Enter" && handleSaveApiKey(i)}
-                  className="flex-1 font-mono text-[11px] border border-[rgba(58,58,56,0.2)] px-2 py-1.5 bg-white focus:outline-none focus:border-forest"
-                />
-                <button
-                  onClick={() => handleSaveApiKey(i)}
-                  disabled={!card.apiKeyValue?.trim()}
-                  className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-forest text-white hover:bg-forest/90 disabled:opacity-40 transition-colors"
-                >
-                  Save
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );

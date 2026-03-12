@@ -37,7 +37,9 @@ export default function ChatPage() {
           fetch('/api/organizations/provision').then(async res => {
             if (!res.ok) return null;
             const data = await res.json();
-            if (!data.instance || !data.instance.id) {
+            // GET returns { organization: { openclaw_instance_id, ... } }
+            const hasInstance = data.organization?.openclaw_instance_id || data.instance?.id;
+            if (!hasInstance) {
               if (!cancelled) setProvisioning(true);
               try {
                 const provRes = await fetch('/api/organizations/provision', {

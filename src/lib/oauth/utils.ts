@@ -44,8 +44,10 @@ export function buildAuthorizationUrl(
   const scopeList = scopes?.length ? scopes : config.defaultScopes;
   if (scopeList.length > 0) {
     if (provider === 'slack') {
+      // Slack uses comma-separated scopes
       params.set('scope', scopeList.join(','));
-    } else if (provider === 'google') {
+    } else {
+      // Google, GitHub, and all other providers use space-separated scopes
       params.set('scope', scopeList.join(' '));
     }
   }
@@ -90,6 +92,9 @@ export async function exchangeCodeForTokens(
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/x-www-form-urlencoded',
+    // Required for GitHub (and harmless for others): without this GitHub returns
+    // application/x-www-form-urlencoded instead of JSON, breaking response.json()
+    'Accept': 'application/json',
   };
   
   if (config.useBasicAuth) {
@@ -132,7 +137,13 @@ export async function exchangeCodeForTokens(
     return null;
   }
   
-  return response.json();
+  // GitHub can return errors as JSON even with 200 status (e.g. bad_verification_code)
+  const data = await response.json();
+  if (data.error) {
+    console.error(`Token exchange error for ${provider}:`, data.error, data.error_description);
+    return null;
+  }
+  return data;
 }
 
 /**
@@ -196,7 +207,32 @@ export async function fetchUserInfo(
           picture: data.avatar_url,
         };
       }
-      
+
+      case 'github': {
+        // Fetch primary GitHub user info
+        const [userRes, emailsRes] = await Promise.all([
+          fetch('https://api.github.com/user', {
+            headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json' },
+          }),
+          fetch('https://api.github.com/user/emails', {
+            headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json' },
+          }),
+        ]);
+        if (!userRes.ok) return null;
+        const userData = await userRes.json();
+        let primaryEmail: string | undefined;
+        if (emailsRes.ok) {
+          const emails: Array<{ email: string; primary: boolean; verified: boolean }> = await emailsRes.json();
+          primaryEmail = emails.find(e => e.primary && e.verified)?.email || emails[0]?.email;
+        }
+        return {
+          id: String(userData.id),
+          email: primaryEmail || userData.email || undefined,
+          name: userData.name || userData.login,
+          picture: userData.avatar_url,
+        };
+      }
+
       default:
         return null;
     }

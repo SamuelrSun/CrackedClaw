@@ -122,9 +122,8 @@ export async function POST(request: NextRequest) {
     const { data: result, error: deleteError } = await adminClient
       .rpc('delete_user_cascade', { target_user_id: user.id });
 
-    if (deleteError) {
-      console.error('delete_user_cascade error:', deleteError);
-      // Fall back to manual deletion
+    // Helper: manual fallback deletion when the RPC fails or returns success:false
+    const runManualDeletion = async () => {
       const deletions = [
         adminClient.from("agent_instances").delete().eq("user_id", user.id),
         adminClient.from("conversations").delete().eq("user_id", user.id),
@@ -138,9 +137,18 @@ export async function POST(request: NextRequest) {
       ];
       await Promise.allSettled(deletions);
       await adminClient.auth.admin.deleteUser(user.id);
+    };
+
+    if (deleteError) {
+      // RPC call itself failed (e.g. function signature mismatch, permissions)
+      console.error('delete_user_cascade error:', deleteError);
+      await runManualDeletion();
     } else if (result && typeof result === 'object' && 'success' in result && !result.success) {
-      console.error('delete_user_cascade returned failure:', result);
-      return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 });
+      // RPC returned success:false — e.g. account_deletion_log table missing causes
+      // a PL/pgSQL exception that rolls back the function's DELETEs and returns failure.
+      // Fall back to manual deletion so the account is still properly removed.
+      console.error('delete_user_cascade returned failure, falling back to manual deletion:', result);
+      await runManualDeletion();
     }
 
     // Sign out

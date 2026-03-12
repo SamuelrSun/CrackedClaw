@@ -1134,19 +1134,43 @@ User message: `
   };
 
 
-  const handleNewConversation = () => {
+  const handleNewConversation = async () => {
+    // Optimistic UI: show the new conversation immediately
     const tempId = `temp-${Date.now()}`;
     const newConvo: Conversation = {
       id: tempId,
-      title: "Untitled",
+      title: "New conversation",
       lastMessage: "",
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
     setConversations(prev => [newConvo, ...prev]);
     setActiveConvo(tempId);
-    setConversationId(null); // still null until first message creates it server-side
+    setConversationId(null);
     setMessages([]);
     setError(null);
+
+    // Create the conversation in DB immediately
+    try {
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "New conversation" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const realId = data.conversation?.id;
+        if (realId) {
+          // Replace temp entry with real one
+          setConversations(prev =>
+            prev.map(c => c.id === tempId ? { ...c, id: realId } : c)
+          );
+          setActiveConvo(realId);
+          setConversationId(realId);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to create conversation:", err);
+    }
   };
 
   // Fetch and update conversation list after a conversation is created/updated

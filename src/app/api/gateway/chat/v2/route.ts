@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.redirect(v1Url, { status: 307 });
     }
 
-    // Create conversation if needed
+    // Create conversation if needed, or rename if it's a fresh "New conversation"
     if (!activeConversationId) {
       const { data: newConvo } = await supabase
         .from('conversations')
@@ -63,6 +63,19 @@ export async function POST(request: NextRequest) {
         .select()
         .single();
       if (newConvo) activeConversationId = newConvo.id;
+    } else {
+      // Rename "New conversation" to the first message content
+      const { data: existingConvo } = await supabase
+        .from('conversations')
+        .select('title')
+        .eq('id', activeConversationId)
+        .single();
+      if (existingConvo?.title === 'New conversation') {
+        await supabase
+          .from('conversations')
+          .update({ title: message.length > 50 ? message.substring(0, 47) + '...' : message })
+          .eq('id', activeConversationId);
+      }
     }
 
     // Save user message
