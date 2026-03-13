@@ -608,17 +608,15 @@ export default function LandingPage() {
 
         <div className="relative z-10 max-w-4xl">
           {/* Eyebrow */}
-          <div className="hero-animate mb-8">
+          <div className="hero-animate mb-5">
             <span
-              className="inline-block text-[11px] uppercase tracking-[0.22em] px-4 py-1.5 rounded-sm border"
+              className="block text-[10px] font-bold uppercase tracking-[0.25em]"
               style={{
-                fontFamily: "var(--font-roboto, sans-serif)",
-                color: "#6B8BFF",
-                borderColor: "#3A5FFF55",
-                background: "rgba(58,95,255,0.12)",
+                fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+                color: "#18181B",
               }}
             >
-              Introducing Dopl
+              Introducing Dopl, the
             </span>
           </div>
 
