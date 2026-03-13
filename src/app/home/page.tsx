@@ -693,16 +693,10 @@ export default function LandingPage() {
             </div>
           </h1>
 
-          {/* Content row */}
-          <div
-            className="hero-animate-2 flex gap-[60px] items-start pb-10 mb-10"
-            style={{ marginTop: 40 }}
-            style={{ borderBottom: "1px solid rgba(255,255,255,0.15)" }}
-          >
-            <div className="flex-1">
-              {/* Body */}
+          {/* Body + CTA */}
+          <div className="hero-animate-2" style={{ marginTop: 40 }}>
               <p
-                className="max-w-[480px]"
+                className="max-w-[480px] mb-8"
                 style={{
                   fontFamily: "var(--font-inter, 'Inter', sans-serif)",
                   fontSize: 14,
@@ -710,31 +704,28 @@ export default function LandingPage() {
                   color: "rgba(255,255,255,0.7)",
                 }}
               >
-                Dopl is the always-on intelligent twin that works so you don&apos;t. Leverage the full power of OpenClaw with zero setup — just connect your accounts and let your agent operate. <strong style={{ color: "rgba(255,255,255,0.9)" }}>Get started free.</strong>
+                Dopl is the always-on intelligent twin that works so you don&apos;t. Leverage the full power of OpenClaw with zero setup — just connect your accounts and let your agent operate.
               </p>
-            </div>
-
-            {/* CTA group */}
-            <div className="flex-1 flex flex-col">
               <Link
                 href="/login"
-                className="flex items-center justify-center hover:opacity-90 transition-colors"
+                className="inline-block transition-all duration-300"
                 style={{
-                  fontFamily: "'Courier New', Courier, monospace",
-                  fontSize: 12,
-                  fontWeight: 400,
+                  fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+                  fontSize: 10,
+                  fontWeight: 700,
                   textTransform: "uppercase" as const,
-                  letterSpacing: "0.1em",
-                  background: "#18181B",
+                  letterSpacing: "0.2em",
+                  padding: "14px 32px",
+                  border: "1px solid rgba(255,255,255,0.8)",
+                  borderRadius: 50,
                   color: "white",
-                  height: 50,
-                  width: "100%",
                   textDecoration: "none",
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "white"; e.currentTarget.style.color = "#18181B"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "white"; }}
               >
                 Get Access
               </Link>
-            </div>
           </div>
         </div>
 
