@@ -592,7 +592,7 @@ export default function LandingPage() {
         <div className="absolute top-7 right-8 z-20 flex items-center gap-3 hero-animate">
           <Link
             href="/login"
-            className="hover:bg-white hover:text-[#18181B] transition-all"
+            className="hover:bg-[#18181B] hover:text-white transition-all"
             style={{
               fontFamily: "var(--font-inter, 'Inter', sans-serif)",
               fontSize: 10,
@@ -600,9 +600,9 @@ export default function LandingPage() {
               textTransform: "uppercase" as const,
               letterSpacing: "0.2em",
               padding: "12px 24px",
-              border: "1px solid rgba(255,255,255,0.8)",
+              border: "1px solid #18181B",
               borderRadius: 50,
-              color: "white",
+              color: "#18181B",
               textDecoration: "none",
             }}
           >
@@ -662,7 +662,7 @@ export default function LandingPage() {
             className="hero-animate-2 uppercase tracking-[0.16em] mb-6"
             style={{
               fontFamily: "var(--font-roboto, sans-serif)",
-              color: "rgba(255,255,255,0.85)",
+              color: "rgba(24,24,27,0.5)",
               fontSize: "clamp(11px, 1.4vw, 17px)",
             }}
           >
@@ -672,7 +672,7 @@ export default function LandingPage() {
           {/* Content row — Fenna layout: quote + paragraph side by side */}
           <div
             className="hero-animate-2 flex gap-[60px] items-start pb-10 mb-10"
-            style={{ borderBottom: "1px solid rgba(255,255,255,0.15)" }}
+            style={{ borderBottom: "1px solid rgba(24,24,27,0.15)" }}
           >
             <div className="flex-1">
               {/* Quote */}
@@ -682,7 +682,7 @@ export default function LandingPage() {
                   fontFamily: "var(--font-playfair, 'Playfair Display', serif)",
                   fontStyle: "italic",
                   fontSize: 18,
-                  color: "rgba(255,255,255,0.8)",
+                  color: "#18181B",
                 }}
               >
                 &ldquo;The best interface is one that disappears entirely — where your intent becomes action without friction.&rdquo;
@@ -694,10 +694,10 @@ export default function LandingPage() {
                   fontFamily: "var(--font-inter, 'Inter', sans-serif)",
                   fontSize: 14,
                   lineHeight: 1.8,
-                  color: "rgba(255,255,255,0.7)",
+                  color: "rgba(24,24,27,0.7)",
                 }}
               >
-                Dopl is the always-on intelligent twin that works so you don&apos;t. Leverage the full power of OpenClaw with zero setup — just connect your accounts and let your agent operate. <strong style={{ color: "rgba(255,255,255,0.9)" }}>Get started free.</strong>
+                Dopl is the always-on intelligent twin that works so you don&apos;t. Leverage the full power of OpenClaw with zero setup — just connect your accounts and let your agent operate. <strong style={{ color: "#18181B" }}>Get started free.</strong>
               </p>
             </div>
 
