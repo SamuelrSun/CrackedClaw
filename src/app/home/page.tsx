@@ -699,20 +699,19 @@ export default function LandingPage() {
             style={{
               fontFamily: "var(--font-inter, 'Inter', sans-serif)",
               fontSize: 32,
-              fontWeight: 50,
+              fontWeight: 300,
               letterSpacing: "0.05em",
-              opacity: 0.4,
               marginTop: 20,
-              color: "white",
+              marginBottom: 60,
+              color: "rgba(255,255,255,0.4)",
             }}
           >
-            For those who refuse to work alone
+            For the autonomous era
           </div>
 
           {/* Content row — Fenna layout: quote + paragraph side by side */}
           <div
             className="hero-animate-2 flex gap-[60px] items-start pb-10 mb-10"
-            style={{ marginTop: 60 }}
             style={{ borderBottom: "1px solid rgba(255,255,255,0.15)" }}
           >
             <div className="flex-1">
