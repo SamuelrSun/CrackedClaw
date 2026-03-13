@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -32,409 +32,54 @@ function useScrollReveal() {
 /* ─────────────────────────────────────────────────────────
    Demo Chat Component
 ───────────────────────────────────────────────────────── */
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-  streaming?: boolean;
-}
-
-const WELCOME_MSG: ChatMessage = {
-  role: "assistant",
-  content:
-    "Hey! I'm Dopl, your AI that actually does things. Ask me anything about what I can do — from automating your inbox to controlling your browser. What would you like to know?",
-};
-
-function DemoChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MSG]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const sendMessage = useCallback(async () => {
-    const text = input.trim();
-    if (!text || loading) return;
-    setInput("");
-
-    const userMsg: ChatMessage = { role: "user", content: text };
-    const allMessages = [...messages.filter((m) => !m.streaming), userMsg];
-    setMessages([...allMessages, { role: "assistant", content: "", streaming: true }]);
-    setLoading(true);
-
-    try {
-      const res = await fetch("/api/demo-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
-        }),
-      });
-
-      if (!res.ok || !res.body) throw new Error("Stream failed");
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        accumulated += decoder.decode(value, { stream: true });
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = {
-            role: "assistant",
-            content: accumulated,
-            streaming: true,
-          };
-          return updated;
-        });
-      }
-
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: "assistant",
-          content: accumulated,
-          streaming: false,
-        };
-        return updated;
-      });
-    } catch {
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: "assistant",
-          content: "Oops, something went wrong. Try again!",
-          streaming: false,
-        };
-        return updated;
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [input, loading, messages]);
-
+/* ─────────────────────────────────────────────────────────
+   Video Demo Placeholder
+───────────────────────────────────────────────────────── */
+function DemoVideo() {
   return (
-    <div className="flex flex-col h-full">
-      {/* Chat header */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10">
-        <div className="relative">
-          <div className="w-8 h-8 rounded-full bg-[#3A5FFF] flex items-center justify-center">
-            <span className="font-display text-white text-sm" style={{ fontStyle: "italic", fontFamily: "var(--font-bodoni, serif)" }}>D</span>
-          </div>
-          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-[#15151f]" />
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-white" style={{ fontFamily: "var(--font-inter, sans-serif)" }}>Dopl</p>
-          <p className="text-[11px] text-green-400" style={{ fontFamily: "var(--font-inter, sans-serif)" }}>● Online</p>
-        </div>
-      </div>
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" style={{ minHeight: 0 }}>
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            {msg.role === "assistant" && (
-              <div className="w-7 h-7 rounded-full bg-[#3A5FFF]/20 flex items-center justify-center flex-shrink-0 mt-1">
-                <span style={{ fontFamily: "var(--font-bodoni, serif)", fontStyle: "italic", fontSize: 12, color: "#6B8BFF" }}>D</span>
-              </div>
-            )}
-            <div
-              className={`max-w-[78%] px-4 py-3 rounded-2xl text-[15px] leading-relaxed ${
-                msg.role === "user"
-                  ? "text-white rounded-tr-sm"
-                  : "rounded-tl-sm"
-              }`}
-              style={
-                msg.role === "user"
-                  ? { background: "#3A5FFF", fontFamily: "var(--font-inter, sans-serif)" }
-                  : {
-                      background: "#1e1e2e",
-                      color: "rgba(255,255,255,0.9)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      fontFamily: "var(--font-inter, sans-serif)",
-                    }
-              }
-            >
-              {msg.content}
-              {msg.streaming && msg.content === "" && (
-                <span className="flex gap-1 py-0.5">
-                  <span className="typing-dot w-1.5 h-1.5 rounded-full bg-white/40 inline-block" />
-                  <span className="typing-dot w-1.5 h-1.5 rounded-full bg-white/40 inline-block" />
-                  <span className="typing-dot w-1.5 h-1.5 rounded-full bg-white/40 inline-block" />
-                </span>
-              )}
-              {msg.streaming && msg.content !== "" && (
-                <span className="inline-block w-0.5 h-3.5 bg-white/50 ml-0.5 animate-pulse align-middle" />
-              )}
-            </div>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input */}
-      <div className="px-4 py-4 border-t border-white/10">
+    <div className="relative z-10 py-24 px-6">
+      <div className="max-w-5xl mx-auto">
         <div
-          className="flex items-center gap-2 rounded-xl px-4 py-2.5 focus-within:border-[#3A5FFF] transition-colors"
+          className="relative overflow-hidden"
           style={{
-            background: "#12121c",
-            border: "1px solid rgba(255,255,255,0.15)",
+            aspectRatio: "16/9",
+            background: "#111118",
+            border: "1px solid rgba(255,255,255,0.1)",
           }}
         >
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-            placeholder="Ask Dopl anything..."
-            disabled={loading}
-            className="flex-1 bg-transparent text-[15px] text-white/90 placeholder-white/40 outline-none"
-            style={{ fontFamily: "var(--font-inter, sans-serif)" }}
-          />
-          <button
-            onClick={sendMessage}
-            disabled={loading || !input.trim()}
-            className="w-8 h-8 rounded-lg bg-[#3A5FFF] flex items-center justify-center disabled:opacity-40 hover:bg-[#2a4fef] transition-colors flex-shrink-0"
+          {/* Replace src with actual demo video */}
+          <video
+            className="w-full h-full object-cover"
+            poster=""
+            controls
+            playsInline
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────
-   Demo Dashboard (sidebar + chat + right panel)
-───────────────────────────────────────────────────────── */
-function DemoDashboard() {
-  return (
-    <div className="flex h-full overflow-hidden" style={{ fontFamily: "var(--font-inter, sans-serif)" }}>
-      {/* Sidebar */}
-      <div
-        className="hidden sm:flex flex-col w-[220px] lg:w-[260px] flex-shrink-0 overflow-y-auto"
-        style={{
-          background: "#0d0d1a",
-          borderRight: "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
-        {/* Logo */}
-        <div className="px-5 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-          <span className="font-display text-white text-xl" style={{ fontStyle: "italic", fontFamily: "var(--font-bodoni, serif)" }}>Dopl</span>
-        </div>
-
-        {/* Conversations */}
-        <div className="px-4 pt-5 pb-2">
-          <p className="text-[11px] uppercase tracking-[0.18em] mb-2 px-1" style={{ color: "rgba(255,255,255,0.45)" }}>Conversations</p>
-          {[
-            { label: "Morning briefing", active: true },
-            { label: "Research: AR market size", active: false },
-            { label: "Draft email to investors", active: false },
-            { label: "Weekly calendar review", active: false },
-          ].map((c) => (
+            {/* <source src="/video/demo.mp4" type="video/mp4" /> */}
+          </video>
+          {/* Placeholder overlay — remove when video is added */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
             <div
-              key={c.label}
-              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg mb-0.5 cursor-pointer ${c.active ? "bg-white/10" : "hover:bg-white/5"}`}
+              className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
+              style={{ border: "2px solid rgba(255,255,255,0.3)" }}
             >
-              {c.active && <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0 pulse-indicator" />}
-              <span
-                className="text-[13px] truncate"
-                style={{ color: c.active ? "white" : "rgba(255,255,255,0.65)" }}
-              >
-                {c.label}
-              </span>
+              <span className="text-3xl ml-1">▶</span>
             </div>
-          ))}
-        </div>
-
-        {/* Integrations */}
-        <div className="px-4 pt-4 pb-2">
-          <p className="text-[11px] uppercase tracking-[0.18em] mb-2 px-1" style={{ color: "rgba(255,255,255,0.45)" }}>Integrations</p>
-          {[
-            { name: "Google", sub: "Gmail · Calendar", dot: "bg-green-400", badge: "Connected", badgeColor: "text-green-400" },
-            { name: "LinkedIn", sub: "Browser", dot: "bg-blue-400", badge: "Browser", badgeColor: "text-blue-400" },
-            { name: "Slack", sub: "Workspace", dot: "bg-green-400", badge: "Connected", badgeColor: "text-green-400" },
-            { name: "GitHub", sub: "Repositories", dot: "bg-green-400", badge: "Connected", badgeColor: "text-green-400" },
-          ].map((intg) => (
-            <div key={intg.name} className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-white/5 cursor-pointer">
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${intg.dot}`} />
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] truncate" style={{ color: "rgba(255,255,255,0.85)" }}>{intg.name}</p>
-                <p className="text-[11px] truncate" style={{ color: "rgba(255,255,255,0.45)" }}>{intg.sub}</p>
-              </div>
-              <span className={`text-[10px] font-medium ${intg.badgeColor}`}>{intg.badge}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Companion */}
-        <div className="mt-auto px-4 py-4" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-          <p className="text-[11px] uppercase tracking-[0.18em] mb-2 px-1" style={{ color: "rgba(255,255,255,0.45)" }}>Companion</p>
-          <div className="flex items-center gap-2.5 px-2 py-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0 pulse-indicator" />
-            <div>
-              <p className="text-[13px]" style={{ color: "rgba(255,255,255,0.85)" }}>MacBook Pro</p>
-              <p className="text-[11px] text-green-400">Online</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Chat area */}
-      <div className="flex-1 flex flex-col min-w-0" style={{ background: "#15151f" }}>
-        <DemoChat />
-      </div>
-
-      {/* Right tasks panel */}
-      <div
-        className="hidden lg:flex flex-col w-[200px] xl:w-[220px] flex-shrink-0"
-        style={{
-          background: "#161622",
-          borderLeft: "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
-        <div className="px-4 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-          <p className="text-[13px] font-semibold text-white">Active Tasks</p>
-        </div>
-        <div className="px-3 py-4 space-y-3">
-          {[
-            { label: "Monitoring inbox", status: "running", color: "text-green-400", dot: "bg-green-400" },
-            { label: "LinkedIn profile research", status: "done", color: "text-white/50", dot: "bg-white/30" },
-            { label: "Draft weekly report", status: "queued", color: "text-amber-400", dot: "bg-amber-400" },
-          ].map((task) => (
-            <div
-              key={task.label}
-              className="rounded-lg p-3"
+            <p
+              className="text-sm uppercase tracking-[0.2em]"
               style={{
-                background: "#1e1e2e",
-                border: "1px solid rgba(255,255,255,0.1)",
+                fontFamily: "var(--font-inter, sans-serif)",
+                color: "rgba(255,255,255,0.5)",
               }}
             >
-              <div className="flex items-start gap-2">
-                <span className={`w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0 ${task.dot} ${task.status === "running" ? "pulse-indicator" : ""}`} />
-                <div className="min-w-0">
-                  <p className="text-[13px] leading-snug truncate" style={{ color: "rgba(255,255,255,0.85)" }}>{task.label}</p>
-                  <p className={`text-[11px] mt-0.5 ${task.color}`}>
-                    {task.status === "running" ? "● Running" : task.status === "done" ? "✓ Done" : "◷ Queued"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
+              Demo Video Coming Soon
+            </p>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────────────────
-   Scroll-Expand Demo Section
-───────────────────────────────────────────────────────── */
-function ScrollExpandDemo() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const onScroll = () => {
-      const rect = el.getBoundingClientRect();
-      const containerH = el.offsetHeight;
-      const viewportH = window.innerHeight;
-      // progress: 0 when top of container is at bottom of viewport, 1 when we've scrolled 60% of container
-      const scrolled = -rect.top;
-      const range = containerH - viewportH;
-      const p = range > 0 ? Math.min(1, Math.max(0, scrolled / (range * 0.65))) : 0;
-      setProgress(p);
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  // Interpolate card styles
-  const borderRadius = Math.round(16 * (1 - progress));
-  const scaleX = 0.78 + 0.22 * progress;
-  const shadowOpacity = Math.max(0.15, 0.4 * (1 - progress * 0.5));
-  const cardOpacity = Math.min(1, 0.4 + 0.6 * (progress * 2));
-  const glowOpacity = 0.08 + 0.05 * progress;
-
-  return (
-    <div
-      ref={containerRef}
-      className="relative"
-      style={{ height: "220vh" }}
-    >
-      {/* Label above */}
-      <div className="absolute top-0 left-0 right-0 flex flex-col items-center pt-16 pointer-events-none z-10">
-        <span
-          className="inline-block text-[11px] uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border mb-4"
-          style={{
-            fontFamily: "var(--font-inter, sans-serif)",
-            color: "#6B8BFF",
-            borderColor: "#3A5FFF44",
-            background: "#3A5FFF11",
-          }}
-        >
-          Live Demo
-        </span>
-        <h2
-          className="text-3xl md:text-4xl lg:text-5xl font-bold text-center text-white px-6"
-          style={{ fontFamily: "var(--font-bodoni, serif)", fontStyle: "italic" }}
-        >
-          See Dopl in action
-        </h2>
-        <p
-          className="mt-4 text-base md:text-lg text-center max-w-md px-6"
-          style={{
-            fontFamily: "var(--font-inter, sans-serif)",
-            color: "rgba(255,255,255,0.65)",
-          }}
-        >
-          Scroll to explore the dashboard — then ask it anything
-        </p>
-      </div>
-
-      {/* Sticky card */}
-      <div
-        className="sticky top-0 flex items-center justify-center"
-        style={{ height: "100vh" }}
-      >
-        <div
-          style={{
-            width: "90vw",
-            maxWidth: "1400px",
-            height: "86vh",
-            maxHeight: "820px",
-            transform: `scaleX(${scaleX})`,
-            transformOrigin: "center center",
-            borderRadius: borderRadius,
-            overflow: "hidden",
-            boxShadow: `0 0 60px rgba(58,95,255,${glowOpacity}), 0 ${Math.round(32 * (1 - progress))}px ${Math.round(100 * (1 - progress))}px rgba(0,0,0,${shadowOpacity})`,
-            opacity: cardOpacity,
-            transition: "none",
-            willChange: "transform, border-radius, box-shadow",
-            background: "#111118",
-            border: `1px solid rgba(255,255,255,${0.12 - 0.04 * progress})`,
-          }}
-        >
-          <DemoDashboard />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ─────────────────────────────────────────────────────────
    Feature sections
@@ -744,7 +389,7 @@ export default function LandingPage() {
 
       {/* ═══ Demo Section ═══ */}
       <div id="demo" className="relative z-10">
-        <ScrollExpandDemo />
+        <DemoVideo />
       </div>
 
       {/* ═══ Footer ═══ */}
