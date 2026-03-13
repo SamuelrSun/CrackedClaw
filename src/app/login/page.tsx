@@ -242,8 +242,15 @@ function LoginContent() {
       <div className="fixed inset-0 z-0" style={{ background: "rgba(0,0,0,0.25)" }} />
 
       <div
-        className="w-full max-w-sm relative z-10"
-        style={{ animation: "fadeInUp 0.6s ease-out both", animationDelay: "0.1s" }}
+        className="w-full max-w-sm relative z-10 p-6"
+        style={{
+          animation: "loginFadeIn 0.6s ease-out both",
+          animationDelay: "0.1s",
+          background: "rgba(255,255,255,0.12)",
+          backdropFilter: "blur(40px) saturate(180%)",
+          WebkitBackdropFilter: "blur(40px) saturate(180%)",
+          border: "1px solid rgba(255,255,255,0.25)",
+        }}
       >
         <div className="text-center mb-8">
           <h1
@@ -269,15 +276,6 @@ function LoginContent() {
           </div>
         )}
 
-        <div
-          className="p-6"
-          style={{
-            background: "rgba(255,255,255,0.15)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            border: "1px solid rgba(255,255,255,0.25)",
-          }}
-        >
           <p className="font-mono text-[10px] text-white/70 uppercase tracking-wide mb-6 text-center">
             {isSignUp ? "Create your account" : "Sign in to continue"}
           </p>
@@ -426,7 +424,6 @@ function LoginContent() {
               </button>
             </div>
           )}
-        </div>
 
         <p className="font-mono text-[9px] text-white/40 text-center mt-6 uppercase tracking-wide">
           By signing in, you agree to our <a href="/terms" className="underline hover:text-white transition-colors">terms of service</a>

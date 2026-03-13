@@ -120,6 +120,14 @@ body {
   }
 }
 
+/* Opacity-only fade for containers with backdrop-filter children.
+   Using transform in an ancestor creates a new backdrop root,
+   which breaks backdrop-filter on descendants. */
+@keyframes loginFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 @keyframes fadeOut {
   from {
     opacity: 1;
