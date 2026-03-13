@@ -693,40 +693,13 @@ export default function LandingPage() {
             </div>
           </h1>
 
-          {/* Subtitle — Fenna style */}
-          <div
-            className="hero-animate-2 uppercase"
-            style={{
-              fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-              fontSize: 32,
-              fontWeight: 300,
-              letterSpacing: "0.05em",
-              marginTop: 20,
-              marginBottom: 60,
-              color: "rgba(255,255,255,0.4)",
-            }}
-          >
-            For the autonomous era
-          </div>
-
-          {/* Content row — Fenna layout: quote + paragraph side by side */}
+          {/* Content row */}
           <div
             className="hero-animate-2 flex gap-[60px] items-start pb-10 mb-10"
+            style={{ marginTop: 40 }}
             style={{ borderBottom: "1px solid rgba(255,255,255,0.15)" }}
           >
             <div className="flex-1">
-              {/* Quote */}
-              <p
-                className="mb-5"
-                style={{
-                  fontFamily: "var(--font-playfair, 'Playfair Display', serif)",
-                  fontStyle: "italic",
-                  fontSize: 18,
-                  color: "rgba(255,255,255,0.8)",
-                }}
-              >
-                &ldquo;The best interface is one that disappears entirely — where your intent becomes action without friction.&rdquo;
-              </p>
               {/* Body */}
               <p
                 className="max-w-[480px]"
