@@ -360,7 +360,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   return parts.join('\n');
 }
 
-export async function buildSystemPromptForUser(userId: string, userMessage?: string): Promise<string> {
+export async function buildSystemPromptForUser(userId: string, userMessage?: string, conversationId?: string): Promise<string> {
   const ctx: SystemPromptContext = { userId };
 
   try {
@@ -517,7 +517,8 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
       .replace(/__BRIDGE_SECRET__/g, bridgeSecret)
       .replace(/__PUSH_URL__/g, `${appUrl}/api/chat/push`)
       .replace(/__PUSH_SECRET__/g, pushSecret)
-      .replace(/__APP_URL__/g, appUrl);
+      .replace(/__APP_URL__/g, appUrl)
+      .replace(/__CONVO_ID__/g, conversationId || '');
 
   // Check if this user has an OpenClaw instance (gateway mode)
   try {

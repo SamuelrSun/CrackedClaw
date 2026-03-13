@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build system prompt (includes user context, memory, integrations)
-    const systemPrompt = await buildSystemPromptForUser(user!.id, message);
+    const systemPrompt = await buildSystemPromptForUser(user!.id, message, activeConversationId || undefined);
 
     // All messages for the gateway
     const allMessages = [

@@ -51,6 +51,7 @@ import { VoiceOutputButton } from "@/components/chat/voice-output-button";
 import { EmailComposerCard } from "@/components/chat/email-composer-card";
 import type { EmailDraft } from "@/lib/email/gmail-client";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
+import { useGatewayWS, type WSChatEvent } from "@/hooks/use-gateway-ws";
 
 interface ToolCallInfo {
   tool: string;
@@ -641,6 +642,120 @@ export default function ChatPageClient({
     cancelReconnect,
   } = useGateway();
 
+  // ── WebSocket chat state ────────────────────────────────────────────────
+  // Refs to the currently-streaming message so the WS event handler can
+  // update it without stale closures.
+  const wsStreamingMsgIdRef = useRef<string | null>(null);
+  const wsFullTextRef = useRef<string>("");
+  const wsConvoIdRef = useRef<string | null>(null);
+  const wsSessionKeyRef = useRef<string | null>(null);
+
+  const handleWSEvent = useCallback((event: WSChatEvent) => {
+    if (event.type === "token" && event.delta) {
+      const msgId = wsStreamingMsgIdRef.current;
+      if (!msgId) return;
+      setIsLoading(false);
+      wsFullTextRef.current += event.delta;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId ? { ...m, content: (m.content || "") + event.delta! } : m
+        )
+      );
+    } else if (event.type === "lifecycle_start") {
+      setIsLoading(false);
+    } else if (event.type === "done") {
+      const msgId = wsStreamingMsgIdRef.current;
+      if (!msgId) return;
+      const fullText = event.fullText ?? wsFullTextRef.current;
+      // Mark streaming done
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId ? { ...m, content: fullText, isStreaming: false } : m
+        )
+      );
+      setIsLoading(false);
+      setRetryCount(0);
+      lastFailedMessage.current = null;
+      wsStreamingMsgIdRef.current = null;
+      wsFullTextRef.current = "";
+
+      // Persist assistant message + task cards to Supabase
+      const convoId = wsConvoIdRef.current;
+      if (convoId && fullText) {
+        const supabase = createSupabaseClient();
+        supabase.from("messages").insert({
+          conversation_id: convoId,
+          role: "assistant",
+          content: fullText,
+        }).then(() => {}, (e) => console.error("[WS] Failed to save assistant msg:", e));
+
+        supabase.from("conversations").update({ updated_at: new Date().toISOString() })
+          .eq("id", convoId).then(() => {}, () => {});
+
+        // Process [[task:...]] tags in the accumulated text
+        const taskTagRegex = /\[\[task:([^:]+):([^:\]]+)(?::([^\]]+))?\]\]/g;
+        let match;
+        while ((match = taskTagRegex.exec(fullText)) !== null) {
+          const taskName = match[1];
+          const taskStatus = match[2];
+          const taskDetails = match[3] ?? null;
+          if (taskStatus === "running") {
+            supabase.from("agent_tasks").insert({
+              user_id: "", // filled server-side via RLS
+              conversation_id: convoId,
+              name: taskName,
+              label: taskName,
+              status: "running",
+              started_at: new Date().toISOString(),
+            }).then(() => {}, () => {});
+          } else if (taskStatus === "complete" || taskStatus === "completed") {
+            supabase.from("agent_tasks").update({
+              status: "completed",
+              result: taskDetails,
+              completed_at: new Date().toISOString(),
+            })
+              .eq("name", taskName)
+              .in("status", ["running", "pending"])
+              .then(() => {}, () => {});
+          } else if (taskStatus === "failed") {
+            supabase.from("agent_tasks").update({
+              status: "failed",
+              error: taskDetails,
+              completed_at: new Date().toISOString(),
+            })
+              .eq("name", taskName)
+              .in("status", ["running", "pending"])
+              .then(() => {}, () => {});
+          }
+        }
+      }
+
+      // Refresh conversation list title
+      if (convoId) refreshConversations(convoId);
+    } else if (event.type === "error" && !event.message?.includes("falling back")) {
+      // Don't show "falling back" as a visible error — it's handled below
+      const msgId = wsStreamingMsgIdRef.current;
+      if (msgId) {
+        setMessages((prev) => prev.filter((m) => m.id !== msgId));
+        wsStreamingMsgIdRef.current = null;
+        wsFullTextRef.current = "";
+      }
+      setIsLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const {
+    connected: wsConnected,
+    connecting: wsConnecting,
+    sendMessage: wsSendMessage,
+    abortChat: wsAbortChat,
+    reconnect: wsReconnect,
+  } = useGatewayWS({
+    onEvent: handleWSEvent,
+    enabled: !!gateway, // only open WS when gateway is configured
+  });
+
   const {
     isOnline: nodeIsOnline,
     nodeName,
@@ -894,6 +1009,49 @@ User message: `
     };
     setMessages((prev) => [...prev, placeholderMsg]);
 
+    // ── WebSocket path (preferred): direct persistent connection ───────────
+    if (wsConnected) {
+      const sessionKey = `webchat-${conversationId || Date.now()}`;
+      wsStreamingMsgIdRef.current = streamingMsgId;
+      wsFullTextRef.current = "";
+      wsConvoIdRef.current = conversationId;
+      wsSessionKeyRef.current = sessionKey;
+
+      // Ensure conversation exists in Supabase before sending
+      let activeConvoId = conversationId;
+      if (!activeConvoId) {
+        try {
+          const res = await fetch("/api/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: messageToSend.length > 50 ? messageToSend.substring(0, 47) + "..." : messageToSend }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            activeConvoId = data.conversation?.id ?? null;
+            if (activeConvoId) {
+              setConversationId(activeConvoId);
+              wsConvoIdRef.current = activeConvoId;
+              setConversations((prev) => prev.filter((c) => !c.id.startsWith("temp-")));
+              refreshConversations(activeConvoId);
+            }
+          }
+        } catch { /* ignore — WS send will still work, just no Supabase persistence */ }
+      } else {
+        // Save user message immediately
+        const supabase = createSupabaseClient();
+        supabase.from("messages").insert({
+          conversation_id: activeConvoId,
+          role: "user",
+          content: messageToSend,
+        }).then(() => {}, (e) => console.error("[WS] Failed to save user msg:", e));
+      }
+
+      wsSendMessage(messageToSend, { sessionKey });
+      return; // WS handler drives the rest; setIsLoading(false) called on done/error
+    }
+
+    // ── HTTP/SSE fallback ──────────────────────────────────────────────────
     try {
       const response = await fetch("/api/gateway/chat/stream", {
         method: "POST",
@@ -1459,6 +1617,25 @@ User message: `
           onRetry={forceReconnect}
           onCancel={cancelReconnect}
         />
+        {/* WebSocket mode indicator */}
+        {gateway && (
+          <div className="px-4 py-1.5 border-t border-[rgba(58,58,56,0.1)] flex items-center gap-2">
+            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+              wsConnected ? "bg-[#9EFFBF]" : wsConnecting ? "bg-[#F4D35E] animate-pulse" : "bg-grid/20"
+            }`} />
+            <span className="font-mono text-[8px] uppercase tracking-wide text-grid/40">
+              {wsConnected ? "WS live" : wsConnecting ? "WS connecting..." : "WS offline"}
+            </span>
+            {!wsConnected && !wsConnecting && (
+              <button
+                onClick={wsReconnect}
+                className="ml-auto font-mono text-[8px] text-grid/40 hover:text-forest underline"
+              >
+                retry
+              </button>
+            )}
+          </div>
+        )}
       </aside>
 
       {/* Chat Area + Activity Panel */}
