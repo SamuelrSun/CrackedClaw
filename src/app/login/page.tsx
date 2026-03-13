@@ -122,16 +122,53 @@ function LoginContent() {
     setOauthLoading(provider);
     setServerError(null);
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        skipBrowserRedirect: true,
       },
     });
-    if (error) {
-      setServerError(getErrorMessage(error));
+
+    if (error || !data?.url) {
+      setServerError(error ? getErrorMessage(error) : "Could not start authentication");
       setOauthLoading(null);
+      return;
     }
+
+    // Open OAuth in a centered popup window
+    const width = 500;
+    const height = 650;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    const popup = window.open(
+      data.url,
+      `${provider}_oauth`,
+      `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no`
+    );
+
+    if (!popup) {
+      // Popup blocked — fall back to redirect
+      window.location.href = data.url;
+      return;
+    }
+
+    // Poll for popup close + check for auth session
+    const pollInterval = setInterval(async () => {
+      if (popup.closed) {
+        clearInterval(pollInterval);
+        // Check if we got a session from the callback
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData.session) {
+          const nextUrl = searchParams.get("next");
+          router.push(getRedirectPath(nextUrl));
+          router.refresh();
+        } else {
+          setOauthLoading(null);
+        }
+      }
+    }, 500);
   };
 
   async function handleAuth(values: { email: string; password: string }) {
@@ -260,7 +297,7 @@ function LoginContent() {
         style={{
           animation: "loginFadeIn 0.6s ease-out both",
           animationDelay: "0.1s",
-          background: "rgba(255,255,255,0.25)",
+          background: "rgba(255,255,255,0.15)",
           backdropFilter: "blur(40px) saturate(120%)",
           WebkitBackdropFilter: "blur(40px) saturate(120%)",
           border: "1px solid rgba(255,255,255,0.25)",
@@ -389,24 +426,24 @@ function LoginContent() {
             >
               {loading || form.isSubmitting ? "Loading..." : isSignUp ? "Sign Up" : "Sign In"}
             </button>
-          </form>
 
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setServerError(null);
-                setSuccess(null);
-                form.reset();
-              }}
-              className="font-mono text-[10px] text-white/60 hover:text-white uppercase tracking-wide transition-colors"
-            >
-              {isSignUp
-                ? "Already have an account? Sign in →"
-                : "Or sign up"}
-            </button>
-          </div>
+            <div className="mt-1.5 text-right">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSignUp(!isSignUp);
+                  setServerError(null);
+                  setSuccess(null);
+                  form.reset();
+                }}
+                className="font-mono text-[9px] text-white/50 hover:text-white uppercase tracking-wide transition-colors"
+              >
+                {isSignUp
+                  ? "Already have an account? Sign in"
+                  : "Or sign up"}
+              </button>
+            </div>
+          </form>
 
           {/* Demo Mode - only show if Supabase is not configured */}
           {!supabaseConfigured && (
