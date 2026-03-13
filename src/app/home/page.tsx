@@ -637,7 +637,7 @@ export default function LandingPage() {
                 fontSize: "0.65em",
               }}
             >
-              Operating
+              Digital
             </div>
             <div
               className="uppercase"
@@ -646,10 +646,10 @@ export default function LandingPage() {
                 fontFamily: "var(--font-inter, 'Inter', sans-serif)",
                 WebkitTextStroke: "1px white",
                 color: "transparent",
-                letterSpacing: "-0.04em",
+                letterSpacing: "-0.05em",
               }}
             >
-              Intelligence.
+              Companion.
             </div>
           </h1>
 
@@ -671,11 +671,11 @@ export default function LandingPage() {
             style={{
               fontFamily: "var(--font-roboto, sans-serif)",
               fontWeight: 300,
-              color: "rgba(255,255,255,0.72)",
+              color: "rgba(255,255,255,0.92)",
               fontSize: "clamp(16px, 1.6vw, 20px)",
             }}
           >
-            Dopl is your personal AI employee — it reads your email, controls your browser, and runs tasks while you sleep.
+            Dopl is the always-on intelligent twin that works so you don&apos;t. Leverage the full power of OpenClaw with zero setup — just connect your accounts and let your agent operate.
           </p>
 
           {/* CTAs */}
