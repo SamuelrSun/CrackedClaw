@@ -229,16 +229,27 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center px-6 relative">
+      {/* Background image + overlay */}
+      <div
+        className="fixed inset-0 z-0"
+        style={{
+          backgroundImage: "url('/img/landing_background.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
+      <div className="fixed inset-0 z-0" style={{ background: "rgba(0,0,0,0.35)" }} />
+
+      <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-forest mx-auto mb-4 flex items-center justify-center">
-            <span className="text-white font-header text-lg font-bold">CC</span>
-          </div>
-          <h1 className="font-header text-xl font-bold text-forest mb-2">
-            Welcome to Dopl
+          <h1
+            className="text-xl font-bold text-white mb-2"
+            style={{ fontFamily: "var(--font-playfair, 'Playfair Display', serif)", fontStyle: "italic" }}
+          >
+            Dopl
           </h1>
-          <p className="font-mono text-[11px] text-grid/60 uppercase tracking-wide">
+          <p className="font-mono text-[11px] text-white/60 uppercase tracking-wide">
             AI Agent Management Platform
           </p>
         </div>
@@ -416,13 +427,12 @@ function LoginContent() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center px-6">
-        <div className="w-full max-w-sm">
+      <div className="min-h-screen flex items-center justify-center px-6 relative">
+        <div className="fixed inset-0 z-0" style={{ backgroundImage: "url('/img/landing_background.jpg')", backgroundSize: "cover", backgroundPosition: "center" }} />
+        <div className="fixed inset-0 z-0" style={{ background: "rgba(0,0,0,0.35)" }} />
+        <div className="w-full max-w-sm relative z-10">
           <div className="text-center">
-            <div className="w-12 h-12 bg-forest mx-auto mb-4 flex items-center justify-center">
-              <span className="text-white font-header text-lg font-bold">CC</span>
-            </div>
-            <p className="font-mono text-[11px] text-grid/60 uppercase tracking-wide">
+            <p className="font-mono text-[11px] text-white/60 uppercase tracking-wide">
               Loading...
             </p>
           </div>
