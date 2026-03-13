@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
   let tokenQuery = supabase
     .from('user_integrations')
-    .select('access_token, refresh_token, expires_at')
+    .select('id, access_token, refresh_token, expires_at, account_id')
     .eq('user_id', user_id)
     .eq('provider', provider)
     .eq('status', 'connected');
@@ -63,10 +63,11 @@ export async function POST(request: NextRequest) {
       });
       if (res.ok) {
         const refreshed = await res.json();
+        // Update by row ID to avoid overwriting other accounts for the same provider
         await supabase.from('user_integrations').update({
           access_token: refreshed.access_token,
           expires_at: new Date(Date.now() + (refreshed.expires_in || 3600) * 1000).toISOString(),
-        }).eq('user_id', user_id).eq('provider', provider);
+        }).eq('id', data.id);
         return NextResponse.json({ access_token: refreshed.access_token });
       }
     } catch { /* return current token */ }

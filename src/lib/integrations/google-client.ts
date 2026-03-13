@@ -13,7 +13,10 @@ async function getGoogleTokens(userId: string): Promise<GoogleTokens | null> {
     .eq('user_id', userId)
     .eq('provider', 'google')
     .eq('status', 'connected')
-    .single();
+    .order('is_default', { ascending: false })
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
   return data || null;
 }
 
