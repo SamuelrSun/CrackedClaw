@@ -28,7 +28,7 @@ let conversations = [];
 let streamingBubble = null;
 let streamedText = '';
 let dropdownOpen = false;
-let webAppUrl = 'https://crackedclaw.com';
+let webAppUrl = 'https://usedopl.com';
 
 // ── Glass Tint ────────────────────────────────────────────────────────────────
 
@@ -289,6 +289,17 @@ btnNewChat.addEventListener('click', () => {
 
 window.dopl.onStatusUpdate((data) => {
   console.log('[ChatPanel] Status:', data.connected);
+  if (data.connected) {
+    // Connection just came alive — refresh UI
+    chatTitle.textContent = currentConversationId ? chatTitle.textContent : 'New Chat';
+    loadConversations();
+    if (!currentConversationId) {
+      clearMessages('Start a conversation below');
+    }
+  } else if (data.disconnected) {
+    chatTitle.textContent = 'Not connected';
+    clearMessages('Connect from the input bar to start chatting.');
+  }
 });
 
 // Tint changed from input bar settings dropdown

@@ -31,7 +31,7 @@ export async function getUserInstance(userId: string): Promise<InstanceInfo | nu
 
   if (profile?.gateway_url && profile?.auth_token) {
     // Parse gateway_url to extract host and port
-    // gateway_url is like "https://i-f2da86c0.crackedclaw.com" or "http://164.92.75.153:18100"
+    // gateway_url is like "https://i-f2da86c0.usedopl.com" or "http://164.92.75.153:18100"
     let host: string;
     let port: number;
 

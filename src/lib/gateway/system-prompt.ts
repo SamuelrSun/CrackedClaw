@@ -22,7 +22,7 @@ export interface SystemPromptContext {
   secretNames?: string[]; // names only, never values
   skillsPrompt?: string;
   fileContext?: string;
-  gatewayHost?: string; // e.g. "i-35adeb3e.crackedclaw.com" for node run command
+  gatewayHost?: string; // e.g. "i-35adeb3e.usedopl.com" for node run command
   companionConnected?: boolean;
   companionDeviceName?: string | null;
 }
@@ -151,7 +151,7 @@ sessions_spawn({
 
 ### Subagent task format (be SPECIFIC):
 Bad: "Check Sam's email"
-Good: "1. Get Google token: POST https://crackedclaw.com/api/gateway/token-bridge with body {\"user_id\":\"__USER_ID__\",\"provider\":\"google\",\"bridge_secret\":\"__BRIDGE_SECRET__\"}. 2. Search Gmail API for unread emails from last 24 hours. 3. Summarize top 5 by urgency. 4. When done, POST results to __PUSH_URL__ with body {\"conversation_id\":\"__CONVO_ID__\",\"content\":\"your summary\",\"push_secret\":\"__PUSH_SECRET__\"}"
+Good: "1. Get Google token: POST https://usedopl.com/api/gateway/token-bridge with body {\"user_id\":\"__USER_ID__\",\"provider\":\"google\",\"bridge_secret\":\"__BRIDGE_SECRET__\"}. 2. Search Gmail API for unread emails from last 24 hours. 3. Summarize top 5 by urgency. 4. When done, POST results to __PUSH_URL__ with body {\"conversation_id\":\"__CONVO_ID__\",\"content\":\"your summary\",\"push_secret\":\"__PUSH_SECRET__\"}"
 
 ### Parallel example:
 User: "Check my email and scan my calendar for this week"
@@ -350,7 +350,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   }
 
   if (ctx.gatewayHost) {
-    parts.push(`\nDESKTOP APP CONNECTION:\nSome integrations (LinkedIn, Instagram, etc.) require the CrackedClaw desktop companion app running on the user's computer.\n\nWhen the user needs to connect their computer, the integration card in the chat already shows:\n- A download button for the desktop app\n- A "Copy Token" button with their connection token\n- A live connection status indicator\n\nJust tell them: "You'll see a download link and connection token right in the card below. Download the app, paste the token, and you're connected."\n\nDo NOT tell users to go to Settings, use Terminal, or run CLI commands. Everything they need is in the integration card.\n\nReassurance: "The desktop app lets me interact with apps on your behalf when you ask. I'm not monitoring your screen or accessing anything without your permission. The connection is encrypted and secure."`);
+    parts.push(`\nDESKTOP APP CONNECTION:\nSome integrations (LinkedIn, Instagram, etc.) require the Dopl desktop companion app running on the user's computer.\n\nWhen the user needs to connect their computer, the integration card in the chat already shows:\n- A download button for the desktop app\n- A "Copy Token" button with their connection token\n- A live connection status indicator\n\nJust tell them: "You'll see a download link and connection token right in the card below. Download the app, paste the token, and you're connected."\n\nDo NOT tell users to go to Settings, use Terminal, or run CLI commands. Everything they need is in the integration card.\n\nReassurance: "The desktop app lets me interact with apps on your behalf when you ask. I'm not monitoring your screen or accessing anything without your permission. The connection is encrypted and secure."`);
   }
 
   if (ctx.skillsPrompt) {
@@ -507,9 +507,9 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
   const basePrompt = buildSystemPrompt(ctx);
 
   // Replace subagent placeholders with actual values
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://crackedclaw.com';
-  const bridgeSecret = process.env.TOKEN_BRIDGE_SECRET || 'crackedclaw-bridge-2026';
-  const pushSecret = process.env.CHAT_PUSH_SECRET || 'crackedclaw-push-2026';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com';
+  const bridgeSecret = process.env.TOKEN_BRIDGE_SECRET || 'dopl-bridge-2026';
+  const pushSecret = process.env.CHAT_PUSH_SECRET || 'dopl-push-2026';
 
   const replaceSubagentPlaceholders = (prompt: string) =>
     prompt

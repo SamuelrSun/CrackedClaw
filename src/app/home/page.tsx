@@ -1,26 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 export const dynamic = "force-dynamic";
 
-/* ─── Intersection Observer hook for scroll animations ─── */
+/* ─────────────────────────────────────────────────────────
+   Scroll-reveal hook
+───────────────────────────────────────────────────────── */
 function useScrollReveal() {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const observer = new IntersectionObserver(
-      (entries) => {
+      (entries) =>
         entries.forEach((e) => {
           if (e.isIntersecting) {
             e.target.classList.add("visible");
             observer.unobserve(e.target);
           }
-        });
-      },
-      { threshold: 0.12 }
+        }),
+      { threshold: 0.1 }
     );
     el.querySelectorAll(".fade-in-up").forEach((c) => observer.observe(c));
     return () => observer.disconnect();
@@ -28,480 +29,794 @@ function useScrollReveal() {
   return ref;
 }
 
-/* ─── Data ─── */
-const features = [
-  {
-    label: "Browser",
-    title: "Browser Automation",
-    desc: "Navigates the web, fills forms, clicks buttons — automates any UI without a single line of code.",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="3" y="3" width="18" height="18" rx="1" />
-        <line x1="3" y1="9" x2="21" y2="9" />
-        <circle cx="6.5" cy="6" r="0.8" fill="currentColor" stroke="none" />
-        <circle cx="9" cy="6" r="0.8" fill="currentColor" stroke="none" />
-        <circle cx="11.5" cy="6" r="0.8" fill="currentColor" stroke="none" />
-      </svg>
-    ),
-  },
-  {
-    label: "Connect",
-    title: "Connects Everything",
-    desc: "Gmail, Sheets, LinkedIn, any API or web UI — one agent, infinite integrations.",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <circle cx="12" cy="12" r="3" />
-        <circle cx="4" cy="6" r="2" />
-        <circle cx="20" cy="6" r="2" />
-        <circle cx="4" cy="18" r="2" />
-        <circle cx="20" cy="18" r="2" />
-        <line x1="9.5" y1="10" x2="5.5" y2="7.5" />
-        <line x1="14.5" y1="10" x2="18.5" y2="7.5" />
-        <line x1="9.5" y1="14" x2="5.5" y2="16.5" />
-        <line x1="14.5" y1="14" x2="18.5" y2="16.5" />
-      </svg>
-    ),
-  },
-  {
-    label: "Memory",
-    title: "Persistent Memory",
-    desc: "Learns your preferences, contacts, and patterns. Builds context across every session.",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M12 2C6.48 2 2 6 2 10.5c0 2.5 1.5 4.5 3 6v5.5l3.5-2.5c1 .3 2.2.5 3.5.5 5.52 0 10-4 10-8.5S17.52 2 12 2z" />
-        <circle cx="8" cy="10.5" r="1" fill="currentColor" stroke="none" />
-        <circle cx="12" cy="10.5" r="1" fill="currentColor" stroke="none" />
-        <circle cx="16" cy="10.5" r="1" fill="currentColor" stroke="none" />
-      </svg>
-    ),
-  },
-  {
-    label: "Agents",
-    title: "Subagent Workforce",
-    desc: "Spawn multiple agents working concurrently. Parallelize research, outreach, and operations.",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <circle cx="12" cy="7" r="3" />
-        <circle cx="5" cy="17" r="2.5" />
-        <circle cx="19" cy="17" r="2.5" />
-        <line x1="10" y1="9.5" x2="6.5" y2="15" />
-        <line x1="14" y1="9.5" x2="17.5" y2="15" />
-      </svg>
-    ),
-  },
-  {
-    label: "Messaging",
-    title: "Message Anywhere",
-    desc: "Command your AI via WhatsApp, iMessage, or Discord. Your agent is always one text away.",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-        <line x1="8" y1="9" x2="16" y2="9" />
-        <line x1="8" y1="13" x2="13" y2="13" />
-      </svg>
-    ),
-  },
-  {
-    label: "Desktop",
-    title: "Desktop Control",
-    desc: "Our companion app gives AI full access to your computer — mouse, keyboard, screen, everything.",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="2" y="3" width="20" height="14" rx="1" />
-        <line x1="8" y1="21" x2="16" y2="21" />
-        <line x1="12" y1="17" x2="12" y2="21" />
-      </svg>
-    ),
-  },
-];
+/* ─────────────────────────────────────────────────────────
+   Demo Chat Component
+───────────────────────────────────────────────────────── */
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  streaming?: boolean;
+}
 
-const steps = [
-  { num: "01", title: "Sign up", desc: "Create your free account in seconds. No credit card required." },
-  { num: "02", title: "Connect your tools", desc: "Link Gmail, Sheets, LinkedIn, or any service your agent needs." },
-  { num: "03", title: "Let your AI work", desc: "Tell it what to do in plain language. Watch it execute autonomously." },
-];
+const WELCOME_MSG: ChatMessage = {
+  role: "assistant",
+  content:
+    "Hey! I'm Dopl, your AI that actually does things. Ask me anything about what I can do — from automating your inbox to controlling your browser. What would you like to know?",
+};
 
-const testimonials = [
-  {
-    quote: "Dopl replaced three SaaS tools and an intern. It just handles things.",
-    name: "Alex Chen",
-    role: "Founder, Stealth Startup",
-  },
-  {
-    quote: "I message my agent on WhatsApp and it books meetings, writes follow-ups, researches prospects. Insane.",
-    name: "Priya Sharma",
-    role: "Head of Sales, ScaleOps",
-  },
-  {
-    quote: "The browser automation alone is worth 10x the price. It does things Zapier can't even dream of.",
-    name: "Marcus Webb",
-    role: "Operations Lead, Fintech Co",
-  },
-];
+function DemoChat() {
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MSG]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-/* ─── Component ─── */
-export default function LandingPage() {
-  const featuresRef = useScrollReveal();
-  const howRef = useScrollReveal();
-  const pricingRef = useScrollReveal();
-  const proofRef = useScrollReveal();
-  const ctaRef = useScrollReveal();
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const sendMessage = useCallback(async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+    setInput("");
+
+    const userMsg: ChatMessage = { role: "user", content: text };
+    const allMessages = [...messages.filter((m) => !m.streaming), userMsg];
+    setMessages([...allMessages, { role: "assistant", content: "", streaming: true }]);
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/demo-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
+        }),
+      });
+
+      if (!res.ok || !res.body) throw new Error("Stream failed");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            role: "assistant",
+            content: accumulated,
+            streaming: true,
+          };
+          return updated;
+        });
+      }
+
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          role: "assistant",
+          content: accumulated,
+          streaming: false,
+        };
+        return updated;
+      });
+    } catch {
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          role: "assistant",
+          content: "Oops, something went wrong. Try again!",
+          streaming: false,
+        };
+        return updated;
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [input, loading, messages]);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* ═══ Header ═══ */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-paper/90 backdrop-blur-sm border-b border-[rgba(58,58,56,0.1)]">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="font-header text-lg font-bold text-forest tracking-tight">
-            Dopl
-          </Link>
-          <nav className="hidden md:flex items-center gap-8">
-            <a href="#features" className="font-mono text-[10px] uppercase tracking-widest text-grid/50 hover:text-forest transition-colors">
-              Features
-            </a>
-            <a href="#how" className="font-mono text-[10px] uppercase tracking-widest text-grid/50 hover:text-forest transition-colors">
-              How it works
-            </a>
-            <a href="#pricing" className="font-mono text-[10px] uppercase tracking-widest text-grid/50 hover:text-forest transition-colors">
-              Pricing
-            </a>
-          </nav>
-          <Link
-            href="/login"
-            className="font-mono text-[10px] uppercase tracking-widest border border-[rgba(58,58,56,0.25)] px-5 py-2 text-forest hover:bg-forest hover:text-paper transition-colors"
-          >
-            Sign In
-          </Link>
+    <div className="flex flex-col h-full">
+      {/* Chat header */}
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10">
+        <div className="relative">
+          <div className="w-8 h-8 rounded-full bg-[#3A5FFF] flex items-center justify-center">
+            <span className="font-display text-white text-sm" style={{ fontStyle: "italic", fontFamily: "var(--font-bodoni, serif)" }}>D</span>
+          </div>
+          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-[#15151f]" />
         </div>
-      </header>
+        <div>
+          <p className="text-sm font-semibold text-white" style={{ fontFamily: "var(--font-inter, sans-serif)" }}>Dopl</p>
+          <p className="text-[11px] text-green-400" style={{ fontFamily: "var(--font-inter, sans-serif)" }}>● Online</p>
+        </div>
+      </div>
 
-      {/* ═══ Hero ═══ */}
-      <section className="relative pt-32 pb-24 md:pt-44 md:pb-32 px-6 overflow-hidden">
-        {/* Animated grid background */}
-        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `
-              linear-gradient(rgba(26,60,43,0.06) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(26,60,43,0.06) 1px, transparent 1px)
-            `,
-            backgroundSize: "48px 48px",
-          }} />
-          {/* Floating accent dots */}
-          {[
-            { top: "15%", left: "10%", delay: "0s", size: 6 },
-            { top: "25%", right: "15%", delay: "1.5s", size: 4 },
-            { top: "60%", left: "20%", delay: "0.8s", size: 5 },
-            { top: "45%", right: "10%", delay: "2s", size: 3 },
-            { top: "70%", right: "25%", delay: "0.5s", size: 4 },
-          ].map((dot, i) => (
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" style={{ minHeight: 0 }}>
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+            {msg.role === "assistant" && (
+              <div className="w-7 h-7 rounded-full bg-[#3A5FFF]/20 flex items-center justify-center flex-shrink-0 mt-1">
+                <span style={{ fontFamily: "var(--font-bodoni, serif)", fontStyle: "italic", fontSize: 12, color: "#6B8BFF" }}>D</span>
+              </div>
+            )}
             <div
-              key={i}
-              className="absolute rounded-full"
-              style={{
-                top: dot.top,
-                left: dot.left,
-                right: dot.right,
-                width: dot.size,
-                height: dot.size,
-                backgroundColor: i % 2 === 0 ? "#FF8C69" : "#9EFFBF",
-                opacity: 0.35,
-                animation: `float 4s ease-in-out ${dot.delay} infinite`,
-              }}
-            />
+              className={`max-w-[78%] px-4 py-3 rounded-2xl text-[15px] leading-relaxed ${
+                msg.role === "user"
+                  ? "text-white rounded-tr-sm"
+                  : "rounded-tl-sm"
+              }`}
+              style={
+                msg.role === "user"
+                  ? { background: "#3A5FFF", fontFamily: "var(--font-inter, sans-serif)" }
+                  : {
+                      background: "#1e1e2e",
+                      color: "rgba(255,255,255,0.9)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      fontFamily: "var(--font-inter, sans-serif)",
+                    }
+              }
+            >
+              {msg.content}
+              {msg.streaming && msg.content === "" && (
+                <span className="flex gap-1 py-0.5">
+                  <span className="typing-dot w-1.5 h-1.5 rounded-full bg-white/40 inline-block" />
+                  <span className="typing-dot w-1.5 h-1.5 rounded-full bg-white/40 inline-block" />
+                  <span className="typing-dot w-1.5 h-1.5 rounded-full bg-white/40 inline-block" />
+                </span>
+              )}
+              {msg.streaming && msg.content !== "" && (
+                <span className="inline-block w-0.5 h-3.5 bg-white/50 ml-0.5 animate-pulse align-middle" />
+              )}
+            </div>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <div className="px-4 py-4 border-t border-white/10">
+        <div
+          className="flex items-center gap-2 rounded-xl px-4 py-2.5 focus-within:border-[#3A5FFF] transition-colors"
+          style={{
+            background: "#12121c",
+            border: "1px solid rgba(255,255,255,0.15)",
+          }}
+        >
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+            placeholder="Ask Dopl anything..."
+            disabled={loading}
+            className="flex-1 bg-transparent text-[15px] text-white/90 placeholder-white/40 outline-none"
+            style={{ fontFamily: "var(--font-inter, sans-serif)" }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={loading || !input.trim()}
+            className="w-8 h-8 rounded-lg bg-[#3A5FFF] flex items-center justify-center disabled:opacity-40 hover:bg-[#2a4fef] transition-colors flex-shrink-0"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   Demo Dashboard (sidebar + chat + right panel)
+───────────────────────────────────────────────────────── */
+function DemoDashboard() {
+  return (
+    <div className="flex h-full overflow-hidden" style={{ fontFamily: "var(--font-inter, sans-serif)" }}>
+      {/* Sidebar */}
+      <div
+        className="hidden sm:flex flex-col w-[220px] lg:w-[260px] flex-shrink-0 overflow-y-auto"
+        style={{
+          background: "#0d0d1a",
+          borderRight: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        {/* Logo */}
+        <div className="px-5 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+          <span className="font-display text-white text-xl" style={{ fontStyle: "italic", fontFamily: "var(--font-bodoni, serif)" }}>Dopl</span>
+        </div>
+
+        {/* Conversations */}
+        <div className="px-4 pt-5 pb-2">
+          <p className="text-[11px] uppercase tracking-[0.18em] mb-2 px-1" style={{ color: "rgba(255,255,255,0.45)" }}>Conversations</p>
+          {[
+            { label: "Morning briefing", active: true },
+            { label: "Research: AR market size", active: false },
+            { label: "Draft email to investors", active: false },
+            { label: "Weekly calendar review", active: false },
+          ].map((c) => (
+            <div
+              key={c.label}
+              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg mb-0.5 cursor-pointer ${c.active ? "bg-white/10" : "hover:bg-white/5"}`}
+            >
+              {c.active && <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0 pulse-indicator" />}
+              <span
+                className="text-[13px] truncate"
+                style={{ color: c.active ? "white" : "rgba(255,255,255,0.65)" }}
+              >
+                {c.label}
+              </span>
+            </div>
           ))}
         </div>
 
-        <div className="relative max-w-3xl mx-auto text-center">
-          <div className="hero-animate">
-            <span className="inline-block font-mono text-[10px] uppercase tracking-[0.2em] text-coral mb-6 border border-coral/25 px-3 py-1">
-              AI Agent Platform
+        {/* Integrations */}
+        <div className="px-4 pt-4 pb-2">
+          <p className="text-[11px] uppercase tracking-[0.18em] mb-2 px-1" style={{ color: "rgba(255,255,255,0.45)" }}>Integrations</p>
+          {[
+            { name: "Google", sub: "Gmail · Calendar", dot: "bg-green-400", badge: "Connected", badgeColor: "text-green-400" },
+            { name: "LinkedIn", sub: "Browser", dot: "bg-blue-400", badge: "Browser", badgeColor: "text-blue-400" },
+            { name: "Slack", sub: "Workspace", dot: "bg-green-400", badge: "Connected", badgeColor: "text-green-400" },
+            { name: "GitHub", sub: "Repositories", dot: "bg-green-400", badge: "Connected", badgeColor: "text-green-400" },
+          ].map((intg) => (
+            <div key={intg.name} className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-white/5 cursor-pointer">
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${intg.dot}`} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] truncate" style={{ color: "rgba(255,255,255,0.85)" }}>{intg.name}</p>
+                <p className="text-[11px] truncate" style={{ color: "rgba(255,255,255,0.45)" }}>{intg.sub}</p>
+              </div>
+              <span className={`text-[10px] font-medium ${intg.badgeColor}`}>{intg.badge}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Companion */}
+        <div className="mt-auto px-4 py-4" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+          <p className="text-[11px] uppercase tracking-[0.18em] mb-2 px-1" style={{ color: "rgba(255,255,255,0.45)" }}>Companion</p>
+          <div className="flex items-center gap-2.5 px-2 py-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0 pulse-indicator" />
+            <div>
+              <p className="text-[13px]" style={{ color: "rgba(255,255,255,0.85)" }}>MacBook Pro</p>
+              <p className="text-[11px] text-green-400">Online</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Chat area */}
+      <div className="flex-1 flex flex-col min-w-0" style={{ background: "#15151f" }}>
+        <DemoChat />
+      </div>
+
+      {/* Right tasks panel */}
+      <div
+        className="hidden lg:flex flex-col w-[200px] xl:w-[220px] flex-shrink-0"
+        style={{
+          background: "#161622",
+          borderLeft: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        <div className="px-4 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+          <p className="text-[13px] font-semibold text-white">Active Tasks</p>
+        </div>
+        <div className="px-3 py-4 space-y-3">
+          {[
+            { label: "Monitoring inbox", status: "running", color: "text-green-400", dot: "bg-green-400" },
+            { label: "LinkedIn profile research", status: "done", color: "text-white/50", dot: "bg-white/30" },
+            { label: "Draft weekly report", status: "queued", color: "text-amber-400", dot: "bg-amber-400" },
+          ].map((task) => (
+            <div
+              key={task.label}
+              className="rounded-lg p-3"
+              style={{
+                background: "#1e1e2e",
+                border: "1px solid rgba(255,255,255,0.1)",
+              }}
+            >
+              <div className="flex items-start gap-2">
+                <span className={`w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0 ${task.dot} ${task.status === "running" ? "pulse-indicator" : ""}`} />
+                <div className="min-w-0">
+                  <p className="text-[13px] leading-snug truncate" style={{ color: "rgba(255,255,255,0.85)" }}>{task.label}</p>
+                  <p className={`text-[11px] mt-0.5 ${task.color}`}>
+                    {task.status === "running" ? "● Running" : task.status === "done" ? "✓ Done" : "◷ Queued"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   Scroll-Expand Demo Section
+───────────────────────────────────────────────────────── */
+function ScrollExpandDemo() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onScroll = () => {
+      const rect = el.getBoundingClientRect();
+      const containerH = el.offsetHeight;
+      const viewportH = window.innerHeight;
+      // progress: 0 when top of container is at bottom of viewport, 1 when we've scrolled 60% of container
+      const scrolled = -rect.top;
+      const range = containerH - viewportH;
+      const p = range > 0 ? Math.min(1, Math.max(0, scrolled / (range * 0.65))) : 0;
+      setProgress(p);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Interpolate card styles
+  const borderRadius = Math.round(16 * (1 - progress));
+  const scaleX = 0.78 + 0.22 * progress;
+  const shadowOpacity = Math.max(0.15, 0.4 * (1 - progress * 0.5));
+  const cardOpacity = Math.min(1, 0.4 + 0.6 * (progress * 2));
+  const glowOpacity = 0.08 + 0.05 * progress;
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative"
+      style={{ height: "220vh" }}
+    >
+      {/* Label above */}
+      <div className="absolute top-0 left-0 right-0 flex flex-col items-center pt-16 pointer-events-none z-10">
+        <span
+          className="inline-block text-[11px] uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border mb-4"
+          style={{
+            fontFamily: "var(--font-inter, sans-serif)",
+            color: "#6B8BFF",
+            borderColor: "#3A5FFF44",
+            background: "#3A5FFF11",
+          }}
+        >
+          Live Demo
+        </span>
+        <h2
+          className="text-3xl md:text-4xl lg:text-5xl font-bold text-center text-white px-6"
+          style={{ fontFamily: "var(--font-bodoni, serif)", fontStyle: "italic" }}
+        >
+          See Dopl in action
+        </h2>
+        <p
+          className="mt-4 text-base md:text-lg text-center max-w-md px-6"
+          style={{
+            fontFamily: "var(--font-inter, sans-serif)",
+            color: "rgba(255,255,255,0.65)",
+          }}
+        >
+          Scroll to explore the dashboard — then ask it anything
+        </p>
+      </div>
+
+      {/* Sticky card */}
+      <div
+        className="sticky top-0 flex items-center justify-center"
+        style={{ height: "100vh" }}
+      >
+        <div
+          style={{
+            width: "90vw",
+            maxWidth: "1400px",
+            height: "86vh",
+            maxHeight: "820px",
+            transform: `scaleX(${scaleX})`,
+            transformOrigin: "center center",
+            borderRadius: borderRadius,
+            overflow: "hidden",
+            boxShadow: `0 0 60px rgba(58,95,255,${glowOpacity}), 0 ${Math.round(32 * (1 - progress))}px ${Math.round(100 * (1 - progress))}px rgba(0,0,0,${shadowOpacity})`,
+            opacity: cardOpacity,
+            transition: "none",
+            willChange: "transform, border-radius, box-shadow",
+            background: "#111118",
+            border: `1px solid rgba(255,255,255,${0.12 - 0.04 * progress})`,
+          }}
+        >
+          <DemoDashboard />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   Feature sections
+───────────────────────────────────────────────────────── */
+function FeatureSection({
+  label,
+  labelColor = "#3A5FFF",
+  heading,
+  description,
+  visual,
+  reverse = false,
+  bg = "#0a0a0f",
+}: {
+  label: string;
+  labelColor?: string;
+  heading: string;
+  description: string;
+  visual: React.ReactNode;
+  reverse?: boolean;
+  bg?: string;
+}) {
+  const ref = useScrollReveal();
+
+  return (
+    <section
+      ref={ref as React.RefObject<HTMLElement>}
+      className="py-24 md:py-32 px-6 overflow-hidden"
+      style={{
+        background: bg,
+        borderTop: "1px solid rgba(255,255,255,0.06)",
+      }}
+    >
+      <div className="max-w-6xl mx-auto">
+        <div className={`flex flex-col ${reverse ? "lg:flex-row-reverse" : "lg:flex-row"} items-center gap-12 lg:gap-20`}>
+          <div className="flex-1 max-w-xl fade-in-up">
+            <span
+              className="inline-block text-[11px] uppercase tracking-[0.18em] px-3 py-1 rounded-full mb-5"
+              style={{
+                fontFamily: "var(--font-inter, sans-serif)",
+                color: labelColor,
+                background: labelColor + "20",
+              }}
+            >
+              {label}
+            </span>
+            <h2
+              className="text-4xl md:text-5xl font-bold text-white leading-tight mb-5"
+              style={{ fontFamily: "var(--font-bodoni, serif)", fontStyle: "italic" }}
+            >
+              {heading}
+            </h2>
+            <p
+              className="text-gray-200 text-lg md:text-xl leading-relaxed"
+              style={{ fontFamily: "var(--font-inter, sans-serif)" }}
+            >
+              {description}
+            </p>
+          </div>
+          <div className="flex-1 w-full fade-in-up stagger-2">
+            {visual}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   Integration cards visual
+───────────────────────────────────────────────────────── */
+const INTEGRATIONS = [
+  { name: "Gmail", icon: "✉️", color: "#EA4335" },
+  { name: "Calendar", icon: "📅", color: "#4285F4" },
+  { name: "Slack", icon: "💬", color: "#E01E5A" },
+  { name: "LinkedIn", icon: "💼", color: "#0A66C2" },
+  { name: "GitHub", icon: "⚙️", color: "#24292e" },
+  { name: "Drive", icon: "📁", color: "#34A853" },
+  { name: "Notion", icon: "📝", color: "#000000" },
+  { name: "Zapier", icon: "⚡", color: "#FF4A00" },
+  { name: "HubSpot", icon: "🔗", color: "#FF7A59" },
+];
+
+function IntegrationsVisual() {
+  return (
+    <div
+      className="grid grid-cols-3 gap-4 max-w-sm mx-auto"
+      style={{
+        transform: "scale(1.2)",
+        transformOrigin: "center center",
+      }}
+    >
+      {INTEGRATIONS.map((intg) => (
+        <div
+          key={intg.name}
+          className="rounded-xl p-4 flex flex-col items-center gap-2 transition-colors cursor-default"
+          style={{
+            background: "#1e1e2e",
+            border: "1px solid rgba(255,255,255,0.1)",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+          }}
+        >
+          <span className="text-2xl">{intg.icon}</span>
+          <span
+            className="text-[11px] font-medium"
+            style={{ color: "rgba(255,255,255,0.85)", fontFamily: "var(--font-inter, sans-serif)" }}
+          >
+            {intg.name}
+          </span>
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   Main Page
+───────────────────────────────────────────────────────── */
+export default function LandingPage() {
+  return (
+    <div className="min-h-screen flex flex-col overflow-x-hidden relative">
+      {/* Fixed background image — stays put while everything scrolls over it */}
+      <div
+        className="fixed inset-0 z-0"
+        style={{
+          backgroundImage: "url('/img/landing_background.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
+
+      {/* ═══ Vertical Grid Lines ═══ */}
+      <div className="fixed inset-0 pointer-events-none z-[1]">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: `${(i / 6) * 100}%`,
+              width: "2px",
+              background: "rgba(255,255,255,0.08)",
+            }}
+          />
+        ))}
+      </div>
+
+      {/* ═══ Hero ═══ */}
+      <section
+        className="relative z-10 flex flex-col items-start justify-start px-12 md:px-20 pt-20 pb-16"
+        style={{ minHeight: "78vh" }}
+      >
+        {/* ── Nav buttons floating on image (top-right) ── */}
+        <div className="absolute top-7 right-8 z-20 flex items-center gap-3 hero-animate">
+          <Link
+            href="/login"
+            className="hover:text-white transition-colors text-[11px] uppercase tracking-[0.12em]"
+            style={{ color: "rgba(255,255,255,0.8)", fontFamily: "var(--font-roboto, sans-serif)" }}
+          >
+            Sign In
+          </Link>
+          <Link
+            href="/login"
+            className="bg-white text-gray-900 text-[11px] uppercase tracking-[0.12em] px-5 py-2 hover:bg-white/90 transition-colors"
+            style={{ fontFamily: "var(--font-roboto, sans-serif)" }}
+          >
+            Get Started
+          </Link>
+        </div>
+
+        <div className="relative z-10 max-w-4xl">
+          {/* Eyebrow */}
+          <div className="hero-animate mb-8">
+            <span
+              className="inline-block text-[11px] uppercase tracking-[0.22em] px-4 py-1.5 rounded-sm border"
+              style={{
+                fontFamily: "var(--font-roboto, sans-serif)",
+                color: "#6B8BFF",
+                borderColor: "#3A5FFF55",
+                background: "rgba(58,95,255,0.12)",
+              }}
+            >
+              Introducing Dopl
             </span>
           </div>
-          <h1 className="hero-animate-delay-1 font-header text-5xl md:text-7xl font-bold text-forest leading-[1.05] tracking-tight mb-6">
-            Your AI agent,
+
+          {/* Headline */}
+          <h1
+            className="hero-animate-1 text-white leading-[1.0] mb-6 tracking-tight"
+            style={{
+              fontFamily: "var(--font-roboto, sans-serif)",
+              fontWeight: 300,
+              fontSize: "clamp(48px, 9vw, 120px)",
+            }}
+          >
+            The AI that
             <br />
-            <span className="text-coral">in the cloud</span>
+            <span style={{ fontWeight: 700 }}>does the work.</span>
           </h1>
-          <p className="hero-animate-delay-2 text-lg md:text-xl text-grid/60 leading-relaxed mb-10 max-w-xl mx-auto">
-            Autonomous AI that connects your tools, browses the web, and remembers everything — so you can stop doing busywork forever.
+
+          {/* Sub-headline */}
+          <p
+            className="hero-animate-2 uppercase tracking-[0.16em] mb-6"
+            style={{
+              fontFamily: "var(--font-roboto, sans-serif)",
+              color: "rgba(255,255,255,0.85)",
+              fontSize: "clamp(11px, 1.4vw, 17px)",
+            }}
+          >
+            Connects to everything · Automates anything · Lives on your machine
           </p>
-          <div className="hero-animate-delay-3 flex flex-col sm:flex-row items-center justify-center gap-4">
+
+          {/* Body */}
+          <p
+            className="hero-animate-2 mb-12 max-w-lg leading-relaxed"
+            style={{
+              fontFamily: "var(--font-roboto, sans-serif)",
+              fontWeight: 300,
+              color: "rgba(255,255,255,0.72)",
+              fontSize: "clamp(16px, 1.6vw, 20px)",
+            }}
+          >
+            Dopl is your personal AI employee — it reads your email, controls your browser, and runs tasks while you sleep.
+          </p>
+
+          {/* CTAs */}
+          <div className="hero-animate-3 flex flex-col sm:flex-row items-start gap-4">
             <Link
               href="/login"
-              className="inline-block bg-forest text-paper font-mono text-[11px] uppercase tracking-widest px-10 py-4 hover:bg-forest/90 transition-colors"
+              className="bg-white text-gray-900 font-semibold hover:bg-white/90 transition-colors"
+              style={{
+                fontFamily: "var(--font-roboto, sans-serif)",
+                fontSize: 15,
+                letterSpacing: "0.06em",
+                padding: "16px 40px",
+              }}
             >
               Get Started Free
             </Link>
             <a
-              href="#how"
-              className="inline-block font-mono text-[11px] uppercase tracking-widest text-forest/60 px-6 py-4 hover:text-forest transition-colors"
+              href="#demo"
+              className="border border-white/40 text-white rounded-full hover:bg-white/10 transition-colors"
+              style={{
+                fontFamily: "var(--font-roboto, sans-serif)",
+                fontSize: 15,
+                letterSpacing: "0.06em",
+                padding: "16px 40px",
+              }}
             >
-              See how it works &darr;
+              Book a Demo
             </a>
           </div>
         </div>
 
-        {/* Product mockup — CSS-only dashboard wireframe */}
-        <div className="hero-animate-delay-3 relative max-w-4xl mx-auto mt-16 md:mt-24">
-          <div className="border border-[rgba(26,60,43,0.12)] bg-white/60 backdrop-blur-sm overflow-hidden">
-            {/* Title bar */}
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[rgba(26,60,43,0.08)]">
-              <div className="w-2 h-2 rounded-full bg-coral/50" />
-              <div className="w-2 h-2 rounded-full bg-gold/50" />
-              <div className="w-2 h-2 rounded-full bg-mint/50" />
-              <div className="flex-1 mx-8">
-                <div className="max-w-[200px] mx-auto h-3 bg-forest/5 rounded-sm" />
-              </div>
-            </div>
-            {/* Dashboard content */}
-            <div className="flex min-h-[240px] md:min-h-[320px]">
-              {/* Sidebar */}
-              <div className="hidden md:flex flex-col w-48 border-r border-[rgba(26,60,43,0.08)] p-4 gap-3">
-                <div className="h-3 w-24 bg-forest/10 rounded-sm" />
-                <div className="h-3 w-20 bg-forest/5 rounded-sm" />
-                <div className="h-3 w-28 bg-forest/5 rounded-sm" />
-                <div className="h-3 w-16 bg-forest/5 rounded-sm" />
-                <div className="mt-auto h-3 w-20 bg-coral/15 rounded-sm" />
-              </div>
-              {/* Main area */}
-              <div className="flex-1 p-4 md:p-6">
-                {/* Chat messages mockup */}
-                <div className="space-y-4">
-                  <div className="flex gap-3 items-start">
-                    <div className="w-6 h-6 rounded-full bg-forest/10 flex-shrink-0 mt-0.5" />
-                    <div className="space-y-1.5 flex-1">
-                      <div className="h-3 w-3/4 bg-forest/8 rounded-sm" />
-                      <div className="h-3 w-1/2 bg-forest/6 rounded-sm" />
-                    </div>
-                  </div>
-                  <div className="flex gap-3 items-start justify-end">
-                    <div className="space-y-1.5 flex-1 flex flex-col items-end">
-                      <div className="h-3 w-2/3 bg-coral/12 rounded-sm" />
-                      <div className="h-3 w-1/3 bg-coral/8 rounded-sm" />
-                    </div>
-                    <div className="w-6 h-6 rounded-full bg-coral/15 flex-shrink-0 mt-0.5" />
-                  </div>
-                  <div className="flex gap-3 items-start">
-                    <div className="w-6 h-6 rounded-full bg-forest/10 flex-shrink-0 mt-0.5" />
-                    <div className="space-y-1.5 flex-1">
-                      <div className="h-3 w-5/6 bg-forest/8 rounded-sm" />
-                      <div className="h-3 w-2/3 bg-forest/6 rounded-sm" />
-                      <div className="h-3 w-1/4 bg-forest/4 rounded-sm" />
-                    </div>
-                  </div>
-                  {/* Typing indicator */}
-                  <div className="flex gap-3 items-start">
-                    <div className="w-6 h-6 rounded-full bg-mint/20 flex-shrink-0 mt-0.5" />
-                    <div className="flex gap-1 items-center py-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-forest/20" style={{ animation: "float 1.2s ease-in-out infinite" }} />
-                      <div className="w-1.5 h-1.5 rounded-full bg-forest/20" style={{ animation: "float 1.2s ease-in-out 0.2s infinite" }} />
-                      <div className="w-1.5 h-1.5 rounded-full bg-forest/20" style={{ animation: "float 1.2s ease-in-out 0.4s infinite" }} />
-                    </div>
-                  </div>
-                </div>
-                {/* Input bar */}
-                <div className="mt-6 flex items-center gap-3 border border-[rgba(26,60,43,0.1)] p-2.5">
-                  <div className="flex-1 h-3 bg-forest/4 rounded-sm" />
-                  <div className="w-16 h-6 bg-forest/8 rounded-sm" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══ Features ═══ */}
-      <section id="features" ref={featuresRef} className="px-6 py-20 md:py-28 border-t border-[rgba(58,58,56,0.1)]">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16 fade-in-up">
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-coral">Capabilities</span>
-            <h2 className="font-header text-3xl md:text-4xl font-bold text-forest mt-3 tracking-tight">
-              Everything your AI agent can do
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-[rgba(58,58,56,0.08)]">
-            {features.map((f, i) => (
-              <div
-                key={f.title}
-                className={`fade-in-up stagger-${i + 1} bg-paper p-8 group hover:bg-forest/[0.02] transition-colors`}
-              >
-                <div className="text-forest/40 mb-5 group-hover:text-coral transition-colors">
-                  {f.icon}
-                </div>
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-coral/70 block mb-2">
-                  {f.label}
-                </span>
-                <h3 className="font-header text-base font-bold text-forest mb-2 tracking-tight">{f.title}</h3>
-                <p className="text-[13px] text-grid/50 leading-relaxed">{f.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══ How It Works ═══ */}
-      <section id="how" ref={howRef} className="px-6 py-20 md:py-28 border-t border-[rgba(58,58,56,0.1)] bg-forest">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16 fade-in-up">
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-coral">Process</span>
-            <h2 className="font-header text-3xl md:text-4xl font-bold text-paper mt-3 tracking-tight">
-              Three steps. That&apos;s it.
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-0">
-            {steps.map((s, i) => (
-              <div key={s.num} className={`fade-in-up stagger-${i + 1} relative text-center md:text-left px-6 md:px-8`}>
-                {i < steps.length - 1 && (
-                  <div className="hidden md:block absolute top-8 right-0 w-px h-16 bg-paper/10" />
-                )}
-                <span className="font-mono text-[10px] tracking-[0.2em] text-coral block mb-3">{s.num}</span>
-                <h3 className="font-header text-xl font-bold text-paper mb-2 tracking-tight">{s.title}</h3>
-                <p className="text-[13px] text-paper/50 leading-relaxed">{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══ Pricing ═══ */}
-      <section id="pricing" ref={pricingRef} className="px-6 py-20 md:py-28 border-t border-[rgba(58,58,56,0.1)]">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-16 fade-in-up">
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-coral">Pricing</span>
-            <h2 className="font-header text-3xl md:text-4xl font-bold text-forest mt-3 tracking-tight">
-              Simple, transparent pricing
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-[rgba(58,58,56,0.08)] max-w-3xl mx-auto">
-            {/* Free */}
-            <div className="fade-in-up stagger-1 bg-paper p-8 md:p-10">
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-grid/40 block mb-1">Free</span>
-              <div className="font-header text-4xl font-bold text-forest mb-1">$0</div>
-              <span className="text-[13px] text-grid/40">forever</span>
-              <ul className="mt-8 space-y-3">
-                {["100 messages / day", "3 integrations", "1 agent", "Community support"].map((item) => (
-                  <li key={item} className="flex items-start gap-2.5 text-[13px] text-grid/60">
-                    <span className="text-mint mt-0.5 text-xs">&#10003;</span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="/login"
-                className="block text-center mt-8 font-mono text-[10px] uppercase tracking-widest border border-[rgba(58,58,56,0.2)] px-6 py-3 text-forest hover:bg-forest hover:text-paper transition-colors"
-              >
-                Get Started
-              </Link>
-            </div>
-            {/* Pro */}
-            <div className="fade-in-up stagger-2 bg-paper p-8 md:p-10 border-l border-[rgba(58,58,56,0.08)]">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-coral block">Pro</span>
-                <span className="font-mono text-[8px] uppercase tracking-widest bg-coral/10 text-coral px-2 py-0.5">Popular</span>
-              </div>
-              <div className="font-header text-4xl font-bold text-forest mb-1">$29</div>
-              <span className="text-[13px] text-grid/40">/ month</span>
-              <ul className="mt-8 space-y-3">
-                {[
-                  "Unlimited messages",
-                  "Unlimited integrations",
-                  "Unlimited agents",
-                  "Browser automation",
-                  "Desktop companion",
-                  "Priority support",
-                ].map((item) => (
-                  <li key={item} className="flex items-start gap-2.5 text-[13px] text-grid/60">
-                    <span className="text-coral mt-0.5 text-xs">&#10003;</span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="/login"
-                className="block text-center mt-8 font-mono text-[10px] uppercase tracking-widest bg-forest text-paper px-6 py-3 hover:bg-forest/90 transition-colors"
-              >
-                Start Free Trial
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══ Social Proof ═══ */}
-      <section ref={proofRef} className="px-6 py-20 md:py-28 border-t border-[rgba(58,58,56,0.1)]">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16 fade-in-up">
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-coral">Testimonials</span>
-            <h2 className="font-header text-3xl md:text-4xl font-bold text-forest mt-3 tracking-tight">
-              Loved by operators
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-[rgba(58,58,56,0.08)]">
-            {testimonials.map((t, i) => (
-              <div key={t.name} className={`fade-in-up stagger-${i + 1} bg-paper p-8`}>
-                <p className="text-[14px] text-grid/70 leading-relaxed mb-6 italic">
-                  &ldquo;{t.quote}&rdquo;
-                </p>
-                <div>
-                  <span className="font-header text-sm font-bold text-forest block">{t.name}</span>
-                  <span className="font-mono text-[10px] text-grid/40 uppercase tracking-wide">{t.role}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══ Final CTA ═══ */}
-      <section ref={ctaRef} className="px-6 py-20 md:py-28 border-t border-[rgba(58,58,56,0.1)] bg-forest">
-        <div className="max-w-3xl mx-auto text-center fade-in-up">
-          <h2 className="font-header text-3xl md:text-5xl font-bold text-paper leading-tight tracking-tight mb-6">
-            Ready to 10x
-            <br />
-            your productivity?
-          </h2>
-          <p className="text-paper/50 text-[15px] mb-10 max-w-md mx-auto leading-relaxed">
-            Join thousands of operators who automated their busywork with Dopl.
-          </p>
-          <Link
-            href="/login"
-            className="inline-block bg-coral text-forest font-mono text-[11px] uppercase tracking-widest px-10 py-4 hover:bg-coral/90 transition-colors font-bold"
+        {/* Scroll indicator */}
+        <div className="hero-animate-4 absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+          <span
+            className="text-[10px] uppercase tracking-[0.2em]"
+            style={{ color: "rgba(255,255,255,0.45)", fontFamily: "var(--font-roboto, sans-serif)" }}
           >
-            Get Started Free
-          </Link>
+            Scroll
+          </span>
+          <div className="w-px h-8 bg-gradient-to-b from-white/30 to-transparent" />
         </div>
       </section>
+
+      {/* ═══ Demo Section ═══ */}
+      <div id="demo" className="relative z-10">
+        <ScrollExpandDemo />
+      </div>
 
       {/* ═══ Footer ═══ */}
-      <footer className="border-t border-[rgba(58,58,56,0.1)] px-6 py-12">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
-            <div>
-              <span className="font-header text-base font-bold text-forest tracking-tight block mb-2">Dopl</span>
-              <span className="font-mono text-[10px] text-grid/35 uppercase tracking-wide">Your AI agent, in the cloud</span>
-            </div>
-            <div className="flex flex-wrap gap-x-8 gap-y-3">
-              {[
-                { label: "Privacy", href: "/privacy" },
-                { label: "Terms", href: "/terms" },
-                { label: "Docs", href: "#" },
-                { label: "Blog", href: "#" },
-                { label: "Discord", href: "#" },
-              ].map((link) => (
-                <Link
-                  key={link.label}
-                  href={link.href}
-                  className="font-mono text-[10px] uppercase tracking-widest text-grid/40 hover:text-forest transition-colors"
+      <footer className="relative z-10 bg-[#1A1A1A]" role="contentinfo">
+        <div className="relative overflow-hidden">
+
+          {/* Giant DOPL background text */}
+          <p
+            className="pointer-events-none absolute bottom-0 left-0 top-0 flex select-none items-center font-black uppercase text-[#222]"
+            style={{ fontSize: "clamp(150px, 30vw, 380px)", lineHeight: 0.8 }}
+            aria-hidden="true"
+          >
+            DOPL
+          </p>
+
+          <div className="relative z-10 mx-auto max-w-screen-xl px-4 py-16 md:px-6">
+            <div className="flex flex-col gap-16 md:flex-row md:items-start md:justify-between">
+
+              {/* Left: CTA */}
+              <div>
+                <h2 className="text-5xl font-light leading-tight tracking-tight text-white md:text-6xl">
+                  Have an idea?
+                </h2>
+                <p className="font-[family-name:var(--font-playfair)] text-5xl italic font-light text-[#666] md:text-6xl">
+                  Let&apos;s build it.
+                </p>
+                <a
+                  href="mailto:hello@usedopl.com"
+                  className="mt-8 inline-flex items-center gap-2 border-b border-white pb-1 font-mono text-[18px] text-white transition-colors hover:border-[#3A5FFF] hover:text-[#3A5FFF]"
                 >
-                  {link.label}
-                </Link>
-              ))}
+                  hello@usedopl.com
+                  <span className="text-[15px]" aria-hidden="true">↗</span>
+                </a>
+              </div>
+
+              {/* Right: columns */}
+              <div className="flex gap-16 md:gap-20">
+
+                {/* Connect */}
+                <nav aria-label="Social links">
+                  <p className="mb-6 font-mono text-[10px] uppercase tracking-[0.2em] text-[#555]">
+                    [ Connect ]
+                  </p>
+                  <ul className="space-y-3.5">
+                    {[
+                      { label: "Twitter / X", href: "https://twitter.com/usedopl" },
+                      { label: "LinkedIn", href: "https://linkedin.com/company/usedopl" },
+                      { label: "GitHub", href: "https://github.com/usedopl" },
+                      { label: "Discord", href: "#" },
+                    ].map((item) => (
+                      <li key={item.label}>
+                        <Link
+                          href={item.href}
+                          className="font-mono text-[13px] text-[#888] transition-colors hover:text-white"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {item.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+
+                {/* Navigate */}
+                <nav aria-label="Site navigation">
+                  <p className="mb-6 font-mono text-[10px] uppercase tracking-[0.2em] text-[#555]">
+                    [ Navigate ]
+                  </p>
+                  <ul className="space-y-3.5">
+                    {[
+                      { label: "Home", href: "/" },
+                      { label: "Features", href: "#features" },
+                      { label: "Demo", href: "#demo" },
+                      { label: "Sign In", href: "/login" },
+                    ].map((item) => (
+                      <li key={item.label}>
+                        <Link
+                          href={item.href}
+                          className="font-mono text-[13px] text-[#888] transition-colors hover:text-white"
+                        >
+                          {item.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+
+                {/* Legal */}
+                <nav aria-label="Legal links">
+                  <p className="mb-6 font-mono text-[10px] uppercase tracking-[0.2em] text-[#555]">
+                    [ Legal ]
+                  </p>
+                  <ul className="space-y-3.5">
+                    {[
+                      { label: "Terms of Service", href: "/terms" },
+                      { label: "Privacy Policy", href: "/privacy" },
+                    ].map((item) => (
+                      <li key={item.label}>
+                        <Link
+                          href={item.href}
+                          className="font-mono text-[13px] text-[#888] transition-colors hover:text-white"
+                        >
+                          {item.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+
+              </div>
             </div>
-          </div>
-          <div className="mt-8 pt-6 border-t border-[rgba(58,58,56,0.08)]">
-            <span className="font-mono text-[10px] text-grid/30 uppercase tracking-wide">
-              &copy; 2026 Dopl. All rights reserved.
-            </span>
           </div>
         </div>
       </footer>

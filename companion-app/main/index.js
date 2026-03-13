@@ -222,7 +222,7 @@ function createTray() {
 
 function initChatManager(decoded) {
   const { gatewayUrl, authToken } = decoded;
-  const webAppUrl = decoded.webAppUrl || store.get('webAppUrl') || 'https://crackedclaw.com';
+  const webAppUrl = decoded.webAppUrl || store.get('webAppUrl') || 'https://usedopl.com';
   chatManager = new ChatManager({ gatewayUrl, authToken, webAppUrl });
 }
 

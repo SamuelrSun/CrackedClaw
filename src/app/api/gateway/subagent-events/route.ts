@@ -47,7 +47,8 @@ export async function POST(request: NextRequest) {
     const body: SubagentEvent = await request.json();
 
     // Auth check
-    const expectedSecret = process.env.CHAT_PUSH_SECRET || 'crackedclaw-push-2026';
+    const expectedSecret = process.env.CHAT_PUSH_SECRET;
+    if (!expectedSecret) throw new Error('CHAT_PUSH_SECRET environment variable is required');
     const authHeader = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim();
     
     if (body.push_secret !== expectedSecret && authHeader !== expectedSecret) {

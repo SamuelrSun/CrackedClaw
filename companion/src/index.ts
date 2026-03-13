@@ -8,7 +8,7 @@ program
   .name('dopl-connect')
   .description('Connect your computer to Dopl')
   .requiredOption('--token <token>', 'Your Dopl connection token')
-  .option('--server <url>', 'Server URL', 'wss://www.crackedclaw.com/api/companion/ws')
+  .option('--server <url>', 'Server URL', 'wss://www.usedopl.com/api/companion/ws')
   .action(async (opts: { token: string; server: string }) => {
     console.log('🔌 Dopl Connect');
     console.log('   Connecting to server...');

@@ -107,7 +107,7 @@ export default function NodesPageClient({ profile }: NodesPageClientProps) {
   const token = profile?.auth_token || "";
 
   // Connection is handled via the Dopl Connect desktop app
-  const connectionCommand = `Use Dopl Connect app — download from crackedclaw.com/connect`;
+  const connectionCommand = `Use Dopl Connect app — download from usedopl.com/connect`;
 
   // Fetch pending nodes
   const fetchPendingNodes = useCallback(async () => {
@@ -173,7 +173,7 @@ export default function NodesPageClient({ profile }: NodesPageClientProps) {
   // Copy command to clipboard
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText("https://crackedclaw.com/connect");
+      await navigator.clipboard.writeText("https://usedopl.com/connect");
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -335,7 +335,7 @@ export default function NodesPageClient({ profile }: NodesPageClientProps) {
             {/* Download link */}
             <div className="pt-2 border-t border-[rgba(58,58,56,0.1)]">
               <a
-                href="https://crackedclaw.com/connect"
+                href="https://usedopl.com/connect"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-forest hover:text-mint transition-colors"
@@ -411,7 +411,7 @@ export default function NodesPageClient({ profile }: NodesPageClientProps) {
             {/* Install instructions link */}
             <div className="pt-2 border-t border-[rgba(58,58,56,0.1)]">
               <a
-                href="https://crackedclaw.com/connect"
+                href="https://usedopl.com/connect"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-forest hover:text-mint transition-colors"

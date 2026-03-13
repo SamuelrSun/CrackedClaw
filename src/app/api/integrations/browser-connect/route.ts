@@ -116,8 +116,8 @@ export async function POST(request: NextRequest) {
     const verifyUrl = browserConfig?.verifyUrl || `https://${provider}.com`;
 
     // Send instruction to the gateway agent to open browser
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://crackedclaw.com';
-    const pushSecret = process.env.CHAT_PUSH_SECRET || 'crackedclaw-push-2026';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com';
+    const pushSecret = process.env.CHAT_PUSH_SECRET || 'dopl-push-2026';
 
     // Fire-and-forget: tell the gateway to open browser for login
     chatThroughGateway(

@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
 
     // Use configured app URL instead of spoofable Origin header
-    const origin = process.env.NEXT_PUBLIC_APP_URL || "https://crackedclaw.com";
+    const origin = process.env.NEXT_PUBLIC_APP_URL || "https://usedopl.com";
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${origin}/reset-password`,

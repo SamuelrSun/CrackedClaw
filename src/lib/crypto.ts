@@ -1,10 +1,14 @@
 // Simple AES-256-GCM encryption using Node.js crypto
 import crypto from 'crypto';
 
-const ENCRYPTION_KEY = process.env.SECRET_ENCRYPTION_KEY || 'crackedclaw-default-key-32chars!!';
-const KEY = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+function getKey(): Buffer {
+  const ENCRYPTION_KEY = process.env.SECRET_ENCRYPTION_KEY;
+  if (!ENCRYPTION_KEY) throw new Error('SECRET_ENCRYPTION_KEY environment variable is required');
+  return crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+}
 
 export function encrypt(plaintext: string): string {
+  const KEY = getKey();
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv('aes-256-gcm', KEY, iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
@@ -13,6 +17,7 @@ export function encrypt(plaintext: string): string {
 }
 
 export function decrypt(ciphertext: string): string {
+  const KEY = getKey();
   const data = Buffer.from(ciphertext, 'base64');
   const iv = data.slice(0, 16);
   const tag = data.slice(16, 32);

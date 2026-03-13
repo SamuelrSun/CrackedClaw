@@ -1,6 +1,6 @@
 import type { ToolDefinition, AgentContext } from '../runtime';
 
-const DO_SERVER_URL = process.env.DO_SERVER_URL || 'https://api.crackedclaw.com';
+const DO_SERVER_URL = process.env.DO_SERVER_URL || 'https://api.usedopl.com';
 const DO_SERVER_SECRET = process.env.DO_SERVER_SECRET || '';
 
 async function doServerFileOp(tool: string, input: unknown): Promise<unknown> {

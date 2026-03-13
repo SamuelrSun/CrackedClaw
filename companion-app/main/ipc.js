@@ -128,12 +128,12 @@ function setupIPC(deps) {
       store.set('gatewayUrl', gatewayUrl);
       store.set('instanceId', instanceId);
       store.set('authToken', authToken);
-      store.set('webAppUrl', webAppUrl || 'https://crackedclaw.com');
+      store.set('webAppUrl', webAppUrl || 'https://usedopl.com');
       if (operatorToken) store.set('operatorToken', operatorToken);
 
       initChatManager(decoded);
 
-      const nodeManager = new NodeManager({ gatewayUrl, instanceId, authToken, operatorToken });
+      const nodeManager = new NodeManager({ gatewayUrl, instanceId, authToken, operatorToken, webAppUrl: webAppUrl || store.get('webAppUrl') });
       setNodeManager(nodeManager);
 
       nodeManager.on('status', (connected) => {

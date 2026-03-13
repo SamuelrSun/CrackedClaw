@@ -39,7 +39,7 @@ async function queryGatewayNodes(gatewayUrl: string, _authToken: string): Promis
   paired: Array<{ id: string; name?: string; displayName?: string; connected?: boolean; lastSeen?: string; capabilities?: string[] }>;
   pending: Array<{ requestId?: string; id?: string }>;
 }> {
-  // Extract instance ID from gateway URL (e.g., https://i-82749eae.crackedclaw.com -> oc-82749eae)
+  // Extract instance ID from gateway URL (e.g., https://i-82749eae.usedopl.com -> oc-82749eae)
   const urlMatch = gatewayUrl.match(/i-([a-f0-9]+)\./);
   const instanceId = urlMatch ? `oc-${urlMatch[1]}` : null;
   

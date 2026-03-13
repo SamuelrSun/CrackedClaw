@@ -19,7 +19,7 @@ export async function GET() {
     gatewayUrl: profile.gateway_url,
     instanceId: profile.instance_id,
     authToken: profile.auth_token,
-    webAppUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://crackedclaw.com',
+    webAppUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com',
     ...(operatorToken ? { operatorToken } : {}),
   };
 

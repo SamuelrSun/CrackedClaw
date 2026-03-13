@@ -4,7 +4,7 @@ import type { ToolDefinition, AgentContext } from '../runtime';
 
 const execAsync = promisify(nodeExec);
 
-const DO_SERVER_URL = process.env.DO_SERVER_URL || 'https://api.crackedclaw.com';
+const DO_SERVER_URL = process.env.DO_SERVER_URL || 'https://api.usedopl.com';
 const DO_SERVER_SECRET = process.env.DO_SERVER_SECRET || '';
 
 interface ExecInput {

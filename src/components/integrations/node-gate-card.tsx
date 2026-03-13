@@ -148,7 +148,7 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
           <p className="font-mono text-[10px] font-bold text-amber-800">Here&apos;s how to connect:</p>
           <div className="space-y-2">
             {[
-              { n: 1, text: 'Download Dopl Connect from crackedclaw.com/connect' },
+              { n: 1, text: 'Download Dopl Connect from usedopl.com/connect' },
               { n: 2, text: 'Open the app and sign in with your Dopl account' },
               { n: 3, text: 'Leave the app running in the background — that\'s it!' },
             ].map(step => (

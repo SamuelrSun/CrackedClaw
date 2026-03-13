@@ -17,7 +17,8 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const { user_id, provider, bridge_secret, account_id } = body;
 
-  const expectedSecret = process.env.TOKEN_BRIDGE_SECRET || 'crackedclaw-bridge-2026';
+  const expectedSecret = process.env.TOKEN_BRIDGE_SECRET;
+  if (!expectedSecret) throw new Error('TOKEN_BRIDGE_SECRET environment variable is required');
   if (bridge_secret !== expectedSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

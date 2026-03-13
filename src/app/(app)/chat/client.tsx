@@ -626,6 +626,15 @@ export default function ChatPageClient({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastFailedMessage = useRef<string | null>(null);
   const handleSendRef = useRef<(messageOverride?: string) => Promise<void>>(async () => {});
+  const userIdRef = useRef<string | null>(null);
+
+  // Fetch and cache the current user's ID on mount
+  useEffect(() => {
+    const supabase = createSupabaseClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) userIdRef.current = user.id;
+    }).catch(() => {});
+  }, []);
   
   const { 
     gateway, 
@@ -701,7 +710,7 @@ export default function ChatPageClient({
           const taskDetails = match[3] ?? null;
           if (taskStatus === "running") {
             supabase.from("agent_tasks").insert({
-              user_id: "", // filled server-side via RLS
+              user_id: userIdRef.current ?? "",
               conversation_id: convoId,
               name: taskName,
               label: taskName,

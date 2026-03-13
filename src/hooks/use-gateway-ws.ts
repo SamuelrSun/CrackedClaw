@@ -4,7 +4,7 @@
  * useGatewayWS — Direct WebSocket connection to the OpenClaw gateway.
  *
  * Protocol (verified working against gateway 2026.3.8):
- *   1. Connect to wss://i-XXXXX.crackedclaw.com
+ *   1. Connect to wss://i-XXXXX.usedopl.com
  *   2. Receive: {type:"event", event:"connect.challenge", payload:{nonce,ts}}
  *   3. Send connect frame with auth token
  *   4. Receive: {type:"res", id:"c1", ok:true, payload:{type:"hello-ok",...}}
@@ -225,8 +225,22 @@ export function useGatewayWS({
           return;
         }
 
+        // ── Auth failure (connect response with ok:false) ──────────────────
+        if (type === "res" && !(msg.ok as boolean) && msg.id === "c1") {
+          const errPayload = msg.error as Record<string, unknown>;
+          const errMsg = (errPayload?.message as string) ?? "Authentication failed";
+          console.error("[GatewayWS] Auth failed:", errMsg, msg.error);
+          if (mountedRef.current) {
+            setConnected(false);
+            setConnecting(false);
+          }
+          // Close the socket — onclose will schedule backoff reconnect
+          ws.close();
+          return;
+        }
+
         // ── Error response (not from connect) ─────────────────────────────
-        if (type === "res" && !(msg.ok as boolean) && msg.id !== "c1") {
+        if (type === "res" && !(msg.ok as boolean)) {
           const errPayload = msg.error as Record<string, unknown>;
           onEventRef.current?.({
             type: "error",

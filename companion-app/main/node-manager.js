@@ -8,15 +8,40 @@ const fs = require('fs');
 const path = require('path');
 
 const RECONNECT_DELAY_MS = 5000;
-const PROVISIONING_API_URL = 'http://164.92.75.153:3100';
+
+/**
+ * Derive the provisioning API base URL from a webAppUrl.
+ * e.g. "https://usedopl.com" → "https://usedopl.com/api"
+ */
+function deriveProvisioningUrl(webAppUrl) {
+  try {
+    const parsed = new URL(webAppUrl);
+    // Always use HTTPS for the provisioning API
+    parsed.protocol = 'https:';
+    // Strip any path and append /api
+    return `https://${parsed.host}/api`;
+  } catch (_) {
+    return null;
+  }
+}
 
 class NodeManager extends EventEmitter {
-  constructor({ gatewayUrl, instanceId, authToken, operatorToken }) {
+  constructor({ gatewayUrl, instanceId, authToken, operatorToken, provisioningUrl, webAppUrl }) {
     super();
     this.gatewayUrl = gatewayUrl;
     this.instanceId = instanceId;
     this.authToken = authToken;
     this.operatorToken = operatorToken || authToken;
+
+    // Resolve provisioning API URL in priority order:
+    // 1. Explicit provisioningUrl from token
+    // 2. Derived from webAppUrl
+    // 3. Environment variable
+    this.provisioningApiUrl =
+      provisioningUrl ||
+      (webAppUrl ? deriveProvisioningUrl(webAppUrl) : null) ||
+      process.env.PROVISIONING_API_URL ||
+      null;
     this.connected = false;
     this.lastError = null;
     this.process = null;
@@ -96,9 +121,14 @@ class NodeManager extends EventEmitter {
       displayName,
     });
 
+    if (!this.provisioningApiUrl) {
+      console.warn('[NodeManager] No provisioning API URL configured — skipping pre-pair');
+      return;
+    }
+
     try {
       const result = await this._httpPost(
-        `${PROVISIONING_API_URL}/api/instances/${this.instanceId}/pre-pair`,
+        `${this.provisioningApiUrl}/instances/${this.instanceId}/pre-pair`,
         body,
         { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.authToken}` }
       );

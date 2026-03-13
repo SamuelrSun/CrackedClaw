@@ -85,7 +85,7 @@ const channelInstructions: Record<ChannelType, {
     ],
     tokenLabel: "Connection Token",
     tokenPlaceholder: "Paste your companion app token",
-    docsUrl: "https://crackedclaw.com/connect",
+    docsUrl: "https://usedopl.com/connect",
   },
   whatsapp: {
     name: "WhatsApp",

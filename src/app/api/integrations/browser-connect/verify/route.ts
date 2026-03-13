@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
     const { user_id, provider, integration_id, status, account_name, account_email, push_secret } = body;
 
     // Auth check
-    const expectedSecret = process.env.CHAT_PUSH_SECRET || 'crackedclaw-push-2026';
+    const expectedSecret = process.env.CHAT_PUSH_SECRET;
+    if (!expectedSecret) throw new Error('CHAT_PUSH_SECRET environment variable is required');
     if (push_secret !== expectedSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

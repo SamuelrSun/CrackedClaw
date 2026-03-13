@@ -19,7 +19,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { conversation_id, content, push_secret, task_label, task_id, user_id } = body;
 
-    const expectedSecret = process.env.CHAT_PUSH_SECRET || 'crackedclaw-push-2026';
+    const expectedSecret = process.env.CHAT_PUSH_SECRET;
+    if (!expectedSecret) throw new Error('CHAT_PUSH_SECRET environment variable is required');
     if (push_secret !== expectedSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

@@ -323,7 +323,7 @@ function CompanionOnboardingInline({ name }: { name: string }) {
           <strong className="text-forest">{name}</strong> doesn&apos;t have an API, so I need to browse it on your computer — just like you would.
         </p>
         <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
-          <strong>CrackedClaw Connect</strong> is a lightweight desktop app that lets me do that.
+          <strong>Dopl Connect</strong> is a lightweight desktop app that lets me do that.
         </p>
       </div>
 

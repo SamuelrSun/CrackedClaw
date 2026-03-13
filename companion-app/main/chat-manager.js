@@ -11,10 +11,10 @@ class ChatManager {
   constructor({ gatewayUrl, authToken, webAppUrl }) {
     this.gatewayUrl = (gatewayUrl || '').replace(/\/$/, '');
     this.authToken = authToken;
-    // Normalize: always use www.crackedclaw.com (non-www returns 307 redirects
+    // Normalize: always use www.usedopl.com (non-www returns 307 redirects
     // which break Node.js fetch for POST requests)
-    let normalizedUrl = (webAppUrl || 'https://www.crackedclaw.com').replace(/\/$/, '');
-    normalizedUrl = normalizedUrl.replace('://crackedclaw.com', '://www.crackedclaw.com');
+    let normalizedUrl = (webAppUrl || 'https://www.usedopl.com').replace(/\/$/, '');
+    normalizedUrl = normalizedUrl.replace('://usedopl.com', '://www.usedopl.com');
     this.webAppUrl = normalizedUrl;
   }
 
