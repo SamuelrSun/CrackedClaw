@@ -15,7 +15,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
-          <label className="font-mono text-[10px] uppercase tracking-wide text-grid/60">
+          <label className={cn("font-mono text-[10px] uppercase tracking-wide text-grid/60", className?.includes("login-glass") && "text-white/60")}>
             {label}
           </label>
         )}

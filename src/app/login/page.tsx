@@ -229,7 +229,7 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 relative">
+    <div className="min-h-screen flex items-center justify-center px-6 relative" style={{ backgroundColor: "#0a0a0f" }}>
       {/* Background image + overlay */}
       <div
         className="fixed inset-0 z-0"
@@ -354,8 +354,8 @@ function LoginContent() {
               onBlur={form.handleBlur("email")}
               error={form.errors.email}
               touched={form.touched.email}
-              placeholder="you@example.com"
               disabled={loading}
+              className="login-glass bg-white/10 border-white/20 text-white placeholder:text-transparent focus:border-white/40"
             />
 
             <div>
@@ -368,9 +368,9 @@ function LoginContent() {
                 onBlur={form.handleBlur("password")}
                 error={form.errors.password}
                 touched={form.touched.password}
-                placeholder="••••••••"
                 disabled={loading}
                 autoComplete={isSignUp ? "new-password" : "current-password"}
+                className="login-glass bg-white/10 border-white/20 text-white placeholder:text-transparent focus:border-white/40"
               />
               {!isSignUp && (
                 <div className="mt-1.5 text-right">
@@ -439,7 +439,7 @@ function LoginContent() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center px-6 relative">
+      <div className="min-h-screen flex items-center justify-center px-6 relative" style={{ backgroundColor: "#0a0a0f" }}>
         <div className="fixed inset-0 z-0" style={{ backgroundImage: "url('/img/landing_background.jpg')", backgroundSize: "cover", backgroundPosition: "center" }} />
         <div className="fixed inset-0 z-0" style={{ background: "rgba(0,0,0,0.35)" }} />
         <div className="w-full max-w-sm relative z-10">
