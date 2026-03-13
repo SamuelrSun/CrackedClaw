@@ -18,42 +18,15 @@
       flex-direction: column;
       padding: 8px;
       overflow: hidden;
-      justify-content: flex-end; /* default: pill at bottom */
+      justify-content: flex-end; /* pill at bottom */
     }
 
-    /* Setup screen: takes up all space and centers the card */
-    #screen-setup {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      flex: 1;
-      min-height: 0;
-    }
-    #screen-setup.active {
-      display: flex;
-    }
-
-    /* When setup is active, let body fill the whole window */
-    body:has(#screen-setup.active) {
-      justify-content: flex-start;
-    }
-
-    /* Remove window controls from setup card — no traffic lights */
-    .setup-card .window-controls {
-      display: none;
-    }
-
-    /* Chat screen: just holds the settings dropdown + pill */
+    /* Chat screen: always visible */
     #screen-chat {
-      display: none;
+      display: flex;
       flex-direction: column;
       padding: 0;
       height: auto;
-    }
-    #screen-chat.active {
-      display: flex;
     }
 
     /* ── Settings Dropdown ─────────────────────────────────────────────── */
@@ -177,25 +150,8 @@
 </head>
 <body>
 
-  <!-- ── Setup Screen ───────────────────────────────────────────────────── -->
-  <div id="screen-setup">
-    <div class="setup-card">
-      <div class="logo">Dopl</div>
-      <p class="subtitle">Connect your machine to your cloud AI instance</p>
-      <input
-        id="token-input"
-        type="text"
-        placeholder="Paste your connection token"
-        spellcheck="false"
-        autocomplete="off"
-      />
-      <button id="btn-connect" class="btn-primary">Connect</button>
-      <p id="error-msg" class="error"></p>
-    </div>
-  </div>
-
-  <!-- ── Chat Screen ─────────────────────────────────────────────────────── -->
-  <div id="screen-chat">
+  <!-- ── Chat Screen (always visible — input bar doubles as token entry) ── -->
+  <div id="screen-chat" class="active">
 
     <!-- Settings Dropdown (above the pill, in normal flow) -->
     <div id="settings-dropdown" class="settings-dropdown hidden">

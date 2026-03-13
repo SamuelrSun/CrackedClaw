@@ -9,13 +9,7 @@
 
 // ── DOM References ─────────────────────────────────────────────────────────────
 
-const screenSetup = document.getElementById('screen-setup');
 const screenChat  = document.getElementById('screen-chat');
-
-// Setup screen
-const tokenInput = document.getElementById('token-input');
-const btnConnect = document.getElementById('btn-connect');
-const errorMsg   = document.getElementById('error-msg');
 
 // Chat screen
 const connDot       = document.getElementById('conn-dot');
@@ -37,6 +31,7 @@ let currentConversationId = null;
 let isStreaming = false;
 let settingsOpen = false;
 let chatPanelOpen = false;
+let tokenMode = false; // true = input bar is in token-paste mode
 
 // Heights (px) — must match main process constants
 const INPUT_BAR_HEIGHT = 68;
@@ -44,13 +39,6 @@ const SETUP_HEIGHT = 340;
 const DROPDOWN_GAP = 6;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function showSetupError(msg) {
-  if (!msg) { errorMsg.textContent = ''; return; }
-  console.error('[Setup Error]', msg);
-  const firstLine = msg.split('\n')[0].replace(/^Error:\s*/, '');
-  errorMsg.textContent = firstLine.length > 200 ? firstLine.slice(0, 200) + '…' : firstLine;
-}
 
 function setConnectedIndicator(connected) {
   connDot.className = 'conn-dot ' + (connected ? 'connected' : 'disconnected');
@@ -60,11 +48,52 @@ function setConnectedIndicator(connected) {
 function setInputEnabled(enabled) {
   msgInput.disabled = !enabled;
   btnSend.disabled = !enabled;
+  if (tokenMode) return; // don't override placeholder in token mode
   if (enabled) {
     msgInput.placeholder = 'Message… (Enter to send, Shift+Enter for new line)';
   } else {
     msgInput.placeholder = 'Waiting for response…';
   }
+}
+
+/**
+ * Switch the input bar into token-paste mode.
+ * The same pill input becomes the token field; send button becomes connect.
+ */
+function enterTokenMode() {
+  tokenMode = true;
+  msgInput.value = '';
+  msgInput.disabled = false;
+  msgInput.placeholder = '🔗 Paste connection token to link your instance…';
+  msgInput.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+  msgInput.style.fontSize = '11.5px';
+  msgInput.style.letterSpacing = '0.3px';
+  btnSend.disabled = false;
+  btnSend.title = 'Connect';
+  // Hide chat-only buttons when in token mode
+  btnAudio.style.display = 'none';
+  btnToggleChat.style.display = 'none';
+  btnSettings.style.display = 'none';
+  setConnectedIndicator(false);
+}
+
+/**
+ * Switch back to normal chat mode.
+ */
+function exitTokenMode() {
+  tokenMode = false;
+  msgInput.value = '';
+  msgInput.disabled = false;
+  msgInput.placeholder = 'Message… (Enter to send)';
+  msgInput.style.fontFamily = '';
+  msgInput.style.fontSize = '';
+  msgInput.style.letterSpacing = '';
+  btnSend.disabled = false;
+  btnSend.title = 'Send';
+  // Show chat buttons
+  btnAudio.style.display = '';
+  btnToggleChat.style.display = '';
+  btnSettings.style.display = '';
 }
 
 function autoResizeInput() {
@@ -73,20 +102,7 @@ function autoResizeInput() {
 }
 
 // ── Screen Management ──────────────────────────────────────────────────────────
-
-function showScreen(name) {
-  if (name === 'setup') {
-    screenSetup.classList.add('active');
-    screenChat.classList.remove('active');
-    // Expand window upward to show setup card
-    window.dopl.windowSetSize(680, SETUP_HEIGHT, true);
-  } else {
-    screenSetup.classList.remove('active');
-    screenChat.classList.add('active');
-    // Collapse to just the input bar
-    window.dopl.windowSetSize(680, INPUT_BAR_HEIGHT, false);
-  }
-}
+// No separate setup screen — the input bar handles everything
 
 // ── Glass Tint ────────────────────────────────────────────────────────────────
 
@@ -138,9 +154,38 @@ function updateToggleButton(visible) {
   btnToggleChat.title = visible ? 'Hide chat panel' : 'Show chat panel';
 }
 
+// ── Token Connection (via the input bar) ───────────────────────────────────────
+
+async function handleTokenSubmit() {
+  const token = msgInput.value.trim();
+  if (!token) return;
+
+  msgInput.disabled = true;
+  btnSend.disabled = true;
+  msgInput.placeholder = 'Connecting…';
+
+  const result = await window.dopl.connect(token);
+  if (result.ok) {
+    exitTokenMode();
+    setConnectedIndicator(true);
+  } else {
+    msgInput.disabled = false;
+    btnSend.disabled = false;
+    msgInput.value = '';
+    const errMsg = (result.error || 'Connection failed').split('\n')[0].replace(/^Error:\s*/, '');
+    msgInput.placeholder = '❌ ' + (errMsg.length > 80 ? errMsg.slice(0, 80) + '…' : errMsg) + ' — try again';
+  }
+}
+
 // ── Sending Messages ───────────────────────────────────────────────────────────
 
 async function sendMessage() {
+  // If in token mode, handle as token submission
+  if (tokenMode) {
+    handleTokenSubmit();
+    return;
+  }
+
   const text = msgInput.value.trim();
   if (!text || isStreaming) return;
 
@@ -224,10 +269,11 @@ tintSlider.addEventListener('change', (e) => {
   window.dopl.setGlassTint(value).catch(() => {});
 });
 
-// Relink button — close settings and show setup screen
+// Relink button — close settings and switch to token mode
 btnRelink.addEventListener('click', () => {
   closeSettings();
-  showScreen('setup');
+  enterTokenMode();
+  msgInput.focus();
 });
 
 // Toggle chat panel
@@ -257,55 +303,29 @@ btnSend.addEventListener('click', () => {
   }
 });
 
-// Connect button
-btnConnect.addEventListener('click', async () => {
-  const token = tokenInput.value.trim();
-  if (!token) {
-    showSetupError('Please paste a connection token');
-    return;
-  }
-  btnConnect.disabled = true;
-  btnConnect.textContent = 'Connecting…';
-  showSetupError('');
-
-  const result = await window.dopl.connect(token);
-  if (result.ok) {
-    tokenInput.value = '';
-    enterChatScreen();
-  } else {
-    showSetupError(result.error || 'Connection failed');
-  }
-
-  btnConnect.disabled = false;
-  btnConnect.textContent = 'Connect';
-});
+// No separate connect button — handled by sendMessage() in token mode
 
 // ── Screen Lifecycle ───────────────────────────────────────────────────────────
 
-function enterChatScreen() {
+function enterChatMode() {
+  exitTokenMode();
   setConnectedIndicator(false);
-  msgInput.disabled = false;
-  msgInput.placeholder = 'Message… (Enter to send)';
-  btnSend.disabled = false;
   currentConversationId = null;
-  showScreen('chat');
 }
 
-function leaveChatScreen() {
+function enterSetupMode() {
   currentConversationId = null;
-  msgInput.disabled = true;
-  btnSend.disabled = true;
   closeSettings();
-  showScreen('setup');
+  enterTokenMode();
 }
 
 // ── IPC Listeners ──────────────────────────────────────────────────────────────
 
 window.dopl.onStatusUpdate((data) => {
   setConnectedIndicator(data.connected);
-  // If explicitly disconnected (token cleared), go back to setup screen
+  // If explicitly disconnected (token cleared), switch input bar to token mode
   if (data.disconnected) {
-    leaveChatScreen();
+    enterSetupMode();
   }
 });
 
@@ -332,10 +352,13 @@ window.dopl.onGlassTintChanged((value) => {
   const panelVisible = await window.dopl.getChatPanelVisible();
   updateToggleButton(panelVisible);
 
+  // Always start at input bar height — no setup card expansion
+  window.dopl.windowSetSize(680, INPUT_BAR_HEIGHT, false);
+
   if (state.token) {
-    enterChatScreen();
+    exitTokenMode();
     setConnectedIndicator(state.connected);
   } else {
-    showScreen('setup');
+    enterTokenMode();
   }
 })();
