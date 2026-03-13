@@ -633,7 +633,8 @@ export default function LandingPage() {
                 fontFamily: "var(--font-playfair, 'Playfair Display', serif)",
                 fontStyle: "italic",
                 fontWeight: 400,
-                color: "white",
+                color: "#18181B",
+                fontSize: "0.65em",
               }}
             >
               Operating
@@ -645,7 +646,7 @@ export default function LandingPage() {
                 fontFamily: "var(--font-inter, 'Inter', sans-serif)",
                 WebkitTextStroke: "1px white",
                 color: "transparent",
-                letterSpacing: "0.02em",
+                letterSpacing: "-0.04em",
               }}
             >
               Intelligence.
