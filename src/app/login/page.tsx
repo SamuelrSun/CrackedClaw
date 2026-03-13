@@ -241,28 +241,31 @@ function LoginContent() {
       />
       <div className="fixed inset-0 z-0" style={{ background: "rgba(0,0,0,0.25)" }} />
 
+      <div className="text-center mb-6 relative z-10"
+           style={{ animation: "loginFadeIn 0.6s ease-out both" }}
+      >
+        <h1
+          className="text-xl font-bold mb-2"
+          style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: "#18181B" }}
+        >
+          Dopl
+        </h1>
+        <p className="font-mono text-[11px] uppercase tracking-wide" style={{ color: "#18181B" }}>
+          The AI Personal Companion
+        </p>
+      </div>
+
       <div
         className="w-full max-w-sm relative z-10 p-6"
         style={{
           animation: "loginFadeIn 0.6s ease-out both",
           animationDelay: "0.1s",
-          background: "rgba(255,255,255,0.35)",
+          background: "rgba(255,255,255,0.25)",
           backdropFilter: "blur(40px) saturate(120%)",
           WebkitBackdropFilter: "blur(40px) saturate(120%)",
           border: "1px solid rgba(255,255,255,0.25)",
         }}
       >
-        <div className="text-center mb-8">
-          <h1
-            className="text-xl font-bold mb-2"
-            style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: "#18181B" }}
-          >
-            Dopl
-          </h1>
-          <p className="font-mono text-[11px] uppercase tracking-wide" style={{ color: "#18181B" }}>
-            The AI Personal Companion
-          </p>
-        </div>
 
         {/* Supabase not configured warning */}
         {!supabaseConfigured && (
@@ -275,10 +278,6 @@ function LoginContent() {
             </p>
           </div>
         )}
-
-          <p className="font-mono text-[10px] text-white/70 uppercase tracking-wide mb-6 text-center">
-            {isSignUp ? "Create your account" : "Sign in to continue"}
-          </p>
 
           {/* OAuth buttons */}
           <div className="space-y-2 mb-4">
