@@ -239,18 +239,21 @@ function LoginContent() {
           backgroundPosition: "center",
         }}
       />
-      <div className="fixed inset-0 z-0" style={{ background: "rgba(0,0,0,0.35)" }} />
+      <div className="fixed inset-0 z-0" style={{ background: "rgba(0,0,0,0.25)" }} />
 
-      <div className="w-full max-w-sm relative z-10">
+      <div
+        className="w-full max-w-sm relative z-10"
+        style={{ animation: "fadeInUp 0.6s ease-out both", animationDelay: "0.1s" }}
+      >
         <div className="text-center mb-8">
           <h1
-            className="text-xl font-bold text-white mb-2"
-            style={{ fontFamily: "var(--font-playfair, 'Playfair Display', serif)", fontStyle: "italic" }}
+            className="text-xl font-bold mb-2"
+            style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: "#18181B" }}
           >
             Dopl
           </h1>
-          <p className="font-mono text-[11px] text-white/60 uppercase tracking-wide">
-            AI Agent Management Platform
+          <p className="font-mono text-[11px] uppercase tracking-wide" style={{ color: "#18181B" }}>
+            The AI Personal Companion
           </p>
         </div>
 
@@ -266,8 +269,16 @@ function LoginContent() {
           </div>
         )}
 
-        <div className="border border-[rgba(58,58,56,0.2)] bg-white/50 p-6">
-          <p className="font-mono text-[10px] text-grid/60 uppercase tracking-wide mb-6 text-center">
+        <div
+          className="p-6"
+          style={{
+            background: "rgba(255,255,255,0.15)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255,255,255,0.25)",
+          }}
+        >
+          <p className="font-mono text-[10px] text-white/70 uppercase tracking-wide mb-6 text-center">
             {isSignUp ? "Create your account" : "Sign in to continue"}
           </p>
 
@@ -277,7 +288,7 @@ function LoginContent() {
               type="button"
               onClick={() => handleOAuth("google")}
               disabled={!!oauthLoading || loading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-[rgba(58,58,56,0.2)] bg-white hover:bg-paper transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-white/20 bg-white/10 hover:bg-white/20 transition-colors disabled:opacity-50"
             >
               <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
                 <path d="M17.64 9.2045c0-.638-.0573-1.2518-.1636-1.8409H9v3.4814h4.8436c-.2086 1.125-.8427 2.0782-1.7959 2.7164v2.2581h2.9086c1.7018-1.5668 2.6836-3.874 2.6836-6.615z" fill="#4285F4"/>
@@ -285,7 +296,7 @@ function LoginContent() {
                 <path d="M3.964 10.71c-.18-.54-.2822-1.1168-.2822-1.71s.1022-1.17.2822-1.71V4.9582H.9573A8.9961 8.9961 0 0 0 0 9c0 1.4523.3477 2.8268.9573 4.0418L3.964 10.71z" fill="#FBBC05"/>
                 <path d="M9 3.5795c1.3214 0 2.5077.4541 3.4405 1.346l2.5813-2.5813C13.4632.8918 11.4259 0 9 0 5.4818 0 2.4382 2.0168.9573 4.9582L3.964 7.29C4.6718 5.1627 6.6559 3.5795 9 3.5795z" fill="#EA4335"/>
               </svg>
-              <span className="font-mono text-[11px] text-forest">
+              <span className="font-mono text-[11px] text-white">
                 {oauthLoading === "google" ? "Redirecting..." : (isSignUp ? "Sign up with Google" : "Sign in with Google")}
               </span>
             </button>
@@ -293,12 +304,12 @@ function LoginContent() {
               type="button"
               onClick={() => handleOAuth("github")}
               disabled={!!oauthLoading || loading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-[rgba(58,58,56,0.2)] bg-white hover:bg-paper transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-white/20 bg-white/10 hover:bg-white/20 transition-colors disabled:opacity-50"
             >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" className="text-forest">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="white">
                 <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
               </svg>
-              <span className="font-mono text-[11px] text-forest">
+              <span className="font-mono text-[11px] text-white">
                 {oauthLoading === "github" ? "Redirecting..." : (isSignUp ? "Sign up with GitHub" : "Sign in with GitHub")}
               </span>
             </button>
@@ -306,9 +317,9 @@ function LoginContent() {
 
           {/* Divider */}
           <div className="flex items-center gap-3 mb-4">
-            <div className="flex-1 h-px bg-[rgba(58,58,56,0.15)]" />
-            <span className="font-mono text-[10px] text-grid/50 uppercase tracking-wide">or</span>
-            <div className="flex-1 h-px bg-[rgba(58,58,56,0.15)]" />
+            <div className="flex-1 h-px bg-white/20" />
+            <span className="font-mono text-[10px] text-white/50 uppercase tracking-wide">or</span>
+            <div className="flex-1 h-px bg-white/20" />
           </div>
 
           {/* Error summary - only show server errors at top, not validation errors */}
@@ -365,7 +376,7 @@ function LoginContent() {
                 <div className="mt-1.5 text-right">
                   <a
                     href="/forgot-password"
-                    className="font-mono text-[9px] text-forest/60 hover:text-forest uppercase tracking-wide transition-colors"
+                    className="font-mono text-[9px] text-white/50 hover:text-white uppercase tracking-wide transition-colors"
                   >
                     Forgot password?
                   </a>
@@ -376,7 +387,8 @@ function LoginContent() {
             <button
               type="submit"
               disabled={loading || form.isSubmitting}
-              className="w-full px-4 py-2.5 bg-forest text-white font-mono text-[11px] uppercase tracking-wide hover:bg-forest/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-4 py-2.5 bg-[#18181B] text-white font-mono text-[11px] uppercase tracking-wide hover:bg-[#333] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ borderRadius: 50 }}
             >
               {loading || form.isSubmitting ? "Loading..." : isSignUp ? "Sign Up" : "Sign In"}
             </button>
@@ -391,7 +403,7 @@ function LoginContent() {
                 setSuccess(null);
                 form.reset();
               }}
-              className="font-mono text-[10px] text-forest/70 hover:text-forest uppercase tracking-wide transition-colors"
+              className="font-mono text-[10px] text-white/60 hover:text-white uppercase tracking-wide transition-colors"
             >
               {isSignUp
                 ? "Already have an account? Sign in →"
@@ -416,8 +428,8 @@ function LoginContent() {
           )}
         </div>
 
-        <p className="font-mono text-[9px] text-grid/40 text-center mt-6 uppercase tracking-wide">
-          By signing in, you agree to our <a href="/terms" className="underline hover:text-forest transition-colors">terms of service</a>
+        <p className="font-mono text-[9px] text-white/40 text-center mt-6 uppercase tracking-wide">
+          By signing in, you agree to our <a href="/terms" className="underline hover:text-white transition-colors">terms of service</a>
         </p>
       </div>
     </div>
