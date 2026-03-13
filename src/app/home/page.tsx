@@ -592,17 +592,21 @@ export default function LandingPage() {
         <div className="absolute top-7 right-8 z-20 flex items-center gap-3 hero-animate">
           <Link
             href="/login"
-            className="hover:text-white transition-colors text-[11px] uppercase tracking-[0.12em]"
-            style={{ color: "rgba(255,255,255,0.8)", fontFamily: "var(--font-roboto, sans-serif)" }}
+            className="hover:bg-white hover:text-[#18181B] transition-all"
+            style={{
+              fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+              fontSize: 10,
+              fontWeight: 700,
+              textTransform: "uppercase" as const,
+              letterSpacing: "0.2em",
+              padding: "12px 24px",
+              border: "1px solid rgba(255,255,255,0.8)",
+              borderRadius: 50,
+              color: "white",
+              textDecoration: "none",
+            }}
           >
-            Sign In
-          </Link>
-          <Link
-            href="/login"
-            className="bg-white text-gray-900 text-[11px] uppercase tracking-[0.12em] px-5 py-2 hover:bg-white/90 transition-colors"
-            style={{ fontFamily: "var(--font-roboto, sans-serif)" }}
-          >
-            Get Started
+            Get Access
           </Link>
         </div>
 
@@ -692,18 +696,7 @@ export default function LandingPage() {
             >
               Get Started Free
             </Link>
-            <a
-              href="#demo"
-              className="border border-white/40 text-white rounded-full hover:bg-white/10 transition-colors"
-              style={{
-                fontFamily: "var(--font-roboto, sans-serif)",
-                fontSize: 15,
-                letterSpacing: "0.06em",
-                padding: "16px 40px",
-              }}
-            >
-              Book a Demo
-            </a>
+
           </div>
         </div>
 
