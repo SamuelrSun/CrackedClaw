@@ -229,7 +229,7 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 relative" style={{ backgroundColor: "#0a0a0f" }}>
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 relative" style={{ backgroundColor: "#0a0a0f" }}>
       {/* Background image + overlay */}
       <div
         className="fixed inset-0 z-0"
@@ -246,9 +246,9 @@ function LoginContent() {
         style={{
           animation: "loginFadeIn 0.6s ease-out both",
           animationDelay: "0.1s",
-          background: "rgba(255,255,255,0.12)",
-          backdropFilter: "blur(40px) saturate(180%)",
-          WebkitBackdropFilter: "blur(40px) saturate(180%)",
+          background: "rgba(255,255,255,0.35)",
+          backdropFilter: "blur(40px) saturate(120%)",
+          WebkitBackdropFilter: "blur(40px) saturate(120%)",
           border: "1px solid rgba(255,255,255,0.25)",
         }}
       >
@@ -405,7 +405,7 @@ function LoginContent() {
             >
               {isSignUp
                 ? "Already have an account? Sign in →"
-                : "← Back to sign up"}
+                : "Or sign up"}
             </button>
           </div>
 
@@ -424,11 +424,13 @@ function LoginContent() {
               </button>
             </div>
           )}
-
-        <p className="font-mono text-[9px] text-white/40 text-center mt-6 uppercase tracking-wide">
-          By signing in, you agree to our <a href="/terms" className="underline hover:text-white transition-colors">terms of service</a>
-        </p>
       </div>
+
+      <p className="w-full max-w-sm relative z-10 font-mono text-[9px] text-white/40 text-center mt-4 uppercase tracking-wide"
+         style={{ animation: "loginFadeIn 0.6s ease-out both", animationDelay: "0.3s" }}
+      >
+        By signing in, you agree to our <a href="/terms" className="underline hover:text-white transition-colors">terms of service</a>
+      </p>
     </div>
   );
 }
