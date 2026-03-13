@@ -593,11 +593,40 @@ export default function LandingPage() {
         className="relative z-10 flex flex-col items-start justify-start px-12 md:px-20 pt-20 pb-16"
         style={{ minHeight: "78vh" }}
       >
-        {/* ── Nav buttons floating on image (top-right) ── */}
-        <div className="absolute top-7 right-8 z-20 flex items-center gap-3 hero-animate">
+        {/* Coordinates — top left */}
+        <div
+          className="absolute top-5 left-5 z-20 hero-animate"
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: "0.15em",
+            opacity: 0.4,
+            fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+            color: "white",
+          }}
+        >
+          N 37° 46&apos; 29&quot; / W 122° 25&apos; 10&quot;
+        </div>
+
+        {/* Logo — center top */}
+        <div
+          className="absolute top-7 left-1/2 -translate-x-1/2 z-20 hero-animate"
+          style={{
+            fontFamily: "var(--font-playfair, 'Playfair Display', serif)",
+            fontStyle: "italic",
+            fontWeight: 400,
+            fontSize: 14,
+            color: "white",
+          }}
+        >
+          Dopl
+        </div>
+
+        {/* ── Nav button floating on image (top-right) ── */}
+        <div className="absolute top-5 right-8 z-20 flex items-center gap-3 hero-animate">
           <Link
             href="/login"
-            className="hover:bg-[#18181B] hover:text-white transition-all"
+            className="transition-all duration-300"
             style={{
               fontFamily: "var(--font-inter, 'Inter', sans-serif)",
               fontSize: 10,
@@ -605,11 +634,13 @@ export default function LandingPage() {
               textTransform: "uppercase" as const,
               letterSpacing: "0.2em",
               padding: "12px 24px",
-              border: "1px solid #18181B",
+              border: "1px solid rgba(255,255,255,0.8)",
               borderRadius: 50,
-              color: "#18181B",
+              color: "white",
               textDecoration: "none",
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "white"; e.currentTarget.style.color = "#18181B"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "white"; }}
           >
             Get Access
           </Link>
@@ -662,21 +693,26 @@ export default function LandingPage() {
             </div>
           </h1>
 
-          {/* Sub-headline */}
-          <p
-            className="hero-animate-2 uppercase tracking-[0.16em] mb-6"
+          {/* Subtitle — Fenna style */}
+          <div
+            className="hero-animate-2 uppercase"
             style={{
-              fontFamily: "var(--font-roboto, sans-serif)",
-              color: "rgba(255,255,255,0.85)",
-              fontSize: "clamp(11px, 1.4vw, 17px)",
+              fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+              fontSize: 32,
+              fontWeight: 50,
+              letterSpacing: "0.05em",
+              opacity: 0.4,
+              marginTop: 20,
+              color: "white",
             }}
           >
-            Connects to everything · Automates anything · Lives on your machine
-          </p>
+            For those who refuse to work alone
+          </div>
 
           {/* Content row — Fenna layout: quote + paragraph side by side */}
           <div
             className="hero-animate-2 flex gap-[60px] items-start pb-10 mb-10"
+            style={{ marginTop: 60 }}
             style={{ borderBottom: "1px solid rgba(255,255,255,0.15)" }}
           >
             <div className="flex-1">
