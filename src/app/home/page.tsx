@@ -616,22 +616,40 @@ export default function LandingPage() {
                 color: "#18181B",
               }}
             >
-              Introducing Dopl, the
+              Introducing Dopl, your
             </span>
           </div>
 
           {/* Headline */}
           <h1
-            className="hero-animate-1 text-white leading-[1.0] mb-6 tracking-tight"
+            className="hero-animate-1 leading-[0.95] mb-6"
             style={{
-              fontFamily: "var(--font-roboto, sans-serif)",
-              fontWeight: 300,
-              fontSize: "clamp(48px, 9vw, 120px)",
+              fontSize: "clamp(72px, 10vw, 140px)",
+              letterSpacing: "-0.05em",
             }}
           >
-            The AI that
-            <br />
-            <span style={{ fontWeight: 700 }}>does the work.</span>
+            <div
+              style={{
+                fontFamily: "var(--font-playfair, 'Playfair Display', serif)",
+                fontStyle: "italic",
+                fontWeight: 400,
+                color: "white",
+              }}
+            >
+              Operating
+            </div>
+            <div
+              className="uppercase"
+              style={{
+                fontWeight: 900,
+                fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+                WebkitTextStroke: "1px white",
+                color: "transparent",
+                letterSpacing: "0.02em",
+              }}
+            >
+              Intelligence.
+            </div>
           </h1>
 
           {/* Sub-headline */}
