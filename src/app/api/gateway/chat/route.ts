@@ -17,11 +17,18 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { message, conversation_id } = body;
+    const { message, conversation_id, model: modelLevel } = body;
 
     if (!message || typeof message !== "string") {
       return errorResponse("Message is required", 400);
     }
+
+    const MODEL_MAP: Record<string, string> = {
+      haiku: "claude-haiku-4",
+      sonnet: "claude-sonnet-4",
+      opus: "claude-opus-4",
+    };
+    const resolvedModel = MODEL_MAP[modelLevel as string] ?? "claude-sonnet-4";
 
     // Token limit enforcement
     const limitCheck = await checkTokenLimit(user.id);
@@ -122,7 +129,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         messages: gatewayMessages,
-        model: 'claude-sonnet-4',
+        model: resolvedModel,
         stream: false,
       }),
     });

@@ -34,9 +34,13 @@ body {
   border-color: rgba(58, 58, 56, 0.3);
 }
 
-/* No shadows anywhere */
-* {
+/* No shadows anywhere (commented out to allow subtle shadows) */
+/* * {
   box-shadow: none !important;
+} */
+
+.shadow-subtle {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 
 /* Mosaic background pattern */

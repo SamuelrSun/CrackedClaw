@@ -45,7 +45,7 @@ export interface UseGatewayWSReturn {
   /** Error string if connection failed and auto-reconnect gave up */
   error: string | null;
   /** Send a chat message via WS */
-  sendMessage: (text: string, opts?: { sessionKey?: string }) => void;
+  sendMessage: (text: string, opts?: { sessionKey?: string; model?: string }) => void;
   /** Abort the current in-flight chat run */
   abortChat: (sessionKey?: string) => void;
   /** Manual reconnect (resets backoff, re-fetches token) */
@@ -307,7 +307,7 @@ export function useGatewayWS({
   }, [enabled]);
 
   const sendMessage = useCallback(
-    (text: string, opts?: { sessionKey?: string }) => {
+    (text: string, opts?: { sessionKey?: string; model?: string }) => {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         onEventRef.current?.({
@@ -329,6 +329,7 @@ export function useGatewayWS({
             sessionKey,
             idempotencyKey,
             message: text,
+            ...(opts?.model ? { model: opts.model } : {}),
           },
         })
       );

@@ -52,11 +52,20 @@ import { EmailComposerCard } from "@/components/chat/email-composer-card";
 import type { EmailDraft } from "@/lib/email/gmail-client";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { useGatewayWS, type WSChatEvent } from "@/hooks/use-gateway-ws";
+import { ThinkingBlock } from "@/components/chat/thinking-block";
+import { ToolTimeline } from "@/components/chat/tool-timeline";
+import { ModelSelector } from "@/components/chat/model-selector";
+import { InputToolbar } from "@/components/chat/input-toolbar";
+import { MessageFeedback } from "@/components/chat/message-feedback";
 
 interface ToolCallInfo {
   tool: string;
   status: "running" | "done";
   label: string;
+  startTime?: number;
+  duration?: number;
+  input?: Record<string, unknown>;
+  result?: string;
 }
 
 // Extended message type with streaming fields
@@ -624,6 +633,12 @@ export default function ChatPageClient({
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const prevSubagentCountRef = { current: 0 };
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [selectedModel, setSelectedModel] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('dopl-model-level') || 'sonnet';
+    return 'sonnet';
+  });
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const lastFailedMessage = useRef<string | null>(null);
   const handleSendRef = useRef<(messageOverride?: string) => Promise<void>>(async () => {});
   const userIdRef = useRef<string | null>(null);
@@ -785,6 +800,18 @@ export default function ChatPageClient({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Scroll detection for scroll-to-bottom button
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      setShowScrollButton(scrollHeight - scrollTop - clientHeight > 200);
+    };
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Handle integration connect via OAuth popup
   const handleIntegrationConnect = useCallback(async (provider: string): Promise<boolean> => {
@@ -1056,7 +1083,7 @@ User message: `
         }).then(() => {}, (e) => console.error("[WS] Failed to save user msg:", e));
       }
 
-      wsSendMessage(messageToSend, { sessionKey });
+      wsSendMessage(messageToSend, { sessionKey, model: selectedModel });
       return; // WS handler drives the rest; setIsLoading(false) called on done/error
     }
 
@@ -1117,7 +1144,7 @@ User message: `
           } else if (chunk.type === "tool_start" && chunk.tool) {
             setIsLoading(false);
             const label = getToolLabel(chunk.tool, chunk.input);
-            const toolCall: ToolCallInfo = { tool: chunk.tool, status: "running", label };
+            const toolCall: ToolCallInfo = { tool: chunk.tool, status: "running", label, startTime: Date.now(), input: chunk.input };
             updateMsg((m) => ({ ...m, toolCalls: [...(m.toolCalls || []), toolCall] }));
             const taskId = `${chunk.tool}-${Date.now()}`;
             const taskLabel = getAgentTaskLabel(chunk.tool, chunk.input || {});
@@ -1128,7 +1155,7 @@ User message: `
               ...m,
               toolCalls: (m.toolCalls || []).map((tc) =>
                 tc.tool === chunk.tool && tc.status === "running"
-                  ? { ...tc, status: "done" as const }
+                  ? { ...tc, status: "done" as const, result: chunk.result ? JSON.stringify(chunk.result).slice(0, 500) : undefined, duration: tc.startTime ? Date.now() - tc.startTime : undefined }
                   : tc
               ),
             }));
@@ -1780,46 +1807,48 @@ User message: `
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
+        <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0 relative">
           {messages.length > 0 ? (
             messages.map((msg) => {
               const segments = parseMessageContent(msg.content);
               const hasRichContent = segments.some((s) => s.type !== "text");
+              const toolCalls = (msg as StreamingMessage).toolCalls || [];
+              const totalDuration = toolCalls.reduce((sum, tc) => sum + (tc.duration || 0), 0);
+              const thinkingText = toolCalls.length === 1 ? toolCalls[0].label : undefined;
 
               return (
                 <div
                   key={msg.id}
                   className={cn(
-                    "max-w-[70%]",
-                    msg.role === "user" ? "ml-auto" : "mr-auto"
+                    "max-w-[80%]",
+                    msg.role === "user" ? "ml-auto" : "mr-auto group"
                   )}
                 >
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-mono text-[10px] uppercase tracking-wide text-grid/40">
-                      {msg.role === "user" ? "You" : "Assistant"}
-                    </span>
-                    <span className="font-mono text-[9px] text-grid/30">{msg.timestamp}</span>
-                  </div>
                   <div
                     className={cn(
                       "text-sm leading-relaxed",
                       msg.role === "user"
-                        ? "border border-[rgba(58,58,56,0.2)] rounded-none p-4 bg-forest text-white"
+                        ? "bg-forest/[0.08] text-forest border border-[rgba(58,58,56,0.15)] rounded-none p-4"
                         : "text-forest p-0 border-0 bg-transparent"
                     )}
                   >
-                    {/* Tool calls */}
-                    {msg.role === "assistant" && (msg as StreamingMessage).toolCalls && (msg as StreamingMessage).toolCalls!.length > 0 && (
-                      <div className="mb-2 space-y-1">
-                        {(msg as StreamingMessage).toolCalls!.map((tc, i) => (
-                          <div key={i} className="flex items-center gap-1.5 text-xs text-grid/50 font-mono">
-                            <span>{getToolEmoji(tc.tool)}</span>
-                            <span className={tc.status === "done" ? "line-through opacity-50" : ""}>
-                              {tc.label}{tc.status === "running" ? "..." : " ✓"}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                    {/* Tool calls — ThinkingBlock */}
+                    {msg.role === "assistant" && toolCalls.length > 0 && (
+                      toolCalls.length === 1 ? (
+                        <ThinkingBlock duration={totalDuration / 1000} thinkingText={thinkingText} />
+                      ) : (
+                        <ThinkingBlock duration={totalDuration / 1000}>
+                          <ToolTimeline steps={toolCalls.map((tc, i) => ({
+                            id: `${tc.tool}-${i}`,
+                            label: tc.label,
+                            tool: tc.tool,
+                            duration: tc.duration ? tc.duration / 1000 : undefined,
+                            input: tc.input,
+                            result: tc.result,
+                            status: tc.status,
+                          }))} />
+                        </ThinkingBlock>
+                      )
                     )}
                     {hasRichContent && msg.role === "assistant" ? (
                       <RichMessage
@@ -1869,7 +1898,7 @@ User message: `
                     ) : msg.role === "user" ? (
                       <UserMessageContent content={msg.content} />
                     ) : (
-                      <div className="relative group">
+                      <div className="relative">
                         <div className="prose prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-headings:font-header prose-headings:text-forest prose-strong:text-forest prose-code:text-xs prose-code:bg-grid/10 prose-code:px-1 prose-code:rounded prose-pre:bg-grid/10 prose-pre:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
                           <ReactMarkdown>{msg.content}</ReactMarkdown>
                         </div>
@@ -1881,6 +1910,14 @@ User message: `
                       </div>
                     )}
                   </div>
+                  {msg.role === "user" && (
+                    <div className="flex justify-end mt-0.5">
+                      <span className="font-mono text-[9px] text-grid/30">{msg.timestamp}</span>
+                    </div>
+                  )}
+                  {msg.role === "assistant" && (
+                    <MessageFeedback messageContent={msg.content} />
+                  )}
                 </div>
               );
             })
@@ -1935,6 +1972,16 @@ User message: `
           
           <div ref={messagesEndRef} />
 
+          {/* Scroll to bottom button */}
+          {showScrollButton && (
+            <button
+              onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              className="absolute bottom-24 right-6 w-8 h-8 flex items-center justify-center border border-[rgba(58,58,56,0.2)] bg-paper text-grid/50 hover:text-forest hover:border-forest/30 transition-colors z-10"
+              title="Scroll to bottom"
+            >
+              ↓
+            </button>
+          )}
         </div>
 
         {/* ActiveAgentsPanel hidden — replaced by inline cards above */}
@@ -1971,56 +2018,52 @@ User message: `
 
         {/* Input */}
         <div className="flex-shrink-0 border-t border-[rgba(58,58,56,0.2)] p-4">
-          {/* File preview strip */}
           <FilePreview
             files={attachedFiles}
             onRemove={(id) => setAttachedFiles(prev => prev.filter(f => f.id !== id))}
           />
-          <div className="flex gap-2 items-center">
-            <FileUploadButton
-              onFilesSelected={setAttachedFiles}
-              currentFiles={attachedFiles}
-              disabled={!gateway || isLoading || isReconnecting}
-            />
-            <input
+          <div className="border border-[rgba(58,58,56,0.2)] bg-white">
+            <textarea
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                e.target.style.height = 'auto';
+                e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
+              }}
               onKeyDown={handleKeyDown}
-              placeholder={
-                isReconnecting 
-                  ? "Reconnecting to gateway..." 
-                  : attachedFiles.length > 0
-                    ? "Add a message about these files..."
-                    : gateway 
-                      ? "Message your assistant..."
-                      : "Connect gateway to chat..."
-              }
+              placeholder={gateway ? "Message your assistant..." : "Connect gateway to chat..."}
               disabled={!gateway || isLoading || isReconnecting}
-              className="flex-1 bg-white border border-[rgba(58,58,56,0.2)] rounded-none px-4 py-2.5 text-sm outline-none focus:border-forest transition-colors placeholder:text-grid/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              rows={1}
+              className="w-full bg-transparent px-4 py-3 text-sm outline-none resize-none placeholder:text-grid/30 disabled:opacity-50 min-h-[40px] max-h-[200px]"
             />
-            <VoiceInputButton
-              onTranscript={(text) => setInput(text)}
-              disabled={!gateway || isLoading || isReconnecting}
-            />
-            <div
-              className="relative group"
-              title={
-                !gateway
-                  ? "Connect a gateway in Settings to send messages"
-                  : gatewayStatus === "disconnected" || gatewayStatus === "error"
-                  ? "Gateway is offline — reconnecting..."
-                  : isReconnecting
-                  ? "Reconnecting to gateway..."
-                  : undefined
-              }
-            >
-              <Button 
-                variant="solid" 
-                onClick={() => handleSend()}
-                disabled={!gateway || (!input.trim() && attachedFiles.length === 0) || isLoading || isReconnecting}
-              >
-                {isLoading ? "..." : "Send"}
-              </Button>
+            <div className="flex items-center justify-between px-2 py-1.5 border-t border-[rgba(58,58,56,0.06)]">
+              <InputToolbar
+                onFileUpload={() => document.getElementById('dopl-file-input')?.click()}
+                disabled={!gateway || isLoading}
+              />
+              <div className="flex items-center gap-1">
+                <ModelSelector value={selectedModel} onChange={setSelectedModel} />
+                <VoiceInputButton onTranscript={(text) => setInput(text)} disabled={!gateway || isLoading} />
+                <div
+                  title={
+                    !gateway
+                      ? "Connect a gateway in Settings to send messages"
+                      : gatewayStatus === "disconnected" || gatewayStatus === "error"
+                      ? "Gateway is offline — reconnecting..."
+                      : isReconnecting
+                      ? "Reconnecting to gateway..."
+                      : undefined
+                  }
+                >
+                  <Button
+                    variant="solid"
+                    onClick={() => handleSend()}
+                    disabled={!gateway || (!input.trim() && attachedFiles.length === 0) || isLoading || isReconnecting}
+                  >
+                    {isLoading ? "..." : "Send"}
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
