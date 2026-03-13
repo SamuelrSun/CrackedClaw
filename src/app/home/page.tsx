@@ -617,7 +617,7 @@ export default function LandingPage() {
               className="block text-[10px] font-bold uppercase tracking-[0.25em]"
               style={{
                 fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-                color: "#18181B",
+                color: "#0066FF",
               }}
             >
               Introducing Dopl, your
@@ -626,7 +626,7 @@ export default function LandingPage() {
 
           {/* Headline */}
           <h1
-            className="hero-animate-1 leading-[0.95] mb-6"
+            className="hero-animate-1 leading-[0.95] mb-3"
             style={{
               fontSize: "clamp(72px, 10vw, 140px)",
               letterSpacing: "-0.05em",
@@ -638,7 +638,7 @@ export default function LandingPage() {
                 fontStyle: "italic",
                 fontWeight: 400,
                 color: "#18181B",
-                fontSize: "0.65em",
+                fontSize: "0.75em",
               }}
             >
               Digital
@@ -648,12 +648,12 @@ export default function LandingPage() {
               style={{
                 fontWeight: 900,
                 fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-                WebkitTextStroke: "1px white",
+                WebkitTextStroke: "1px #18181B",
                 color: "transparent",
                 letterSpacing: "-0.05em",
               }}
             >
-              Companion.
+              Companion
             </div>
           </h1>
 
@@ -669,34 +669,59 @@ export default function LandingPage() {
             Connects to everything · Automates anything · Lives on your machine
           </p>
 
-          {/* Body */}
-          <p
-            className="hero-animate-2 mb-12 max-w-lg leading-relaxed"
-            style={{
-              fontFamily: "var(--font-roboto, sans-serif)",
-              fontWeight: 300,
-              color: "rgba(255,255,255,0.92)",
-              fontSize: "clamp(16px, 1.6vw, 20px)",
-            }}
+          {/* Content row — Fenna layout: quote + paragraph side by side */}
+          <div
+            className="hero-animate-2 flex gap-[60px] items-start pb-10 mb-10"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.15)" }}
           >
-            Dopl is the always-on intelligent twin that works so you don&apos;t. Leverage the full power of OpenClaw with zero setup — just connect your accounts and let your agent operate.
-          </p>
+            <div className="flex-1">
+              {/* Quote */}
+              <p
+                className="mb-5"
+                style={{
+                  fontFamily: "var(--font-playfair, 'Playfair Display', serif)",
+                  fontStyle: "italic",
+                  fontSize: 18,
+                  color: "rgba(255,255,255,0.8)",
+                }}
+              >
+                &ldquo;The best interface is one that disappears entirely — where your intent becomes action without friction.&rdquo;
+              </p>
+              {/* Body */}
+              <p
+                className="max-w-[480px]"
+                style={{
+                  fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+                  fontSize: 14,
+                  lineHeight: 1.8,
+                  color: "rgba(255,255,255,0.7)",
+                }}
+              >
+                Dopl is the always-on intelligent twin that works so you don&apos;t. Leverage the full power of OpenClaw with zero setup — just connect your accounts and let your agent operate. <strong style={{ color: "rgba(255,255,255,0.9)" }}>Get started free.</strong>
+              </p>
+            </div>
 
-          {/* CTAs */}
-          <div className="hero-animate-3 flex flex-col sm:flex-row items-start gap-4">
-            <Link
-              href="/login"
-              className="bg-white text-gray-900 font-semibold hover:bg-white/90 transition-colors"
-              style={{
-                fontFamily: "var(--font-roboto, sans-serif)",
-                fontSize: 15,
-                letterSpacing: "0.06em",
-                padding: "16px 40px",
-              }}
-            >
-              Get Started Free
-            </Link>
-
+            {/* CTA group */}
+            <div className="flex-1 flex flex-col">
+              <Link
+                href="/login"
+                className="flex items-center justify-center hover:opacity-90 transition-colors"
+                style={{
+                  fontFamily: "'Courier New', Courier, monospace",
+                  fontSize: 12,
+                  fontWeight: 400,
+                  textTransform: "uppercase" as const,
+                  letterSpacing: "0.1em",
+                  background: "#18181B",
+                  color: "white",
+                  height: 50,
+                  width: "100%",
+                  textDecoration: "none",
+                }}
+              >
+                Get Access
+              </Link>
+            </div>
           </div>
         </div>
 
