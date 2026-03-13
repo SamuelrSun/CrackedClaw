@@ -565,6 +565,11 @@ export default function LandingPage() {
           backgroundPosition: "center",
         }}
       />
+      {/* Dark overlay */}
+      <div
+        className="fixed inset-0 z-0"
+        style={{ background: "rgba(0,0,0,0.25)" }}
+      />
 
       {/* ═══ Vertical Grid Lines ═══ */}
       <div className="fixed inset-0 pointer-events-none z-[1]">
