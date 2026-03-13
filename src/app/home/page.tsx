@@ -716,15 +716,16 @@ export default function LandingPage() {
                   textTransform: "uppercase" as const,
                   letterSpacing: "0.2em",
                   padding: "14px 32px",
-                  border: "1px solid rgba(255,255,255,0.8)",
+                  border: "1px solid #18181B",
                   borderRadius: 50,
                   color: "white",
+                  background: "#18181B",
                   textDecoration: "none",
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "white"; e.currentTarget.style.color = "#18181B"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "white"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#333"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "#18181B"; }}
               >
-                Get Access
+                Claim Access
               </Link>
           </div>
         </div>
