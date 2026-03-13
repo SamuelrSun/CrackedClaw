@@ -602,7 +602,7 @@ export default function LandingPage() {
             letterSpacing: "0.15em",
             opacity: 0.4,
             fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-            color: "white",
+            color: "#888",
           }}
         >
           N 37° 46&apos; 29&quot; / W 122° 25&apos; 10&quot;
@@ -616,7 +616,7 @@ export default function LandingPage() {
             fontStyle: "italic",
             fontWeight: 400,
             fontSize: 14,
-            color: "white",
+            color: "#18181B",
           }}
         >
           Dopl
@@ -634,13 +634,13 @@ export default function LandingPage() {
               textTransform: "uppercase" as const,
               letterSpacing: "0.2em",
               padding: "12px 24px",
-              border: "1px solid rgba(255,255,255,0.8)",
+              border: "1px solid #18181B",
               borderRadius: 50,
-              color: "white",
+              color: "#18181B",
               textDecoration: "none",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "white"; e.currentTarget.style.color = "#18181B"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "white"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#18181B"; e.currentTarget.style.color = "white"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#18181B"; }}
           >
             Get Access
           </Link>
