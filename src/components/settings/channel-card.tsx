@@ -97,7 +97,7 @@ export function ChannelCard({
 
   return (
     <div
-      className={`border border-[rgba(58,58,56,0.2)] bg-paper p-5 transition-all duration-200 ${
+      className={`border border-white/[0.1] bg-paper p-5 transition-all duration-200 ${
         comingSoon
           ? "opacity-50 cursor-not-allowed"
           : "hover:border-forest/40"
@@ -117,7 +117,7 @@ export function ChannelCard({
                 {config.name}
               </h3>
               {comingSoon && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-[rgba(58,58,56,0.15)] bg-grid/5 font-mono text-[9px] uppercase tracking-wider text-grid/50">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-white/[0.1] bg-grid/5 font-mono text-[9px] uppercase tracking-wider text-grid/50">
                   <Lock className="w-2.5 h-2.5" />
                   Coming Soon
                 </span>

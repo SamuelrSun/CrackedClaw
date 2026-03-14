@@ -184,7 +184,7 @@ export default function WorkflowsSettingsClient() {
                       className={`font-mono text-[9px] uppercase tracking-wide px-2 py-0.5 border transition-colors ${
                         newSchedule === p.value
                           ? "border-forest bg-forest/10 text-forest"
-                          : "border-[rgba(58,58,56,0.2)] text-grid/50 hover:border-forest/50"
+                          : "border-white/[0.1] text-grid/50 hover:border-forest/50"
                       }`}
                     >
                       {p.label}

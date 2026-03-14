@@ -54,7 +54,7 @@ export function FileMessageCard({ files, message, className }: FileMessageCardPr
       {files.map((file, idx) => (
         <div
           key={file.id || idx}
-          className="border border-[rgba(58,58,56,0.2)] rounded bg-white overflow-hidden"
+          className="border border-white/[0.1] rounded bg-white overflow-hidden"
           style={{ maxWidth: 400 }}
         >
           {/* Image preview */}

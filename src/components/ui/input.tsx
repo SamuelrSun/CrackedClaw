@@ -15,7 +15,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
-          <label className={cn("font-mono text-[10px] uppercase tracking-wide text-grid/60", className?.includes("login-glass") && "text-white/60")}>
+          <label className="font-mono text-[10px] uppercase tracking-wide text-white/50">
             {label}
           </label>
         )}
@@ -23,12 +23,12 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             className={cn(
-              "w-full bg-white border rounded-none px-3 py-2",
-              "font-body text-sm text-forest placeholder:text-grid/30",
+              "w-full bg-white/[0.07] backdrop-blur-sm border rounded-none px-3 py-2",
+              "font-body text-sm text-white/90 placeholder:text-white/25",
               "outline-none transition-colors",
               showError 
                 ? "border-coral focus:border-coral" 
-                : "border-[rgba(58,58,56,0.2)] focus:border-forest",
+                : "border-white/[0.15] focus:border-white/[0.4]",
               showError && "pr-10",
               className
             )}

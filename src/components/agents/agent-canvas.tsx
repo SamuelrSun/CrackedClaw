@@ -45,11 +45,11 @@ export function AgentCanvas({
   const runningCount = agents.filter(a => a.status === 'running').length;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)] bg-[#F7F7F5]">
+    <div className="flex flex-col h-[calc(100vh-56px)] bg-[#0d0d12]">
       {/* Top spawn bar */}
-      <div className="border-b border-[#3A3A38]/10 bg-white px-4 sm:px-6 py-3 flex-shrink-0">
+      <div className="border-b border-white/[0.08] bg-white/[0.05] backdrop-blur-sm px-4 sm:px-6 py-3 flex-shrink-0">
         <div className="max-w-5xl mx-auto flex items-center gap-3">
-          <div className="flex items-center gap-2 flex-1 bg-[#F7F7F5] border border-[#3A3A38]/15 rounded-[2px] px-3 py-2">
+          <div className="flex items-center gap-2 flex-1 bg-[#0d0d12] border border-white/[0.1] rounded-[2px] px-3 py-2">
             <span className="text-[13px] select-none flex-shrink-0">✨</span>
             <input
               type="text"
@@ -57,7 +57,7 @@ export function AgentCanvas({
               onChange={(e) => setSpawnInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSpawn()}
               placeholder="What do you want done? Press Enter to deploy an agent..."
-              className="flex-1 text-[13px] bg-transparent outline-none text-[#1A3C2B] placeholder-[#3A3A38]/35"
+              className="flex-1 text-[13px] bg-transparent outline-none text-white/80 placeholder-[#3A3A38]/35"
               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               disabled={spawning}
             />
@@ -65,14 +65,14 @@ export function AgentCanvas({
           <button
             onClick={handleSpawn}
             disabled={!spawnInput.trim() || spawning}
-            className="font-mono text-[11px] uppercase tracking-wider px-4 py-2 bg-[#1A3C2B] text-white hover:bg-[#1A3C2B]/80 disabled:opacity-30 transition-colors rounded-[2px] flex-shrink-0"
+            className="font-mono text-[11px] uppercase tracking-wider px-4 py-2 bg-white/[0.12] text-white hover:bg-white/[0.12]/80 disabled:opacity-30 transition-colors rounded-[2px] flex-shrink-0"
           >
             {spawning ? 'Deploying...' : 'Deploy'}
           </button>
           {runningCount > 0 && (
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <div className="w-2 h-2 rounded-full bg-[#9EFFBF] animate-pulse" />
-              <span className="text-[11px] font-mono text-[#1A3C2B]/60">
+              <span className="text-[11px] font-mono text-white/80/60">
                 {runningCount} active
               </span>
             </div>
@@ -87,12 +87,12 @@ export function AgentCanvas({
           <div className="flex flex-col items-center justify-center h-full max-w-lg mx-auto text-center gap-6">
             <div className="space-y-2">
               <h2
-                className="text-lg font-medium text-[#1A3C2B]"
+                className="text-lg font-medium text-white/80"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
                 No agents deployed yet
               </h2>
-              <p className="text-[13px] text-[#3A3A38]/50">
+              <p className="text-[13px] text-white/50/50">
                 Deploy agents to work on tasks concurrently. Each agent runs independently with access to tools.
               </p>
             </div>
@@ -106,7 +106,7 @@ export function AgentCanvas({
                     const input = document.querySelector<HTMLInputElement>('input[placeholder*="deploy"]');
                     input?.focus();
                   }}
-                  className="text-[11px] font-mono px-3 py-1.5 border border-[#3A3A38]/15 rounded-[2px] text-[#3A3A38]/60 hover:text-[#1A3C2B] hover:border-[#1A3C2B]/30 hover:bg-[#9EFFBF]/5 transition-colors"
+                  className="text-[11px] font-mono px-3 py-1.5 border border-white/[0.1] rounded-[2px] text-white/50/60 hover:text-white/80 hover:border-white/[0.15] hover:bg-[#9EFFBF]/5 transition-colors"
                 >
                   {s}
                 </button>
@@ -144,7 +144,7 @@ export function AgentCanvas({
           to { opacity: 1; transform: translateY(0); }
         }
         @keyframes spawn-pulse {
-          0%, 100% { border-color: rgba(58, 58, 56, 0.15); }
+          0%, 100% { border-color: rgba(255, 255, 255, 0.1); }
           50% { border-color: #F4D35E; }
         }
         @keyframes running-border {

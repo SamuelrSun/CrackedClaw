@@ -59,9 +59,9 @@ export function IntegrationConnectCard({
 
   if (status === "loading") {
     return (
-      <div className="border border-[rgba(58,58,56,0.2)] rounded-none bg-gray-100 p-4 max-w-sm">
+      <div className="border border-white/[0.1] rounded-none bg-gray-100 p-4 max-w-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 border border-[rgba(58,58,56,0.2)] flex items-center justify-center text-forest animate-pulse bg-grid/10" />
+          <div className="w-10 h-10 border border-white/[0.1] flex items-center justify-center text-forest animate-pulse bg-grid/10" />
           <div className="flex-1 h-8 bg-grid/10 animate-pulse rounded" />
         </div>
       </div>
@@ -79,9 +79,9 @@ export function IntegrationConnectCard({
   }
 
   return (
-    <div className="border border-[rgba(58,58,56,0.2)] rounded-none bg-gray-100 p-4 max-w-sm">
+    <div className="border border-white/[0.1] rounded-none bg-gray-100 p-4 max-w-sm">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 border border-[rgba(58,58,56,0.2)] flex items-center justify-center text-forest">
+        <div className="w-10 h-10 border border-white/[0.1] flex items-center justify-center text-forest">
           {config.icon}
         </div>
         <div className="flex-1 min-w-0">
@@ -98,7 +98,7 @@ export function IntegrationConnectCard({
         onClick={status === "default" ? handleConnect : undefined}
         disabled={status !== "default"}
         className={cn(
-          "w-full mt-3 py-2 px-4 font-mono text-[10px] uppercase tracking-wide transition-all border border-[rgba(58,58,56,0.2)] rounded-none",
+          "w-full mt-3 py-2 px-4 font-mono text-[10px] uppercase tracking-wide transition-all border border-white/[0.1] rounded-none",
           status === "default" &&
             "bg-forest text-white hover:bg-forest/90 cursor-pointer",
           status === "connecting" &&

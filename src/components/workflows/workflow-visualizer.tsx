@@ -34,7 +34,7 @@ const TYPE_COLORS: Record<string, string> = {
 const TYPE_BG: Record<string, string> = {
   trigger: 'bg-blue-50',
   action: 'bg-emerald-50',
-  condition: 'bg-amber-50',
+  condition: 'bg-amber-900/20',
   ai_process: 'bg-violet-50',
 };
 

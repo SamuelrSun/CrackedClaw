@@ -333,7 +333,7 @@ export default function NodesPageClient({ profile }: NodesPageClientProps) {
             </div>
 
             {/* Download link */}
-            <div className="pt-2 border-t border-[rgba(58,58,56,0.1)]">
+            <div className="pt-2 border-t border-white/[0.08]">
               <a
                 href="https://usedopl.com/connect"
                 target="_blank"
@@ -358,7 +358,7 @@ export default function NodesPageClient({ profile }: NodesPageClientProps) {
             </div>
 
             {/* Connection Details */}
-            <div className="grid grid-cols-2 gap-4 p-4 border border-[rgba(58,58,56,0.1)] bg-forest/5">
+            <div className="grid grid-cols-2 gap-4 p-4 border border-white/[0.08] bg-forest/5">
               <div>
                 <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50 block mb-1">
                   Method
@@ -409,7 +409,7 @@ export default function NodesPageClient({ profile }: NodesPageClientProps) {
             </div>
 
             {/* Install instructions link */}
-            <div className="pt-2 border-t border-[rgba(58,58,56,0.1)]">
+            <div className="pt-2 border-t border-white/[0.08]">
               <a
                 href="https://usedopl.com/connect"
                 target="_blank"
@@ -447,7 +447,7 @@ export default function NodesPageClient({ profile }: NodesPageClientProps) {
                 {pendingNodes.map((node) => (
                   <div
                     key={node.id}
-                    className="flex items-center justify-between p-4 border border-[rgba(58,58,56,0.1)] bg-paper"
+                    className="flex items-center justify-between p-4 border border-white/[0.08] bg-paper"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-gold/20 flex items-center justify-center">
@@ -519,7 +519,7 @@ export default function NodesPageClient({ profile }: NodesPageClientProps) {
                 {connectedNodes.map((node) => (
                   <div
                     key={node.id}
-                    className="border border-[rgba(58,58,56,0.1)] bg-paper"
+                    className="border border-white/[0.08] bg-paper"
                   >
                     {/* Node Header Row */}
                     <button
@@ -563,7 +563,7 @@ export default function NodesPageClient({ profile }: NodesPageClientProps) {
 
                     {/* Expanded Capabilities */}
                     {expandedNode === node.id && (
-                      <div className="px-4 pb-4 border-t border-[rgba(58,58,56,0.1)]">
+                      <div className="px-4 pb-4 border-t border-white/[0.08]">
                         <div className="pt-4">
                           <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50 block mb-3">
                             Capabilities
@@ -578,7 +578,7 @@ export default function NodesPageClient({ profile }: NodesPageClientProps) {
                                   className={`px-3 py-2 border ${
                                     enabled 
                                       ? "border-mint/30 bg-mint/10" 
-                                      : "border-[rgba(58,58,56,0.1)] bg-grid/5"
+                                      : "border-white/[0.08] bg-grid/5"
                                   }`}
                                 >
                                   <span className={`font-mono text-[10px] uppercase tracking-wide ${
@@ -611,7 +611,7 @@ export default function NodesPageClient({ profile }: NodesPageClientProps) {
                         </div>
 
                         {/* Remove button (disabled for now) */}
-                        <div className="mt-4 pt-4 border-t border-[rgba(58,58,56,0.1)]">
+                        <div className="mt-4 pt-4 border-t border-white/[0.08]">
                           <Button
                             variant="ghost"
                             size="sm"

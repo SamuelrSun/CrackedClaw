@@ -144,7 +144,7 @@ function TreeItem({
         }}
         className={`w-full text-left flex items-center gap-1.5 py-1.5 pr-2 rounded-md text-sm transition-colors group ${
           isSelected
-            ? 'bg-[#1A3C2B] text-white'
+            ? 'bg-white/[0.12] text-white'
             : 'text-[rgba(58,58,56,0.75)] hover:bg-[rgba(58,58,56,0.06)]'
         }`}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
@@ -210,7 +210,7 @@ function InlineContent({ content, onSave }: { content: string; onSave: (v: strin
         onBlur={commit}
         onKeyDown={onKey}
         rows={3}
-        className="w-full text-sm text-[#1A3C2B] bg-[#F5F3EF] border border-[#1A3C2B]/30 rounded px-3 py-2 resize-none outline-none focus:border-[#1A3C2B]"
+        className="w-full text-sm text-white/80 bg-[#F5F3EF] border border-white/[0.15] rounded px-3 py-2 resize-none outline-none focus:border-[#1A3C2B]"
       />
     );
   }
@@ -240,7 +240,7 @@ function MemoryEntry({
   return (
     <div
       className={`py-3 px-4 rounded-lg transition-colors group ${
-        highlighted ? 'bg-yellow-50 border border-yellow-200' : hovered ? 'bg-[rgba(58,58,56,0.03)]' : ''
+        highlighted ? 'bg-yellow-900/20 border border-yellow-500/30' : hovered ? 'bg-[rgba(58,58,56,0.03)]' : ''
       }`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -316,11 +316,11 @@ function AllMemoriesTable({
     const active = sortKey === sk;
     return (
       <th
-        className={`px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-[rgba(58,58,56,0.45)] cursor-pointer select-none hover:text-[#1A3C2B] transition-colors ${className}`}
+        className={`px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-[rgba(58,58,56,0.45)] cursor-pointer select-none hover:text-white/80 transition-colors ${className}`}
         onClick={() => toggleSort(sk)}
       >
         {label}
-        <span className={`ml-1 ${active ? 'text-[#1A3C2B]' : 'text-gray-300'}`}>
+        <span className={`ml-1 ${active ? 'text-white/80' : 'text-gray-300'}`}>
           {active ? (sortDir === 'asc' ? '\u2191' : '\u2193') : '\u2195'}
         </span>
       </th>
@@ -328,9 +328,9 @@ function AllMemoriesTable({
   }
 
   return (
-    <div className="rounded-xl border border-[rgba(58,58,56,0.12)] overflow-hidden bg-white">
+    <div className="rounded-xl border border-white/[0.1] overflow-hidden bg-white/[0.06] backdrop-blur-md">
       <table className="w-full border-collapse">
-        <thead className="border-b border-[rgba(58,58,56,0.1)] bg-[#F5F3EF]">
+        <thead className="border-b border-white/[0.08] bg-[#F5F3EF]">
           <tr>
             <Th label="Domain" sk="domain" className="w-32" />
             <Th label="Content" sk="content" />
@@ -342,7 +342,7 @@ function AllMemoriesTable({
         </thead>
         <tbody>
           {sorted.map(m => (
-            <tr key={m.id} className="border-b border-[rgba(58,58,56,0.08)] hover:bg-[#F5F3EF] transition-colors group">
+            <tr key={m.id} className="border-b border-white/[0.06] hover:bg-[#F5F3EF] transition-colors group">
               <td className="px-4 py-3">
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-medium border bg-gray-100 text-gray-600 border-gray-200 whitespace-nowrap">
                   {m.domain}
@@ -395,14 +395,14 @@ function AddMemoryInline({
   }
 
   return (
-    <div className="border border-dashed border-[#1A3C2B]/30 rounded-lg bg-white p-4 mt-3">
+    <div className="border border-dashed border-white/[0.15] rounded-lg bg-white p-4 mt-3">
       <textarea
         autoFocus
         placeholder="What should I remember?"
         value={content}
         onChange={e => setContent(e.target.value)}
         rows={2}
-        className="w-full border border-[rgba(58,58,56,0.2)] rounded px-3 py-2 text-sm text-[#1A3C2B] bg-[#F5F3EF] outline-none focus:border-[#1A3C2B] resize-none"
+        className="w-full border border-white/[0.1] rounded px-3 py-2 text-sm text-white/80 bg-[#F5F3EF] outline-none focus:border-[#1A3C2B] resize-none"
         onKeyDown={e => {
           if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
           if (e.key === 'Escape') onCancel();
@@ -412,11 +412,11 @@ function AddMemoryInline({
         <button
           onClick={submit}
           disabled={saving || !content.trim()}
-          className="bg-[#1A3C2B] text-white px-4 py-1.5 text-sm font-mono rounded hover:bg-[#2a5c3e] disabled:opacity-40"
+          className="bg-white/[0.12] text-white px-4 py-1.5 text-sm font-mono rounded hover:bg-[#2a5c3e] disabled:opacity-40"
         >
           {saving ? 'Saving...' : 'Add'}
         </button>
-        <button onClick={onCancel} className="border border-[rgba(58,58,56,0.2)] text-[rgba(58,58,56,0.6)] px-3 py-1.5 text-sm font-mono rounded hover:bg-[rgba(58,58,56,0.05)]">
+        <button onClick={onCancel} className="border border-white/[0.1] text-[rgba(58,58,56,0.6)] px-3 py-1.5 text-sm font-mono rounded hover:bg-[rgba(58,58,56,0.05)]">
           Cancel
         </button>
       </div>
@@ -629,25 +629,25 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F3EF] text-[#1A3C2B]">
+    <div className="min-h-screen bg-[#F5F3EF] text-white/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(v => !v)}
-              className="sm:hidden text-[rgba(58,58,56,0.5)] hover:text-[#1A3C2B] p-1"
+              className="sm:hidden text-[rgba(58,58,56,0.5)] hover:text-white/80 p-1"
               title="Toggle sidebar"
             >
               &#9776;
             </button>
-            <h1 className="font-header text-3xl font-bold tracking-tight text-[#1A3C2B]">Memory</h1>
+            <h1 className="font-header text-3xl font-bold tracking-tight text-white/80">Memory</h1>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handleScan}
               disabled={scanning}
-              className="border border-[rgba(58,58,56,0.2)] text-[#1A3C2B] px-3 py-1.5 text-sm font-mono rounded hover:bg-[rgba(58,58,56,0.05)] disabled:opacity-40 transition-colors"
+              className="border border-white/[0.1] text-white/80 px-3 py-1.5 text-sm font-mono rounded hover:bg-[rgba(58,58,56,0.05)] disabled:opacity-40 transition-colors"
             >
               {scanning ? 'Scanning...' : 'Scan Google'}
             </button>
@@ -658,8 +658,8 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
         {scanMsg && (
           <div className={`mb-4 px-4 py-3 rounded-lg flex items-center justify-between text-sm font-mono ${
             scanMsg.type === 'ok'
-              ? 'bg-green-50 border border-green-200 text-green-700'
-              : 'bg-red-50 border border-red-200 text-red-600'
+              ? 'bg-emerald-900/20 border border-emerald-500/30 text-emerald-400'
+              : 'bg-red-900/20 border border-red-500/30 text-red-600'
           }`}>
             <span>{scanMsg.text}</span>
             <button onClick={() => setScanMsg(null)} className="opacity-50 hover:opacity-100 ml-4">&#10005;</button>
@@ -679,7 +679,7 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
                   value={searchQuery}
                   onChange={e => handleSearchChange(e.target.value)}
                   placeholder="Search..."
-                  className="w-full bg-[#F5F3EF] border border-[rgba(58,58,56,0.1)] rounded-md pl-8 pr-3 py-1.5 text-xs font-mono text-[#1A3C2B] placeholder:text-[rgba(58,58,56,0.3)] outline-none focus:border-[#1A3C2B]/30 transition-colors"
+                  className="w-full bg-[#F5F3EF] border border-white/[0.08] rounded-md pl-8 pr-3 py-1.5 text-xs font-mono text-white/80 placeholder:text-[rgba(58,58,56,0.3)] outline-none focus:border-white/[0.15] transition-colors"
                 />
                 {searching && (
                   <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[rgba(58,58,56,0.4)] font-mono">...</span>
@@ -691,7 +691,7 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
                 onClick={() => { setSelectedPath(null); setSearchQuery(''); setSearchResults(null); }}
                 className={`w-full text-left flex items-center gap-2 py-2 px-2 rounded-md text-sm font-medium transition-colors mb-1 ${
                   selectedPath === null && !searchResults
-                    ? 'bg-[#1A3C2B] text-white'
+                    ? 'bg-white/[0.12] text-white'
                     : 'text-[rgba(58,58,56,0.75)] hover:bg-[rgba(58,58,56,0.06)]'
                 }`}
               >
@@ -702,7 +702,7 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
                 </span>
               </button>
 
-              <div className="border-t border-[rgba(58,58,56,0.08)] my-2" />
+              <div className="border-t border-white/[0.06] my-2" />
 
               {/* Tree */}
               <div className="space-y-0.5 overflow-y-auto max-h-[calc(100vh-340px)]">
@@ -728,7 +728,7 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
               {searchResults !== null ? (
                 <>
                   <div className="mb-4">
-                    <h2 className="font-header text-2xl font-bold text-[#1A3C2B]">
+                    <h2 className="font-header text-2xl font-bold text-white/80">
                       Search Results
                     </h2>
                     <p className="text-xs font-mono text-[rgba(58,58,56,0.4)] mt-1">
@@ -745,7 +745,7 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
                         <div key={m.id} className="py-2">
                           <button
                             onClick={() => navigateToMemory(m)}
-                            className="text-[10px] font-mono text-[#1A3C2B]/50 hover:text-[#1A3C2B] mb-1 block"
+                            className="text-[10px] font-mono text-white/80/50 hover:text-white/80 mb-1 block"
                           >
                             {getPagePath(m).split('/').map(s => titleCase(s)).join(' / ')}
                           </button>
@@ -764,7 +764,7 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
                 <>
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h2 className="font-header text-2xl font-bold text-[#1A3C2B]">All Memories</h2>
+                      <h2 className="font-header text-2xl font-bold text-white/80">All Memories</h2>
                       <p className="text-xs font-mono text-[rgba(58,58,56,0.4)] mt-1">
                         {memories.length} {memories.length === 1 ? 'memory' : 'memories'}
                         {pageLastUpdated ? ` \u00B7 Updated ${relativeTime(pageLastUpdated)}` : ''}
@@ -772,7 +772,7 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
                     </div>
                     <button
                       onClick={() => setShowAdd(v => !v)}
-                      className="bg-[#1A3C2B] text-white px-3 py-1.5 text-sm font-mono rounded hover:bg-[#2a5c3e] transition-colors"
+                      className="bg-white/[0.12] text-white px-3 py-1.5 text-sm font-mono rounded hover:bg-[#2a5c3e] transition-colors"
                     >
                       + Add
                     </button>
@@ -800,7 +800,7 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
                       <p className="text-[10px] font-mono text-[rgba(58,58,56,0.35)] mb-1">
                         {selectedPath.split('/').slice(0, -1).map(s => titleCase(s)).join(' / ')}
                       </p>
-                      <h2 className="font-header text-2xl font-bold text-[#1A3C2B]">{pageTitle}</h2>
+                      <h2 className="font-header text-2xl font-bold text-white/80">{pageTitle}</h2>
                       <p className="text-xs font-mono text-[rgba(58,58,56,0.4)] mt-1">
                         {pageMemories.length} {pageMemories.length === 1 ? 'memory' : 'memories'}
                         {pageLastUpdated ? ` \u00B7 Updated ${relativeTime(pageLastUpdated)}` : ''}
@@ -808,7 +808,7 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
                     </div>
                     <button
                       onClick={() => setShowAdd(v => !v)}
-                      className="bg-[#1A3C2B] text-white px-3 py-1.5 text-sm font-mono rounded hover:bg-[#2a5c3e] transition-colors"
+                      className="bg-white/[0.12] text-white px-3 py-1.5 text-sm font-mono rounded hover:bg-[#2a5c3e] transition-colors"
                     >
                       + Add
                     </button>
@@ -818,14 +818,14 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
                     <AddMemoryInline pagePath={selectedPath} onAdd={handleAdd} onCancel={() => setShowAdd(false)} />
                   )}
 
-                  <div className="border-t border-[rgba(58,58,56,0.08)] mt-2" />
+                  <div className="border-t border-white/[0.06] mt-2" />
 
                   {pageMemories.length === 0 ? (
                     <div className="py-16 text-center">
                       <p className="text-[rgba(58,58,56,0.4)] text-sm">No memories in this page yet.</p>
                       <button
                         onClick={() => setShowAdd(true)}
-                        className="font-mono text-xs text-[#1A3C2B] underline underline-offset-2 mt-2"
+                        className="font-mono text-xs text-white/80 underline underline-offset-2 mt-2"
                       >
                         Add one
                       </button>
@@ -854,7 +854,7 @@ export function MemoryClient({ initialMemories }: { initialMemories: Memory[] })
           <button
             onClick={handleScan}
             disabled={scanning}
-            className="font-mono text-xs text-[rgba(58,58,56,0.4)] hover:text-[#1A3C2B] transition-colors disabled:opacity-40"
+            className="font-mono text-xs text-[rgba(58,58,56,0.4)] hover:text-white/80 transition-colors disabled:opacity-40"
           >
             {scanning ? 'Scanning...' : 'Scan Google'}
           </button>

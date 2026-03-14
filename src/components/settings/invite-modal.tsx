@@ -86,9 +86,9 @@ export function InviteModal({
       />
 
       {/* Modal */}
-      <div className="relative bg-paper border border-[rgba(58,58,56,0.2)] w-full max-w-md mx-4">
+      <div className="relative bg-paper border border-white/[0.1] w-full max-w-md mx-4">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[rgba(58,58,56,0.1)]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
           <div className="flex items-center gap-2">
             <div className="w-0.5 h-4 bg-mint" />
             <h2 className="font-mono text-[10px] uppercase tracking-wide text-grid/60">
@@ -130,7 +130,7 @@ export function InviteModal({
                   className={`text-left px-4 py-3 border transition-colors ${
                     selectedRole === role.value
                       ? "bg-forest text-white border-forest"
-                      : "bg-white text-forest border-[rgba(58,58,56,0.2)] hover:border-forest"
+                      : "bg-white text-forest border-white/[0.1] hover:border-forest"
                   }`}
                 >
                   <p className="font-mono text-[11px] uppercase tracking-wide font-bold">
@@ -148,7 +148,7 @@ export function InviteModal({
 
           {/* Pending Invitations Preview */}
           {pendingInvitations.length > 0 && (
-            <div className="pt-4 border-t border-[rgba(58,58,56,0.1)]">
+            <div className="pt-4 border-t border-white/[0.08]">
               <p className="font-mono text-[9px] uppercase tracking-wide text-grid/40 mb-2">
                 {pendingInvitations.length} pending invitation{pendingInvitations.length > 1 ? "s" : ""}
               </p>
@@ -173,7 +173,7 @@ export function InviteModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-[rgba(58,58,56,0.1)]">
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-white/[0.08]">
           <Button variant="ghost" size="sm" onClick={onClose}>
             Cancel
           </Button>

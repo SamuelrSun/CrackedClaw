@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { logActivity, incrementTokenUsage } from "@/lib/supabase/data";
 import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
 import { processAgentResponse } from "@/lib/memory/service";
+import { addChatTurn } from "@/lib/memory/chat-memory";
 import { incrementUsage } from "@/lib/usage/tracker";
 import { checkTokenLimit } from "@/lib/usage/enforcement";
 import { buildSystemPromptForUser, buildLinkedContextSummary } from "@/lib/gateway/system-prompt";
@@ -162,6 +163,11 @@ export async function POST(request: NextRequest) {
           .update({ updated_at: new Date().toISOString() })
           .eq("id", activeConversationId);
       } catch { }
+    }
+
+    // Batched chat memory extraction (fire-and-forget)
+    if (cleanedContent) {
+      addChatTurn(user.id, message, cleanedContent, activeConversationId || undefined).catch(() => {});
     }
 
     // Log activity

@@ -281,8 +281,8 @@ export function AgentsClient() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-56px)] bg-[#F7F7F5]">
-        <div className="font-mono text-[11px] text-[#3A3A38]/40 animate-pulse">Loading agents...</div>
+      <div className="flex items-center justify-center h-[calc(100vh-56px)] bg-[#0d0d12]">
+        <div className="font-mono text-[11px] text-white/25 animate-pulse">Loading agents...</div>
       </div>
     );
   }

@@ -63,8 +63,8 @@ export function ChatMessageSkeleton({
       {/* Message bubble */}
       <div
         className={cn(
-          "border border-[rgba(58,58,56,0.2)] p-4",
-          isUser ? "bg-forest/10" : "bg-white"
+          "border border-white/[0.1] p-4",
+          isUser ? "bg-forest/10" : "bg-white/[0.06]"
         )}
       >
         <div className="space-y-2">
@@ -90,7 +90,7 @@ export function TypingIndicatorSkeleton() {
       <div className="flex items-center gap-2 mb-1">
         <Skeleton className="h-2.5 w-16" />
       </div>
-      <div className="border border-[rgba(58,58,56,0.2)] p-4 bg-white">
+      <div className="border border-white/[0.1] p-4 bg-white">
         <div className="flex items-center gap-2">
           <div className="flex gap-1">
             <span className="w-2 h-2 bg-[#E5E5E3] rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />

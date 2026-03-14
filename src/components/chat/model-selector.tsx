@@ -30,14 +30,14 @@ export function ModelSelector({ value, onChange, disabled, className }: ModelSel
       disabled={disabled}
       title="Select model"
       className={cn(
-        "font-mono text-[10px] uppercase tracking-wide text-grid/50 bg-transparent border border-[rgba(58,58,56,0.15)]",
-        "px-1.5 py-1 outline-none cursor-pointer hover:border-forest/30 hover:text-forest transition-colors",
+        "font-mono text-[10px] uppercase tracking-wide text-white/50 bg-transparent border border-white/[0.1]",
+        "px-1.5 py-1 outline-none cursor-pointer hover:border-white/[0.3] hover:text-white/80 transition-colors",
         "disabled:opacity-40 disabled:cursor-not-allowed appearance-none rounded-none",
         className
       )}
     >
       {MODEL_OPTIONS.map((opt) => (
-        <option key={opt.value} value={opt.value}>
+        <option key={opt.value} value={opt.value} className="bg-[#0a0a0f] text-white">
           {opt.label}
         </option>
       ))}

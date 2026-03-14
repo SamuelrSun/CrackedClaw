@@ -34,7 +34,7 @@ export function BrowserConfig({ config, onChange }: BrowserConfigProps) {
           Login Instructions
         </label>
         <textarea
-          className="w-full bg-white border border-[rgba(58,58,56,0.2)] rounded-none px-3 py-2 font-body text-sm text-forest placeholder:text-grid/30 outline-none focus:border-forest transition-colors min-h-[100px] resize-y"
+          className="w-full bg-white border border-white/[0.1] rounded-none px-3 py-2 font-body text-sm text-forest placeholder:text-grid/30 outline-none focus:border-forest transition-colors min-h-[100px] resize-y"
           placeholder="Describe how to authenticate (e.g., 'Click Sign In, enter email/password, click Submit')"
           value={config.loginInstructions || ""}
           onChange={(e) =>
@@ -50,8 +50,8 @@ export function BrowserConfig({ config, onChange }: BrowserConfigProps) {
         onChange={(e) => onChange({ ...config, selectors: e.target.value })}
       />
 
-      <div className="p-3 bg-amber-50 border border-amber-200">
-        <span className="font-mono text-[10px] uppercase tracking-wide text-amber-700">
+      <div className="p-3 bg-amber-900/20 border border-amber-500/30">
+        <span className="font-mono text-[10px] uppercase tracking-wide text-amber-400">
           Browser Integration
         </span>
         <p className="font-mono text-[11px] text-grid/60 mt-1">

@@ -53,7 +53,7 @@ function StatusIndicator({ status }: { status: AgentActivityEntry['status'] }) {
     );
   }
   if (status === 'done') {
-    return <span className="text-[#1A3C2B] text-[10px] font-bold">✓</span>;
+    return <span className="text-white/80 text-[10px] font-bold">✓</span>;
   }
   if (status === 'failed') {
     return <span className="text-red-500 text-[10px] font-bold">✗</span>;
@@ -79,7 +79,7 @@ function LogEntry({ line, timestamp, idx }: LogEntryProps) {
   if (isHeader) {
     return (
       <div className="bg-[rgba(26,60,43,0.04)] border-l-2 border-[#1A3C2B] px-2 py-1.5 my-1.5 flex items-start justify-between gap-2">
-        <div className="font-mono text-[10px] text-[#1A3C2B] font-semibold leading-snug prose prose-sm max-w-none prose-p:my-0">
+        <div className="font-mono text-[10px] text-white/80 font-semibold leading-snug prose prose-sm max-w-none prose-p:my-0">
           <ReactMarkdown>{line}</ReactMarkdown>
         </div>
         {timeStr && (
@@ -112,7 +112,7 @@ function LogEntry({ line, timestamp, idx }: LogEntryProps) {
 
   return (
     <div key={idx} className={cn('pl-2 py-0.5 flex items-start justify-between gap-2', borderColor, isBullet && 'ml-2')}>
-      <div className="font-mono text-[10px] text-grid/70 leading-relaxed prose prose-sm max-w-none prose-p:my-0 prose-strong:text-[#1A3C2B] flex-1">
+      <div className="font-mono text-[10px] text-grid/70 leading-relaxed prose prose-sm max-w-none prose-p:my-0 prose-strong:text-white/80 flex-1">
         <ReactMarkdown>{line}</ReactMarkdown>
       </div>
       {timeStr && (
@@ -194,11 +194,11 @@ export function AgentActivityPanel({
       )}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[rgba(58,58,56,0.2)] flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.1] flex-shrink-0">
         <div className="flex items-center gap-2">
           <span className="font-mono text-[11px] uppercase tracking-wide text-grid/70">Agent Activity</span>
           {runningCount > 0 && (
-            <span className="inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full bg-[#1A3C2B] text-white font-mono text-[9px]">
+            <span className="inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full bg-white/[0.12] text-white font-mono text-[9px]">
               {runningCount}
             </span>
           )}
@@ -229,7 +229,7 @@ export function AgentActivityPanel({
 
       {/* Tabs */}
       {activities.length > 0 && (
-        <div className="flex overflow-x-auto border-b border-[rgba(58,58,56,0.15)] flex-shrink-0">
+        <div className="flex overflow-x-auto border-b border-white/[0.1] flex-shrink-0">
           {activities.map(activity => (
             <button
               key={activity.id}
@@ -237,7 +237,7 @@ export function AgentActivityPanel({
               className={cn(
                 'flex items-center gap-1.5 px-3 py-2.5 font-mono text-[10px] whitespace-nowrap transition-colors flex-shrink-0',
                 (activity.id === activeId)
-                  ? 'border-b-2 border-[#1A3C2B] text-[#1A3C2B] bg-[rgba(26,60,43,0.04)]'
+                  ? 'border-b-2 border-[#1A3C2B] text-white/80 bg-[rgba(26,60,43,0.04)]'
                   : 'text-grid/50 hover:text-grid/70 border-b-2 border-transparent'
               )}
             >
@@ -245,7 +245,7 @@ export function AgentActivityPanel({
               <StatusIndicator status={activity.status} />
               <span>{activity.name}</span>
               {activity.status === 'done' && activity.memoryCount != null && activity.memoryCount > 0 && (
-                <span className="inline-flex items-center justify-center h-3.5 min-w-[14px] px-1 rounded-full bg-[#1A3C2B]/15 text-[#1A3C2B] font-mono text-[8px]">
+                <span className="inline-flex items-center justify-center h-3.5 min-w-[14px] px-1 rounded-full bg-white/[0.12]/15 text-white/80 font-mono text-[8px]">
                   {activity.memoryCount}
                 </span>
               )}
@@ -283,7 +283,7 @@ export function AgentActivityPanel({
       </div>
 
       {/* Summary footer */}
-      <div className="flex-shrink-0 border-t border-[rgba(58,58,56,0.1)] px-3 py-2">
+      <div className="flex-shrink-0 border-t border-white/[0.08] px-3 py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 font-mono text-[9px] text-grid/40">
             {totalMemories != null && totalMemories > 0 && (

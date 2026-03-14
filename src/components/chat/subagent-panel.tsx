@@ -72,18 +72,18 @@ export function SubagentPanel({ isOpen, onClose, onSubagentCountChange }: Subage
   return (
     <div
       className={cn(
-        "absolute right-0 bottom-0 z-20 w-80 border-l border-t border-[rgba(58,58,56,0.2)] bg-[#F5F3EF] shadow-lg flex flex-col transition-all duration-300",
+        "absolute right-0 bottom-0 z-20 w-80 border-l border-t border-white/[0.1] bg-[#F5F3EF] shadow-lg flex flex-col transition-all duration-300",
         collapsed ? "h-10" : "h-96"
       )}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 h-10 border-b border-[rgba(58,58,56,0.15)] flex-shrink-0 bg-[#F5F3EF]">
-        <Cpu className="w-3.5 h-3.5 text-[#1A3C2B]/60" />
-        <span className="font-mono text-[10px] uppercase tracking-wide text-[#1A3C2B]/60 flex-1">
+      <div className="flex items-center gap-2 px-3 h-10 border-b border-white/[0.1] flex-shrink-0 bg-[#F5F3EF]">
+        <Cpu className="w-3.5 h-3.5 text-white/80/60" />
+        <span className="font-mono text-[10px] uppercase tracking-wide text-white/80/60 flex-1">
           Background Tasks
         </span>
         {runningCount > 0 && (
-          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#1A3C2B] text-white font-mono text-[9px]">
+          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.12] text-white font-mono text-[9px]">
             {runningCount}
           </span>
         )}
@@ -111,7 +111,7 @@ export function SubagentPanel({ isOpen, onClose, onSubagentCountChange }: Subage
             </div>
           ) : subagents.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-2">
-              <div className="w-8 h-8 rounded-full border border-[rgba(58,58,56,0.15)] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-full border border-white/[0.1] flex items-center justify-center">
                 <Cpu className="w-4 h-4 text-grid/30" />
               </div>
               <p className="font-mono text-[10px] text-grid/40 text-center">

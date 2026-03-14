@@ -142,7 +142,7 @@ export function WorkflowForm({
           }
           rows={3}
           className={cn(
-            "w-full bg-white border border-[rgba(58,58,56,0.2)] rounded-none px-3 py-2",
+            "w-full bg-white border border-white/[0.1] rounded-none px-3 py-2",
             "font-body text-sm text-forest placeholder:text-grid/30",
             "outline-none focus:border-forest transition-colors resize-none",
             errors.description && "border-coral"
@@ -171,7 +171,7 @@ export function WorkflowForm({
               type="button"
               onClick={() => setFormData({ ...formData, triggerType: value })}
               className={cn(
-                "p-3 border border-[rgba(58,58,56,0.2)] text-left transition-all",
+                "p-3 border border-white/[0.1] text-left transition-all",
                 "hover:border-forest hover:bg-forest/5",
                 formData.triggerType === value &&
                   "border-forest bg-forest/10"
@@ -190,7 +190,7 @@ export function WorkflowForm({
 
       {/* Schedule Options (shown when triggerType is 'scheduled') */}
       {formData.triggerType === "scheduled" && (
-        <div className="border border-[rgba(58,58,56,0.2)] p-4 space-y-4 bg-white">
+        <div className="border border-white/[0.1] p-4 space-y-4 bg-white">
           <label className="font-mono text-[10px] uppercase tracking-wide text-grid/60 block">
             Schedule Configuration
           </label>
@@ -207,7 +207,7 @@ export function WorkflowForm({
                   frequency: e.target.value as ScheduleFrequency,
                 })
               }
-              className="w-full bg-white border border-[rgba(58,58,56,0.2)] rounded-none px-3 py-2 font-body text-sm text-forest outline-none focus:border-forest"
+              className="w-full bg-white border border-white/[0.1] rounded-none px-3 py-2 font-body text-sm text-forest outline-none focus:border-forest"
             >
               {SCHEDULE_FREQUENCIES.map(({ value, label }) => (
                 <option key={value} value={value}>
@@ -227,7 +227,7 @@ export function WorkflowForm({
                 type="time"
                 value={formData.schedule?.time || "09:00"}
                 onChange={(e) => updateSchedule({ time: e.target.value })}
-                className="w-full bg-white border border-[rgba(58,58,56,0.2)] rounded-none px-3 py-2 font-body text-sm text-forest outline-none focus:border-forest"
+                className="w-full bg-white border border-white/[0.1] rounded-none px-3 py-2 font-body text-sm text-forest outline-none focus:border-forest"
               />
             </div>
           )}
@@ -243,7 +243,7 @@ export function WorkflowForm({
                 onChange={(e) =>
                   updateSchedule({ dayOfWeek: parseInt(e.target.value) })
                 }
-                className="w-full bg-white border border-[rgba(58,58,56,0.2)] rounded-none px-3 py-2 font-body text-sm text-forest outline-none focus:border-forest"
+                className="w-full bg-white border border-white/[0.1] rounded-none px-3 py-2 font-body text-sm text-forest outline-none focus:border-forest"
               >
                 {DAYS_OF_WEEK.map((day, index) => (
                   <option key={day} value={index}>
@@ -265,7 +265,7 @@ export function WorkflowForm({
                 onChange={(e) =>
                   updateSchedule({ dayOfMonth: parseInt(e.target.value) })
                 }
-                className="w-full bg-white border border-[rgba(58,58,56,0.2)] rounded-none px-3 py-2 font-body text-sm text-forest outline-none focus:border-forest"
+                className="w-full bg-white border border-white/[0.1] rounded-none px-3 py-2 font-body text-sm text-forest outline-none focus:border-forest"
               >
                 {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
                   <option key={day} value={day}>
@@ -302,7 +302,7 @@ export function WorkflowForm({
       )}
 
       {/* Actions */}
-      <div className="flex items-center justify-end gap-3 pt-4 border-t border-[rgba(58,58,56,0.1)]">
+      <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/[0.08]">
         {onCancel && (
           <Button type="button" variant="ghost" onClick={onCancel} disabled={isLoading}>
             Cancel

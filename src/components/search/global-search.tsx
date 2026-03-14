@@ -113,14 +113,14 @@ export function GlobalSearch() {
       onClick={handleBackdropClick}
     >
       <div 
-        className="w-full max-w-[600px] mx-4 bg-paper border border-[rgba(58,58,56,0.2)] shadow-xl"
+        className="w-full max-w-[600px] mx-4 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] shadow-2xl shadow-black/50"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[rgba(58,58,56,0.15)]">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.1]">
           <Search className={cn(
             "w-5 h-5 flex-shrink-0",
-            isLoading ? "text-mint animate-pulse" : "text-grid/50"
+            isLoading ? "text-mint animate-pulse" : "text-white/40"
           )} />
           
           <input
@@ -130,20 +130,20 @@ export function GlobalSearch() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search conversations, memory, workflows..."
-            className="flex-1 bg-transparent font-mono text-sm text-forest placeholder:text-grid/40 outline-none"
+            className="flex-1 bg-transparent font-mono text-sm text-white/80 placeholder:text-white/30 outline-none"
           />
           
           {query && (
             <button 
               onClick={() => setQuery("")}
-              className="p-1 hover:bg-forest/5 transition-colors"
+              className="p-1 hover:bg-white/[0.08] transition-colors"
             >
-              <X className="w-4 h-4 text-grid/50" />
+              <X className="w-4 h-4 text-white/40" />
             </button>
           )}
           
-          <div className="flex items-center gap-1 text-grid/40">
-            <kbd className="font-mono text-[10px] px-1.5 py-0.5 bg-forest/5 border border-[rgba(58,58,56,0.15)]">
+          <div className="flex items-center gap-1 text-white/30">
+            <kbd className="font-mono text-[10px] px-1.5 py-0.5 bg-white/[0.06] border border-white/[0.1]">
               ESC
             </kbd>
           </div>
@@ -155,7 +155,7 @@ export function GlobalSearch() {
             isLoading ? (
               <div className="px-4 py-8 text-center">
                 <div className="inline-block w-5 h-5 border-2 border-mint/30 border-t-mint animate-spin" />
-                <p className="font-mono text-xs text-grid/50 mt-2">Searching...</p>
+                <p className="font-mono text-xs text-white/40 mt-2">Searching...</p>
               </div>
             ) : (
               <SearchResults
@@ -171,12 +171,12 @@ export function GlobalSearch() {
               {recentSearches.length > 0 ? (
                 <>
                   <div className="px-4 py-2 flex items-center justify-between">
-                    <span className="font-mono text-[10px] uppercase tracking-wide text-grid/50">
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
                       Recent Searches
                     </span>
                     <button 
                       onClick={clearRecent}
-                      className="font-mono text-[10px] text-grid/40 hover:text-forest transition-colors"
+                      className="font-mono text-[10px] text-white/30 hover:text-white/80 transition-colors"
                     >
                       Clear
                     </button>
@@ -186,19 +186,19 @@ export function GlobalSearch() {
                     <button
                       key={i}
                       onClick={() => handleRecentClick(recent)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-forest/5 transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/[0.08] transition-colors"
                     >
-                      <Clock className="w-4 h-4 text-grid/40" />
-                      <span className="font-mono text-sm text-grid/70">{recent}</span>
+                      <Clock className="w-4 h-4 text-white/30" />
+                      <span className="font-mono text-sm text-white/60">{recent}</span>
                     </button>
                   ))}
                 </>
               ) : (
                 <div className="px-4 py-8 text-center">
-                  <p className="font-mono text-sm text-grid/50">
+                  <p className="font-mono text-sm text-white/40">
                     Start typing to search
                   </p>
-                  <p className="font-mono text-xs text-grid/40 mt-1">
+                  <p className="font-mono text-xs text-white/30 mt-1">
                     Search across conversations, memory, workflows, and integrations
                   </p>
                 </div>
@@ -208,22 +208,22 @@ export function GlobalSearch() {
         </div>
 
         {/* Footer with keyboard hints */}
-        <div className="flex items-center justify-between px-4 py-2 border-t border-[rgba(58,58,56,0.1)] bg-forest/[0.02]">
+        <div className="flex items-center justify-between px-4 py-2 border-t border-white/[0.08] bg-white/[0.03]">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5">
-              <kbd className="font-mono text-[9px] px-1 py-0.5 bg-forest/5 border border-[rgba(58,58,56,0.15)]">↑</kbd>
-              <kbd className="font-mono text-[9px] px-1 py-0.5 bg-forest/5 border border-[rgba(58,58,56,0.15)]">↓</kbd>
-              <span className="font-mono text-[9px] text-grid/40">to navigate</span>
+              <kbd className="font-mono text-[9px] px-1 py-0.5 bg-white/[0.06] border border-white/[0.1]">↑</kbd>
+              <kbd className="font-mono text-[9px] px-1 py-0.5 bg-white/[0.06] border border-white/[0.1]">↓</kbd>
+              <span className="font-mono text-[9px] text-white/30">to navigate</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <kbd className="font-mono text-[9px] px-1.5 py-0.5 bg-forest/5 border border-[rgba(58,58,56,0.15)]">↵</kbd>
-              <span className="font-mono text-[9px] text-grid/40">to select</span>
+              <kbd className="font-mono text-[9px] px-1.5 py-0.5 bg-white/[0.06] border border-white/[0.1]">↵</kbd>
+              <span className="font-mono text-[9px] text-white/30">to select</span>
             </div>
           </div>
           
           <div className="flex items-center gap-1.5">
-            <Command className="w-3 h-3 text-grid/40" />
-            <span className="font-mono text-[9px] text-grid/40">K to toggle</span>
+            <Command className="w-3 h-3 text-white/30" />
+            <span className="font-mono text-[9px] text-white/30">K to toggle</span>
           </div>
         </div>
       </div>

@@ -64,7 +64,7 @@ export default function ForgotPasswordPage() {
           </p>
         </div>
 
-        <div className="border border-[rgba(58,58,56,0.2)] bg-white/50 p-6">
+        <div className="border border-white/[0.1] bg-white/50 p-6">
           {success ? (
             <div className="text-center">
               <div className="p-3 border border-mint/50 bg-mint/20 mb-4">
@@ -101,7 +101,7 @@ export default function ForgotPasswordPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className={`w-full px-3 py-2 border bg-white font-mono text-sm text-forest focus:outline-none transition-colors ${error ? "border-coral focus:border-coral" : "border-[rgba(58,58,56,0.2)] focus:border-forest"}`}
+                    className={`w-full px-3 py-2 border bg-white font-mono text-sm text-forest focus:outline-none transition-colors ${error ? "border-coral focus:border-coral" : "border-white/[0.1] focus:border-forest"}`}
                     placeholder="you@example.com"
                     autoComplete="email"
                   />

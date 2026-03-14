@@ -32,17 +32,17 @@ export function UserMenu({ user }: UserMenuProps) {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-2 py-1.5 hover:bg-forest/5 transition-colors"
+        className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/[0.08] transition-colors"
       >
         {avatarUrl ? (
           <img
             src={avatarUrl}
             alt={name}
-            className="w-6 h-6 rounded-none border border-[rgba(58,58,56,0.2)]"
+            className="w-6 h-6 rounded-none border border-white/[0.1]"
           />
         ) : (
-          <div className="w-6 h-6 bg-forest/10 border border-[rgba(58,58,56,0.2)] flex items-center justify-center">
-            <span className="font-mono text-[10px] text-forest uppercase">
+          <div className="w-6 h-6 bg-white/[0.1] border border-white/[0.15] flex items-center justify-center">
+            <span className="font-mono text-[10px] text-white/70 uppercase">
               {name?.charAt(0)}
             </span>
           </div>
@@ -58,10 +58,10 @@ export function UserMenu({ user }: UserMenuProps) {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-1 w-56 bg-paper border border-[rgba(58,58,56,0.2)] shadow-sm z-50">
-          <div className="px-3 py-3 border-b border-[rgba(58,58,56,0.1)]">
-            <p className="font-mono text-[11px] text-forest truncate">{name}</p>
-            <p className="font-mono text-[10px] text-grid/50 truncate mt-0.5">{email}</p>
+        <div className="absolute right-0 top-full mt-1 w-56 bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] shadow-2xl shadow-black/50 z-50">
+          <div className="px-3 py-3 border-b border-white/[0.1]">
+            <p className="font-mono text-[11px] text-white/80 truncate">{name}</p>
+            <p className="font-mono text-[10px] text-white/40 truncate mt-0.5">{email}</p>
           </div>
           <div className="py-1">
             <LogoutButton />

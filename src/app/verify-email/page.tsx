@@ -44,7 +44,7 @@ function VerifyEmailContent() {
           </h1>
         </div>
 
-        <div className="border border-[rgba(58,58,56,0.2)] bg-white/50 p-6">
+        <div className="border border-white/[0.1] bg-white/50 p-6">
           {isSuccess && (
             <>
               <div className="p-4 border border-mint/50 bg-mint/20 mb-4">

@@ -43,7 +43,7 @@ export function ToolTimeline({ steps, trailingSummary }: ToolTimelineProps) {
                     : "bg-grid/30"
                 )}
               />
-              <div className="flex-1 border-l border-[rgba(58,58,56,0.15)] mt-0.5" />
+              <div className="flex-1 border-l border-white/[0.1] mt-0.5" />
             </div>
 
             {/* Right column: content */}

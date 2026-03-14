@@ -102,7 +102,7 @@ export default function ExportPage() {
           return (
             <Card key={option.id} className="p-0">
               <div className="flex items-start gap-4 p-4">
-                <div className="w-10 h-10 border border-[rgba(58,58,56,0.2)] flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 border border-white/[0.1] flex items-center justify-center flex-shrink-0">
                   <Icon size={20} className="text-forest" />
                 </div>
                 

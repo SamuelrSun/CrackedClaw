@@ -37,8 +37,8 @@ export function ThinkingBlock({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "flex items-center gap-1 font-mono text-[11px] text-grid/40",
-          "hover:text-grid/60 transition-colors bg-transparent border-0 p-0 cursor-pointer"
+          "flex items-center gap-1 font-mono text-[11px] text-white/40",
+          "hover:text-white/60 transition-colors bg-transparent border-0 p-0 cursor-pointer"
         )}
       >
         <span>{label}</span>
@@ -46,9 +46,9 @@ export function ThinkingBlock({
       </button>
 
       {open && (thinkingText || children) && (
-        <div className="mt-1.5 pl-3 border-l border-[rgba(58,58,56,0.15)]">
+        <div className="mt-1.5 pl-3 border-l border-white/[0.1]">
           {thinkingText && (
-            <p className="font-mono text-[12px] text-grid/50 italic leading-relaxed whitespace-pre-wrap">
+            <p className="font-mono text-[12px] text-white/50 italic leading-relaxed whitespace-pre-wrap">
               {thinkingText}
             </p>
           )}

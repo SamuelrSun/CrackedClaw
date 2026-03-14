@@ -34,7 +34,7 @@ export function LinkedContextBadge({
   return (
     <div
       className={cn(
-        "border-b border-[rgba(58,58,56,0.1)] bg-forest/[0.03] px-4 py-2",
+        "border-b border-white/[0.08] bg-white/[0.04] px-4 py-2",
         className
       )}
     >
@@ -68,7 +68,7 @@ export function LinkedContextBadge({
           {linkedConversations.map((lc) => (
             <div
               key={lc.id}
-              className="flex items-center justify-between px-2 py-1 bg-white/50 border border-[rgba(58,58,56,0.1)]"
+              className="flex items-center justify-between px-2 py-1 bg-white/[0.06] border border-white/[0.08]"
             >
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[9px] uppercase tracking-wide text-grid/40 bg-grid/10 px-1.5 py-0.5">

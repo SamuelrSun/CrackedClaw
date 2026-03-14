@@ -101,7 +101,7 @@ export function TeamSection({
             {members.map((member) => (
               <div
                 key={member.id}
-                className="flex items-center justify-between border-b border-[rgba(58,58,56,0.1)] pb-3 last:border-0"
+                className="flex items-center justify-between border-b border-white/[0.08] pb-3 last:border-0"
               >
                 <div className="flex items-center gap-3">
                   {/* Avatar */}
@@ -137,7 +137,7 @@ export function TeamSection({
                       </button>
                       
                       {roleDropdownId === member.id && (
-                        <div className="absolute right-0 top-full mt-1 z-10 bg-white border border-[rgba(58,58,56,0.2)] shadow-lg">
+                        <div className="absolute right-0 top-full mt-1 z-10 bg-white border border-white/[0.1] shadow-lg">
                           {["admin", "member"].map((role) => (
                             <button
                               key={role}
@@ -205,7 +205,7 @@ export function TeamSection({
 
           {/* Pending Invitations */}
           {pendingInvitations.length > 0 && (
-            <div className="pt-4 border-t border-[rgba(58,58,56,0.1)]">
+            <div className="pt-4 border-t border-white/[0.08]">
               <p className="font-mono text-[10px] uppercase tracking-wide text-grid/50 mb-3">
                 Pending Invitations
               </p>

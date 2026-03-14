@@ -51,7 +51,7 @@ function ModelBadge({ model }: { model?: string }) {
 
 function StatusIcon({ status }: { status?: string }) {
   if (status === "running") {
-    return <Loader2 className="w-3.5 h-3.5 text-[#1A3C2B] animate-spin flex-shrink-0" />;
+    return <Loader2 className="w-3.5 h-3.5 text-white/80 animate-spin flex-shrink-0" />;
   }
   if (status === "done") {
     return <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />;
@@ -91,7 +91,7 @@ export function SubagentCard({ session, onKill }: SubagentCardProps) {
       className={cn(
         "border rounded-none transition-all duration-200",
         isRunning
-          ? "border-[rgba(26,60,43,0.2)] bg-[#F5F3EF]"
+          ? "border-white/[0.1] bg-[#F5F3EF]"
           : status === "done"
           ? "border-emerald-200/60 bg-emerald-50/30"
           : "border-red-200/60 bg-red-50/20"
@@ -115,7 +115,7 @@ export function SubagentCard({ session, onKill }: SubagentCardProps) {
 
         {/* Label */}
         <span
-          className="flex-1 font-mono text-[11px] text-[#1A3C2B] truncate cursor-pointer"
+          className="flex-1 font-mono text-[11px] text-white/80 truncate cursor-pointer"
           onClick={() => setExpanded((v) => !v)}
         >
           {label}
@@ -147,27 +147,27 @@ export function SubagentCard({ session, onKill }: SubagentCardProps) {
 
       {/* Progress bar for running */}
       {isRunning && (
-        <div className="h-0.5 bg-[#1A3C2B]/10 overflow-hidden">
-          <div className="h-full bg-[#1A3C2B]/40" style={{ animation: "progress-bar 1.8s ease-in-out infinite" }} />
+        <div className="h-0.5 bg-white/[0.08] overflow-hidden">
+          <div className="h-full bg-white/[0.12]/40" style={{ animation: "progress-bar 1.8s ease-in-out infinite" }} />
         </div>
       )}
 
       {/* Expanded: recent messages */}
       {expanded && (
-        <div className="border-t border-[rgba(58,58,56,0.1)] px-3 py-2 space-y-1.5">
+        <div className="border-t border-white/[0.08] px-3 py-2 space-y-1.5">
           {recentMessages.length > 0 ? (
             recentMessages.map((msg, i) => (
               <div key={i} className="flex gap-1.5">
                 <span className="font-mono text-[9px] text-grid/40 flex-shrink-0 mt-0.5">
                   {msg.role === "assistant" ? "✦" : "›"}
                 </span>
-                <p className="font-mono text-[10px] text-[#1A3C2B]/70 leading-relaxed line-clamp-2">
+                <p className="font-mono text-[10px] text-white/80/70 leading-relaxed line-clamp-2">
                   {msg.content}
                 </p>
               </div>
             ))
           ) : session.output ? (
-            <p className="font-mono text-[10px] text-[#1A3C2B]/70 leading-relaxed line-clamp-3">
+            <p className="font-mono text-[10px] text-white/80/70 leading-relaxed line-clamp-3">
               {session.output}
             </p>
           ) : (

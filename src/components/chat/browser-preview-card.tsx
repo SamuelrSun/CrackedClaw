@@ -74,12 +74,12 @@ export function BrowserPreviewCard({
   return (
     <div className={cn(
       "my-2 border rounded-lg overflow-hidden font-mono text-xs transition-all duration-200 max-w-sm",
-      isWaiting ? "border-amber-400/30 bg-amber-50/30" : "border-[#1A3C2B]/20 bg-[#1A3C2B]/[0.03]"
+      isWaiting ? "border-amber-400/30 bg-amber-900/20/30" : "border-white/[0.1] bg-white/[0.12]/[0.03]"
     )}>
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-inherit">
-        <Globe className="w-3.5 h-3.5 text-[#1A3C2B] flex-shrink-0" />
-        <span className="text-[#1A3C2B] font-medium truncate">
+        <Globe className="w-3.5 h-3.5 text-white/80 flex-shrink-0" />
+        <span className="text-white/80 font-medium truncate">
           {STATUS_LABELS[status]}{displayUrl ? ` · ${displayUrl}` : ""}
         </span>
         <button onClick={handleIgnore} className="ml-auto text-grid/40 hover:text-grid/70 transition-colors flex-shrink-0">
@@ -98,7 +98,7 @@ export function BrowserPreviewCard({
           <img src={screenshot} alt="Browser screenshot" className="w-full h-full object-cover object-top" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="w-5 h-5 text-[#1A3C2B]/40 animate-spin" />
+            <Loader2 className="w-5 h-5 text-white/80/40 animate-spin" />
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
@@ -121,8 +121,8 @@ export function BrowserPreviewCard({
           className={cn(
             "flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-colors",
             isWaiting
-              ? "bg-[#1A3C2B] text-white hover:bg-[#24503a]"
-              : "bg-[#1A3C2B]/80 text-white hover:bg-[#1A3C2B]"
+              ? "bg-white/[0.12] text-white hover:bg-[#24503a]"
+              : "bg-white/[0.12]/80 text-white hover:bg-white/[0.12]"
           )}
         >
           <UserCheck className="w-3 h-3" />

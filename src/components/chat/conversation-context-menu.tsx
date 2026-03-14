@@ -89,17 +89,17 @@ export function ConversationContextMenu({
     <div ref={menuRef} className={cn("relative", className)}>
       <button
         onClick={handleOpen}
-        className="p-1 text-grid/30 hover:text-grid/60 transition-colors leading-none text-sm"
+        className="p-1 text-white/30 hover:text-white/60 transition-colors leading-none text-sm"
         title="Conversation options"
       >
         •••
       </button>
 
       {open && (
-        <div className="absolute right-0 top-6 z-30 w-52 bg-paper border border-[rgba(58,58,56,0.2)] shadow-lg">
+        <div className="absolute right-0 top-6 z-30 w-52 bg-[#0f0f1a] border border-white/[0.15] shadow-xl rounded-xl overflow-hidden">
           {/* Link option */}
           <button
-            className="w-full text-left px-4 py-2.5 text-xs hover:bg-forest/5 transition-colors flex items-center gap-2"
+            className="w-full text-left px-4 py-2.5 text-xs text-white/70 hover:bg-white/[0.06] transition-colors flex items-center gap-2"
             onClick={() => {
               setOpen(false);
               setPickerOpen(true);
@@ -111,7 +111,7 @@ export function ConversationContextMenu({
 
           {/* View linked */}
           <button
-            className="w-full text-left px-4 py-2.5 text-xs hover:bg-forest/5 transition-colors flex items-center gap-2"
+            className="w-full text-left px-4 py-2.5 text-xs text-white/70 hover:bg-white/[0.06] transition-colors flex items-center gap-2"
             onClick={() => setShowLinked((v) => !v)}
           >
             <span>📋</span>
@@ -123,7 +123,7 @@ export function ConversationContextMenu({
                 : "View linked conversations"}
             </span>
             {linkedConvos.length > 0 && (
-              <span className="ml-auto font-mono text-[9px]">
+              <span className="ml-auto font-mono text-[9px] text-white/40">
                 {showLinked ? "▲" : "▼"}
               </span>
             )}
@@ -131,16 +131,16 @@ export function ConversationContextMenu({
 
           {/* Linked list */}
           {showLinked && linkedConvos.length > 0 && (
-            <div className="border-t border-[rgba(58,58,56,0.1)] bg-grid/5">
+            <div className="border-t border-white/[0.1] bg-white/[0.04]">
               {linkedConvos.map((lc) => (
                 <div
                   key={lc.id}
                   className="px-4 py-2 flex items-center justify-between gap-2"
                 >
-                  <span className="text-xs text-forest truncate">{lc.title}</span>
+                  <span className="text-xs text-white/80 truncate">{lc.title}</span>
                   <button
                     onClick={() => handleUnlink(lc.id)}
-                    className="font-mono text-[9px] text-grid/40 hover:text-red-500 transition-colors flex-shrink-0 uppercase tracking-wide"
+                    className="font-mono text-[9px] text-white/40 hover:text-red-400 transition-colors flex-shrink-0 uppercase tracking-wide"
                   >
                     Unlink
                   </button>
@@ -150,8 +150,8 @@ export function ConversationContextMenu({
           )}
 
           {showLinked && linkedConvos.length === 0 && !loading && (
-            <div className="px-4 py-2 border-t border-[rgba(58,58,56,0.1)] bg-grid/5">
-              <p className="text-xs text-grid/40">No linked conversations</p>
+            <div className="px-4 py-2 border-t border-white/[0.1] bg-white/[0.04]">
+              <p className="text-xs text-white/40">No linked conversations</p>
             </div>
           )}
         </div>

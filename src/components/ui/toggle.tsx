@@ -16,8 +16,8 @@ export function Toggle({ checked, onChange, className }: ToggleProps) {
       aria-checked={checked}
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative inline-flex h-5 w-9 items-center border border-[rgba(58,58,56,0.2)] rounded-sm transition-colors",
-        checked ? "bg-forest" : "bg-white",
+        "relative inline-flex h-5 w-9 items-center border border-white/[0.1] rounded-sm transition-colors",
+        checked ? "bg-forest" : "bg-white/[0.08]",
         className
       )}
     >

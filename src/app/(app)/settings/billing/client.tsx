@@ -96,18 +96,18 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
   const planOrder: PlanSlug[] = ['free', 'starter', 'pro', 'power'];
 
   return (
-    <div className="min-h-screen bg-[#F7F7F5] p-6 md:p-10">
+    <div className="min-h-screen bg-[#0d0d12] p-6 md:p-10">
       {/* Header */}
       <div className="max-w-5xl mx-auto mb-10">
         <div className="flex items-center gap-4 mb-6">
           <Link
             href="/settings"
-            className="font-mono text-[11px] uppercase tracking-wide text-[rgba(58,58,56,0.5)] hover:text-[#1A3C2B] transition-colors"
+            className="font-mono text-[11px] uppercase tracking-wide text-[rgba(58,58,56,0.5)] hover:text-white/80 transition-colors"
           >
             ← Settings
           </Link>
         </div>
-        <h1 className="font-mono text-4xl font-bold text-[#1A3C2B] tracking-tight">
+        <h1 className="font-mono text-4xl font-bold text-white/80 tracking-tight">
           Plan & Billing
         </h1>
         <p className="font-mono text-[13px] text-[rgba(58,58,56,0.55)] mt-2 uppercase tracking-wide">
@@ -116,7 +116,7 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
 
         {/* Current usage */}
         {usage && (
-          <div className="mt-6 border border-[rgba(58,58,56,0.15)] bg-white p-5 max-w-lg space-y-4">
+          <div className="mt-6 border border-white/[0.1] bg-white p-5 max-w-lg space-y-4">
             <p className="font-mono text-[11px] uppercase tracking-wide text-[rgba(58,58,56,0.5)]">
               Current Usage — {currentPlan.toUpperCase()} Plan
             </p>
@@ -139,7 +139,7 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
       </div>
 
       {/* Plan cards */}
-      <div className="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px bg-[rgba(58,58,56,0.15)]">
+      <div className="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px bg-white/[0.05]">
         {planOrder.map((slug) => {
           const plan = PLANS[slug];
           const isCurrent = currentPlan === slug;
@@ -149,7 +149,7 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
           return (
             <div
               key={slug}
-              className={`bg-[#F7F7F5] p-6 flex flex-col relative ${isCurrent ? 'ring-2 ring-[#10b981] ring-inset' : ''}`}
+              className={`bg-[#0d0d12] p-6 flex flex-col relative ${isCurrent ? 'ring-2 ring-[#10b981] ring-inset' : ''}`}
             >
               {/* Popular badge */}
               {isPopular && (
@@ -178,10 +178,10 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
                 {/* Price */}
                 <div className="mb-4">
                   {plan.price === 0 ? (
-                    <span className="font-mono text-3xl font-bold text-[#1A3C2B]">Free</span>
+                    <span className="font-mono text-3xl font-bold text-white/80">Free</span>
                   ) : (
                     <div className="flex items-baseline gap-1">
-                      <span className="font-mono text-3xl font-bold text-[#1A3C2B]">${plan.price}</span>
+                      <span className="font-mono text-3xl font-bold text-white/80">${plan.price}</span>
                       <span className="font-mono text-[12px] text-[rgba(58,58,56,0.5)]">/mo</span>
                     </div>
                   )}
@@ -189,7 +189,7 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
 
                 {/* Token info */}
                 <div className="border-t border-[rgba(58,58,56,0.12)] pt-4 mb-4 space-y-1">
-                  <p className="font-mono text-[12px] text-[#1A3C2B] font-semibold">
+                  <p className="font-mono text-[12px] text-white/80 font-semibold">
                     {formatTokens(plan.monthlyTokens)} tokens/month
                   </p>
                   <p className="font-mono text-[11px] text-[rgba(58,58,56,0.5)]">
@@ -210,14 +210,14 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
                 {/* CTA */}
                 {isCurrent ? (
                   <>
-                    <div className="w-full font-mono text-[11px] uppercase tracking-wide px-4 py-2.5 border border-emerald-500/30 bg-emerald-500/5 text-emerald-700 text-center font-semibold">
+                    <div className="w-full font-mono text-[11px] uppercase tracking-wide px-4 py-2.5 border border-emerald-500/30 bg-emerald-500/5 text-emerald-400 text-center font-semibold">
                       Current Plan
                     </div>
                     {isSubscribed && (
                       <button
                         onClick={handleManageBilling}
                         disabled={portalLoading}
-                        className="w-full mt-2 font-mono text-[11px] uppercase tracking-wide px-4 py-2 border border-[rgba(58,58,56,0.2)] text-[rgba(58,58,56,0.5)] hover:border-[#1A3C2B] hover:text-[#1A3C2B] transition-colors disabled:opacity-50"
+                        className="w-full mt-2 font-mono text-[11px] uppercase tracking-wide px-4 py-2 border border-white/[0.1] text-[rgba(58,58,56,0.5)] hover:border-[#1A3C2B] hover:text-white/80 transition-colors disabled:opacity-50"
                       >
                         {portalLoading ? 'Loading...' : 'Manage Billing'}
                       </button>
@@ -230,7 +230,7 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
                     className={`w-full font-mono text-[11px] uppercase tracking-wide px-4 py-2.5 transition-colors disabled:opacity-50 ${
                       isPopular
                         ? 'bg-[#10b981] text-white hover:bg-[#0d9668]'
-                        : 'bg-[#1A3C2B] text-[#F7F7F5] hover:bg-[#132d20]'
+                        : 'bg-white/[0.12] text-[#F7F7F5] hover:bg-[#132d20]'
                     }`}
                   >
                     {upgrading === slug ? 'Redirecting...' : `Get ${plan.name}`}

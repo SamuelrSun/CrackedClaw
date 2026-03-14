@@ -41,7 +41,7 @@ export function CronJobCard({ job, className }: CronJobCardProps) {
     <div
       className={cn(
         "border rounded-none bg-white max-w-sm",
-        isSuccess ? "border-[rgba(58,58,56,0.2)]" : "border-coral/40",
+        isSuccess ? "border-white/[0.1]" : "border-coral/40",
         className
       )}
     >
@@ -50,7 +50,7 @@ export function CronJobCard({ job, className }: CronJobCardProps) {
         className={cn(
           "flex items-center gap-2 px-4 py-2.5 border-b",
           isSuccess
-            ? "border-[rgba(58,58,56,0.1)] bg-forest/[0.03]"
+            ? "border-white/[0.08] bg-white/[0.04]"
             : "border-coral/20 bg-coral/[0.05]"
         )}
       >

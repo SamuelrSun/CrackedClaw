@@ -135,7 +135,7 @@ export default function AISettingsClient() {
         <Card label="API Key" accentColor="#F4D35E" bordered>
           <div className="mt-2 space-y-4">
             {/* Current status */}
-            <div className="flex items-center justify-between p-3 bg-forest/5 border border-[rgba(58,58,56,0.1)]">
+            <div className="flex items-center justify-between p-3 bg-forest/5 border border-white/[0.08]">
               <div className="flex items-center gap-3">
                 {useOwnKey ? (
                   <Key className="w-5 h-5 text-gold" />
@@ -173,7 +173,7 @@ export default function AISettingsClient() {
 
             {/* API Key Input (conditional) */}
             {useOwnKey && (
-              <div className="pt-2 border-t border-[rgba(58,58,56,0.1)]">
+              <div className="pt-2 border-t border-white/[0.08]">
                 <Input
                   label="Anthropic API Key"
                   type="password"

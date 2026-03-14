@@ -50,7 +50,7 @@ export function ActivityFeed({
         <ActivityItemRow key={item.id} item={item} />
       ))}
       {showViewAll && activities.length > 0 && (
-        <div className="pt-3 border-t border-[rgba(58,58,56,0.1)] mt-3">
+        <div className="pt-3 border-t border-white/[0.08] mt-3">
           <Link
             href="/activity"
             className="font-mono text-[10px] uppercase tracking-wide text-forest hover:text-forest/80 transition-colors"
@@ -76,7 +76,7 @@ function ActivityItemRow({ item }: ActivityItemRowProps) {
     <div className="flex items-start gap-3 py-2 px-2 -mx-2 rounded-sm hover:bg-[rgba(58,58,56,0.03)] transition-colors group">
       {/* Icon */}
       <div
-        className="w-7 h-7 flex items-center justify-center flex-shrink-0 border border-[rgba(58,58,56,0.1)] bg-white group-hover:border-[rgba(58,58,56,0.2)] transition-colors"
+        className="w-7 h-7 flex items-center justify-center flex-shrink-0 border border-white/[0.08] bg-white group-hover:border-white/[0.1] transition-colors"
         style={{ color: iconColor }}
       >
         <Icon className="w-4 h-4" />

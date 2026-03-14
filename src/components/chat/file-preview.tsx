@@ -55,7 +55,7 @@ export function FilePreview({ files, onRemove }: FilePreviewProps) {
             "relative flex-shrink-0 rounded border bg-white overflow-hidden",
             uf.status === "error"
               ? "border-red-300"
-              : "border-[rgba(58,58,56,0.2)]"
+              : "border-white/[0.1]"
           )}
           style={{ maxWidth: 160 }}
         >

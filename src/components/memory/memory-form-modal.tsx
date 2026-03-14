@@ -98,7 +98,7 @@ export function MemoryFormModal({
           </label>
           <textarea
             className={`
-              w-full bg-white border border-[rgba(58,58,56,0.2)] rounded-none px-3 py-2
+              w-full bg-white border border-white/[0.1] rounded-none px-3 py-2
               font-body text-sm text-forest placeholder:text-grid/30
               outline-none focus:border-forest transition-colors
               min-h-[120px] resize-y
@@ -117,7 +117,7 @@ export function MemoryFormModal({
           </label>
           <select
             className={`
-              w-full bg-white border border-[rgba(58,58,56,0.2)] rounded-none px-3 py-2
+              w-full bg-white border border-white/[0.1] rounded-none px-3 py-2
               font-body text-sm text-forest
               outline-none focus:border-forest transition-colors
               cursor-pointer

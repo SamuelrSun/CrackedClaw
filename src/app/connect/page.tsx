@@ -4,7 +4,7 @@ import Link from "next/link";
 
 export default function ConnectPage() {
   return (
-    <div className="min-h-screen bg-cream flex items-center justify-center p-6">
+    <div className="min-h-screen bg-white/[0.03] flex items-center justify-center p-6">
       <div className="max-w-xl w-full space-y-6">
         <div className="text-center mb-8">
           <h1 className="font-header text-4xl font-bold tracking-tight text-forest">

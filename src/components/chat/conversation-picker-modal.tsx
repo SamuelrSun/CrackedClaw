@@ -102,9 +102,9 @@ export function ConversationPickerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-      <div className="bg-paper border border-[rgba(58,58,56,0.2)] w-full max-w-md mx-4 shadow-lg flex flex-col max-h-[80vh]">
+      <div className="bg-paper border border-white/[0.1] w-full max-w-md mx-4 shadow-lg flex flex-col max-h-[80vh]">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-[rgba(58,58,56,0.1)] flex items-center justify-between flex-shrink-0">
+        <div className="px-5 py-4 border-b border-white/[0.08] flex items-center justify-between flex-shrink-0">
           <div>
             <h3 className="font-header text-sm font-bold text-forest">Link Conversation</h3>
             <p className="font-mono text-[10px] text-grid/50 mt-0.5">
@@ -120,19 +120,19 @@ export function ConversationPickerModal({
         </div>
 
         {/* Search */}
-        <div className="px-4 py-3 border-b border-[rgba(58,58,56,0.08)] flex-shrink-0">
+        <div className="px-4 py-3 border-b border-white/[0.06] flex-shrink-0">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search conversations..."
-            className="w-full bg-white border border-[rgba(58,58,56,0.2)] px-3 py-2 text-sm outline-none focus:border-forest transition-colors placeholder:text-grid/30"
+            className="w-full bg-white border border-white/[0.1] px-3 py-2 text-sm outline-none focus:border-forest transition-colors placeholder:text-grid/30"
             autoFocus
           />
         </div>
 
         {/* Link type selector */}
-        <div className="px-4 py-2 border-b border-[rgba(58,58,56,0.08)] flex items-center gap-3 flex-shrink-0">
+        <div className="px-4 py-2 border-b border-white/[0.06] flex items-center gap-3 flex-shrink-0">
           <span className="font-mono text-[10px] text-grid/50 uppercase tracking-wide flex-shrink-0">Type:</span>
           {(["context", "continuation", "reference"] as const).map((type) => (
             <button
@@ -142,7 +142,7 @@ export function ConversationPickerModal({
                 "font-mono text-[9px] uppercase tracking-wide px-2 py-0.5 transition-colors",
                 linkType === type
                   ? "bg-forest text-white"
-                  : "text-grid/50 hover:text-forest border border-[rgba(58,58,56,0.2)]"
+                  : "text-grid/50 hover:text-forest border border-white/[0.1]"
               )}
             >
               {type}
@@ -172,7 +172,7 @@ export function ConversationPickerModal({
                   onClick={() => !isLinked && toggleSelect(convo.id)}
                   disabled={isLinked}
                   className={cn(
-                    "w-full text-left px-4 py-3 border-b border-[rgba(58,58,56,0.08)] transition-colors flex items-start gap-3",
+                    "w-full text-left px-4 py-3 border-b border-white/[0.06] transition-colors flex items-start gap-3",
                     isLinked
                       ? "opacity-50 cursor-not-allowed bg-grid/5"
                       : isSelected
@@ -186,7 +186,7 @@ export function ConversationPickerModal({
                       "mt-0.5 w-4 h-4 border flex-shrink-0 flex items-center justify-center transition-colors",
                       isSelected
                         ? "bg-forest border-forest"
-                        : "border-[rgba(58,58,56,0.3)]"
+                        : "border-white/[0.15]"
                     )}
                   >
                     {isSelected && (
@@ -222,7 +222,7 @@ export function ConversationPickerModal({
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-[rgba(58,58,56,0.1)] flex items-center justify-between flex-shrink-0">
+        <div className="px-4 py-3 border-t border-white/[0.08] flex items-center justify-between flex-shrink-0">
           <span className="font-mono text-[10px] text-grid/40">
             {selected.size > 0 ? `${selected.size} selected` : "Select conversations to link"}
           </span>

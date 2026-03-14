@@ -127,18 +127,18 @@ function DeepScanPanel({ provider }: { provider: string }) {
   const isError = prog?.phase === 'error';
 
   return (
-    <div className="mt-4 pt-4 border-t border-[rgba(58,58,56,0.1)]">
+    <div className="mt-4 pt-4 border-t border-white/[0.08]">
       <div className="flex items-center gap-2">
         <button
           onClick={startScan}
           disabled={state.running}
-          className="px-3 py-1.5 text-[11px] font-mono uppercase tracking-wide border border-[rgba(26,60,43,0.2)] text-[#1A3C2B] hover:bg-[#1A3C2B] hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-3 py-1.5 text-[11px] font-mono uppercase tracking-wide border border-white/[0.1] text-white/80 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {state.running ? 'Scanning…' : 'Deep Scan'}
         </button>
         <button
           onClick={toggleHistory}
-          className="px-2 py-1.5 text-[10px] font-mono uppercase tracking-wide text-grid/50 hover:text-grid transition-colors"
+          className="px-2 py-1.5 text-[10px] font-mono uppercase tracking-wide text-white/50 hover:text-white/80 transition-colors"
         >
           {state.showHistory ? 'Hide History' : 'History'}
         </button>
@@ -148,12 +148,12 @@ function DeepScanPanel({ provider }: { provider: string }) {
       {prog && !isDone && !isError && (
         <div className="mt-3 space-y-1.5">
           <div className="flex justify-between items-center">
-            <span className="font-mono text-[10px] text-grid/60 truncate pr-2">{prog.message}</span>
-            <span className="font-mono text-[10px] text-grid/40 flex-shrink-0">{prog.progress}%</span>
+            <span className="font-mono text-[10px] text-white/60 truncate pr-2">{prog.message}</span>
+            <span className="font-mono text-[10px] text-white/40 flex-shrink-0">{prog.progress}%</span>
           </div>
-          <div className="w-full h-1.5 bg-[rgba(58,58,56,0.1)]">
+          <div className="w-full h-1.5 bg-white/[0.06]">
             <div
-              className="h-full bg-[#1A3C2B] transition-all duration-300"
+              className="h-full bg-white/[0.12] transition-all duration-300"
               style={{ width: `${prog.progress}%` }}
             />
           </div>
@@ -162,8 +162,8 @@ function DeepScanPanel({ provider }: { provider: string }) {
 
       {/* Completion summary */}
       {isDone && prog.result && (
-        <div className="mt-3 p-2 bg-[#1A3C2B]/5 border border-[#1A3C2B]/20">
-          <p className="font-mono text-[10px] text-[#1A3C2B]">
+        <div className="mt-3 p-2 bg-white/[0.06] border border-white/[0.1]">
+          <p className="font-mono text-[10px] text-white/80">
             ✓ {prog.result.totalMemories} memories created · {Math.round(prog.result.durationMs / 1000)}s
           </p>
         </div>
@@ -179,29 +179,29 @@ function DeepScanPanel({ provider }: { provider: string }) {
       {/* Scan history */}
       {state.showHistory && (
         <div className="mt-3 space-y-1">
-          <p className="font-mono text-[9px] uppercase tracking-wide text-grid/40">Recent Scans</p>
+          <p className="font-mono text-[9px] uppercase tracking-wide text-white/40">Recent Scans</p>
           {!state.historyLoaded ? (
-            <p className="font-mono text-[10px] text-grid/30">Loading…</p>
+            <p className="font-mono text-[10px] text-white/30">Loading…</p>
           ) : state.history.length === 0 ? (
-            <p className="font-mono text-[10px] text-grid/30 italic">No scans yet</p>
+            <p className="font-mono text-[10px] text-white/30 italic">No scans yet</p>
           ) : (
             <div className="space-y-1.5">
               {state.history.map(scan => (
-                <div key={scan.id} className="flex items-center justify-between py-1.5 px-2 border border-[rgba(58,58,56,0.08)] bg-cream/30">
+                <div key={scan.id} className="flex items-center justify-between py-1.5 px-2 border border-white/[0.06] bg-white/[0.03]">
                   <div>
-                    <span className="font-mono text-[10px] text-grid/70 capitalize">{scan.mode}</span>
-                    <span className="font-mono text-[9px] text-grid/40 ml-2">
+                    <span className="font-mono text-[10px] text-white/70 capitalize">{scan.mode}</span>
+                    <span className="font-mono text-[9px] text-white/40 ml-2">
                       {new Date(scan.createdAt).toLocaleDateString()} {new Date(scan.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[9px] text-grid/50">{scan.memoriesCreated} mem</span>
+                    <span className="font-mono text-[9px] text-white/50">{scan.memoriesCreated} mem</span>
                     {scan.durationMs > 0 && (
-                      <span className="font-mono text-[9px] text-grid/40">{Math.round(scan.durationMs / 1000)}s</span>
+                      <span className="font-mono text-[9px] text-white/40">{Math.round(scan.durationMs / 1000)}s</span>
                     )}
                     <span className={`font-mono text-[8px] uppercase tracking-wide px-1.5 py-0.5 border ${
                       scan.status === 'complete'
-                        ? 'text-[#1A3C2B] border-[#1A3C2B]/20 bg-[#1A3C2B]/5'
+                        ? 'text-white/80 border-white/[0.1] bg-white/[0.06]'
                         : 'text-coral border-coral/20 bg-coral/5'
                     }`}>
                       {scan.status}
@@ -693,7 +693,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
           <h1 className="font-header text-3xl font-bold tracking-tight leading-tight">
             Integrations
           </h1>
-          <p className="font-mono text-[10px] uppercase tracking-wide text-grid/50 mt-1">
+          <p className="font-mono text-[10px] uppercase tracking-wide text-white/50 mt-1">
             Connect any app or service
           </p>
         </div>
@@ -702,7 +702,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
             <button
               onClick={checkAllStatuses}
               disabled={statusCheckInProgress}
-              className="font-mono text-[10px] uppercase tracking-wide px-3 py-2 border border-[rgba(58,58,56,0.2)] text-grid/60 hover:text-grid hover:border-grid/40 transition-colors disabled:opacity-50"
+              className="font-mono text-[10px] uppercase tracking-wide px-3 py-2 border border-white/[0.1] text-white/60 hover:text-white/80 hover:border-white/[0.3] transition-colors disabled:opacity-50"
               title="Verify all integration connections"
             >
               {statusCheckInProgress ? '⟳ Checking...' : '⟳ Verify All'}
@@ -724,11 +724,11 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
         );
         if (visible.length === 0) return null;
         return (
-          <div className="mb-6 border border-[rgba(58,58,56,0.2)] bg-paper p-4">
+          <div className="mb-6 border border-white/[0.1] bg-white/[0.03] p-4">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <p className="font-mono text-[11px] uppercase tracking-wide text-grid font-semibold">📌 Quick Connect</p>
-                <p className="font-mono text-[9px] text-grid/40 mt-0.5">Popular integrations — click to connect, ✕ to dismiss</p>
+                <p className="font-mono text-[11px] uppercase tracking-wide text-white/80 font-semibold">📌 Quick Connect</p>
+                <p className="font-mono text-[9px] text-white/40 mt-0.5">Popular integrations — click to connect, ✕ to dismiss</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -738,25 +738,25 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                 const needsNode = reg.authType === 'browser-login';
                 const isConnected = items.some(i => i.slug === p.id || i.id === p.id);
                 return (
-                  <div key={p.id} className="relative flex items-center gap-1.5 border border-[rgba(58,58,56,0.2)] bg-cream/50 px-2.5 py-1.5 pr-6 hover:border-forest/40 transition-colors group">
+                  <div key={p.id} className="relative flex items-center gap-1.5 border border-white/[0.1] bg-white/[0.05] px-2.5 py-1.5 pr-6 hover:border-white/[0.3] transition-colors group">
                     <IntegrationIcon provider={p.id} size={16} />
-                    <span className="font-mono text-[10px] text-grid">{reg.name}</span>
+                    <span className="font-mono text-[10px] text-white/80">{reg.name}</span>
                     {needsNode && (
-                      <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-100 text-amber-700 px-1 py-0.5 border border-amber-200 leading-none">Node</span>
+                      <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-500/20 text-amber-300 px-1 py-0.5 border border-amber-400/30 leading-none">Node</span>
                     )}
                     {isConnected ? (
-                      <span className="text-forest text-xs">✓</span>
+                      <span className="text-[#9EFFBF] text-xs">✓</span>
                     ) : (
                       <button
                         onClick={() => connectPopular(p.id)}
-                        className="font-mono text-[9px] uppercase tracking-wide text-forest border border-forest/30 px-1.5 py-0.5 hover:bg-forest/10 transition-colors leading-none"
+                        className="font-mono text-[9px] uppercase tracking-wide text-[#9EFFBF] border border-white/[0.15] px-1.5 py-0.5 hover:bg-white/[0.08] transition-colors leading-none"
                       >
                         Connect
                       </button>
                     )}
                     <button
                       onClick={() => dismissPopular(p.id)}
-                      className="absolute top-0.5 right-0.5 text-grid/30 hover:text-grid/70 transition-colors text-[10px] leading-none w-4 h-4 flex items-center justify-center"
+                      className="absolute top-0.5 right-0.5 text-white/30 hover:text-white/70 transition-colors text-[10px] leading-none w-4 h-4 flex items-center justify-center"
                       title="Dismiss"
                     >
                       ✕
@@ -771,7 +771,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
 
       {/* Dynamic integration search bar */}
       <form onSubmit={handleResolve} className="mb-6">
-        <div className="flex gap-2 items-center border border-[rgba(58,58,56,0.25)] bg-paper p-3">
+        <div className="flex gap-2 items-center border border-white/[0.12] bg-white/[0.03] p-3">
           <span className="text-lg">🔌</span>
           <input
             ref={inputRef}
@@ -779,17 +779,17 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder='Connect any app... e.g. "Notion, Linear, LinkedIn" or "I use Attio for CRM and check Twitter daily"'
-            className="flex-1 bg-transparent font-mono text-xs outline-none placeholder:text-grid/30 text-grid"
+            className="flex-1 bg-transparent font-mono text-xs outline-none placeholder:text-white/30 text-white/80"
           />
           <button
             type="submit"
             disabled={resolving || !query.trim()}
-            className="font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 bg-grid text-paper hover:bg-grid/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 bg-white/[0.12] text-white/90 hover:bg-white/[0.18] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {resolving ? "Resolving..." : "Connect →"}
           </button>
         </div>
-        <p className="font-mono text-[9px] text-grid/30 mt-1 ml-1">
+        <p className="font-mono text-[9px] text-white/30 mt-1 ml-1">
           Any app, any service — we'll figure out how to connect it
         </p>
       </form>
@@ -797,37 +797,37 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
       {/* Resolved integration cards */}
       {resolvedCards.length > 0 && (
         <div className="mb-6">
-          <p className="font-mono text-[10px] uppercase tracking-wide text-grid/40 mb-3">Found {resolvedCards.length} service{resolvedCards.length > 1 ? 's' : ''}</p>
+          <p className="font-mono text-[10px] uppercase tracking-wide text-white/40 mb-3">Found {resolvedCards.length} service{resolvedCards.length > 1 ? 's' : ''}</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {resolvedCards.map((card, i) => (
-              <div key={card.resolved.slug} className="border border-[rgba(58,58,56,0.2)] bg-paper p-4">
+              <div key={card.resolved.slug} className="border border-white/[0.1] bg-white/[0.03] p-4">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <IntegrationIcon provider={card.resolved.slug} size={36} />
                     <div>
                       <p className="font-header font-bold text-sm">{card.resolved.name}</p>
-                      <p className="font-mono text-[9px] text-grid/40 uppercase">{card.resolved.category}</p>
+                      <p className="font-mono text-[9px] text-white/40 uppercase">{card.resolved.category}</p>
                     </div>
                   </div>
                   {card.resolved.needsNode && (
-                    <span className="font-mono text-[9px] uppercase tracking-wide bg-amber-100 text-amber-700 px-2 py-0.5 border border-amber-200">
+                    <span className="font-mono text-[9px] uppercase tracking-wide bg-amber-500/20 text-amber-300 px-2 py-0.5 border border-amber-400/30">
                       Requires Node
                     </span>
                   )}
                   {!card.resolved.needsNode && (
-                    <span className="font-mono text-[9px] uppercase tracking-wide bg-forest/10 text-forest px-2 py-0.5 border border-forest/20">
+                    <span className="font-mono text-[9px] uppercase tracking-wide bg-white/[0.06] text-[#9EFFBF] px-2 py-0.5 border border-white/[0.1]">
                       {card.resolved.authType === 'api_key' ? 'API Key' : 'OAuth'}
                     </span>
                   )}
                 </div>
-                <p className="font-mono text-[10px] text-grid/50 mb-3">{card.resolved.description}</p>
+                <p className="font-mono text-[10px] text-white/50 mb-3">{card.resolved.description}</p>
                 {card.resolved.needsNode && (
                   <p className="font-mono text-[9px] text-amber-600 mb-3">
                     This service has no public API — your local node will use browser automation to access it.
                   </p>
                 )}
                 {card.created ? (
-                  <div className="flex items-center gap-1 font-mono text-[10px] text-forest">
+                  <div className="flex items-center gap-1 font-mono text-[10px] text-[#9EFFBF]">
                     <span>✓</span> Added to integrations
                   </div>
                 ) : (
@@ -862,10 +862,10 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
               <Card key={integration.id} label={<IntegrationIcon provider={integration.slug || ""} size={36} />} accentColor={integration.status === "connected" ? "#9EFFBF" : undefined} bordered={true}>
                 <div className="mt-2">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-header text-sm font-medium tracking-tight text-grid/70">{integration.name}</h3>
+                    <h3 className="font-header text-sm font-medium tracking-tight text-white/70">{integration.name}</h3>
                     <div className="flex items-center gap-1">
                       {needsNode && (
-                        <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 border border-amber-200">
+                        <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-500/20 text-amber-300 px-1.5 py-0.5 border border-amber-400/30">
                           Node
                         </span>
                       )}
@@ -904,8 +904,8 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                   </div>
 
                   {needsNode && integration.status === "disconnected" && (
-                    <div className="mt-3 p-2 bg-amber-50 border border-amber-200">
-                      <p className="font-mono text-[9px] text-amber-700">
+                    <div className="mt-3 p-2 bg-amber-500/10 border border-amber-400/30">
+                      <p className="font-mono text-[9px] text-amber-300">
                         Uses browser automation.{' '}
                         <a href="/settings/nodes" className="underline">Connect your desktop via Settings</a>.
                       </p>
@@ -914,8 +914,8 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
 
                   {/* Token expired warning */}
                   {liveStatus?.tokenStatus === 'expired' && (
-                    <div className="mt-3 p-2 bg-red-50 border border-red-200 flex items-center justify-between">
-                      <p className="font-mono text-[9px] text-red-700">
+                    <div className="mt-3 p-2 bg-red-500/10 border border-red-400/30 flex items-center justify-between">
+                      <p className="font-mono text-[9px] text-red-300">
                         ⚠ Token expired — re-authenticate to restore access
                       </p>
                       <button
@@ -928,28 +928,28 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                   )}
 
                   <div className="mt-4">
-                    <span className="font-mono text-[10px] uppercase tracking-wide text-grid/40">Connected Accounts</span>
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">Connected Accounts</span>
                     {integration.accounts.length > 0 ? (
                       <div className="mt-2 space-y-1.5">
                         {integration.accounts.map((account) => (
-                          <div key={account.id} className="flex items-center gap-2 py-1.5 px-2 border border-[rgba(58,58,56,0.1)] bg-cream/30">
+                          <div key={account.id} className="flex items-center gap-2 py-1.5 px-2 border border-white/[0.08] bg-white/[0.03]">
                             {/* Avatar */}
                             {account.picture ? (
                               <img src={account.picture} alt="" className="w-6 h-6 rounded-full flex-shrink-0" />
                             ) : (
-                              <div className="w-6 h-6 rounded-full bg-forest/10 flex items-center justify-center flex-shrink-0">
-                                <span className="font-mono text-[9px] text-forest uppercase">{(account.email || account.name || '?')[0]}</span>
+                              <div className="w-6 h-6 rounded-full bg-white/[0.06] flex items-center justify-center flex-shrink-0">
+                                <span className="font-mono text-[9px] text-[#9EFFBF] uppercase">{(account.email || account.name || '?')[0]}</span>
                               </div>
                             )}
                             {/* Account info */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className="font-mono text-[10px] text-grid truncate">{account.email || account.name || 'Account'}</span>
+                                <span className="font-mono text-[10px] text-white/80 truncate">{account.email || account.name || 'Account'}</span>
                                 {account.is_default && (
-                                  <span className="flex-shrink-0 font-mono text-[8px] uppercase tracking-wide bg-forest/10 text-forest px-1.5 py-0.5 border border-forest/20">Default</span>
+                                  <span className="flex-shrink-0 font-mono text-[8px] uppercase tracking-wide bg-white/[0.06] text-[#9EFFBF] px-1.5 py-0.5 border border-white/[0.1]">Default</span>
                                 )}
                               </div>
-                              <span className="font-mono text-[9px] text-grid/40">Connected {account.connectedAt}</span>
+                              <span className="font-mono text-[9px] text-white/40">Connected {account.connectedAt}</span>
                             </div>
                             {/* Actions */}
                             <div className="flex items-center gap-1 flex-shrink-0">
@@ -957,7 +957,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                                 <button
                                   onClick={() => setAsDefault(integration.id, account.id)}
                                   title="Set as default"
-                                  className="p-1 text-grid/30 hover:text-forest transition-colors"
+                                  className="p-1 text-white/30 hover:text-[#9EFFBF] transition-colors"
                                 >
                                   <Star size={12} />
                                 </button>
@@ -965,7 +965,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                               <button
                                 onClick={() => disconnectAccount(integration.id, account.id)}
                                 title="Disconnect"
-                                className="p-1 text-grid/30 hover:text-coral transition-colors"
+                                className="p-1 text-white/30 hover:text-coral transition-colors"
                               >
                                 <Trash2 size={12} />
                               </button>
@@ -974,9 +974,9 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                         ))}
                       </div>
                     ) : (
-                      <p className="mt-2 font-mono text-[11px] text-grid/40 italic">No accounts connected</p>
+                      <p className="mt-2 font-mono text-[11px] text-white/40 italic">No accounts connected</p>
                     )}
-                    <button onClick={() => addAccount(integration.id)} className="mt-3 w-full py-2 px-3 font-mono text-[11px] uppercase tracking-wide text-forest border border-forest/30 hover:bg-forest/5 transition-colors flex items-center justify-center gap-1.5">
+                    <button onClick={() => addAccount(integration.id)} className="mt-3 w-full py-2 px-3 font-mono text-[11px] uppercase tracking-wide text-[#9EFFBF] border border-white/[0.15] hover:bg-white/[0.04] transition-colors flex items-center justify-center gap-1.5">
                       <Plus size={14} />
                       <span>{integration.accounts.length > 0 ? 'Add Account' : 'Connect'}</span>
                     </button>
@@ -984,16 +984,16 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
 
                   {integration.status === "connected" && getScopes(integration).length > 0 && (
                     <div className="mt-4">
-                      <span className="font-mono text-[10px] uppercase tracking-wide text-grid/40">Scopes</span>
+                      <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">Scopes</span>
                       <div className="flex gap-1 mt-1 flex-wrap">
                         {getScopes(integration).map((scope) => (
-                          <span key={scope} className="font-mono text-[10px] bg-forest/5 px-2 py-0.5 border border-[rgba(58,58,56,0.1)]">{scope}</span>
+                          <span key={scope} className="font-mono text-[10px] bg-white/[0.04] px-2 py-0.5 border border-white/[0.08]">{scope}</span>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  <p className="font-mono text-[10px] text-grid/40 mt-4">Last sync: {integration.last_sync || "Never"}</p>
+                  <p className="font-mono text-[10px] text-white/40 mt-4">Last sync: {integration.last_sync || "Never"}</p>
 
                   {/* Deep Scan — only for connected integrations with a known provider */}
                   {integration.status === "connected" && (
@@ -1005,12 +1005,12 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
           })}
         </div>
       ) : (
-        <div className="border border-[rgba(58,58,56,0.2)] bg-paper p-12 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 border border-[rgba(58,58,56,0.2)] flex items-center justify-center">
+        <div className="border border-white/[0.1] bg-white/[0.03] p-12 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 border border-white/[0.1] flex items-center justify-center">
             <span className="text-2xl">🔗</span>
           </div>
           <h2 className="font-header text-xl font-bold mb-2">No integrations yet</h2>
-          <p className="text-sm text-grid/50 mb-6 max-w-md mx-auto">
+          <p className="text-sm text-white/50 mb-6 max-w-md mx-auto">
             Use the search bar above to connect any app — just type what you use and we'll figure out the rest.
           </p>
         </div>

@@ -25,7 +25,7 @@ export function IntegrationCardSkeleton({ className }: IntegrationSkeletonProps)
         <Skeleton className="h-2.5 w-32 mb-3" />
         
         {/* Account item */}
-        <div className="py-1.5 px-2 border border-[rgba(58,58,56,0.1)] bg-cream/30 mb-2">
+        <div className="py-1.5 px-2 border border-white/[0.08] bg-white/[0.03] mb-2">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <Skeleton className="h-3 w-36" />
@@ -55,7 +55,7 @@ export function IntegrationGridSkeleton({
   return (
     <div
       className={cn(
-        "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-[rgba(58,58,56,0.2)]",
+        "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-white/[0.05]",
         className
       )}
     >

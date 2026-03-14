@@ -329,7 +329,6 @@ export function useGatewayWS({
             sessionKey,
             idempotencyKey,
             message: text,
-            ...(opts?.model ? { model: opts.model } : {}),
           },
         })
       );

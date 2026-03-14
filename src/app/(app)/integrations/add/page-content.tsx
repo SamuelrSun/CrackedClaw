@@ -123,7 +123,7 @@ export default function AddIntegrationPage() {
                   className={`p-4 text-left border transition-all ${
                     selectedType === type.id
                       ? "border-forest bg-forest/5"
-                      : "border-[rgba(58,58,56,0.2)] hover:border-forest/50"
+                      : "border-white/[0.1] hover:border-forest/50"
                   }`}
                 >
                   <span className="text-2xl">{type.icon}</span>
@@ -194,7 +194,7 @@ export default function AddIntegrationPage() {
                         className={`px-3 py-1.5 font-mono text-[10px] border ${
                           typeConfig.fileType === ft
                             ? "border-forest bg-forest/5 text-forest"
-                            : "border-[rgba(58,58,56,0.2)] text-grid/60"
+                            : "border-white/[0.1] text-grid/60"
                         }`}
                       >
                         {ft}
@@ -206,7 +206,7 @@ export default function AddIntegrationPage() {
             )}
             {selectedType === "webhook" && (
               <div className="space-y-4">
-                <div className="p-4 bg-cream border border-[rgba(58,58,56,0.2)]">
+                <div className="p-4 bg-white/[0.03] border border-white/[0.1]">
                   <span className="font-mono text-[10px] uppercase tracking-wide text-grid/60">
                     Your Webhook URL
                   </span>
@@ -253,7 +253,7 @@ export default function AddIntegrationPage() {
                     className={`w-10 h-10 text-xl flex items-center justify-center border transition-colors ${
                       selectedIcon === icon
                         ? "border-forest bg-forest/5"
-                        : "border-[rgba(58,58,56,0.2)] hover:border-forest/50"
+                        : "border-white/[0.1] hover:border-forest/50"
                     }`}
                   >
                     {icon}
@@ -271,7 +271,7 @@ export default function AddIntegrationPage() {
               Review your integration configuration before saving.
             </p>
             <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 border border-[rgba(58,58,56,0.2)]">
+              <div className="flex items-center gap-4 p-4 border border-white/[0.1]">
                 <span className="text-3xl">{selectedIcon}</span>
                 <div>
                   <h3 className="font-header text-lg font-bold">
@@ -282,7 +282,7 @@ export default function AddIntegrationPage() {
                   </span>
                 </div>
               </div>
-              <div className="p-4 bg-cream border border-[rgba(58,58,56,0.2)]">
+              <div className="p-4 bg-white/[0.03] border border-white/[0.1]">
                 <span className="font-mono text-[10px] uppercase tracking-wide text-grid/60 mb-2 block">
                   Configuration
                 </span>
@@ -327,7 +327,7 @@ export default function AddIntegrationPage() {
                     ? "border-forest bg-forest text-white"
                     : currentStep > step
                     ? "border-forest bg-forest/10 text-forest"
-                    : "border-[rgba(58,58,56,0.2)] text-grid/40"
+                    : "border-white/[0.1] text-grid/40"
                 }`}
               >
                 {currentStep > step ? "✓" : step}
@@ -363,7 +363,7 @@ export default function AddIntegrationPage() {
         {renderStepContent()}
 
         {/* Navigation Buttons */}
-        <div className="flex justify-between mt-8 pt-6 border-t border-[rgba(58,58,56,0.1)]">
+        <div className="flex justify-between mt-8 pt-6 border-t border-white/[0.08]">
           <Button
             type="button"
             onClick={handleBack}

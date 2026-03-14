@@ -167,7 +167,7 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="bg-paper border border-[rgba(58,58,56,0.2)] p-6 max-w-md w-full mx-4 space-y-4"
+        className="bg-paper border border-white/[0.1] p-6 max-w-md w-full mx-4 space-y-4"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -182,7 +182,7 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
         </p>
 
         {/* Live Connection Status Indicator */}
-        <div className="p-3 border border-[rgba(58,58,56,0.15)] bg-forest/5">
+        <div className="p-3 border border-white/[0.1] bg-forest/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {nodeStatus === null ? (
@@ -203,9 +203,9 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
                 <>
                   <div className="relative w-3 h-3">
                     <div className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-75" />
-                    <div className="relative w-3 h-3 rounded-full bg-amber-500" />
+                    <div className="relative w-3 h-3 rounded-full bg-amber-900/200" />
                   </div>
-                  <span className="font-mono text-[10px] text-amber-700">
+                  <span className="font-mono text-[10px] text-amber-400">
                     ⏳ Waiting for connection...
                   </span>
                 </>
@@ -250,7 +250,7 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
             </div>
 
             {/* Download link with Copy button */}
-            <div className="relative bg-forest/5 border border-[rgba(58,58,56,0.15)] p-3">
+            <div className="relative bg-forest/5 border border-white/[0.1] p-3">
               <code className="font-mono text-[11px] text-forest break-all pr-16">
                 dopl.com/connect
               </code>
@@ -317,7 +317,7 @@ function CompanionOnboardingInline({ name }: { name: string }) {
   const maskedToken = token ? `${token.slice(0, 8)}…${token.slice(-4)}` : "Loading…";
 
   return (
-    <div className="mt-3 border-t border-[rgba(58,58,56,0.15)] pt-3 space-y-3">
+    <div className="mt-3 border-t border-white/[0.1] pt-3 space-y-3">
       <div className="space-y-2">
         <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
           <strong className="text-forest">{name}</strong> doesn&apos;t have an API, so I need to browse it on your computer — just like you would.
@@ -337,7 +337,7 @@ function CompanionOnboardingInline({ name }: { name: string }) {
       </a>
 
       {/* Copy token button */}
-      <div className="bg-forest/5 border border-[rgba(58,58,56,0.15)] p-2.5 space-y-2">
+      <div className="bg-forest/5 border border-white/[0.1] p-2.5 space-y-2">
         <p className="font-mono text-[9px] uppercase tracking-wide text-grid/50">Connection Token</p>
         <div className="flex items-center gap-2">
           <code className="font-mono text-[10px] text-forest/70 truncate flex-1 select-none">
@@ -361,9 +361,9 @@ function CompanionOnboardingInline({ name }: { name: string }) {
       <div className="flex items-center gap-2 py-1.5">
         <div className="relative w-2.5 h-2.5">
           <div className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-75" />
-          <div className="relative w-2.5 h-2.5 rounded-full bg-amber-500" />
+          <div className="relative w-2.5 h-2.5 rounded-full bg-amber-900/200" />
         </div>
-        <span className="font-mono text-[10px] text-amber-700">
+        <span className="font-mono text-[10px] text-amber-400">
           Waiting for connection...
         </span>
       </div>
@@ -646,7 +646,7 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
           const showAccountsSection = card.status === "added" && isOAuth && accountCount > 0 && card.showAccounts;
 
           return (
-            <div key={card.resolved.slug} className="border border-[rgba(58,58,56,0.2)] bg-gray-100 p-3 max-w-sm">
+            <div key={card.resolved.slug} className="border border-white/[0.1] bg-gray-100 p-3 max-w-sm">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <IntegrationIcon provider={card.resolved.slug} size={24} />
@@ -654,7 +654,7 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
                     <p className="font-header font-bold text-sm truncate">{card.resolved.name}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       {card.resolved.needsNode ? (
-                        <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 border border-amber-200">
+                        <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-900/20 text-amber-400 px-1.5 py-0.5 border border-amber-500/30">
                           Uses your browser
                         </span>
                       ) : (
@@ -746,7 +746,7 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
 
               {/* Connected Accounts section */}
               {showAccountsSection && (
-                <div className="mt-2 border border-[rgba(58,58,56,0.2)] p-2 space-y-1">
+                <div className="mt-2 border border-white/[0.1] p-2 space-y-1">
                   <p className="font-mono text-[8px] uppercase tracking-wide text-grid/40 mb-1.5">Connected Accounts</p>
                   {card.accounts!.map(account => (
                     <AccountRow key={account.id} account={account} />
@@ -778,7 +778,7 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
                     value={card.apiKeyValue || ""}
                     onChange={e => setCards(prev => prev.map((c, idx) => idx === i ? { ...c, apiKeyValue: e.target.value } : c))}
                     onKeyDown={e => e.key === "Enter" && handleSaveApiKey(i)}
-                    className="flex-1 font-mono text-[11px] border border-[rgba(58,58,56,0.2)] px-2 py-1.5 bg-white focus:outline-none focus:border-forest"
+                    className="flex-1 font-mono text-[11px] border border-white/[0.1] px-2 py-1.5 bg-white focus:outline-none focus:border-forest"
                   />
                   <button
                     onClick={() => handleSaveApiKey(i)}

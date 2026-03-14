@@ -22,7 +22,7 @@ export default function MemoryLoading() {
         <Skeleton className="h-10 w-full" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-[rgba(58,58,56,0.2)]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-white/[0.05]">
         {/* Memory Entries */}
         <div className="col-span-1 bg-paper p-8">
           <div className="flex items-center gap-2 mb-4">
@@ -41,7 +41,7 @@ export default function MemoryLoading() {
           <div className="mt-2 space-y-3">
             <Skeleton className="h-3 w-full" />
             <Skeleton className="h-3 w-5/6" />
-            <div className="border border-[rgba(58,58,56,0.2)] bg-white p-4 mt-3">
+            <div className="border border-white/[0.1] bg-white p-4 mt-3">
               <Skeleton className="h-3 w-full mb-2" />
               <Skeleton className="h-3 w-4/5" />
             </div>

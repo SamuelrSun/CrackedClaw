@@ -67,7 +67,7 @@ export function FileUploadButton({ onFilesChange, files }: FileUploadProps) {
               className={`flex items-center gap-1.5 pl-2 pr-1 py-0.5 border text-[10px] font-mono rounded-full ${
                 af.mode === 'memory'
                   ? 'border-blue-300 bg-blue-50 text-blue-700'
-                  : 'border-[rgba(58,58,56,0.2)] bg-paper text-grid/60'
+                  : 'border-white/[0.1] bg-paper text-grid/60'
               }`}
             >
               <span className="text-xs">{af.file.name.endsWith('.pdf') ? '📄' : af.file.type.startsWith('image') ? '🖼️' : '📎'}</span>

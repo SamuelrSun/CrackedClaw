@@ -52,9 +52,9 @@ function StatusIcon({ status }: { status: string }) {
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    completed: "bg-green-50 text-green-700 border-green-200",
-    failed: "bg-red-50 text-red-700 border-red-200",
-    running: "bg-blue-50 text-blue-700 border-blue-200",
+    completed: "bg-emerald-900/20 text-emerald-400 border-emerald-500/30",
+    failed: "bg-red-900/20 text-red-400 border-red-500/30",
+    running: "bg-blue-900/20 text-blue-400 border-blue-500/30",
     pending: "bg-gray-50 text-gray-700 border-gray-200",
   };
 
@@ -124,7 +124,7 @@ export default async function WorkflowRunsPage({ params }: PageProps) {
       </div>
 
       {runs.length === 0 ? (
-        <div className="border border-[rgba(58,58,56,0.2)] bg-white p-12 text-center">
+        <div className="border border-white/[0.1] bg-white p-12 text-center">
           <Clock size={48} className="mx-auto text-gray-300 mb-4" />
           <h3 className="text-lg font-bold text-gray-900 mb-2">No runs yet</h3>
           <p className="text-gray-600 text-sm">
@@ -138,9 +138,9 @@ export default async function WorkflowRunsPage({ params }: PageProps) {
           </Link>
         </div>
       ) : (
-        <div className="border border-[rgba(58,58,56,0.2)] bg-white">
+        <div className="border border-white/[0.1] bg-white">
           <table className="w-full">
-            <thead className="border-b border-[rgba(58,58,56,0.2)]">
+            <thead className="border-b border-white/[0.1]">
               <tr className="font-mono text-[10px] uppercase tracking-wide text-grid/50">
                 <th className="text-left p-4">Run ID</th>
                 <th className="text-left p-4">Status</th>
@@ -153,7 +153,7 @@ export default async function WorkflowRunsPage({ params }: PageProps) {
               {runs.map((run, index) => (
                 <tr 
                   key={run.id}
-                  className={index !== runs.length - 1 ? "border-b border-[rgba(58,58,56,0.1)]" : ""}
+                  className={index !== runs.length - 1 ? "border-b border-white/[0.08]" : ""}
                 >
                   <td className="p-4">
                     <code className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">

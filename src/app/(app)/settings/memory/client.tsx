@@ -86,7 +86,7 @@ function MemoryCard({
     : memory.value;
 
   return (
-    <div className="flex items-start gap-3 py-2.5 px-3 border border-[rgba(58,58,56,0.08)] bg-paper hover:border-[rgba(58,58,56,0.2)] transition-colors group">
+    <div className="flex items-start gap-3 py-2.5 px-3 border border-white/[0.06] bg-paper hover:border-white/[0.1] transition-colors group">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
           <span className="font-mono text-[11px] font-semibold text-grid/80 truncate">{memory.key}</span>
@@ -152,7 +152,7 @@ function CategorySection({
         {open ? <ChevronDown size={14} className="text-grid/40" /> : <ChevronRight size={14} className="text-grid/40" />}
       </button>
       {open && (
-        <div className="border-t border-[rgba(58,58,56,0.08)] divide-y divide-[rgba(58,58,56,0.05)]">
+        <div className="border-t border-white/[0.06] divide-y divide-[rgba(58,58,56,0.05)]">
           {memories.length === 0 ? (
             <p className="px-4 py-3 font-mono text-[11px] text-grid/30">No {cfg.label.toLowerCase()} yet.</p>
           ) : (
@@ -210,7 +210,7 @@ function AddMemoryForm({ onAdd }: { onAdd: (m: MemoryEntry) => void }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="border border-[rgba(58,58,56,0.15)] p-4 space-y-3">
+    <form onSubmit={handleSubmit} className="border border-white/[0.1] p-4 space-y-3">
       <p className="font-mono text-[10px] uppercase tracking-wide text-grid/50">Add Memory</p>
       {error && <p className="font-mono text-[11px] text-red-500">{error}</p>}
       <div className="grid grid-cols-2 gap-3">
@@ -229,7 +229,7 @@ function AddMemoryForm({ onAdd }: { onAdd: (m: MemoryEntry) => void }) {
           <select
             value={category}
             onChange={e => setCategory(e.target.value as MemoryCategory)}
-            className="w-full border border-[rgba(58,58,56,0.2)] bg-paper px-2 py-1.5 font-mono text-[11px] outline-none h-8"
+            className="w-full border border-white/[0.1] bg-paper px-2 py-1.5 font-mono text-[11px] outline-none h-8"
           >
             {CATEGORY_ORDER.map(c => (
               <option key={c} value={c}>{CATEGORY_CONFIG[c].emoji} {CATEGORY_CONFIG[c].label}</option>

@@ -67,7 +67,7 @@ export default function SkillsPage() {
         value={query}
         onChange={e => setQuery(e.target.value)}
         placeholder="Search skills..."
-        className="w-full border border-[rgba(58,58,56,0.2)] bg-paper px-3 py-2 font-mono text-xs outline-none placeholder:text-grid/30 mb-6"
+        className="w-full border border-white/[0.1] bg-paper px-3 py-2 font-mono text-xs outline-none placeholder:text-grid/30 mb-6"
       />
 
       {loading ? (
@@ -109,7 +109,7 @@ function SkillCard({ skill, onInstall, onUninstall, isLoading }: {
   isLoading: boolean;
 }) {
   return (
-    <div className={`border p-4 transition-colors ${skill.installed ? 'border-forest/30 bg-forest/5' : 'border-[rgba(58,58,56,0.15)] bg-paper'}`}>
+    <div className={`border p-4 transition-colors ${skill.installed ? 'border-forest/30 bg-forest/5' : 'border-white/[0.1] bg-paper'}`}>
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-xl">{skill.icon}</span>
@@ -127,7 +127,7 @@ function SkillCard({ skill, onInstall, onUninstall, isLoading }: {
       <p className="font-mono text-[10px] text-grid/60 mb-2">{skill.description}</p>
       <div className="flex flex-wrap gap-1 mb-3">
         {skill.capabilities.slice(0, 3).map(cap => (
-          <span key={cap} className="font-mono text-[8px] bg-grid/5 px-2 py-0.5 border border-[rgba(58,58,56,0.1)] text-grid/50">{cap}</span>
+          <span key={cap} className="font-mono text-[8px] bg-grid/5 px-2 py-0.5 border border-white/[0.08] text-grid/50">{cap}</span>
         ))}
       </div>
       {skill.installed ? (

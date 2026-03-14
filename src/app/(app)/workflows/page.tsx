@@ -91,7 +91,7 @@ export default function WorkflowsPage() {
           </p>
         </div>
         <Link href="/workflows/builder">
-          <button className="px-4 py-2 font-mono text-[10px] uppercase tracking-wide bg-[#1A3C2B] text-white hover:bg-[#1A3C2B]/80 transition-colors flex items-center gap-2">
+          <button className="px-4 py-2 font-mono text-[10px] uppercase tracking-wide bg-white/[0.12] text-white hover:bg-white/[0.12]/80 transition-colors flex items-center gap-2">
             <span>✨</span> Create with AI
           </button>
         </Link>
@@ -99,7 +99,7 @@ export default function WorkflowsPage() {
 
       {/* Prompt-driven creation */}
       <form onSubmit={createFromPrompt} className="mb-6">
-        <div className="border border-[rgba(58,58,56,0.25)] bg-paper p-4">
+        <div className="border border-white/[0.12] bg-paper p-4">
           <p className="font-mono text-[10px] uppercase tracking-wide text-grid/40 mb-2">Create a workflow</p>
           <div className="flex gap-2">
             <input
@@ -107,7 +107,7 @@ export default function WorkflowsPage() {
               value={prompt}
               onChange={e => setPrompt(e.target.value)}
               placeholder='Describe what to automate... e.g. "Every morning, check Gmail for urgent emails, summarize them, post to #standup on Slack"'
-              className="flex-1 bg-transparent font-mono text-xs outline-none placeholder:text-grid/30 text-grid border-b border-[rgba(58,58,56,0.1)] pb-2"
+              className="flex-1 bg-transparent font-mono text-xs outline-none placeholder:text-grid/30 text-grid border-b border-white/[0.08] pb-2"
             />
             <button
               type="submit"
@@ -152,8 +152,8 @@ export default function WorkflowsPage() {
       {loading ? (
         <p className="font-mono text-xs text-grid/40">Loading workflows...</p>
       ) : workflows.length === 0 ? (
-        <div className="border border-[rgba(58,58,56,0.15)] bg-paper p-12 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 border border-[rgba(58,58,56,0.15)] flex items-center justify-center">
+        <div className="border border-white/[0.1] bg-paper p-12 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 border border-white/[0.1] flex items-center justify-center">
             <span className="text-2xl">⚡</span>
           </div>
           <h2 className="font-header text-xl font-bold mb-2">No workflows yet</h2>
@@ -182,7 +182,7 @@ function WorkflowCard({ workflow, onRun, isRunning }: { workflow: Workflow; onRu
   const integrations = workflow.metadata?.requiredIntegrations || [];
 
   return (
-    <div className={`border p-4 transition-colors ${workflow.status === 'active' ? 'border-forest/30 bg-forest/5' : 'border-[rgba(58,58,56,0.15)] bg-paper'}`}>
+    <div className={`border p-4 transition-colors ${workflow.status === 'active' ? 'border-forest/30 bg-forest/5' : 'border-white/[0.1] bg-paper'}`}>
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-lg">{workflow.icon || '⚡'}</span>
@@ -213,7 +213,7 @@ function WorkflowCard({ workflow, onRun, isRunning }: { workflow: Workflow; onRu
         <div className="flex items-center gap-1 mb-2 overflow-x-auto">
           {steps.slice(0, 4).map((step, i) => (
             <div key={step.id} className="flex items-center gap-1 flex-shrink-0">
-              <span className="font-mono text-[9px] bg-grid/5 px-2 py-0.5 border border-[rgba(58,58,56,0.1)] text-grid/60 max-w-[120px] truncate">
+              <span className="font-mono text-[9px] bg-grid/5 px-2 py-0.5 border border-white/[0.08] text-grid/60 max-w-[120px] truncate">
                 {step.description.slice(0, 30)}
               </span>
               {i < steps.length - 1 && i < 3 && <span className="text-grid/30">→</span>}
@@ -227,7 +227,7 @@ function WorkflowCard({ workflow, onRun, isRunning }: { workflow: Workflow; onRu
       {integrations.length > 0 && (
         <div className="flex gap-1 flex-wrap">
           {integrations.map(slug => (
-            <span key={slug} className="font-mono text-[8px] uppercase bg-grid/5 px-2 py-0.5 border border-[rgba(58,58,56,0.1)] text-grid/50">
+            <span key={slug} className="font-mono text-[8px] uppercase bg-grid/5 px-2 py-0.5 border border-white/[0.08] text-grid/50">
               {slug}
             </span>
           ))}

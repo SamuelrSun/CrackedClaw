@@ -155,7 +155,7 @@ export function ChannelConnectModal({
     <Modal isOpen={isOpen} onClose={handleClose} title={`Connect ${config.name}`}>
       <div className="space-y-6">
         {/* Channel header */}
-        <div className="flex items-center gap-3 pb-4 border-b border-[rgba(58,58,56,0.1)]">
+        <div className="flex items-center gap-3 pb-4 border-b border-white/[0.08]">
           <div className="w-12 h-12 flex items-center justify-center bg-forest/10 text-forest">
             {config.icon}
           </div>

@@ -49,7 +49,7 @@ export function HybridConfig({ config, onChange }: HybridConfigProps) {
         </span>
 
         {steps.length === 0 ? (
-          <div className="p-6 border border-dashed border-[rgba(58,58,56,0.3)] text-center">
+          <div className="p-6 border border-dashed border-white/[0.15] text-center">
             <p className="font-mono text-[11px] text-grid/40">
               No steps added yet. Add steps to build your pipeline.
             </p>
@@ -59,7 +59,7 @@ export function HybridConfig({ config, onChange }: HybridConfigProps) {
             {steps.map((step, index) => (
               <div
                 key={step.id}
-                className="p-4 border border-[rgba(58,58,56,0.2)] bg-white"
+                className="p-4 border border-white/[0.1] bg-white"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -122,7 +122,7 @@ export function HybridConfig({ config, onChange }: HybridConfigProps) {
                       Transform Expression
                     </label>
                     <textarea
-                      className="w-full bg-cream border border-[rgba(58,58,56,0.2)] rounded-none px-3 py-2 font-mono text-xs text-forest placeholder:text-grid/30 outline-none focus:border-forest transition-colors min-h-[60px] resize-y"
+                      className="w-full bg-white/[0.03] border border-white/[0.1] rounded-none px-3 py-2 font-mono text-xs text-forest placeholder:text-grid/30 outline-none focus:border-forest transition-colors min-h-[60px] resize-y"
                       placeholder="data.items.map(i => i.name)"
                       value={step.config.expression || ""}
                       onChange={(e) =>

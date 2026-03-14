@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { logActivity, incrementTokenUsage } from "@/lib/supabase/data";
 import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
 import { processAgentResponse } from "@/lib/memory/service";
+import { addChatTurn } from "@/lib/memory/chat-memory";
 import { incrementUsage } from "@/lib/usage/tracker";
 import { checkTokenLimit } from "@/lib/usage/enforcement";
 import { buildSystemPromptForUser, buildLinkedContextSummary } from "@/lib/gateway/system-prompt";
@@ -251,6 +252,11 @@ export async function POST(request: NextRequest) {
       // ── Post-stream: save message, process memory ──
       try {
         const cleanedContent = fullContent ? await processAgentResponse(user.id, fullContent, message) : fullContent;
+
+        // Batched chat memory extraction (fire-and-forget)
+        if (cleanedContent) {
+          addChatTurn(user.id, message, cleanedContent, capturedConvoId || undefined).catch(() => {});
+        }
 
         if (capturedConvoId && cleanedContent) {
           try { await supabase.from("messages").insert({ conversation_id: capturedConvoId, role: "assistant", content: cleanedContent }); } catch(e) { console.error("Failed to save assistant message:", e); }

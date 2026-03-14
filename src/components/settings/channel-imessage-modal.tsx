@@ -91,7 +91,7 @@ export function IMessageSetupModal({
         {/* Step 1: Requirements */}
         {step === 1 && (
           <div className="space-y-5">
-            <div className="flex items-center gap-3 pb-4 border-b border-[rgba(58,58,56,0.1)]">
+            <div className="flex items-center gap-3 pb-4 border-b border-white/[0.08]">
               <div className="w-12 h-12 flex items-center justify-center bg-[#007AFF] text-white">
                 <Smartphone className="w-6 h-6" />
               </div>
@@ -112,7 +112,7 @@ export function IMessageSetupModal({
                 companion app running on a Mac with an active iMessage account.
               </p>
 
-              <div className="bg-forest/5 border border-[rgba(58,58,56,0.1)] p-4">
+              <div className="bg-forest/5 border border-white/[0.08] p-4">
                 <h4 className="font-mono text-[10px] uppercase tracking-wide text-grid/60 mb-2">
                   Requirements
                 </h4>
@@ -156,7 +156,7 @@ export function IMessageSetupModal({
         {/* Step 2: Download & Wait */}
         {step === 2 && (
           <div className="space-y-5">
-            <div className="flex items-center gap-3 pb-4 border-b border-[rgba(58,58,56,0.1)]">
+            <div className="flex items-center gap-3 pb-4 border-b border-white/[0.08]">
               <div className="w-12 h-12 flex items-center justify-center bg-forest/10 text-forest">
                 <Monitor className="w-6 h-6" />
               </div>
@@ -177,7 +177,7 @@ export function IMessageSetupModal({
               </p>
 
               <button
-                className="w-full flex items-center gap-4 p-4 border border-[rgba(58,58,56,0.2)] bg-forest/5 hover:bg-forest/10 transition-colors text-left"
+                className="w-full flex items-center gap-4 p-4 border border-white/[0.1] bg-forest/5 hover:bg-forest/10 transition-colors text-left"
               >
                 <div className="w-10 h-10 flex items-center justify-center bg-forest text-white">
                   <Download className="w-5 h-5" />
@@ -255,7 +255,7 @@ export function IMessageSetupModal({
         {/* Step 3: Connected / Ready */}
         {step === 3 && (
           <div className="space-y-5">
-            <div className="flex items-center gap-3 pb-4 border-b border-[rgba(58,58,56,0.1)]">
+            <div className="flex items-center gap-3 pb-4 border-b border-white/[0.08]">
               <div className="w-12 h-12 flex items-center justify-center bg-mint/20 text-forest">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
@@ -327,7 +327,7 @@ export function IMessageSetupModal({
               </div>
             </div>
 
-            <div className="bg-forest/5 border border-[rgba(58,58,56,0.1)] p-4">
+            <div className="bg-forest/5 border border-white/[0.08] p-4">
               <h4 className="font-mono text-[10px] uppercase tracking-wide text-grid/60 mb-2">
                 Contact &amp; Group Settings
               </h4>

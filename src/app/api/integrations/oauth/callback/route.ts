@@ -212,6 +212,21 @@ export async function GET(request: NextRequest) {
     // Mark flow as completed
     await updateOAuthFlowStatus(state, 'completed');
 
+    // Fire-and-forget background memory scan for the newly connected integration
+    const appBase = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    fetch(`${appBase}/api/memory/scan/light`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({
+        userId: user_id,
+        provider,
+        accountEmail: userInfo?.email,
+      }),
+    }).catch(() => {}); // Truly fire-and-forget
+
     // Get account name for display
     const accountName = userInfo?.email || userInfo?.name || userInfo?.teamName || 'Connected';
 

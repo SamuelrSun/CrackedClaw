@@ -40,35 +40,35 @@ export function InlineSubagentCard({
 
   const statusConfig = {
     queued: {
-      icon: <Clock className="w-3.5 h-3.5 text-grid/50" />,
+      icon: <Clock className="w-3.5 h-3.5 text-white/50" />,
       label: "Queued",
-      color: "text-grid/50",
-      borderColor: "border-grid/20",
-      bgColor: "bg-grid/5",
-      dotColor: "bg-grid/40",
+      color: "text-white/50",
+      borderColor: "border-white/[0.1]",
+      bgColor: "bg-white/[0.04]",
+      dotColor: "bg-white/40",
     },
     running: {
-      icon: <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />,
+      icon: <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin" />,
       label: `Running${elapsed > 0 ? ` · ${formatTime(elapsed)}` : ""}`,
-      color: "text-blue-600",
-      borderColor: "border-blue-200",
-      bgColor: "bg-blue-50",
+      color: "text-blue-400",
+      borderColor: "border-blue-400/30",
+      bgColor: "bg-blue-500/[0.08]",
       dotColor: "bg-blue-400",
     },
     complete: {
-      icon: <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />,
+      icon: <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />,
       label: "Complete",
-      color: "text-emerald-600",
-      borderColor: "border-emerald-200",
-      bgColor: "bg-emerald-50",
+      color: "text-emerald-400",
+      borderColor: "border-emerald-400/30",
+      bgColor: "bg-emerald-500/[0.08]",
       dotColor: "bg-emerald-400",
     },
     failed: {
-      icon: <XCircle className="w-3.5 h-3.5 text-red-500" />,
+      icon: <XCircle className="w-3.5 h-3.5 text-red-400" />,
       label: "Failed",
-      color: "text-red-600",
-      borderColor: "border-red-200",
-      bgColor: "bg-red-50",
+      color: "text-red-400",
+      borderColor: "border-red-400/30",
+      bgColor: "bg-red-500/[0.08]",
       dotColor: "bg-red-400",
     },
   };
@@ -77,18 +77,18 @@ export function InlineSubagentCard({
 
   return (
     <div
-      className={`my-2 rounded-lg border ${config.borderColor} ${config.bgColor} px-4 py-3 max-w-md transition-all duration-300`}
+      className={`my-2 rounded-xl border ${config.borderColor} ${config.bgColor} px-4 py-3 max-w-md transition-all duration-300`}
     >
       <div className="flex items-start gap-3">
         {/* Bot icon */}
-        <div className="flex-shrink-0 mt-0.5 w-7 h-7 rounded-full bg-white border border-grid/15 flex items-center justify-center">
-          <Bot className="w-3.5 h-3.5 text-forest" />
+        <div className="flex-shrink-0 mt-0.5 w-7 h-7 rounded-full bg-white/[0.06] border border-white/[0.1] flex items-center justify-center">
+          <Bot className="w-3.5 h-3.5 text-white/70" />
         </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
           {/* Task label */}
-          <p className="font-body text-sm text-forest leading-snug">
+          <p className="font-body text-sm text-white/90 leading-snug">
             {taskLabel}
           </p>
 
@@ -100,7 +100,7 @@ export function InlineSubagentCard({
 
           {/* Result summary (only when complete) */}
           {status === "complete" && result && (
-            <p className="mt-2 text-xs text-grid/60 font-body leading-relaxed border-t border-grid/10 pt-2">
+            <p className="mt-2 text-xs text-white/60 font-body leading-relaxed border-t border-white/[0.1] pt-2">
               {result}
             </p>
           )}

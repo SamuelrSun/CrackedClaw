@@ -460,7 +460,7 @@ function LoginContent() {
 
           {/* Demo Mode - only show if Supabase is not configured */}
           {!supabaseConfigured && (
-            <div className="mt-6 pt-4 border-t border-[rgba(58,58,56,0.1)]">
+            <div className="mt-6 pt-4 border-t border-white/[0.08]">
               <p className="font-mono text-[9px] text-grid/50 uppercase tracking-wide text-center mb-3">
                 Or try without authentication
               </p>

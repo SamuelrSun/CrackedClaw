@@ -38,14 +38,14 @@ export function BrowserOpenCard({ url, message }: BrowserOpenCardProps) {
   return (
     <div className={cn(
       "my-2 border rounded-lg overflow-hidden font-mono text-xs max-w-sm transition-all duration-200",
-      opened ? "border-green-400/30 bg-green-50/30" : "border-[#1A3C2B]/20 bg-[#1A3C2B]/[0.03]"
+      opened ? "border-green-400/30 bg-green-50/30" : "border-white/[0.1] bg-white/[0.12]/[0.03]"
     )}>
       <div className="flex items-center gap-3 px-3 py-2.5">
         {favicon ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={favicon} alt="" className="w-4 h-4 flex-shrink-0" />
         ) : (
-          <Globe className="w-4 h-4 text-[#1A3C2B] flex-shrink-0" />
+          <Globe className="w-4 h-4 text-white/80 flex-shrink-0" />
         )}
         <div className="flex-1 min-w-0">
           <p className="text-[11px] font-medium text-gray-700 truncate">{displayUrl}</p>
@@ -57,7 +57,7 @@ export function BrowserOpenCard({ url, message }: BrowserOpenCardProps) {
             "flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-medium transition-colors flex-shrink-0",
             opened
               ? "bg-green-100 text-green-700"
-              : "bg-[#1A3C2B] text-white hover:bg-[#24503a]"
+              : "bg-white/[0.12] text-white hover:bg-[#24503a]"
           )}
         >
           {opened ? (

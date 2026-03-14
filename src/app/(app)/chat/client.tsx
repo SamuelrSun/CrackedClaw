@@ -160,17 +160,17 @@ function TokenUsageBar() {
   if (pct < 60) return null; // hide when usage is low
 
   return (
-    <div className={`flex-shrink-0 px-4 py-1.5 border-t border-[rgba(58,58,56,0.1)] flex items-center gap-3 ${
-      isExceeded ? 'bg-red-50' : isWarning ? 'bg-amber-50' : 'bg-transparent'
+    <div className={`flex-shrink-0 px-4 py-1.5 border-t border-white/[0.08] flex items-center gap-3 ${
+      isExceeded ? 'bg-red-500/10' : isWarning ? 'bg-amber-500/10' : 'bg-transparent'
     }`}>
-      <div className="flex-1 h-1 bg-[rgba(58,58,56,0.08)]">
+      <div className="flex-1 h-1 bg-white/[0.06]">
         <div
           className={`h-full transition-all ${isExceeded ? 'bg-red-500' : isWarning ? 'bg-amber-400' : 'bg-emerald-500'}`}
           style={{ width: `${Math.min(pct, 100)}%` }}
         />
       </div>
       <span className={`font-mono text-[10px] uppercase tracking-wide flex-shrink-0 ${
-        isExceeded ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-[rgba(58,58,56,0.5)]'
+        isExceeded ? 'text-red-400' : isWarning ? 'text-amber-400' : 'text-white/50'
       }`}>
         {isExceeded ? (
           <a href="/settings/billing" className="underline">Limit reached — Upgrade</a>
@@ -237,7 +237,7 @@ function RichMessage({
             );
           case "text":
             return (
-              <div key={idx} className="prose prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-headings:font-header prose-headings:text-forest prose-strong:text-forest prose-code:text-xs prose-code:bg-grid/10 prose-code:px-1 prose-code:rounded prose-pre:bg-grid/10 prose-pre:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+              <div key={idx} className="prose prose-base max-w-none prose-p:my-0 prose-p:mb-3 prose-p:leading-[26px] prose-headings:font-semibold prose-headings:text-white/90 prose-strong:text-white/90 prose-strong:font-semibold prose-code:text-sm prose-code:bg-white/[0.08] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-white/[0.06] prose-pre:rounded-lg prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 text-white/[0.88]">
                 <ReactMarkdown>{segment.content}</ReactMarkdown>
               </div>
             );
@@ -347,29 +347,11 @@ function RichMessage({
               />
             );
           case "scan-trigger":
-            return (
-              <ScanTriggerCard
-                key={idx}
-                provider={segment.provider}
-                onComplete={onScanComplete}
-              />
-            );
+            // Scan trigger UI removed — deep scan is no longer surfaced in chat
+            return null;
           case "scan-result":
-            return (
-              <ScanProgressCard
-                key={idx}
-                scanId={segment.scanId}
-                status="complete"
-                providers={segment.providers.map((p: { name: string; memories: number; error?: string }) => ({ name: p.name, status: p.error ? 'failed' : 'complete', memories: p.memories, error: p.error }))}
-                progress={100}
-                currentPhase="complete"
-                currentMessage="Scan complete"
-                totalMemories={segment.totalMemories}
-                durationSeconds={segment.durationSeconds}
-                workflowSuggestions={segment.workflowSuggestions}
-                onViewActivity={onViewActivity}
-              />
-            );
+            // Scan result UI removed — deep scan is no longer surfaced in chat
+            return null;
           default:
             return null;
         }
@@ -421,16 +403,16 @@ function GatewayStatusPanel({
   };
 
   return (
-    <div className="px-4 py-3 border-t border-[rgba(58,58,56,0.2)] bg-paper">
+    <div className="px-4 py-3 border-t border-white/[0.1] bg-white/[0.03]">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className={cn("w-2 h-2 rounded-full", statusColors[status] || statusColors.disconnected)} />
-          <span className="font-mono text-[9px] uppercase tracking-wide text-grid/50">
+          <span className="font-mono text-[9px] uppercase tracking-wide text-white/50">
             Gateway {statusLabels[status] || status}
           </span>
         </div>
         {status === "connected" && latencyMs && (
-          <span className="font-mono text-[8px] text-grid/30">{latencyMs}ms</span>
+          <span className="font-mono text-[8px] text-white/30">{latencyMs}ms</span>
         )}
       </div>
       
@@ -438,7 +420,7 @@ function GatewayStatusPanel({
       {isReconnecting && (
         <div className="mt-2 space-y-1.5">
           <div className="flex justify-between items-center">
-            <span className="font-mono text-[9px] text-grid/50">
+            <span className="font-mono text-[9px] text-white/50">
               Attempt {reconnectAttempt}/5
             </span>
             {reconnectCountdown && (
@@ -450,13 +432,13 @@ function GatewayStatusPanel({
           <div className="flex gap-1">
             <button
               onClick={onRetry}
-              className="flex-1 px-2 py-1 text-[8px] font-mono uppercase tracking-wide bg-forest text-white hover:bg-forest/90 transition-colors"
+              className="flex-1 px-2 py-1 text-[8px] font-mono uppercase tracking-wide bg-white/[0.12] text-white hover:bg-white/[0.18] transition-colors"
             >
               Retry Now
             </button>
             <button
               onClick={onCancel}
-              className="px-2 py-1 text-[8px] font-mono uppercase tracking-wide border border-[rgba(58,58,56,0.2)] hover:bg-grid/5 transition-colors"
+              className="px-2 py-1 text-[8px] font-mono uppercase tracking-wide border border-white/[0.1] hover:bg-grid/5 transition-colors"
             >
               ✕
             </button>
@@ -473,11 +455,11 @@ function GatewayStatusPanel({
             </p>
           )}
           {isCanceled && !error && (
-            <p className="text-[9px] text-grid/50 mb-1.5">Reconnection canceled</p>
+            <p className="text-[9px] text-white/50 mb-1.5">Reconnection canceled</p>
           )}
           <button
             onClick={onRetry}
-            className="w-full px-2 py-1 text-[8px] font-mono uppercase tracking-wide bg-forest text-white hover:bg-forest/90 transition-colors"
+            className="w-full px-2 py-1 text-[8px] font-mono uppercase tracking-wide bg-white/[0.12] text-white hover:bg-white/[0.18] transition-colors"
           >
             Reconnect
           </button>
@@ -593,7 +575,7 @@ function UserMessageContent({ content }: { content: string }) {
       </div>
     );
   }
-  return <p className="whitespace-pre-wrap">{content}</p>;
+  return <p className="whitespace-pre-wrap text-base leading-[24px]">{content}</p>;
 }
 
 export default function ChatPageClient({ 
@@ -649,6 +631,43 @@ export default function ChatPageClient({
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) userIdRef.current = user.id;
     }).catch(() => {});
+  }, []);
+
+  // Update document title when active conversation changes
+  useEffect(() => {
+    const title = conversations.find(c => c.id === activeConvo)?.title;
+    document.title = title ? `${title} — Dopl` : 'Chat — Dopl';
+  }, [activeConvo, conversations]);
+
+  // Handle browser back/forward navigation (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const match = window.location.pathname.match(/^\/chat\/([^/]+)$/);
+      if (match) {
+        const convoId = match[1];
+        setActiveConvo(convoId);
+        setConversationId(convoId);
+        setMessages([]);
+        setIsLoading(true);
+        fetch(`/api/conversations/${convoId}/messages`)
+          .then(res => res.ok ? res.json() : { messages: [] })
+          .then(data => {
+            const loaded = (data.messages || []).map((m: { id?: string; role: string; content: string; timestamp?: string; created_at?: string }) => ({
+              id: m.id || crypto.randomUUID(),
+              role: m.role as "user" | "assistant",
+              content: m.content,
+              timestamp: m.timestamp || (m.created_at ? new Date(m.created_at).toLocaleTimeString() : ""),
+              toolCalls: [],
+            }));
+            setMessages(loaded);
+          })
+          .catch(() => {})
+          .finally(() => setIsLoading(false));
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
   const { 
@@ -1070,6 +1089,10 @@ User message: `
               wsConvoIdRef.current = activeConvoId;
               setConversations((prev) => prev.filter((c) => !c.id.startsWith("temp-")));
               refreshConversations(activeConvoId);
+              // Sync URL to new conversation
+              if (typeof window !== 'undefined') {
+                window.history.replaceState({}, '', `/chat/${activeConvoId}`);
+              }
             }
           }
         } catch { /* ignore — WS send will still work, just no Supabase persistence */ }
@@ -1248,6 +1271,10 @@ User message: `
               setConversationId(chunk.conversation_id);
               // Replace any temp entry (from handleNewConversation) with real convo
               setConversations(prev => prev.filter(c => !c.id.startsWith('temp-')));
+              // Sync URL to conversation
+              if (typeof window !== 'undefined') {
+                window.history.replaceState({}, '', `/chat/${chunk.conversation_id}`);
+              }
               if (isNew) {
                 await refreshConversations(chunk.conversation_id);
               } else {
@@ -1326,6 +1353,10 @@ User message: `
       if (data.conversation_id) {
         const isNew = !conversations.find((c) => c.id === data.conversation_id);
         setConversationId(data.conversation_id);
+        // Sync URL to conversation
+        if (typeof window !== 'undefined') {
+          window.history.replaceState({}, '', `/chat/${data.conversation_id}`);
+        }
         if (isNew) {
           await refreshConversations(data.conversation_id);
         }
@@ -1390,6 +1421,10 @@ User message: `
           );
           setActiveConvo(realId);
           setConversationId(realId);
+          // Update URL with real conversation ID
+          if (typeof window !== 'undefined') {
+            window.history.replaceState({}, '', `/chat/${realId}`);
+          }
         }
       }
     } catch (err) {
@@ -1516,6 +1551,10 @@ User message: `
     if (convoId === activeConvo) return;
     setActiveConvo(convoId);
     setConversationId(convoId);
+    // Update URL without page reload
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', `/chat/${convoId}`);
+    }
     setMessages([]);
     setIsLoading(true);
     try {
@@ -1538,10 +1577,10 @@ User message: `
   // Show skeleton loading state while checking gateway
   if (gatewayLoading) {
     return (
-      <div className="flex h-[calc(100vh-56px)]">
+      <div className="flex h-[calc(100vh-64px)]">
         {/* Conversation Sidebar Skeleton */}
-        <aside className="w-64 border-r border-[rgba(58,58,56,0.2)] bg-paper flex flex-col">
-          <div className="px-4 py-3 border-b border-[rgba(58,58,56,0.2)] flex items-center justify-between">
+        <aside className="w-64 border-r border-white/[0.1] bg-white/[0.03] flex flex-col">
+          <div className="px-4 py-3 border-b border-white/[0.1] flex items-center justify-between">
             <Skeleton className="h-2.5 w-24" />
             <Skeleton className="h-7 w-12" />
           </div>
@@ -1550,7 +1589,7 @@ User message: `
           </div>
           
           {/* Gateway Status */}
-          <div className="px-4 py-3 border-t border-[rgba(58,58,56,0.2)] bg-paper">
+          <div className="px-4 py-3 border-t border-white/[0.1] bg-white/[0.03]">
             <div className="flex items-center gap-2">
               <Skeleton className="w-2 h-2" rounded />
               <Skeleton className="h-2 w-24" />
@@ -1565,7 +1604,7 @@ User message: `
           </div>
 
           {/* Input Skeleton */}
-          <div className="flex-shrink-0 border-t border-[rgba(58,58,56,0.2)] p-4">
+          <div className="flex-shrink-0 border-t border-white/[0.1] p-4">
             <div className="flex gap-2">
               <Skeleton className="flex-1 h-10" />
               <Skeleton className="h-10 w-16" />
@@ -1579,13 +1618,13 @@ User message: `
   // Show prompt to connect gateway if not configured
   if (showBanner) {
     return (
-      <div className="flex h-[calc(100vh-56px)] items-center justify-center">
+      <div className="flex h-[calc(100vh-64px)] items-center justify-center">
         <div className="text-center max-w-md px-6">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-forest/10 flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/[0.06] flex items-center justify-center">
             <span className="text-2xl">🔌</span>
           </div>
           <h2 className="font-header text-xl font-bold mb-2">No Gateway Connected</h2>
-          <p className="text-sm text-grid/60 mb-6">
+          <p className="text-sm text-white/60 mb-6">
             Connect your personal gateway instance to start chatting. Your gateway runs locally and keeps your data private.
           </p>
           <Link href="/settings">
@@ -1597,11 +1636,11 @@ User message: `
   }
 
   return (
-    <div className="flex h-[calc(100vh-56px)]">
+    <div className="flex h-[calc(100vh-64px)]">
       {/* Conversation Sidebar */}
-      <aside className="w-64 border-r border-[rgba(58,58,56,0.2)] bg-paper flex flex-col">
-        <div className="px-4 py-3 border-b border-[rgba(58,58,56,0.2)] flex items-center justify-between">
-          <span className="font-mono text-[10px] uppercase tracking-wide text-grid/60">
+      <aside className="w-72 border-r border-white/[0.1] bg-white/[0.03] flex flex-col">
+        <div className="px-4 py-4 border-b border-white/[0.1] flex items-center justify-between">
+          <span className="text-sm font-medium text-white/70">
             Conversations
           </span>
           <Button variant="solid" size="sm" onClick={handleNewConversation}>New</Button>
@@ -1612,15 +1651,15 @@ User message: `
               <div
                 key={convo.id}
                 className={cn(
-                  "relative group flex items-center border-b border-[rgba(58,58,56,0.1)] transition-colors",
-                  activeConvo === convo.id ? "bg-forest/5 border-l-2 border-l-forest" : "hover:bg-forest/[0.02]"
+                  "relative group flex items-center border-b border-white/[0.08] transition-colors",
+                  activeConvo === convo.id ? "bg-white/[0.1] border-l-2 border-l-[#9EFFBF]" : "hover:bg-white/[0.04]"
                 )}
               >
                 <button
                   onClick={() => loadConversation(convo.id)}
                   className="flex-1 text-left px-4 py-3 min-w-0"
                 >
-                  <span className="text-sm font-medium truncate block">{convo.title || "New conversation"}</span>
+                  <span className="text-[15px] font-medium truncate block text-white/90">{convo.title || "New conversation"}</span>
                 </button>
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity pr-2 flex-shrink-0">
                   <ConversationContextMenu
@@ -1633,8 +1672,8 @@ User message: `
             ))
           ) : (
             <div className="px-4 py-8 text-center">
-              <p className="text-sm text-grid/50 mb-1">No conversations yet</p>
-              <p className="font-mono text-[10px] text-grid/40">
+              <p className="text-sm text-white/50 mb-1">No conversations yet</p>
+              <p className="font-mono text-[10px] text-white/40">
                 Start chatting below
               </p>
             </div>
@@ -1655,17 +1694,17 @@ User message: `
         />
         {/* WebSocket mode indicator */}
         {gateway && (
-          <div className="px-4 py-1.5 border-t border-[rgba(58,58,56,0.1)] flex items-center gap-2">
+          <div className="px-4 py-1.5 border-t border-white/[0.08] flex items-center gap-2">
             <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
               wsConnected ? "bg-[#9EFFBF]" : wsConnecting ? "bg-[#F4D35E] animate-pulse" : "bg-grid/20"
             }`} />
-            <span className="font-mono text-[8px] uppercase tracking-wide text-grid/40">
+            <span className="font-mono text-[8px] uppercase tracking-wide text-white/40">
               {wsConnected ? "WS live" : wsConnecting ? "WS connecting..." : "WS offline"}
             </span>
             {!wsConnected && !wsConnecting && (
               <button
                 onClick={wsReconnect}
-                className="ml-auto font-mono text-[8px] text-grid/40 hover:text-forest underline"
+                className="ml-auto font-mono text-[8px] text-white/40 hover:text-white/80 underline"
               >
                 retry
               </button>
@@ -1702,25 +1741,25 @@ User message: `
       >
         {/* Drag overlay */}
         {isDragOver && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-forest/10 border-2 border-dashed border-forest pointer-events-none">
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/[0.04] border-2 border-dashed border-white/[0.3] pointer-events-none">
             <div className="text-center">
               <div className="text-4xl mb-2">📎</div>
-              <p className="font-mono text-sm text-forest font-medium">Drop files here</p>
+              <p className="font-mono text-sm text-white/80 font-medium">Drop files here</p>
             </div>
           </div>
         )}
         {/* Chat header with Tasks button */}
-        <div className="flex items-center justify-end px-4 py-1.5 border-b border-[rgba(58,58,56,0.1)] bg-[#F5F3EF]/50">
+        <div className="flex items-center justify-end px-4 py-1.5 border-b border-white/[0.08] bg-transparent">
           {conversationId && (
             <button
               onClick={() => setLinkPickerOpen(true)}
-              className="relative flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-grid/50 hover:text-[#1A3C2B] border border-transparent hover:border-[rgba(26,60,43,0.2)] transition-all rounded-none"
+              className="relative flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-white/50 hover:text-white/80 border border-transparent hover:border-white/[0.1] transition-all rounded-none"
               title="Link conversations"
             >
               <span>🔗</span>
               <span>Link</span>
               {linkedConversations.length > 0 && (
-                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-forest/20 text-forest font-mono text-[9px] ml-0.5">
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.12] text-white/80 font-mono text-[9px] ml-0.5">
                   {linkedConversations.length}
                 </span>
               )}
@@ -1733,7 +1772,7 @@ User message: `
             <span>🔄</span>
             <span>Tasks</span>
             {subagentCount > 0 && (
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#1A3C2B] text-white font-mono text-[9px] ml-0.5">
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.12] text-white font-mono text-[9px] ml-0.5">
                 {subagentCount}
               </span>
             )}
@@ -1743,8 +1782,8 @@ User message: `
             className={cn(
               "relative flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide border transition-all rounded-none",
               activityPanelOpen
-                ? "text-[#1A3C2B] border-[rgba(26,60,43,0.3)] bg-forest/5"
-                : "text-grid/50 hover:text-[#1A3C2B] border-transparent hover:border-[rgba(26,60,43,0.2)]"
+                ? "text-white/80 border-white/[0.2] bg-white/[0.08]"
+                : "text-white/50 hover:text-white/80 border-transparent hover:border-white/[0.1]"
             )}
             title="Toggle agent activity panel"
             style={{ display: 'none' }}
@@ -1752,7 +1791,7 @@ User message: `
             <span>📊</span>
             <span>Activity</span>
             {agentActivities.filter(a => a.status === 'running').length > 0 && (
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#1A3C2B] text-white font-mono text-[9px] ml-0.5">
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.12] text-white font-mono text-[9px] ml-0.5">
                 {agentActivities.filter(a => a.status === 'running').length}
               </span>
             )}
@@ -1826,10 +1865,9 @@ User message: `
                 >
                   <div
                     className={cn(
-                      "text-sm leading-relaxed",
                       msg.role === "user"
-                        ? "bg-forest/[0.08] text-forest border border-[rgba(58,58,56,0.15)] rounded-none p-4"
-                        : "text-forest p-0 border-0 bg-transparent"
+                        ? "text-base leading-[24px] text-white/90 bg-white/[0.08] border border-white/[0.1] rounded py-2 px-4"
+                        : "text-white/[0.88] p-0 border-0 bg-transparent"
                     )}
                   >
                     {/* Tool calls — ThinkingBlock */}
@@ -1899,7 +1937,7 @@ User message: `
                       <UserMessageContent content={msg.content} />
                     ) : (
                       <div className="relative">
-                        <div className="prose prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-headings:font-header prose-headings:text-forest prose-strong:text-forest prose-code:text-xs prose-code:bg-grid/10 prose-code:px-1 prose-code:rounded prose-pre:bg-grid/10 prose-pre:rounded prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+                        <div className="prose prose-base max-w-none prose-p:my-0 prose-p:mb-3 prose-p:leading-[26px] prose-headings:font-semibold prose-headings:text-white/90 prose-strong:text-white/90 prose-strong:font-semibold prose-code:text-sm prose-code:bg-white/[0.08] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-white/[0.06] prose-pre:rounded-lg prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 text-white/[0.88]">
                           <ReactMarkdown>{msg.content}</ReactMarkdown>
                         </div>
                         {msg.content.length >= 20 && (
@@ -1912,7 +1950,7 @@ User message: `
                   </div>
                   {msg.role === "user" && (
                     <div className="flex justify-end mt-0.5">
-                      <span className="font-mono text-[9px] text-grid/30">{msg.timestamp}</span>
+                      <span className="text-xs text-white/50">{msg.timestamp}</span>
                     </div>
                   )}
                   {msg.role === "assistant" && (
@@ -1924,13 +1962,13 @@ User message: `
           ) : (
             <div className="flex-1 flex items-center justify-center h-full">
               <div className="text-center">
-                <div className="w-16 h-16 mx-auto mb-4 border border-[rgba(58,58,56,0.2)] flex items-center justify-center">
+                <div className="w-16 h-16 mx-auto mb-4 border border-white/[0.1] rounded-xl bg-white/[0.04] flex items-center justify-center">
                   <span className="text-2xl">💬</span>
                 </div>
                 <h3 className="font-header text-lg font-bold mb-2">
                   Start a conversation
                 </h3>
-                <p className="text-sm text-grid/50 max-w-sm">
+                <p className="text-sm text-white/50 max-w-sm">
                   Ask your assistant anything — summarize emails, draft responses, research topics, or get help with tasks.
                 </p>
               </div>
@@ -1948,23 +1986,12 @@ User message: `
             />
           )}
 
-          {/* Inline Scan Progress Card */}
-          {scanCardState && (
-            <div className="max-w-[70%] mr-auto">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-mono text-[10px] uppercase tracking-wide text-grid/40">Assistant</span>
-              </div>
-              <ScanProgressCard
-                {...scanCardState}
-                onViewActivity={() => setActivityPanelOpen(true)}
-              />
-            </div>
-          )}
+          {/* Inline Scan Progress Card — removed; deep scan UI no longer shown */}
 
           {/* Loading indicator */}
-          {isLoading && !scanCardState && (
+          {isLoading && (
             <div className="max-w-[70%] mr-auto px-1">
-              <span className="font-mono text-[11px] text-grid/40 italic animate-pulse">
+              <span className="font-mono text-[11px] text-white/40 italic animate-pulse">
                 {retryCount > 0 ? `Retrying (${retryCount}/3)...` : "Thinking..."}
               </span>
             </div>
@@ -1976,7 +2003,7 @@ User message: `
           {showScrollButton && (
             <button
               onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
-              className="absolute bottom-24 right-6 w-8 h-8 flex items-center justify-center border border-[rgba(58,58,56,0.2)] bg-paper text-grid/50 hover:text-forest hover:border-forest/30 transition-colors z-10"
+              className="absolute bottom-24 right-6 w-8 h-8 flex items-center justify-center border border-white/[0.1] bg-white/[0.06] text-white/50 hover:text-white/90 hover:border-white/[0.3] transition-colors z-10"
               title="Scroll to bottom"
             >
               ↓
@@ -2017,12 +2044,12 @@ User message: `
         <TokenUsageBar />
 
         {/* Input */}
-        <div className="flex-shrink-0 border-t border-[rgba(58,58,56,0.2)] p-4">
+        <div className="flex-shrink-0 border-t border-white/[0.1] p-4">
           <FilePreview
             files={attachedFiles}
             onRemove={(id) => setAttachedFiles(prev => prev.filter(f => f.id !== id))}
           />
-          <div className="border border-[rgba(58,58,56,0.2)] bg-white">
+          <div className="border border-white/[0.1] bg-white/[0.06] rounded-xl backdrop-blur-md">
             <textarea
               value={input}
               onChange={(e) => {
@@ -2034,9 +2061,9 @@ User message: `
               placeholder={gateway ? "Message your assistant..." : "Connect gateway to chat..."}
               disabled={!gateway || isLoading || isReconnecting}
               rows={1}
-              className="w-full bg-transparent px-4 py-3 text-sm outline-none resize-none placeholder:text-grid/30 disabled:opacity-50 min-h-[40px] max-h-[200px]"
+              className="w-full bg-transparent px-4 py-3 text-sm text-white/90 outline-none resize-none placeholder:text-white/30 disabled:opacity-50 min-h-[40px] max-h-[200px]"
             />
-            <div className="flex items-center justify-between px-2 py-1.5 border-t border-[rgba(58,58,56,0.06)]">
+            <div className="flex items-center justify-between px-2 py-1.5 border-t border-white/[0.06]">
               <InputToolbar
                 onFileUpload={() => document.getElementById('dopl-file-input')?.click()}
                 disabled={!gateway || isLoading}
@@ -2092,7 +2119,7 @@ User message: `
 
       {/* Agent Activity Split Panel */}
       {activityPanelOpen && (
-        <div className="w-[38%] flex-shrink-0 border-l border-[rgba(58,58,56,0.2)] overflow-hidden">
+        <div className="w-[38%] flex-shrink-0 border-l border-white/[0.1] overflow-hidden">
           <AgentActivityPanel
             isOpen={activityPanelOpen}
             onClose={() => setActivityPanelOpen(false)}

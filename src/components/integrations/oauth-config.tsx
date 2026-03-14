@@ -47,7 +47,7 @@ export function OAuthConfig({ config, onChange }: OAuthConfigProps) {
               className={`py-2 px-3 font-mono text-[11px] border transition-colors ${
                 selectedProvider === provider.id
                   ? "border-forest bg-forest/5 text-forest"
-                  : "border-[rgba(58,58,56,0.2)] text-grid/60 hover:border-forest/50"
+                  : "border-white/[0.1] text-grid/60 hover:border-forest/50"
               }`}
             >
               {provider.name}

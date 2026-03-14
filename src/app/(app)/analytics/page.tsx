@@ -21,7 +21,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-4 gap-px bg-[rgba(58,58,56,0.2)] mb-px">
+      <div className="grid grid-cols-4 gap-px bg-white/[0.05] mb-px">
         {stats.map((stat) => (
           <Card key={stat.label} label={stat.label} accentColor={stat.accent}>
             <span className="font-header text-4xl font-bold tracking-tight block mt-2">
@@ -32,13 +32,13 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Activity Log */}
-      <div className="grid grid-cols-1 gap-px bg-[rgba(58,58,56,0.2)]">
+      <div className="grid grid-cols-1 gap-px bg-white/[0.05]">
         <Card label="Activity Log" accentColor="#FF8C69">
           <div className="mt-2 space-y-3">
             {activityLog.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center justify-between border-b border-[rgba(58,58,56,0.1)] pb-3 last:border-0"
+                className="flex items-center justify-between border-b border-white/[0.08] pb-3 last:border-0"
               >
                 <div className="flex items-center gap-4">
                   <div className="w-1.5 h-1.5 bg-forest rounded-none" />

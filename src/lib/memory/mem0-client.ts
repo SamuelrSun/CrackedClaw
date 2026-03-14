@@ -363,14 +363,21 @@ export function isMem0Enabled(): boolean {
 
 /**
  * Format memories for injection into a system prompt.
+ * Includes source attribution tags from metadata.
  */
 export function formatMemoriesForPrompt(memories: Mem0Memory[]): string {
   if (memories.length === 0) return '';
   return (
-    'USER MEMORIES (from past interactions):\n' +
+    'USER MEMORIES:\n' +
     memories
       .filter(m => m.memory)
-      .map(m => `- ${m.memory}`)
+      .map(m => {
+        const meta = m.metadata as Record<string, unknown> | null;
+        const source = meta?.source || 'unknown';
+        const email = meta?.accountEmail;
+        const tag = email ? `${source}/${email}` : source as string;
+        return `- [${tag}] ${m.memory}`;
+      })
       .join('\n')
   );
 }

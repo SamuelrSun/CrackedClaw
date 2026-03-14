@@ -69,7 +69,7 @@ export function VoiceInputButton({ onTranscript, disabled }: VoiceInputButtonPro
           "relative flex items-center justify-center w-10 h-10 border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
           isListening
             ? "border-red-400 bg-red-50 text-red-500"
-            : "border-[rgba(58,58,56,0.2)] bg-white text-grid/60 hover:border-forest hover:text-forest"
+            : "border-white/[0.1] bg-white text-grid/60 hover:border-forest hover:text-forest"
         )}
       >
         {/* Pulsing ring when recording */}

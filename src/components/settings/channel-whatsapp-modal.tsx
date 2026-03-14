@@ -87,7 +87,7 @@ export function WhatsAppSetupModal({
         {/* Step 1: Explain */}
         {step === 1 && (
           <div className="space-y-5">
-            <div className="flex items-center gap-3 pb-4 border-b border-[rgba(58,58,56,0.1)]">
+            <div className="flex items-center gap-3 pb-4 border-b border-white/[0.08]">
               <div className="w-12 h-12 flex items-center justify-center bg-[#25D366] text-white">
                 <MessageSquare className="w-6 h-6" />
               </div>
@@ -106,7 +106,7 @@ export function WhatsAppSetupModal({
                 Link your WhatsApp account to Dopl using the same QR code
                 pairing method as WhatsApp Web.
               </p>
-              <div className="bg-forest/5 border border-[rgba(58,58,56,0.1)] p-4">
+              <div className="bg-forest/5 border border-white/[0.08] p-4">
                 <h4 className="font-mono text-[10px] uppercase tracking-wide text-grid/60 mb-2">
                   How it works
                 </h4>
@@ -150,7 +150,7 @@ export function WhatsAppSetupModal({
         {/* Step 2: Configuring */}
         {step === 2 && (
           <div className="space-y-5">
-            <div className="flex items-center gap-3 pb-4 border-b border-[rgba(58,58,56,0.1)]">
+            <div className="flex items-center gap-3 pb-4 border-b border-white/[0.08]">
               <div className="w-12 h-12 flex items-center justify-center bg-forest/10 text-forest">
                 <Wifi className="w-6 h-6" />
               </div>
@@ -237,7 +237,7 @@ export function WhatsAppSetupModal({
         {/* Step 3: QR Code */}
         {step === 3 && (
           <div className="space-y-5">
-            <div className="flex items-center gap-3 pb-4 border-b border-[rgba(58,58,56,0.1)]">
+            <div className="flex items-center gap-3 pb-4 border-b border-white/[0.08]">
               <div className="w-12 h-12 flex items-center justify-center bg-forest/10 text-forest">
                 <QrCode className="w-6 h-6" />
               </div>

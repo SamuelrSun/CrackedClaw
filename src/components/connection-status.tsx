@@ -76,7 +76,7 @@ export function ConnectionStatus({
 
   // Detailed variant
   return (
-    <div className={cn("border border-[rgba(58,58,56,0.2)] rounded-none p-3", className)}>
+    <div className={cn("border border-white/[0.1] rounded-none p-3", className)}>
       {/* Status Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -124,7 +124,7 @@ export function ConnectionStatus({
             </button>
             <button
               onClick={cancelReconnect}
-              className="px-2 py-1 text-[10px] font-mono uppercase tracking-wide border border-[rgba(58,58,56,0.2)] hover:bg-grid/5 transition-colors"
+              className="px-2 py-1 text-[10px] font-mono uppercase tracking-wide border border-white/[0.1] hover:bg-grid/5 transition-colors"
             >
               Cancel
             </button>
@@ -155,7 +155,7 @@ export function ConnectionStatus({
           </p>
           <button
             onClick={forceReconnect}
-            className="w-full px-2 py-1.5 text-[10px] font-mono uppercase tracking-wide border border-[rgba(58,58,56,0.2)] hover:bg-grid/5 transition-colors"
+            className="w-full px-2 py-1.5 text-[10px] font-mono uppercase tracking-wide border border-white/[0.1] hover:bg-grid/5 transition-colors"
           >
             Check Connection
           </button>

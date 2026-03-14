@@ -22,7 +22,7 @@ export function CardSkeleton({
   return (
     <div
       className={cn(
-        "bg-paper p-8 relative border border-[rgba(58,58,56,0.2)]",
+        "bg-paper p-8 relative border border-white/[0.1]",
         className
       )}
     >

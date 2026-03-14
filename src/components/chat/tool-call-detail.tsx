@@ -40,7 +40,7 @@ function CopyButton({ text }: { text: string }) {
       title="Copy to clipboard"
       className={cn(
         "absolute top-2 right-2 text-sm transition-colors border-0 bg-transparent p-0.5 cursor-pointer",
-        copied ? "text-forest" : "text-grid/30 hover:text-forest"
+        copied ? "text-[#9EFFBF]" : "text-white/30 hover:text-[#9EFFBF]"
       )}
     >
       {copied ? "✓" : "📋"}
@@ -53,8 +53,8 @@ function CodeBlock({ content }: { content: string }) {
     <div className="relative">
       <pre
         className={cn(
-          "bg-grid/[0.06] p-3 font-mono text-[12px] text-grid/70",
-          "whitespace-pre-wrap overflow-x-auto border border-[rgba(58,58,56,0.1)]"
+          "bg-white/[0.06] p-3 font-mono text-[12px] text-white/70",
+          "whitespace-pre-wrap overflow-x-auto border border-white/[0.1] rounded-lg"
         )}
       >
         {content}
@@ -75,13 +75,13 @@ export function ToolCallDetail({ tool, input, result }: ToolCallDetailProps) {
 
   return (
     <div className="space-y-3 mt-2">
-      <div className="font-mono text-[10px] uppercase tracking-wide text-grid/40 mb-0.5">
+      <div className="font-mono text-[10px] uppercase tracking-wide text-white/40 mb-0.5">
         {tool}
       </div>
 
       {input && Object.keys(input).length > 0 && (
         <div className="space-y-1">
-          <div className="font-mono text-[10px] uppercase tracking-wide text-grid/50">
+          <div className="font-mono text-[10px] uppercase tracking-wide text-white/50">
             Arguments:
           </div>
           <CodeBlock content={inputText} />
@@ -90,7 +90,7 @@ export function ToolCallDetail({ tool, input, result }: ToolCallDetailProps) {
 
       {result !== undefined && (
         <div className="space-y-1">
-          <div className="font-mono text-[10px] uppercase tracking-wide text-grid/50">
+          <div className="font-mono text-[10px] uppercase tracking-wide text-white/50">
             Result:
           </div>
           <CodeBlock content={resultText} />

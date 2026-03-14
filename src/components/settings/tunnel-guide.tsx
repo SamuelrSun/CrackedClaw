@@ -41,7 +41,7 @@ export function TunnelGuide({
           key={index}
           className={cn(
             "relative pl-10 pb-6",
-            index !== steps.length - 1 && "border-l border-[rgba(58,58,56,0.15)] ml-4"
+            index !== steps.length - 1 && "border-l border-white/[0.1] ml-4"
           )}
         >
           {/* Step number / check indicator */}
@@ -89,7 +89,7 @@ export function TunnelGuide({
 
       {/* Test Connection Section */}
       {onTestConnection && (
-        <div className="mt-8 pt-6 border-t border-[rgba(58,58,56,0.15)]">
+        <div className="mt-8 pt-6 border-t border-white/[0.1]">
           <div className="flex items-center gap-4">
             <Button
               variant="solid"

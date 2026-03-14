@@ -26,7 +26,7 @@ export function ListSkeleton({
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="flex items-start gap-3 py-2 border-b border-[rgba(58,58,56,0.1)] last:border-0"
+          className="flex items-start gap-3 py-2 border-b border-white/[0.08] last:border-0"
         >
           {showIcon && <Skeleton className="w-8 h-8 flex-shrink-0" rounded />}
           <div className="flex-1 space-y-1.5">
@@ -56,7 +56,7 @@ export function ConversationListSkeleton({
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="px-4 py-3 border-b border-[rgba(58,58,56,0.1)]"
+          className="px-4 py-3 border-b border-white/[0.08]"
         >
           <div className="flex justify-between items-baseline mb-1.5">
             <Skeleton
@@ -85,7 +85,7 @@ export function MemoryEntrySkeleton({
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="border-b border-[rgba(58,58,56,0.1)] pb-3 last:border-0"
+          className="border-b border-white/[0.08] pb-3 last:border-0"
         >
           <div className="flex items-center gap-2 mb-2">
             <Skeleton className="h-4 w-16" />

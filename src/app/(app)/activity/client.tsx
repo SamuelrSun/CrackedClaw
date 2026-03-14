@@ -159,7 +159,7 @@ export default function ActivityPageClient({ initialActivities }: ActivityPageCl
                 className={`font-mono text-[10px] uppercase tracking-wide px-2 py-1 border transition-colors ${
                   filterType === type
                     ? 'bg-forest text-white border-forest'
-                    : 'bg-white text-grid/70 border-[rgba(58,58,56,0.2)] hover:border-forest/50'
+                    : 'bg-white text-grid/70 border-white/[0.1] hover:border-forest/50'
                 }`}
               >
                 {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)}
@@ -179,7 +179,7 @@ export default function ActivityPageClient({ initialActivities }: ActivityPageCl
                 className={`font-mono text-[10px] uppercase tracking-wide px-2 py-1 border transition-colors ${
                   dateRange === range
                     ? 'bg-forest text-white border-forest'
-                    : 'bg-white text-grid/70 border-[rgba(58,58,56,0.2)] hover:border-forest/50'
+                    : 'bg-white text-grid/70 border-white/[0.1] hover:border-forest/50'
                 }`}
               >
                 {range === 'all' ? 'All Time' : range.charAt(0).toUpperCase() + range.slice(1)}
@@ -210,7 +210,7 @@ export default function ActivityPageClient({ initialActivities }: ActivityPageCl
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-4 mt-4 border-t border-[rgba(58,58,56,0.1)]">
+          <div className="flex items-center justify-between pt-4 mt-4 border-t border-white/[0.08]">
             <span className="font-mono text-[10px] text-grid/50">
               Page {currentPage} of {totalPages}
             </span>
@@ -253,7 +253,7 @@ function ActivityRow({ item }: ActivityRowProps) {
     <div className="flex items-start gap-3 py-3 hover:bg-[rgba(58,58,56,0.02)] transition-colors -mx-2 px-2 group">
       {/* Icon */}
       <div
-        className="w-8 h-8 flex items-center justify-center flex-shrink-0 border border-[rgba(58,58,56,0.1)] bg-white group-hover:border-[rgba(58,58,56,0.2)] transition-colors"
+        className="w-8 h-8 flex items-center justify-center flex-shrink-0 border border-white/[0.08] bg-white group-hover:border-white/[0.1] transition-colors"
         style={{ color: iconColor }}
       >
         <Icon className="w-4 h-4" />

@@ -6,8 +6,8 @@ export default function ChatLoading() {
   return (
     <div className="flex h-[calc(100vh-56px)]">
       {/* Conversation Sidebar Skeleton */}
-      <aside className="w-64 border-r border-[rgba(58,58,56,0.2)] bg-paper flex flex-col">
-        <div className="px-4 py-3 border-b border-[rgba(58,58,56,0.2)] flex items-center justify-between">
+      <aside className="w-64 border-r border-white/[0.1] bg-paper flex flex-col">
+        <div className="px-4 py-3 border-b border-white/[0.1] flex items-center justify-between">
           <Skeleton className="h-2.5 w-24" />
           <Skeleton className="h-7 w-12" />
         </div>
@@ -16,7 +16,7 @@ export default function ChatLoading() {
         </div>
         
         {/* Gateway Status */}
-        <div className="px-4 py-3 border-t border-[rgba(58,58,56,0.2)] bg-paper">
+        <div className="px-4 py-3 border-t border-white/[0.1] bg-paper">
           <div className="flex items-center gap-2">
             <Skeleton className="w-2 h-2" rounded />
             <Skeleton className="h-2 w-24" />
@@ -32,7 +32,7 @@ export default function ChatLoading() {
         </div>
 
         {/* Input */}
-        <div className="border-t border-[rgba(58,58,56,0.2)] p-4">
+        <div className="border-t border-white/[0.1] p-4">
           <div className="flex gap-2">
             <Skeleton className="flex-1 h-10" />
             <Skeleton className="h-10 w-16" />

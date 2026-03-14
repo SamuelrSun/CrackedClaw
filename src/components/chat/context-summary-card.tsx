@@ -57,7 +57,7 @@ export function ContextSummaryCard({
   };
 
   return (
-    <div className="border border-[rgba(58,58,56,0.2)] rounded-none bg-white max-w-sm">
+    <div className="border border-white/[0.1] rounded-none bg-white max-w-sm">
       {/* Header — clickable */}
       <button
         onClick={() => setExpanded((v) => !v)}

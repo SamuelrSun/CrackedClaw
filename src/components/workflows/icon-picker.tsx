@@ -55,7 +55,7 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
       <label className="font-mono text-[10px] uppercase tracking-wide text-grid/60">
         Icon
       </label>
-      <div className="grid grid-cols-6 gap-2 p-3 border border-[rgba(58,58,56,0.2)] bg-white">
+      <div className="grid grid-cols-6 gap-2 p-3 border border-white/[0.1] bg-white">
         {WORKFLOW_ICONS.map(({ name, icon: Icon }) => (
           <button
             key={name}
@@ -63,7 +63,7 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
             onClick={() => onChange(name)}
             className={cn(
               "w-10 h-10 flex items-center justify-center transition-all",
-              "border border-[rgba(58,58,56,0.2)] hover:border-forest hover:bg-forest/5",
+              "border border-white/[0.1] hover:border-forest hover:bg-forest/5",
               value === name && "border-forest bg-forest text-white hover:bg-forest hover:text-white"
             )}
           >

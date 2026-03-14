@@ -245,7 +245,7 @@ export default function WorkflowDetailPage({
           <Card className="mb-6">
             <div className="flex items-start justify-between mb-6">
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 border border-[rgba(58,58,56,0.2)] flex items-center justify-center">
+                <div className="w-12 h-12 border border-white/[0.1] flex items-center justify-center">
                   <Icon size={24} className="text-forest" />
                 </div>
                 <div>
@@ -258,7 +258,7 @@ export default function WorkflowDetailPage({
               <Badge status={workflow.status}>{workflow.status}</Badge>
             </div>
 
-            <div className="flex items-center gap-3 pt-4 border-t border-[rgba(58,58,56,0.1)]">
+            <div className="flex items-center gap-3 pt-4 border-t border-white/[0.08]">
               <Button variant="solid" onClick={handleRun}>
                 <Play size={14} className="mr-1" />
                 Run Now
@@ -321,7 +321,7 @@ export default function WorkflowDetailPage({
                 {runHistory.map((run) => (
                   <div
                     key={run.id}
-                    className="flex items-center justify-between p-3 border border-[rgba(58,58,56,0.1)]"
+                    className="flex items-center justify-between p-3 border border-white/[0.08]"
                   >
                     <div className="flex items-center gap-3">
                       <Badge

@@ -43,29 +43,29 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-grid/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
         onClick={onClose}
       />
 
       {/* Modal content */}
       <div
         className={cn(
-          "relative bg-paper border border-forest rounded-none",
+          "relative bg-white/[0.08] backdrop-blur-xl border border-white/[0.15] rounded-none",
           "w-full max-w-[500px] mx-4 p-6",
-          "shadow-lg",
+          "shadow-2xl shadow-black/50",
           className
         )}
         {...props}
       >
         {/* Header */}
         {title && (
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-[rgba(58,58,56,0.1)]">
-            <h2 className="font-header text-lg font-bold tracking-tight text-forest">
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/[0.1]">
+            <h2 className="font-header text-lg font-bold tracking-tight text-white/90">
               {title}
             </h2>
             <button
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center text-grid/60 hover:text-forest hover:bg-forest/5 transition-colors"
+              className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/[0.08] transition-colors"
               aria-label="Close"
             >
               <svg

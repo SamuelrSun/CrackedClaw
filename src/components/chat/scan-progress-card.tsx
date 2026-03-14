@@ -53,10 +53,10 @@ export function ScanProgressCard({
 
   if (status === 'complete') {
     return (
-      <div className="bg-[#FAFAF8] border border-[rgba(58,58,56,0.15)] rounded-sm p-4 max-w-sm space-y-3">
+      <div className="bg-[#FAFAF8] border border-white/[0.1] rounded-sm p-4 max-w-sm space-y-3">
         <div className="flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-[#1A3C2B] flex-shrink-0" />
-          <span className="font-mono text-[11px] uppercase tracking-wide text-[#1A3C2B] font-semibold">
+          <CheckCircle2 className="w-4 h-4 text-white/80 flex-shrink-0" />
+          <span className="font-mono text-[11px] uppercase tracking-wide text-white/80 font-semibold">
             {providerLabel} Scan Complete
           </span>
         </div>
@@ -69,7 +69,7 @@ export function ScanProgressCard({
         </div>
         <button
           onClick={onViewActivity}
-          className="flex items-center gap-1.5 font-mono text-[10px] text-[#1A3C2B] hover:text-[#2D6A4F] transition-colors group"
+          className="flex items-center gap-1.5 font-mono text-[10px] text-white/80 hover:text-[#2D6A4F] transition-colors group"
         >
           View Details
           <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
@@ -80,7 +80,7 @@ export function ScanProgressCard({
 
   if (status === 'failed') {
     return (
-      <div className="bg-[#FAFAF8] border border-[rgba(58,58,56,0.15)] rounded-sm p-4 max-w-sm space-y-2">
+      <div className="bg-[#FAFAF8] border border-white/[0.1] rounded-sm p-4 max-w-sm space-y-2">
         <div className="flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
           <span className="font-mono text-[11px] uppercase tracking-wide text-red-600">Scan Failed</span>
@@ -96,10 +96,10 @@ export function ScanProgressCard({
   const clampedProgress = Math.min(100, Math.max(0, progress));
 
   return (
-    <div className="bg-[#FAFAF8] border border-[rgba(58,58,56,0.15)] rounded-sm p-4 max-w-sm space-y-3">
+    <div className="bg-[#FAFAF8] border border-white/[0.1] rounded-sm p-4 max-w-sm space-y-3">
       <div className="flex items-center gap-2">
-        <Loader2 className="w-3.5 h-3.5 text-[#1A3C2B] animate-spin flex-shrink-0" />
-        <span className="font-mono text-[11px] uppercase tracking-wide text-[#1A3C2B] font-semibold">
+        <Loader2 className="w-3.5 h-3.5 text-white/80 animate-spin flex-shrink-0" />
+        <span className="font-mono text-[11px] uppercase tracking-wide text-white/80 font-semibold">
           Scanning {providerLabel}
         </span>
       </div>
@@ -126,7 +126,7 @@ export function ScanProgressCard({
           return (
             <div key={phase} className={cn(
               'flex items-start gap-2 font-mono text-[10px]',
-              phStatus === 'done' && 'text-[#1A3C2B]/70',
+              phStatus === 'done' && 'text-white/80/70',
               phStatus === 'active' && 'text-grid',
               phStatus === 'waiting' && 'text-grid/30',
             )}>
@@ -147,7 +147,7 @@ export function ScanProgressCard({
 
       <button
         onClick={onViewActivity}
-        className="flex items-center gap-1.5 font-mono text-[10px] text-[#1A3C2B] hover:text-[#2D6A4F] transition-colors group"
+        className="flex items-center gap-1.5 font-mono text-[10px] text-white/80 hover:text-[#2D6A4F] transition-colors group"
       >
         View Live Activity
         <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />

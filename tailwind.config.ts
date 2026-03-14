@@ -9,12 +9,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        paper: '#F7F7F5',
-        forest: '#1A3C2B',
-        grid: '#3A3A38',
-        coral: '#FF8C69',
-        mint: '#9EFFBF',
-        gold: '#F4D35E',
+        // Dark mode palette — updated from light to dark
+        paper: '#0d0d12',    // was #F7F7F5 — now deep dark background
+        forest: '#e0e0e0',   // was #1A3C2B — now light text on dark
+        grid: '#a0a0a0',     // was #3A3A38 — now medium gray
+        coral: '#FF8C69',    // accent — unchanged
+        mint: '#9EFFBF',     // accent — unchanged
+        gold: '#F4D35E',     // accent — unchanged
       },
       fontFamily: {
         header: ['Space Grotesk', 'sans-serif'],

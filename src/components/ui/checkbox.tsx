@@ -43,7 +43,7 @@ export function Checkbox({
           "flex items-center justify-center",
           checked
             ? "bg-forest border-forest"
-            : "bg-white border-[rgba(58,58,56,0.3)] hover:border-forest/50",
+            : "bg-white border-white/[0.15] hover:border-forest/50",
           disabled && "cursor-not-allowed"
         )}
       >

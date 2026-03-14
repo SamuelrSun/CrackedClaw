@@ -91,7 +91,7 @@ export default function MemoryFilesPage() {
         </label>
       </div>
 
-      <div className="mb-4 p-3 border border-blue-200 bg-blue-50">
+      <div className="mb-4 p-3 border border-blue-500/30 bg-blue-900/20">
         <p className="font-mono text-[10px] text-blue-700">
           Files saved here are chunked and indexed — your AI searches them automatically when relevant, across all conversations.
           Text files (TXT, MD, CSV, JSON) are fully indexed. PDFs and DOCX are stored but not yet text-extracted.
@@ -101,7 +101,7 @@ export default function MemoryFilesPage() {
       {loading ? (
         <p className="font-mono text-xs text-grid/40">Loading...</p>
       ) : files.length === 0 ? (
-        <div className="border border-[rgba(58,58,56,0.15)] bg-paper p-12 text-center">
+        <div className="border border-white/[0.1] bg-paper p-12 text-center">
           <div className="text-4xl mb-3">📁</div>
           <h2 className="font-header text-xl font-bold mb-2">No memory files yet</h2>
           <p className="font-mono text-xs text-grid/50 max-w-sm mx-auto">
@@ -112,7 +112,7 @@ export default function MemoryFilesPage() {
       ) : (
         <div className="space-y-2">
           {files.map(file => (
-            <div key={file.id} className="border border-[rgba(58,58,56,0.15)] bg-paper p-3 flex items-center justify-between">
+            <div key={file.id} className="border border-white/[0.1] bg-paper p-3 flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 <span className="text-xl flex-shrink-0">{fileIcon(file.type, file.name)}</span>
                 <div className="min-w-0">

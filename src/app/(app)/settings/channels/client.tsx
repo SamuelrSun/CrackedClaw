@@ -237,7 +237,7 @@ export default function ChannelsSettingsClient() {
               </div>
             )}
 
-            <div className="mt-6 pt-4 border-t border-[rgba(58,58,56,0.1)]">
+            <div className="mt-6 pt-4 border-t border-white/[0.08]">
               <p className="font-mono text-[10px] text-grid/50">
                 Want a channel we don&apos;t support yet? Let us know — we
                 prioritize based on demand.

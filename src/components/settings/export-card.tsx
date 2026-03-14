@@ -200,7 +200,7 @@ export function ExportCard() {
           <div className="flex gap-2">
             <button
               onClick={() => setFormat("json")}
-              className={`px-3 py-1.5 border border-[rgba(58,58,56,0.2)] rounded-none font-mono text-[10px] uppercase tracking-wide transition-colors ${
+              className={`px-3 py-1.5 border border-white/[0.1] rounded-none font-mono text-[10px] uppercase tracking-wide transition-colors ${
                 format === "json"
                   ? "bg-forest text-white"
                   : "bg-white text-forest hover:bg-forest/5"
@@ -210,7 +210,7 @@ export function ExportCard() {
             </button>
             <button
               onClick={() => setFormat("markdown")}
-              className={`px-3 py-1.5 border border-[rgba(58,58,56,0.2)] rounded-none font-mono text-[10px] uppercase tracking-wide transition-colors ${
+              className={`px-3 py-1.5 border border-white/[0.1] rounded-none font-mono text-[10px] uppercase tracking-wide transition-colors ${
                 format === "markdown"
                   ? "bg-forest text-white"
                   : "bg-white text-forest hover:bg-forest/5"
@@ -240,7 +240,7 @@ export function ExportCard() {
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
-                className="w-full bg-white border border-[rgba(58,58,56,0.2)] rounded-none px-3 py-2 font-mono text-[11px] text-forest outline-none focus:border-forest"
+                className="w-full bg-white border border-white/[0.1] rounded-none px-3 py-2 font-mono text-[11px] text-forest outline-none focus:border-forest"
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -251,7 +251,7 @@ export function ExportCard() {
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
-                className="w-full bg-white border border-[rgba(58,58,56,0.2)] rounded-none px-3 py-2 font-mono text-[11px] text-forest outline-none focus:border-forest"
+                className="w-full bg-white border border-white/[0.1] rounded-none px-3 py-2 font-mono text-[11px] text-forest outline-none focus:border-forest"
               />
             </div>
           </div>
@@ -259,7 +259,7 @@ export function ExportCard() {
 
         {/* Estimated Size */}
         {estimatedSize > 0 && (
-          <div className="p-3 border border-[rgba(58,58,56,0.1)] bg-forest/5">
+          <div className="p-3 border border-white/[0.08] bg-forest/5">
             <div className="flex items-center justify-between">
               <span className="font-mono text-[10px] text-grid/60">
                 Estimated export size

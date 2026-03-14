@@ -36,7 +36,7 @@ export function MessageFeedback({ messageContent, className }: MessageFeedbackPr
         onClick={handleCopy}
         className={cn(
           "w-6 h-6 flex items-center justify-center text-[11px] border border-transparent",
-          "hover:border-[rgba(58,58,56,0.15)] hover:text-forest transition-colors rounded-none bg-transparent",
+          "hover:border-white/[0.1] hover:text-forest transition-colors rounded-none bg-transparent",
           copied ? "text-forest" : "text-grid/30"
         )}
       >
@@ -48,7 +48,7 @@ export function MessageFeedback({ messageContent, className }: MessageFeedbackPr
         onClick={() => setFeedback(feedback === "up" ? null : "up")}
         className={cn(
           "w-6 h-6 flex items-center justify-center text-[11px] border border-transparent",
-          "hover:border-[rgba(58,58,56,0.15)] hover:text-forest transition-colors rounded-none bg-transparent",
+          "hover:border-white/[0.1] hover:text-forest transition-colors rounded-none bg-transparent",
           feedback === "up" ? "text-forest" : "text-grid/30"
         )}
       >
@@ -60,7 +60,7 @@ export function MessageFeedback({ messageContent, className }: MessageFeedbackPr
         onClick={() => setFeedback(feedback === "down" ? null : "down")}
         className={cn(
           "w-6 h-6 flex items-center justify-center text-[11px] border border-transparent",
-          "hover:border-[rgba(58,58,56,0.15)] hover:text-forest transition-colors rounded-none bg-transparent",
+          "hover:border-white/[0.1] hover:text-forest transition-colors rounded-none bg-transparent",
           feedback === "down" ? "text-grid/70" : "text-grid/30"
         )}
       >

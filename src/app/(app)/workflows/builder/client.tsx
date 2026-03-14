@@ -38,8 +38,8 @@ function MessageBubble({ msg, onWorkflowParsed }: {
         className={cn(
           "max-w-[85%] rounded-2xl px-4 py-3 text-sm",
           isUser
-            ? "bg-[#1A3C2B] text-[#F5F3EF] rounded-tr-sm"
-            : "bg-[#F5F3EF] border border-[rgba(58,58,56,0.15)] text-[#1a1a19] rounded-tl-sm"
+            ? "bg-white/[0.12] text-[#F5F3EF] rounded-tr-sm"
+            : "bg-[#F5F3EF] border border-white/[0.1] text-[#1a1a19] rounded-tl-sm"
         )}
       >
         {segments.map((seg, i) => {
@@ -175,15 +175,15 @@ export function WorkflowBuilderClient() {
   return (
     <div className="flex h-[calc(100vh-4rem)] bg-[#F5F3EF]">
       {/* Left: Chat */}
-      <div className="flex flex-col w-1/2 border-r border-[rgba(58,58,56,0.15)]">
+      <div className="flex flex-col w-1/2 border-r border-white/[0.1]">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(58,58,56,0.1)] bg-white/60">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08] bg-white/60">
           <div className="flex items-center gap-2">
-            <Link href="/workflows" className="font-mono text-[10px] uppercase tracking-wide text-[#1A3C2B]/60 hover:text-[#1A3C2B] transition-colors">
+            <Link href="/workflows" className="font-mono text-[10px] uppercase tracking-wide text-white/80/60 hover:text-white/80 transition-colors">
               ← Workflows
             </Link>
             <span className="text-[rgba(58,58,56,0.2)]">/</span>
-            <span className="font-mono text-[10px] uppercase tracking-wide text-[#1A3C2B]">AI Builder</span>
+            <span className="font-mono text-[10px] uppercase tracking-wide text-white/80">AI Builder</span>
           </div>
           <span className="text-lg">💬</span>
         </div>
@@ -195,11 +195,11 @@ export function WorkflowBuilderClient() {
           ))}
           {loading && (
             <div className="flex justify-start">
-              <div className="bg-[#F5F3EF] border border-[rgba(58,58,56,0.15)] rounded-2xl rounded-tl-sm px-4 py-3">
+              <div className="bg-[#F5F3EF] border border-white/[0.1] rounded-2xl rounded-tl-sm px-4 py-3">
                 <div className="flex gap-1 items-center">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#1A3C2B]/40 animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#1A3C2B]/40 animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#1A3C2B]/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/[0.12]/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/[0.12]/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/[0.12]/40 animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             </div>
@@ -210,7 +210,7 @@ export function WorkflowBuilderClient() {
               <button
                 onClick={handleConfirm}
                 disabled={loading}
-                className="px-4 py-2 bg-[#1A3C2B] text-white font-mono text-[11px] uppercase tracking-wide rounded-lg hover:bg-[#1A3C2B]/80 transition-colors disabled:opacity-40"
+                className="px-4 py-2 bg-white/[0.12] text-white font-mono text-[11px] uppercase tracking-wide rounded-lg hover:bg-white/[0.12]/80 transition-colors disabled:opacity-40"
               >
                 ✓ Confirm &amp; Save
               </button>
@@ -220,7 +220,7 @@ export function WorkflowBuilderClient() {
         </div>
 
         {/* Input */}
-        <div className="border-t border-[rgba(58,58,56,0.1)] p-3 bg-white/40">
+        <div className="border-t border-white/[0.08] p-3 bg-white/40">
           <div className="flex gap-2 items-end">
             <textarea
               ref={inputRef}
@@ -230,12 +230,12 @@ export function WorkflowBuilderClient() {
               placeholder="Describe your workflow... (Enter to send)"
               disabled={loading}
               rows={2}
-              className="flex-1 resize-none bg-white border border-[rgba(58,58,56,0.2)] rounded-xl px-3 py-2 font-mono text-xs outline-none placeholder:text-[rgba(58,58,56,0.3)] text-[#1a1a19] focus:border-[#1A3C2B]/40 transition-colors disabled:opacity-60"
+              className="flex-1 resize-none bg-white border border-white/[0.1] rounded-xl px-3 py-2 font-mono text-xs outline-none placeholder:text-[rgba(58,58,56,0.3)] text-[#1a1a19] focus:border-[#1A3C2B]/40 transition-colors disabled:opacity-60"
             />
             <button
               onClick={() => sendMessage()}
               disabled={loading || !input.trim()}
-              className="px-3 py-2 bg-[#1A3C2B] text-white rounded-xl font-mono text-[11px] hover:bg-[#1A3C2B]/80 transition-colors disabled:opacity-40 self-end"
+              className="px-3 py-2 bg-white/[0.12] text-white rounded-xl font-mono text-[11px] hover:bg-white/[0.12]/80 transition-colors disabled:opacity-40 self-end"
             >
               →
             </button>
@@ -246,29 +246,29 @@ export function WorkflowBuilderClient() {
       {/* Right: Visual Preview */}
       <div className="flex flex-col w-1/2 bg-white/30">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(58,58,56,0.1)] bg-white/60">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08] bg-white/60">
           <div className="flex items-center gap-2">
             <span className="text-lg">📋</span>
-            <span className="font-mono text-[11px] uppercase tracking-wide text-[#1A3C2B]">Workflow Preview</span>
+            <span className="font-mono text-[11px] uppercase tracking-wide text-white/80">Workflow Preview</span>
           </div>
           {workflow && (
             <div className="flex gap-2">
               <button
                 onClick={() => sendMessage("Let me edit this workflow")}
-                className="px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide border border-[rgba(58,58,56,0.2)] rounded-lg hover:bg-gray-50 transition-colors"
+                className="px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide border border-white/[0.1] rounded-lg hover:bg-gray-50 transition-colors"
               >
                 ✏️ Edit
               </button>
               <button
                 onClick={() => sendMessage("Test this workflow with sample data")}
-                className="px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide border border-[rgba(58,58,56,0.2)] rounded-lg hover:bg-gray-50 transition-colors"
+                className="px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide border border-white/[0.1] rounded-lg hover:bg-gray-50 transition-colors"
               >
                 ▶️ Test
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving || saved}
-                className="px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide bg-[#1A3C2B] text-white rounded-lg hover:bg-[#1A3C2B]/80 transition-colors disabled:opacity-50"
+                className="px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide bg-white/[0.12] text-white rounded-lg hover:bg-white/[0.12]/80 transition-colors disabled:opacity-50"
               >
                 {saved ? "✓ Saved" : saving ? "Saving..." : "💾 Save"}
               </button>

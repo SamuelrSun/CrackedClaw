@@ -43,7 +43,7 @@ const sourceEmoji: Record<string, string> = {
 
 export function SubagentProgressCard({ agents }: SubagentProgressCardProps) {
   return (
-    <div className="border border-[rgba(58,58,56,0.2)] rounded-none bg-white p-4 max-w-sm">
+    <div className="border border-white/[0.1] rounded-none bg-white p-4 max-w-sm">
       <div className="font-mono text-[10px] uppercase tracking-wide text-grid/60 mb-3">
         Learning about you
       </div>

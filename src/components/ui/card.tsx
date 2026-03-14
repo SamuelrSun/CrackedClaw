@@ -11,8 +11,8 @@ export function Card({ className, label, accentColor, bordered = true, children,
   return (
     <div
       className={cn(
-        "bg-paper rounded-none p-8 relative",
-        bordered && "border border-[rgba(58,58,56,0.2)]",
+        "bg-white/[0.06] backdrop-blur-md rounded-none p-8 relative",
+        bordered && "border border-white/[0.1]",
         className
       )}
       {...props}
@@ -23,7 +23,7 @@ export function Card({ className, label, accentColor, bordered = true, children,
             <div className="w-0.5 h-4" style={{ backgroundColor: accentColor }} />
           )}
           {typeof label === "string" ? (
-            <span className="font-mono text-[10px] uppercase tracking-wide text-grid/60">
+            <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
               {label}
             </span>
           ) : (

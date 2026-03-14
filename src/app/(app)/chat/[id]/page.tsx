@@ -1,0 +1,22 @@
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import ChatPageContent from "../page-content";
+
+export const dynamic = "force-dynamic";
+
+export const metadata = { title: "Chat — Dopl" };
+
+export default async function ChatConversationPage({ params }: { params: Promise<{ id: string }> }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { id } = await params;
+
+  if (!user) {
+    redirect(`/login?next=/chat/${id}`);
+  }
+
+  return <ChatPageContent initialConversationId={id} />;
+}

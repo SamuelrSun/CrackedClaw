@@ -66,7 +66,7 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
   };
 
   return (
-    <div className="border border-amber-200 bg-amber-50 p-4 max-w-md">
+    <div className="border border-amber-500/30 bg-amber-900/20 p-4 max-w-md">
       {/* Header */}
       <div className="flex items-center gap-2 mb-3">
         <span className="text-2xl">{integrationIcon}</span>
@@ -79,13 +79,13 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
       </div>
 
       {/* Live Connection Status Indicator */}
-      <div className="mb-4 p-3 border border-amber-200 bg-white/50">
+      <div className="mb-4 p-3 border border-amber-500/30 bg-white/[0.06]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {nodeStatus === null ? (
               <>
                 <Loader2 className="w-4 h-4 text-amber-600 animate-spin" />
-                <span className="font-mono text-[10px] text-amber-700">Checking connection...</span>
+                <span className="font-mono text-[10px] text-amber-400">Checking connection...</span>
               </>
             ) : nodeStatus.isOnline ? (
               <>
@@ -100,9 +100,9 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
               <>
                 <div className="relative w-3 h-3">
                   <div className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-75" />
-                  <div className="relative w-3 h-3 rounded-full bg-amber-500" />
+                  <div className="relative w-3 h-3 rounded-full bg-amber-900/200" />
                 </div>
-                <span className="font-mono text-[10px] text-amber-700">
+                <span className="font-mono text-[10px] text-amber-400">
                   ⏳ Waiting for connection...
                 </span>
               </>
@@ -111,7 +111,7 @@ export function NodeGateCard({ integrationName, integrationIcon, loginUrl, onLau
           <button
             onClick={handleRefresh}
             disabled={checking}
-            className="p-1 hover:bg-amber-100 rounded transition-colors"
+            className="p-1 hover:bg-amber-900/20 rounded transition-colors"
             title="Check connection"
           >
             <RefreshCw className={`w-3 h-3 text-amber-600 ${checking ? 'animate-spin' : ''}`} />

@@ -44,7 +44,7 @@ export function SkillSuggestCard({ skillId, reason, onInstalled }: SkillSuggestC
   }
 
   return (
-    <div className="my-3 border border-[rgba(58,58,56,0.2)] bg-amber-50/50 p-4">
+    <div className="my-3 border border-white/[0.1] bg-amber-900/20 p-4">
       <div className="flex items-center gap-2 mb-2">
         <span>💡</span>
         <p className="font-mono text-[9px] uppercase tracking-wide text-grid/40">Skill Suggestion</p>
@@ -56,7 +56,7 @@ export function SkillSuggestCard({ skillId, reason, onInstalled }: SkillSuggestC
       <p className="font-mono text-[10px] text-grid/60 mb-3">{reason}</p>
       <div className="flex flex-wrap gap-1 mb-3">
         {skill.capabilities.slice(0, 4).map(cap => (
-          <span key={cap} className="font-mono text-[8px] bg-grid/5 px-2 py-0.5 border border-[rgba(58,58,56,0.1)] text-grid/50">{cap}</span>
+          <span key={cap} className="font-mono text-[8px] bg-grid/5 px-2 py-0.5 border border-white/[0.08] text-grid/50">{cap}</span>
         ))}
       </div>
       <div className="flex gap-2">
@@ -67,7 +67,7 @@ export function SkillSuggestCard({ skillId, reason, onInstalled }: SkillSuggestC
         >
           {state === 'installing' ? 'Installing...' : 'Install Skill'}
         </button>
-        <button onClick={() => setState('dismissed')} className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide border border-[rgba(58,58,56,0.2)] hover:bg-grid/5 transition-colors">
+        <button onClick={() => setState('dismissed')} className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide border border-white/[0.1] hover:bg-grid/5 transition-colors">
           Not now
         </button>
       </div>
