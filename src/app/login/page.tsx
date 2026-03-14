@@ -427,7 +427,7 @@ function LoginContent() {
               {loading || form.isSubmitting ? "Loading..." : isSignUp ? "Sign Up" : "Sign In"}
             </button>
 
-            <div className="mt-1.5 text-right">
+            <div className="mt-0.5 text-right">
               <button
                 type="button"
                 onClick={() => {
@@ -465,7 +465,9 @@ function LoginContent() {
       <p className="w-full max-w-sm relative z-10 font-mono text-[9px] text-white/40 text-center mt-4 uppercase tracking-wide"
          style={{ animation: "loginFadeIn 0.6s ease-out both", animationDelay: "0.3s" }}
       >
-        By signing in, you agree to our <a href="/terms" className="underline hover:text-white transition-colors">terms of service</a>
+        <a href="/terms" className="underline hover:text-white transition-colors">Terms of Service</a>
+        <span className="mx-2">·</span>
+        <a href="/privacy" className="underline hover:text-white transition-colors">Privacy Policy</a>
       </p>
     </div>
   );
