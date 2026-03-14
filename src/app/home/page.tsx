@@ -216,22 +216,7 @@ export default function LandingPage() {
         style={{ background: "rgba(0,0,0,0.25)" }}
       />
 
-      {/* ═══ Vertical Grid Lines ═══ */}
-      <div className="fixed inset-0 pointer-events-none z-[1]">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              top: 0,
-              bottom: 0,
-              left: `${(i / 6) * 100}%`,
-              width: "2px",
-              background: "rgba(255,255,255,0.08)",
-            }}
-          />
-        ))}
-      </div>
+      {/* Vertical grid lines removed */}
 
       {/* ═══ Hero ═══ */}
       <section
@@ -255,12 +240,10 @@ export default function LandingPage() {
 
         {/* Logo — center top */}
         <div
-          className="absolute top-7 left-1/2 -translate-x-1/2 z-20 hero-animate"
+          className="absolute top-7 left-1/2 -translate-x-1/2 z-20 hero-animate text-xl font-bold"
           style={{
             fontFamily: "var(--font-playfair, 'Playfair Display', serif)",
             fontStyle: "italic",
-            fontWeight: 400,
-            fontSize: 14,
             color: "#18181B",
           }}
         >
@@ -375,16 +358,7 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Scroll indicator */}
-        <div className="hero-animate-4 absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
-          <span
-            className="text-[10px] uppercase tracking-[0.2em]"
-            style={{ color: "rgba(255,255,255,0.45)", fontFamily: "var(--font-roboto, sans-serif)" }}
-          >
-            Scroll
-          </span>
-          <div className="w-px h-8 bg-gradient-to-b from-white/30 to-transparent" />
-        </div>
+        {/* Scroll indicator removed */}
       </section>
 
       {/* ═══ Demo Section ═══ */}
