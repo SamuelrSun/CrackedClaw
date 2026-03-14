@@ -2,6 +2,32 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+/**
+ * When OAuth completes in a popup window, return an HTML page
+ * that notifies the opener and closes itself instead of redirecting.
+ */
+function popupCloseResponse(redirectTo: string, cookies: { name: string; value: string }[]) {
+  const html = `<!DOCTYPE html><html><head><title>Authenticating...</title></head><body>
+<script>
+  if (window.opener) {
+    window.opener.postMessage({ type: 'oauth-complete', redirectTo: ${JSON.stringify(redirectTo)} }, window.location.origin);
+    window.close();
+  } else {
+    window.location.href = ${JSON.stringify(redirectTo)};
+  }
+</script>
+<noscript><a href="${redirectTo}">Click here to continue</a></noscript>
+</body></html>`;
+  const response = new NextResponse(html, {
+    status: 200,
+    headers: { "Content-Type": "text/html" },
+  });
+  cookies.forEach(({ name, value, ...rest }) => {
+    response.cookies.set(name, value, rest as Record<string, unknown>);
+  });
+  return response;
+}
+
 async function getPostAuthRedirect(
   supabase: ReturnType<typeof createServerClient>,
   origin: string
@@ -67,18 +93,25 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
+      const isPopup = searchParams.get("popup") === "1";
+
       if (isEmailVerification) {
         return NextResponse.redirect(new URL(`${origin}/verify-email?status=success`));
       }
+
+      let targetUrl: string;
       if (next) {
-        const redirectResponse = NextResponse.redirect(new URL(`${origin}${next}`));
-        response.cookies.getAll().forEach(({ name, value, ...rest }) => {
-          redirectResponse.cookies.set(name, value, rest);
-        });
-        return redirectResponse;
+        targetUrl = `${origin}${next}`;
+      } else {
+        targetUrl = await getPostAuthRedirect(supabase, origin);
       }
-      const redirectTo = await getPostAuthRedirect(supabase, origin);
-      const redirectResponse = NextResponse.redirect(new URL(redirectTo));
+
+      // If this callback is inside a popup window, close it and notify the opener
+      if (isPopup) {
+        return popupCloseResponse(targetUrl, response.cookies.getAll());
+      }
+
+      const redirectResponse = NextResponse.redirect(new URL(targetUrl));
       response.cookies.getAll().forEach(({ name, value, ...rest }) => {
         redirectResponse.cookies.set(name, value, rest);
       });

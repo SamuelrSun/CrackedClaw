@@ -126,7 +126,7 @@ function LoginContent() {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?popup=1`,
         skipBrowserRedirect: true,
       },
     });
@@ -154,10 +154,23 @@ function LoginContent() {
       return;
     }
 
-    // Poll for popup close + check for auth session
+    // Listen for message from popup callback
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === "oauth-complete") {
+        window.removeEventListener("message", handleMessage);
+        clearInterval(pollInterval);
+        router.push(event.data.redirectTo || "/chat");
+        router.refresh();
+      }
+    };
+    window.addEventListener("message", handleMessage);
+
+    // Fallback: poll for popup close (in case postMessage fails)
     const pollInterval = setInterval(async () => {
       if (popup.closed) {
         clearInterval(pollInterval);
+        window.removeEventListener("message", handleMessage);
         // Check if we got a session from the callback
         const { data: sessionData } = await supabase.auth.getSession();
         if (sessionData.session) {
