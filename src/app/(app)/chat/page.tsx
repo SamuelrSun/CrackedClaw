@@ -6,7 +6,11 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Chat — Dopl" };
 
-export default async function ChatPage() {
+export default async function ChatPage({
+  searchParams,
+}: {
+  searchParams?: { c?: string; intro?: string };
+}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -16,5 +20,7 @@ export default async function ChatPage() {
     redirect(`/login?next=/chat`);
   }
 
-  return <ChatPageContent />;
+  const initialConversationId = searchParams?.c || undefined;
+
+  return <ChatPageContent initialConversationId={initialConversationId} />;
 }

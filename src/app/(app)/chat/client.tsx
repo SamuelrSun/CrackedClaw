@@ -897,6 +897,52 @@ export default function ChatPageClient({
 
   const { systemPrompt, refreshPrompt: refreshSystemPrompt } = useSystemPrompt();
 
+  // ── Intro kickstart: auto-send a hidden system prompt on first load ──────
+  const introSentRef = useRef(false);
+  useEffect(() => {
+    if (introSentRef.current) return;
+    if (!wsConnected) return;
+    if (messages.length > 0) return;
+
+    // Check if ?intro=1 is in the URL
+    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+    if (params.get('intro') !== '1') return;
+
+    introSentRef.current = true;
+
+    // Remove intro param from URL immediately
+    const cleanUrl = conversationId ? `/chat?c=${conversationId}` : '/chat';
+    window.history.replaceState({}, '', cleanUrl);
+
+    // Create a streaming placeholder so the user sees the typing indicator
+    const streamingMsgId = "msg_intro_" + Date.now() + "_assistant";
+    const placeholderMsg: StreamingMessage = {
+      id: streamingMsgId,
+      role: "assistant",
+      content: "",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      isStreaming: true,
+      toolCalls: [],
+    };
+    setMessages([placeholderMsg]);
+    setIsLoading(true);
+
+    // Point WS refs at this placeholder
+    wsStreamingMsgIdRef.current = streamingMsgId;
+    wsFullTextRef.current = "";
+    wsConvoIdRef.current = conversationId;
+
+    const sessionKey = `webchat-${conversationId || Date.now()}`;
+    wsSessionKeyRef.current = sessionKey;
+
+    const kickstartMessage =
+      "[SYSTEM: The user just completed signup and is seeing you for the first time. This is your very first conversation together. Introduce yourself — you're a brand new AI companion, fresh out of the box, no memories, no name. Be warm, curious, and excited to meet them. Ask what they'd like to call you and what you should call them.]";
+
+    // Send via WebSocket only — do NOT save to Supabase (ephemeral kickstart)
+    wsSendMessage(kickstartMessage, { sessionKey, model: selectedModel, systemPrompt });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsConnected, messages.length, conversationId]);
+
   const {
     isOnline: nodeIsOnline,
     nodeName,

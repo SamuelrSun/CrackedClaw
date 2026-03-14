@@ -415,6 +415,7 @@ export function WelcomeContent() {
   // Refs to coordinate provisioning + messaging completion
   const provisionDoneRef = useRef(false);
   const completionFiredRef = useRef(false);
+  const firstConvoIdRef = useRef<string | null>(null);
 
   // ── Trigger the final panels-up + redirect ──
   const triggerCompletion = useCallback(() => {
@@ -429,7 +430,12 @@ export function WelcomeContent() {
     });
 
     setTimeout(() => {
-      router.push("/chat");
+      const convoId = firstConvoIdRef.current;
+      if (convoId) {
+        router.push(`/chat?c=${convoId}&intro=1`);
+      } else {
+        router.push("/chat");
+      }
     }, 2900);
   }, [router]);
 
@@ -438,11 +444,17 @@ export function WelcomeContent() {
     // Start provisioning immediately in the background
     (async () => {
       try {
-        await fetch("/api/organizations/provision", {
+        const res = await fetch("/api/organizations/provision", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({}),
         });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.first_conversation_id) {
+            firstConvoIdRef.current = data.first_conversation_id;
+          }
+        }
       } catch {
         // proceed anyway
       }

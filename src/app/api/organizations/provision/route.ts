@@ -106,6 +106,40 @@ export async function POST(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
+    // Create or find the first "Meet Your Companion" conversation
+    let firstConversationId: string | null = null;
+    try {
+      if (!hasInstance) {
+        // New user — create the first conversation
+        const { data: firstConvo } = await supabase
+          .from("conversations")
+          .insert({
+            user_id: user.id,
+            title: "Meet Your Companion",
+          })
+          .select("id")
+          .single();
+        if (firstConvo) {
+          firstConversationId = firstConvo.id;
+        }
+      } else {
+        // Existing user — find an existing "Meet Your Companion" conversation if any
+        const { data: existingConvo } = await supabase
+          .from("conversations")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("title", "Meet Your Companion")
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .single();
+        if (existingConvo) {
+          firstConversationId = existingConvo.id;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to create/find first conversation:", e);
+    }
+
     return NextResponse.json({
       success: true,
       organization_id: user.id,
@@ -115,6 +149,7 @@ export async function POST(request: NextRequest) {
         status: finalProfile?.instance_status || "running",
       },
       is_new: !hasInstance,
+      first_conversation_id: firstConversationId,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
