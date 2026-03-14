@@ -3,26 +3,34 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 /**
- * When OAuth completes in a popup window, return an HTML page
- * that notifies the opener and closes itself instead of redirecting.
+ * Return an HTML page that detects whether it's inside a popup (window.opener)
+ * or a direct navigation, and acts accordingly.
+ * - Popup: postMessage to opener + close self
+ * - Direct: redirect via window.location.href (preserves cookies set by this response)
  */
-function popupCloseResponse(redirectTo: string, cookies: { name: string; value: string }[]) {
-  const html = `<!DOCTYPE html><html><head><title>Authenticating...</title></head><body>
+function authCompleteResponse(redirectTo: string, responseCookies: ReturnType<typeof NextResponse.prototype.cookies.getAll>) {
+  const html = `<!DOCTYPE html><html><head><title>Authenticating...</title>
+<style>body{background:#0a0a0f;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:monospace;color:rgba(255,255,255,0.5);font-size:11px;text-transform:uppercase;letter-spacing:0.1em}</style>
+</head><body><p>Signing in...</p>
 <script>
   if (window.opener) {
-    window.opener.postMessage({ type: 'oauth-complete', redirectTo: ${JSON.stringify(redirectTo)} }, window.location.origin);
+    try {
+      window.opener.postMessage({ type: 'oauth-complete', redirectTo: ${JSON.stringify(redirectTo)} }, window.location.origin);
+    } catch(e) {}
     window.close();
+    // Fallback if window.close() is blocked
+    setTimeout(function() { window.location.href = ${JSON.stringify(redirectTo)}; }, 500);
   } else {
     window.location.href = ${JSON.stringify(redirectTo)};
   }
 </script>
-<noscript><a href="${redirectTo}">Click here to continue</a></noscript>
+<noscript><meta http-equiv="refresh" content="0;url=${redirectTo}"><a href="${redirectTo}">Click here to continue</a></noscript>
 </body></html>`;
   const response = new NextResponse(html, {
     status: 200,
     headers: { "Content-Type": "text/html" },
   });
-  cookies.forEach(({ name, value, ...rest }) => {
+  responseCookies.forEach(({ name, value, ...rest }) => {
     response.cookies.set(name, value, rest as Record<string, unknown>);
   });
   return response;
@@ -36,7 +44,6 @@ async function getPostAuthRedirect(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return `${origin}/login`;
 
-    // Check if user has completed onboarding via their profile
     const { data: profile } = await supabase
       .from("profiles")
       .select("onboarding_completed, instance_id")
@@ -52,6 +59,24 @@ async function getPostAuthRedirect(
   return `${origin}/onboarding`;
 }
 
+function createSupabaseFromRequest(request: NextRequest, cookieResponse: NextResponse) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
+
+  return createServerClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          cookieResponse.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
@@ -65,36 +90,13 @@ export async function GET(request: NextRequest) {
     type === "email";
 
   if (code) {
-    // Build the redirect response first so we can attach cookies directly to it.
-    // IMPORTANT: cookies set via next/headers cookies() are NOT forwarded to a
-    // NextResponse.redirect() created separately — the session cookie would be
-    // lost, causing /chat to redirect back to /login immediately after OAuth.
-    const response = NextResponse.redirect(new URL(`${origin}/login?error=auth_failed`));
-
-    const supabaseUrl =
-      process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
-    const supabaseKey =
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
-
-    const supabase = createServerClient(supabaseUrl, supabaseKey, {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          // Write cookies directly onto the response we will return
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    });
+    // Create a response to collect cookies onto
+    const cookieResponse = NextResponse.redirect(new URL(`${origin}/login?error=auth_failed`));
+    const supabase = createSupabaseFromRequest(request, cookieResponse);
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      const isPopup = searchParams.get("popup") === "1";
-
       if (isEmailVerification) {
         return NextResponse.redirect(new URL(`${origin}/verify-email?status=success`));
       }
@@ -106,16 +108,9 @@ export async function GET(request: NextRequest) {
         targetUrl = await getPostAuthRedirect(supabase, origin);
       }
 
-      // If this callback is inside a popup window, close it and notify the opener
-      if (isPopup) {
-        return popupCloseResponse(targetUrl, response.cookies.getAll());
-      }
-
-      const redirectResponse = NextResponse.redirect(new URL(targetUrl));
-      response.cookies.getAll().forEach(({ name, value, ...rest }) => {
-        redirectResponse.cookies.set(name, value, rest);
-      });
-      return redirectResponse;
+      // Always return HTML that detects popup vs direct navigation client-side.
+      // This avoids needing query params (which Supabase may strip/reject).
+      return authCompleteResponse(targetUrl, cookieResponse.cookies.getAll());
     }
 
     if (isEmailVerification) {
@@ -125,32 +120,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Return with auth_failed + cookies (though session didn't establish)
-    return response;
+    return cookieResponse;
   }
 
+  // Handle email verification via token hash
   const tokenHash = searchParams.get("token_hash");
   const tokenType = searchParams.get("type");
   if (tokenHash && (tokenType === "signup" || tokenType === "email")) {
-    const response = NextResponse.redirect(new URL(`${origin}/login?error=auth_failed`));
-
-    const supabaseUrl =
-      process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
-    const supabaseKey =
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
-
-    const supabase = createServerClient(supabaseUrl, supabaseKey, {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    });
+    const cookieResponse = NextResponse.redirect(new URL(`${origin}/login?error=auth_failed`));
+    const supabase = createSupabaseFromRequest(request, cookieResponse);
 
     const { error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
@@ -158,7 +136,7 @@ export async function GET(request: NextRequest) {
     });
     if (!error) {
       const successResponse = NextResponse.redirect(new URL(`${origin}/verify-email?status=success`));
-      response.cookies.getAll().forEach(({ name, value, ...rest }) => {
+      cookieResponse.cookies.getAll().forEach(({ name, value, ...rest }) => {
         successResponse.cookies.set(name, value, rest);
       });
       return successResponse;
