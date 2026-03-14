@@ -578,6 +578,26 @@ function UserMessageContent({ content }: { content: string }) {
   return <p className="whitespace-pre-wrap text-base leading-[24px]">{content}</p>;
 }
 
+// Fixed background — renders the landing image behind the chat UI
+function ChatBg() {
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-0 pointer-events-none"
+        style={{
+          backgroundImage: "url('/img/landing_background.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
+      <div
+        className="fixed inset-0 z-0 pointer-events-none"
+        style={{ background: "rgba(0,0,0,0.45)" }}
+      />
+    </>
+  );
+}
+
 function NewConversationLanding({ onSend }: { onSend: (message: string) => void }) {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -604,32 +624,43 @@ function NewConversationLanding({ onSend }: { onSend: (message: string) => void 
   }, [input]);
 
   return (
-    <div
-      className="flex flex-col items-center justify-center h-[calc(100vh-64px)] px-6"
-      style={{ paddingBottom: '15vh' }}
-    >
-      <h1
-        className="text-4xl font-bold text-white/90 mb-8 text-center"
-        style={{ fontFamily: 'Georgia, "Times New Roman", serif', lineHeight: '44px' }}
+    <>
+      <ChatBg />
+      <div
+        className="relative z-[1] flex flex-col items-center justify-center h-[calc(100vh-64px)] px-6"
+        style={{ paddingBottom: '15vh' }}
       >
-        What can I do for you?
-      </h1>
+        <h1
+          className="text-4xl font-bold text-white/90 mb-8 text-center"
+          style={{ fontFamily: 'Georgia, "Times New Roman", serif', lineHeight: '44px' }}
+        >
+          What can I do for you?
+        </h1>
 
-      <div className="w-full max-w-3xl">
-        <div className="bg-white/[0.06] border border-white/[0.12] rounded-lg shadow-lg shadow-black/20">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Describe a task or responsibility..."
-            className="w-full bg-transparent text-base text-white/90 placeholder:text-white/30 p-4 resize-none outline-none min-h-[56px] max-h-[200px]"
-            rows={1}
-            autoFocus
-          />
+        <div className="w-full max-w-3xl">
+          <div
+            className="border border-white/[0.25]"
+            style={{
+              background: "rgba(255,255,255,0.15)",
+              backdropFilter: "blur(40px) saturate(150%)",
+              WebkitBackdropFilter: "blur(40px) saturate(150%)",
+              borderRadius: 0,
+            }}
+          >
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Describe a task or responsibility..."
+              className="w-full bg-transparent text-base text-white/90 placeholder:text-white/30 p-4 resize-none outline-none min-h-[56px] max-h-[200px]"
+              rows={1}
+              autoFocus
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -1709,7 +1740,9 @@ User message: `
   }
 
   return (
-    <div className="flex h-[calc(100vh-64px)]">
+    <>
+    <ChatBg />
+    <div className="flex h-[calc(100vh-64px)] relative z-[1]">
       {/* Conversation Sidebar */}
       <aside className="w-72 border-r border-white/[0.1] bg-white/[0.03] flex flex-col">
         <div className="px-4 py-4 border-b border-white/[0.1] flex items-center justify-between">
@@ -2122,7 +2155,15 @@ User message: `
             files={attachedFiles}
             onRemove={(id) => setAttachedFiles(prev => prev.filter(f => f.id !== id))}
           />
-          <div className="border border-white/[0.1] bg-white/[0.06] rounded-xl backdrop-blur-md">
+          <div
+            className="border border-white/[0.25]"
+            style={{
+              background: "rgba(255,255,255,0.15)",
+              backdropFilter: "blur(40px) saturate(150%)",
+              WebkitBackdropFilter: "blur(40px) saturate(150%)",
+              borderRadius: 0,
+            }}
+          >
             <textarea
               value={input}
               onChange={(e) => {
@@ -2207,5 +2248,6 @@ User message: `
       )}
       </div>
     </div>
+    </>
   );
 }
