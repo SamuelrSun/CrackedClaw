@@ -427,7 +427,7 @@ function LoginContent() {
               {loading || form.isSubmitting ? "Loading..." : isSignUp ? "Sign Up" : "Sign In"}
             </button>
 
-            <div className="mt-0.5 text-right">
+            <div className="!mt-1 text-right">
               <button
                 type="button"
                 onClick={() => {
