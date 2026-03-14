@@ -56,6 +56,20 @@ export default function WelcomeLayout({ children }: { children: React.ReactNode 
         /* Hide scrollbar on the welcome scroll container */
         .welcome-scroll::-webkit-scrollbar { display: none; }
         .welcome-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+
+        /* Animated dots for "Give me just a moment..." */
+        .animated-dots .dot {
+          animation: dotPulse 1.4s ease-in-out infinite;
+          opacity: 0;
+        }
+        .animated-dots .dot-1 { animation-delay: 0s; }
+        .animated-dots .dot-2 { animation-delay: 0.2s; }
+        .animated-dots .dot-3 { animation-delay: 0.4s; }
+        @keyframes dotPulse {
+          0%, 20% { opacity: 0; }
+          40% { opacity: 1; }
+          60%, 100% { opacity: 0; }
+        }
       `}</style>
       {children}
     </div>

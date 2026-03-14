@@ -10,21 +10,26 @@ import { Input } from "@/components/ui/input";
 
 // ─────────────────────────────────────────────────────────
 // Message sequence (post-auth, centered on screen)
+// Messages before "waiting" play immediately.
+// "waiting" = animated dots, holds until provisioning completes.
+// Messages after "waiting" play once provisioning is done.
 // ─────────────────────────────────────────────────────────
 
-const MESSAGES = [
-  {
-    text: "Hey! Welcome to Dopl.",
-    pauseAfterMs: 1500,
-  },
-  {
-    text: "I'm not your AI companion yet, just the welcome crew. I'm setting them up right now as we speak. Over time, they'll become your confidant, assistant, partner, and so much more. I'm excited for the adventures you'll go on!",
-    pauseAfterMs: 3000,
-  },
-  {
-    text: "All set! Your agent is warmed up and waiting for you.\n\nI'm giving you both 100,000 tokens to get to know each other. That's a lot of conversations. See you on the other side!",
-    pauseAfterMs: 1500,
-  },
+type MsgEntry =
+  | { kind: "text"; text: string; pauseAfterMs: number }
+  | { kind: "waiting" }; // animated dots — waits for provisioning
+
+const MESSAGES: MsgEntry[] = [
+  { kind: "text", text: "Hey! Welcome to Dopl.", pauseAfterMs: 1200 },
+  { kind: "text", text: "I'm not your AI companion yet, just the welcome crew.", pauseAfterMs: 1200 },
+  { kind: "text", text: "I'm setting them up right now as we speak.", pauseAfterMs: 1200 },
+  { kind: "text", text: "Over time, they'll become your confidant, assistant, partner, and so much more.", pauseAfterMs: 1500 },
+  { kind: "text", text: "I'm excited for the adventures you'll go on!", pauseAfterMs: 1500 },
+  { kind: "waiting" }, // "Give me just a moment..." with animated dots — holds here until provisioning finishes
+  { kind: "text", text: "All set! Your agent is warmed up and waiting for you.", pauseAfterMs: 1500 },
+  { kind: "text", text: "I'm giving you both 100,000 tokens to get to know each other.", pauseAfterMs: 1200 },
+  { kind: "text", text: "That's a lot of conversations.", pauseAfterMs: 1200 },
+  { kind: "text", text: "See you on the other side!", pauseAfterMs: 1500 },
 ];
 
 const CHAR_INTERVAL_MS = 30;
@@ -394,6 +399,7 @@ export function WelcomeContent() {
   const [msgIndex, setMsgIndex] = useState(0);
   const [displayedText, setDisplayedText] = useState("");
   const [msgOpacity, setMsgOpacity] = useState(1);
+  const [showWaiting, setShowWaiting] = useState(false); // "Give me just a moment..." with animated dots
 
   // Post-messaging reveal panels
   const [showPanels, setShowPanels] = useState(false);
@@ -401,12 +407,10 @@ export function WelcomeContent() {
 
   // Refs to coordinate provisioning + messaging completion
   const provisionDoneRef = useRef(false);
-  const messagingDoneRef = useRef(false);
   const completionFiredRef = useRef(false);
 
-  // ── Trigger the final panels-up + redirect (once both provisioning and messaging are done) ──
+  // ── Trigger the final panels-up + redirect ──
   const triggerCompletion = useCallback(() => {
-    if (!provisionDoneRef.current || !messagingDoneRef.current) return;
     if (completionFiredRef.current) return;
     completionFiredRef.current = true;
 
@@ -436,7 +440,6 @@ export function WelcomeContent() {
         // proceed anyway
       }
       provisionDoneRef.current = true;
-      triggerCompletion();
     })();
 
     // Animate panel out, then switch to messaging phase
@@ -444,25 +447,79 @@ export function WelcomeContent() {
     setTimeout(() => {
       setPhase("messaging");
     }, 600);
-  }, [triggerCompletion]);
+  }, []);
+
+  // ── When provisioning finishes and we're on the waiting step, advance past it ──
+  useEffect(() => {
+    if (!showWaiting || !provisionDoneRef.current) return;
+    // Provisioning already done — fade out the waiting message and advance
+    const fadeDelay = setTimeout(() => {
+      setMsgOpacity(0);
+      const advanceDelay = setTimeout(() => {
+        setShowWaiting(false);
+        setMsgIndex((prev) => prev + 1);
+      }, FADE_OUT_DURATION_MS);
+      return () => clearTimeout(advanceDelay);
+    }, 500); // brief pause so user sees it resolved
+    return () => clearTimeout(fadeDelay);
+  }, [showWaiting]);
+
+  // ── Poll for provisioning completion while waiting ──
+  useEffect(() => {
+    if (!showWaiting) return;
+    if (provisionDoneRef.current) {
+      // Already done, trigger advance
+      setMsgOpacity(0);
+      const t = setTimeout(() => {
+        setShowWaiting(false);
+        setMsgIndex((prev) => prev + 1);
+      }, FADE_OUT_DURATION_MS + 500);
+      return () => clearTimeout(t);
+    }
+    const interval = setInterval(() => {
+      if (provisionDoneRef.current) {
+        clearInterval(interval);
+        // Brief pause, then fade + advance
+        setTimeout(() => {
+          setMsgOpacity(0);
+          setTimeout(() => {
+            setShowWaiting(false);
+            setMsgIndex((prev) => prev + 1);
+          }, FADE_OUT_DURATION_MS);
+        }, 500);
+      }
+    }, 300);
+    return () => clearInterval(interval);
+  }, [showWaiting]);
 
   // ── Message sequencer (runs during "messaging" phase) ──
   useEffect(() => {
     if (phase !== "messaging") return;
 
     if (msgIndex >= MESSAGES.length) {
-      // All messages done
-      messagingDoneRef.current = true;
+      // All messages done → trigger final transition
       triggerCompletion();
       return;
     }
 
-    const { text, pauseAfterMs } = MESSAGES[msgIndex];
+    const msg = MESSAGES[msgIndex];
+
+    // Handle "waiting" step — show animated dots until provisioning finishes
+    if (msg.kind === "waiting") {
+      setDisplayedText("");
+      setMsgOpacity(1);
+      setShowWaiting(true);
+      return; // waiting effect handles advancing
+    }
+
+    // Normal text message
+    const { text, pauseAfterMs } = msg;
     const isLast = msgIndex === MESSAGES.length - 1;
 
     let charIndex = 0;
     setDisplayedText("");
     setMsgOpacity(1);
+    setShowWaiting(false);
 
     let pauseTimeoutId: ReturnType<typeof setTimeout> | null = null;
     let fadeTimeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -474,11 +531,9 @@ export function WelcomeContent() {
       if (charIndex >= text.length) {
         clearInterval(intervalId);
 
-        // Pause after fully typed
         pauseTimeoutId = setTimeout(() => {
           if (isLast) {
-            // Last message: don't fade — just mark done and wait for provisioning
-            messagingDoneRef.current = true;
+            // Last message: stay visible briefly, then trigger completion
             triggerCompletion();
           } else {
             // Fade out, then advance to next message
@@ -576,19 +631,39 @@ export function WelcomeContent() {
               transition: `opacity ${FADE_OUT_DURATION_MS}ms ease`,
             }}
           >
-            <p
-              style={{
-                fontFamily: "Verdana, sans-serif",
-                fontSize: 15,
-                color: "rgba(255,255,255,0.92)",
-                lineHeight: 1.75,
-                whiteSpace: "pre-wrap",
-                margin: 0,
-                textAlign: "center",
-              }}
-            >
-              {displayedText}
-            </p>
+            {showWaiting ? (
+              <p
+                style={{
+                  fontFamily: "Verdana, sans-serif",
+                  fontSize: 15,
+                  color: "rgba(255,255,255,0.92)",
+                  lineHeight: 1.75,
+                  margin: 0,
+                  textAlign: "center",
+                }}
+              >
+                Give me just a moment
+                <span className="animated-dots">
+                  <span className="dot dot-1">.</span>
+                  <span className="dot dot-2">.</span>
+                  <span className="dot dot-3">.</span>
+                </span>
+              </p>
+            ) : (
+              <p
+                style={{
+                  fontFamily: "Verdana, sans-serif",
+                  fontSize: 15,
+                  color: "rgba(255,255,255,0.92)",
+                  lineHeight: 1.75,
+                  whiteSpace: "pre-wrap",
+                  margin: 0,
+                  textAlign: "center",
+                }}
+              >
+                {displayedText}
+              </p>
+            )}
           </div>
         </div>
       )}
