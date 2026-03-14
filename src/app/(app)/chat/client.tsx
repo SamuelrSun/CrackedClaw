@@ -52,6 +52,7 @@ import { EmailComposerCard } from "@/components/chat/email-composer-card";
 import type { EmailDraft } from "@/lib/email/gmail-client";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { useGatewayWS, type WSChatEvent } from "@/hooks/use-gateway-ws";
+import { useSystemPrompt } from "@/hooks/use-system-prompt";
 import { ThinkingBlock } from "@/components/chat/thinking-block";
 import { ToolTimeline } from "@/components/chat/tool-timeline";
 import { ModelSelector } from "@/components/chat/model-selector";
@@ -894,6 +895,8 @@ export default function ChatPageClient({
     enabled: !!gateway, // only open WS when gateway is configured
   });
 
+  const { systemPrompt, refreshPrompt: refreshSystemPrompt } = useSystemPrompt();
+
   const {
     isOnline: nodeIsOnline,
     nodeName,
@@ -969,6 +972,8 @@ export default function ChatPageClient({
               clearInterval(pollInterval);
               popup.close();
               resolve(true);
+              // Refresh system prompt so the next WS message includes updated integration context
+              refreshSystemPrompt();
               // Auto-send continuation message so agent continues the task
               setTimeout(() => {
                 const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
@@ -1201,7 +1206,7 @@ User message: `
         }).then(() => {}, (e) => console.error("[WS] Failed to save user msg:", e));
       }
 
-      wsSendMessage(messageToSend, { sessionKey, model: selectedModel });
+      wsSendMessage(messageToSend, { sessionKey, model: selectedModel, systemPrompt });
       return; // WS handler drives the rest; setIsLoading(false) called on done/error
     }
 
