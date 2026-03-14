@@ -9,39 +9,26 @@ import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { Input } from "@/components/ui/input";
 
 // ─────────────────────────────────────────────────────────
-// Message sequence
+// Message sequence (post-auth, centered on screen)
 // ─────────────────────────────────────────────────────────
 
-const SEQUENCE = [
+const MESSAGES = [
   {
     text: "Hey! Welcome to Dopl.",
-    pauseAfterMs: 1000,
-    showDots: false,
+    pauseAfterMs: 1500,
   },
   {
     text: "I'm not your AI companion yet, just the welcome crew. I'm setting them up right now as we speak. Over time, they'll become your confidant, assistant, partner, and so much more. I'm excited for the adventures you'll go on!",
-    pauseAfterMs: 5000,
-    showDots: true, // show "..." while agent "spins up"
+    pauseAfterMs: 3000,
   },
   {
-    text: "All set! Your agent is warmed up and waiting for you.\n\nI'm giving you both 100,000 tokens to get to know each other. That's a lot of conversations.\n\nWhen you're ready to meet them, just sign in below. See you on the other side!",
-    pauseAfterMs: 1200,
-    showDots: false,
+    text: "All set! Your agent is warmed up and waiting for you.\n\nI'm giving you both 100,000 tokens to get to know each other. That's a lot of conversations. See you on the other side!",
+    pauseAfterMs: 1500,
   },
 ];
 
-const CHAR_INTERVAL_MS = 55; // slower typing (~18 chars/sec)
-
-// ─────────────────────────────────────────────────────────
-// Opacity per position-from-bottom
-// ─────────────────────────────────────────────────────────
-
-function getBubbleOpacity(posFromBottom: number): number {
-  if (posFromBottom === 0) return 1.0;
-  if (posFromBottom === 1) return 0.5;
-  if (posFromBottom === 2) return 0.22;
-  return 0.07;
-}
+const CHAR_INTERVAL_MS = 30;
+const FADE_OUT_DURATION_MS = 800;
 
 // ─────────────────────────────────────────────────────────
 // Error helper
@@ -89,23 +76,8 @@ function GitHubIcon() {
   );
 }
 
-function Spinner() {
-  return (
-    <div
-      style={{
-        width: 56,
-        height: 56,
-        border: "3px solid rgba(255,255,255,0.15)",
-        borderTop: "3px solid rgba(255,255,255,0.8)",
-        borderRadius: "50%",
-        animation: "spin 0.9s linear infinite",
-      }}
-    />
-  );
-}
-
 // ─────────────────────────────────────────────────────────
-// Auth Form (sign-in bubble)
+// Auth Form — glass panel style
 // ─────────────────────────────────────────────────────────
 
 interface AuthFormProps {
@@ -278,86 +250,61 @@ function AuthForm({ onAuthSuccess }: AuthFormProps) {
   }
 
   return (
-    <div className="space-y-3">
+    <>
       {/* OAuth buttons */}
-      <button
-        type="button"
-        onClick={() => handleOAuth("google")}
-        disabled={!!oauthLoading || loading}
-        className="w-full flex items-center justify-center gap-3 px-4 py-3 transition-all disabled:opacity-50"
-        style={{
-          border: "1px solid rgba(255,255,255,0.22)",
-          background: "rgba(255,255,255,0.09)",
-          borderRadius: 10,
-          fontFamily: "Verdana, sans-serif",
-          fontSize: 15,
-          color: "white",
-          cursor: "pointer",
-        }}
-        onMouseEnter={(e) => {
-          if (!oauthLoading && !loading) e.currentTarget.style.background = "rgba(255,255,255,0.18)";
-        }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.09)"; }}
-      >
-        <GoogleIcon />
-        <span>{oauthLoading === "google" ? "Redirecting..." : isSignUp ? "Sign up with Google" : "Sign in with Google"}</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => handleOAuth("github")}
-        disabled={!!oauthLoading || loading}
-        className="w-full flex items-center justify-center gap-3 px-4 py-3 transition-all disabled:opacity-50"
-        style={{
-          border: "1px solid rgba(255,255,255,0.22)",
-          background: "rgba(255,255,255,0.09)",
-          borderRadius: 10,
-          fontFamily: "Verdana, sans-serif",
-          fontSize: 15,
-          color: "white",
-          cursor: "pointer",
-        }}
-        onMouseEnter={(e) => {
-          if (!oauthLoading && !loading) e.currentTarget.style.background = "rgba(255,255,255,0.18)";
-        }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.09)"; }}
-      >
-        <GitHubIcon />
-        <span>{oauthLoading === "github" ? "Redirecting..." : isSignUp ? "Sign up with GitHub" : "Sign in with GitHub"}</span>
-      </button>
+      <div className="space-y-2 mb-4">
+        <button
+          type="button"
+          onClick={() => handleOAuth("google")}
+          disabled={!!oauthLoading || loading}
+          className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-white/20 bg-white/10 hover:bg-white/20 transition-colors disabled:opacity-50"
+        >
+          <GoogleIcon />
+          <span className="font-mono text-[11px] text-white">
+            {oauthLoading === "google" ? "Redirecting..." : (isSignUp ? "Sign up with Google" : "Sign in with Google")}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleOAuth("github")}
+          disabled={!!oauthLoading || loading}
+          className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-white/20 bg-white/10 hover:bg-white/20 transition-colors disabled:opacity-50"
+        >
+          <GitHubIcon />
+          <span className="font-mono text-[11px] text-white">
+            {oauthLoading === "github" ? "Redirecting..." : (isSignUp ? "Sign up with GitHub" : "Sign in with GitHub")}
+          </span>
+        </button>
+      </div>
 
       {/* Divider */}
-      <div className="flex items-center gap-3 py-1">
-        <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.18)" }} />
-        <span style={{ fontFamily: "Verdana, sans-serif", fontSize: 12, color: "rgba(255,255,255,0.45)" }}>or</span>
-        <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.18)" }} />
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex-1 h-px bg-white/20" />
+        <span className="font-mono text-[10px] text-white/50 uppercase tracking-wide">or</span>
+        <div className="flex-1 h-px bg-white/20" />
       </div>
 
       {/* Server error */}
       {serverError && (
-        <div className="mb-1">
+        <div className="mb-4">
           <FormErrorSummary errors={[serverError]} onScrollToFirst={form.scrollToFirstError} />
         </div>
       )}
 
       {/* Success */}
       {success && (
-        <div
-          className="p-3"
-          style={{
-            border: "1px solid rgba(100,220,150,0.5)",
-            background: "rgba(100,220,150,0.15)",
-            borderRadius: 8,
-          }}
-        >
-          <p style={{ fontFamily: "Verdana, sans-serif", fontSize: 13, color: "rgb(134,239,172)", margin: 0 }}>
-            ✓ {success}
+        <div className="mb-4 p-3 border border-mint/50 bg-mint/20">
+          <p className="font-mono text-[11px] text-forest uppercase tracking-wide font-medium mb-1">
+            ✓ Account created!
+          </p>
+          <p className="font-mono text-[10px] text-forest/80">
+            {success}
           </p>
         </div>
       )}
 
       {/* Email / password form */}
-      <form onSubmit={form.handleSubmit} className="space-y-3">
+      <form onSubmit={form.handleSubmit} className="space-y-4">
         <Input
           id="welcome-email"
           type="email"
@@ -388,7 +335,7 @@ function AuthForm({ onAuthSuccess }: AuthFormProps) {
             <div className="mt-1.5 text-right">
               <a
                 href="/forgot-password"
-                style={{ fontFamily: "Verdana, sans-serif", fontSize: 11, color: "rgba(255,255,255,0.45)" }}
+                className="font-mono text-[9px] text-white/50 hover:text-white uppercase tracking-wide transition-colors"
               >
                 Forgot password?
               </a>
@@ -399,140 +346,30 @@ function AuthForm({ onAuthSuccess }: AuthFormProps) {
         <button
           type="submit"
           disabled={loading || form.isSubmitting}
-          className="w-full px-4 py-3 text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{
-            background: "#18181B",
-            borderRadius: 10,
-            fontFamily: "Verdana, sans-serif",
-            fontSize: 15,
-            cursor: "pointer",
-          }}
-          onMouseEnter={(e) => {
-            if (!loading && !form.isSubmitting) e.currentTarget.style.background = "#333";
-          }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "#18181B"; }}
+          className="w-full px-4 py-2.5 bg-[#18181B] text-white font-mono text-[11px] uppercase tracking-wide hover:bg-[#333] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ borderRadius: 50 }}
         >
           {loading || form.isSubmitting ? "Loading..." : isSignUp ? "Sign Up" : "Sign In"}
         </button>
-
-        <div className="text-right">
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setServerError(null);
-              setSuccess(null);
-              form.reset();
-            }}
-            style={{ fontFamily: "Verdana, sans-serif", fontSize: 12, color: "rgba(255,255,255,0.45)", cursor: "pointer" }}
-          >
-            {isSignUp ? "Already have an account? Sign in" : "Or sign up"}
-          </button>
-        </div>
       </form>
 
-      <p
-        style={{
-          fontFamily: "Verdana, sans-serif",
-          fontSize: 11,
-          color: "rgba(255,255,255,0.28)",
-          textAlign: "center",
-          marginTop: 8,
-        }}
-      >
-        <a href="/terms" className="underline hover:text-white transition-colors">Terms</a>
-        <span style={{ margin: "0 8px" }}>·</span>
-        <a href="/privacy" className="underline hover:text-white transition-colors">Privacy</a>
-      </p>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────
-// Message Bubble — no outer glass panel, just bubble
-// ─────────────────────────────────────────────────────────
-
-function Bubble({
-  children,
-  opacity,
-}: {
-  children: React.ReactNode;
-  opacity: number;
-}) {
-  return (
-    <div
-      style={{
-        opacity,
-        transition: "opacity 1.2s ease",
-        background: "rgba(15,15,22,0.72)",
-        border: "1px solid rgba(255,255,255,0.10)",
-        borderRadius: 18,
-        padding: "20px 26px",
-        width: "100%",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────
-// Pulsing dots bubble
-// ─────────────────────────────────────────────────────────
-
-function DotsBubble({ opacity }: { opacity: number }) {
-  return (
-    <Bubble opacity={opacity}>
-      <div className="flex items-center gap-2" style={{ height: 22 }}>
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            style={{
-              display: "inline-block",
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: "rgba(255,255,255,0.65)",
-              animation: `pulseDots 1.4s ease-in-out ${i * 0.24}s infinite`,
-            }}
-          />
-        ))}
-      </div>
-    </Bubble>
-  );
-}
-
-// ─────────────────────────────────────────────────────────
-// Text content inside bubbles
-// ─────────────────────────────────────────────────────────
-
-function BubbleText({ text, showCursor }: { text: string; showCursor?: boolean }) {
-  return (
-    <p
-      style={{
-        fontFamily: "Verdana, sans-serif",
-        fontSize: 17,
-        color: "rgba(255,255,255,0.92)",
-        lineHeight: 1.75,
-        whiteSpace: "pre-wrap",
-        margin: 0,
-      }}
-    >
-      {text}
-      {showCursor && (
-        <span
-          style={{
-            display: "inline-block",
-            width: 2,
-            height: "1.1em",
-            background: "rgba(255,255,255,0.75)",
-            verticalAlign: "text-bottom",
-            marginLeft: 2,
-            animation: "blink 1s step-end infinite",
+      <div className="mt-1.5 text-center">
+        <button
+          type="button"
+          onClick={() => {
+            setIsSignUp(!isSignUp);
+            setServerError(null);
+            setSuccess(null);
+            form.reset();
           }}
-        />
-      )}
-    </p>
+          className="font-mono text-[9px] text-white/50 hover:text-white uppercase tracking-wide transition-colors"
+        >
+          {isSignUp
+            ? "Already have an account? Sign in →"
+            : "Or sign up"}
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -540,87 +377,54 @@ function BubbleText({ text, showCursor }: { text: string; showCursor?: boolean }
 // Main component
 // ─────────────────────────────────────────────────────────
 
-type AppPhase = "typing" | "auth" | "provisioning" | "done";
+// Phases:
+//   "login"     → glass panel visible, waiting for auth
+//   "panelOut"  → panel sliding/fading out, provisioning started
+//   "messaging" → centered typed messages playing
+//   "done"      → panels sliding up, redirect to /chat
+
+type AppPhase = "login" | "panelOut" | "messaging" | "done";
 
 export function WelcomeContent() {
   const router = useRouter();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const autoScrollRef = useRef(true);
 
-  // Completed messages (fully typed, pushed to history)
-  const [completedMsgs, setCompletedMsgs] = useState<string[]>([]);
-  // Index into SEQUENCE (0–2 = text msgs, 3 = auth)
-  const [seqIndex, setSeqIndex] = useState(0);
-  // Currently typed text (active message)
-  const [currentText, setCurrentText] = useState("");
-  // Show waiting dots (during long pause between msg2 and msg3)
-  const [showDots, setShowDots] = useState(false);
-  // Show auth bubble
-  const [showAuth, setShowAuth] = useState(false);
+  const [phase, setPhase] = useState<AppPhase>("login");
 
-  // Post-auth state
-  const [phase, setPhase] = useState<AppPhase>("typing");
-  const [chatOpacity, setChatOpacity] = useState(1);
+  // Messaging state
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [displayedText, setDisplayedText] = useState("");
+  const [msgOpacity, setMsgOpacity] = useState(1);
+
+  // Post-messaging reveal panels
   const [showPanels, setShowPanels] = useState(false);
   const [panelsAnimating, setPanelsAnimating] = useState(false);
 
-  // ── Auto-scroll to bottom while typing ──
-  useEffect(() => {
-    if (!autoScrollRef.current) return;
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [currentText, completedMsgs, showDots, showAuth]);
+  // Refs to coordinate provisioning + messaging completion
+  const provisionDoneRef = useRef(false);
+  const messagingDoneRef = useRef(false);
+  const completionFiredRef = useRef(false);
 
-  // ── Main typing sequencer ──
-  useEffect(() => {
-    if (seqIndex >= SEQUENCE.length) {
-      // All text done → show auth after short pause
-      const id = setTimeout(() => {
-        setShowAuth(true);
-        setPhase("auth");
-        // Let one final scroll happen, then let user scroll freely
-        setTimeout(() => { autoScrollRef.current = false; }, 600);
-      }, 600);
-      return () => clearTimeout(id);
-    }
+  // ── Trigger the final panels-up + redirect (once both provisioning and messaging are done) ──
+  const triggerCompletion = useCallback(() => {
+    if (!provisionDoneRef.current || !messagingDoneRef.current) return;
+    if (completionFiredRef.current) return;
+    completionFiredRef.current = true;
 
-    const { text, pauseAfterMs, showDots: wantDots } = SEQUENCE[seqIndex];
-    let charIndex = 0;
-    setCurrentText("");
-    setShowDots(false);
+    setShowPanels(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setPanelsAnimating(true);
+      });
+    });
 
-    let pauseTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    setTimeout(() => {
+      router.push("/chat");
+    }, 2900);
+  }, [router]);
 
-    const intervalId = setInterval(() => {
-      charIndex++;
-      setCurrentText(text.slice(0, charIndex));
-
-      if (charIndex >= text.length) {
-        clearInterval(intervalId);
-
-        // Show waiting dots if requested (e.g., between msg2 and msg3)
-        if (wantDots) setShowDots(true);
-
-        pauseTimeoutId = setTimeout(() => {
-          setShowDots(false);
-          setCompletedMsgs((prev) => [...prev, text]);
-          setCurrentText("");
-          setSeqIndex((prev) => prev + 1);
-        }, pauseAfterMs);
-      }
-    }, CHAR_INTERVAL_MS);
-
-    return () => {
-      clearInterval(intervalId);
-      if (pauseTimeoutId) clearTimeout(pauseTimeoutId);
-    };
-  }, [seqIndex]);
-
-  // ── Auth success → provision → redirect ──
+  // ── Auth success handler ──
   const handleAuthSuccess = useCallback(() => {
-    setPhase("provisioning");
-    setChatOpacity(0);
-
+    // Start provisioning immediately in the background
     (async () => {
       try {
         await fetch("/api/organizations/provision", {
@@ -631,31 +435,71 @@ export function WelcomeContent() {
       } catch {
         // proceed anyway
       }
-
-      setShowPanels(true);
-      setPhase("done");
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setPanelsAnimating(true);
-        });
-      });
-
-      setTimeout(() => {
-        router.push("/chat");
-      }, 2900);
+      provisionDoneRef.current = true;
+      triggerCompletion();
     })();
-  }, [router]);
 
-  const isPostAuth = phase === "provisioning" || phase === "done";
+    // Animate panel out, then switch to messaging phase
+    setPhase("panelOut");
+    setTimeout(() => {
+      setPhase("messaging");
+    }, 600);
+  }, [triggerCompletion]);
 
-  // ── Calculate how many "slots" are below each completed message ──
-  // (determines opacity: more below = more faded = pushed higher up)
-  const slotsBelow = (i: number) =>
-    (completedMsgs.length - 1 - i) +
-    (currentText ? 1 : 0) +
-    (showDots ? 1 : 0) +
-    (showAuth ? 1 : 0);
+  // ── Message sequencer (runs during "messaging" phase) ──
+  useEffect(() => {
+    if (phase !== "messaging") return;
+
+    if (msgIndex >= MESSAGES.length) {
+      // All messages done
+      messagingDoneRef.current = true;
+      triggerCompletion();
+      return;
+    }
+
+    const { text, pauseAfterMs } = MESSAGES[msgIndex];
+    const isLast = msgIndex === MESSAGES.length - 1;
+
+    let charIndex = 0;
+    setDisplayedText("");
+    setMsgOpacity(1);
+
+    let pauseTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let fadeTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const intervalId = setInterval(() => {
+      charIndex++;
+      setDisplayedText(text.slice(0, charIndex));
+
+      if (charIndex >= text.length) {
+        clearInterval(intervalId);
+
+        // Pause after fully typed
+        pauseTimeoutId = setTimeout(() => {
+          if (isLast) {
+            // Last message: don't fade — just mark done and wait for provisioning
+            messagingDoneRef.current = true;
+            triggerCompletion();
+          } else {
+            // Fade out, then advance to next message
+            setMsgOpacity(0);
+            fadeTimeoutId = setTimeout(() => {
+              setMsgIndex((prev) => prev + 1);
+            }, FADE_OUT_DURATION_MS);
+          }
+        }, pauseAfterMs);
+      }
+    }, CHAR_INTERVAL_MS);
+
+    return () => {
+      clearInterval(intervalId);
+      if (pauseTimeoutId) clearTimeout(pauseTimeoutId);
+      if (fadeTimeoutId) clearTimeout(fadeTimeoutId);
+    };
+  }, [phase, msgIndex, triggerCompletion]);
+
+  // ── Derived: whether the login panel should be rendered ──
+  const showLoginPanel = phase === "login" || phase === "panelOut";
 
   return (
     <div className="fixed inset-0" style={{ backgroundColor: "#0a0a0f", overflow: "hidden" }}>
@@ -668,99 +512,88 @@ export function WelcomeContent() {
           backgroundPosition: "center",
         }}
       />
-      <div className="absolute inset-0 z-0" style={{ background: "rgba(0,0,0,0.38)" }} />
+      <div className="absolute inset-0 z-0" style={{ background: "rgba(0,0,0,0.25)" }} />
 
-      {/* ── Dopl title (fixed top) ── */}
-      <div
-        className="absolute top-8 left-1/2 -translate-x-1/2 z-20 text-center pointer-events-none"
-        style={{ animation: "loginFadeIn 0.6s ease-out both" }}
-      >
-        <h1
-          style={{
-            fontFamily: "var(--font-playfair, 'Playfair Display', serif)",
-            fontStyle: "italic",
-            fontWeight: 400,
-            fontSize: 20,
-            color: "#18181B",
-            marginBottom: 4,
-          }}
-        >
-          Dopl
-        </h1>
-        <p
-          style={{
-            fontFamily: "Verdana, sans-serif",
-            fontSize: 10,
-            textTransform: "uppercase",
-            letterSpacing: "0.15em",
-            color: "#18181B",
-            margin: 0,
-          }}
-        >
-          The AI Personal Companion
-        </p>
-      </div>
-
-      {/* ── Scrollable messages area (no visible scrollbar) ── */}
-      <div
-        ref={scrollRef}
-        className="welcome-scroll absolute inset-0 z-10"
-        style={{
-          overflowY: "scroll",
-          opacity: chatOpacity,
-          transition: "opacity 0.5s ease",
-          pointerEvents: isPostAuth ? "none" : "auto",
-        }}
-      >
-        {/*
-          min-h-full + flex + justify-end pushes all content to the bottom.
-          As the active bubble grows downward, previous bubbles are pushed upward.
-        */}
+      {/* ── Login section (title + glass panel, exact clone of old /login page) ── */}
+      {showLoginPanel && (
         <div
-          className="min-h-full flex flex-col justify-end"
-          style={{ maxWidth: 520, margin: "0 auto", padding: "120px 24px 80px" }}
+          className="min-h-screen flex flex-col items-center justify-center px-6 relative z-10"
+          style={{
+            opacity: phase === "panelOut" ? 0 : 1,
+            transform: phase === "panelOut" ? "translateY(-30px)" : "translateY(0)",
+            transition: phase === "panelOut" ? "opacity 0.5s ease, transform 0.5s ease" : undefined,
+          }}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-            {/* Completed (history) messages — fade based on distance from bottom */}
-            {completedMsgs.map((msg, i) => (
-              <Bubble key={i} opacity={getBubbleOpacity(slotsBelow(i))}>
-                <BubbleText text={msg} />
-              </Bubble>
-            ))}
-
-            {/* Waiting dots (during long pause — "setting up your agent...") */}
-            {showDots && <DotsBubble opacity={1} />}
-
-            {/* Currently typing message */}
-            {currentText && (
-              <Bubble opacity={1}>
-                <BubbleText text={currentText} showCursor />
-              </Bubble>
-            )}
-
-            {/* Auth bubble — sign-in buttons as their own message */}
-            {showAuth && (
-              <Bubble opacity={1}>
-                <AuthForm onAuthSuccess={handleAuthSuccess} />
-              </Bubble>
-            )}
-
+          <div className="text-center mb-6 relative z-10"
+               style={{ animation: "loginFadeIn 0.6s ease-out both" }}
+          >
+            <h1
+              className="text-xl font-bold mb-2"
+              style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: "#18181B" }}
+            >
+              Dopl
+            </h1>
+            <p className="font-mono text-[11px] uppercase tracking-wide" style={{ color: "#18181B" }}>
+              The AI Personal Companion
+            </p>
           </div>
-        </div>
-      </div>
 
-      {/* ── Post-auth: spinner ── */}
-      {isPostAuth && (
-        <div
-          className="fixed inset-0 z-20 flex items-center justify-center"
-          style={{ animation: "loginFadeIn 0.4s ease-out both" }}
-        >
-          <Spinner />
+          <div
+            className="w-full max-w-sm relative z-10 p-6"
+            style={{
+              animation: "loginFadeIn 0.6s ease-out both",
+              animationDelay: "0.1s",
+              background: "rgba(255,255,255,0.05)",
+              backdropFilter: "blur(40px) saturate(120%)",
+              WebkitBackdropFilter: "blur(40px) saturate(120%)",
+              border: "1px solid rgba(255,255,255,0.25)",
+            }}
+          >
+            <AuthForm onAuthSuccess={handleAuthSuccess} />
+          </div>
+
+          <p className="w-full max-w-sm relative z-10 font-mono text-[9px] text-white/40 text-center mt-4 uppercase tracking-wide"
+             style={{ animation: "loginFadeIn 0.6s ease-out both", animationDelay: "0.3s" }}
+          >
+            <a href="/terms" className="underline hover:text-white transition-colors">Terms of Service</a>
+            <span style={{ margin: "0 4px" }}>·</span>
+            <a href="/privacy" className="underline hover:text-white transition-colors">Privacy Policy</a>
+          </p>
         </div>
       )}
 
-      {/* ── Post-auth: reveal panels ── */}
+      {/* ── Centered welcome messages (post-auth) ── */}
+      {phase === "messaging" && (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center"
+          style={{ padding: "0 24px", pointerEvents: "none" }}
+        >
+          <div
+            style={{
+              maxWidth: 520,
+              width: "100%",
+              opacity: msgOpacity,
+              transition: `opacity ${FADE_OUT_DURATION_MS}ms ease`,
+            }}
+          >
+            <p
+              style={{
+                fontFamily: "Verdana, sans-serif",
+                fontSize: 15,
+                color: "rgba(255,255,255,0.92)",
+                lineHeight: 1.75,
+                whiteSpace: "pre-wrap",
+                margin: 0,
+                textAlign: "center",
+              }}
+            >
+              {displayedText}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Post-messages: reveal panels ── */}
       {showPanels && (
         <div className="fixed inset-0 z-30 flex">
           <div
