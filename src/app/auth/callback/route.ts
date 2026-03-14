@@ -42,21 +42,11 @@ async function getPostAuthRedirect(
 ): Promise<string> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return `${origin}/login`;
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("onboarding_completed, instance_id")
-      .eq("id", user.id)
-      .single();
-
-    if (profile?.onboarding_completed || profile?.instance_id) {
-      return `${origin}/chat`;
-    }
+    if (!user) return `${origin}/welcome`;
   } catch {
-    // Default to onboarding on DB errors
+    // Default to chat
   }
-  return `${origin}/onboarding`;
+  return `${origin}/chat`;
 }
 
 function createSupabaseFromRequest(request: NextRequest, cookieResponse: NextResponse) {
@@ -91,7 +81,7 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     // Create a response to collect cookies onto
-    const cookieResponse = NextResponse.redirect(new URL(`${origin}/login?error=auth_failed`));
+    const cookieResponse = NextResponse.redirect(new URL(`${origin}/welcome?error=auth_failed`));
     const supabase = createSupabaseFromRequest(request, cookieResponse);
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
@@ -127,7 +117,7 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get("token_hash");
   const tokenType = searchParams.get("type");
   if (tokenHash && (tokenType === "signup" || tokenType === "email")) {
-    const cookieResponse = NextResponse.redirect(new URL(`${origin}/login?error=auth_failed`));
+    const cookieResponse = NextResponse.redirect(new URL(`${origin}/welcome?error=auth_failed`));
     const supabase = createSupabaseFromRequest(request, cookieResponse);
 
     const { error } = await supabase.auth.verifyOtp({
@@ -147,5 +137,5 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.redirect(new URL(`${origin}/login?error=auth_failed`));
+  return NextResponse.redirect(new URL(`${origin}/welcome?error=auth_failed`));
 }

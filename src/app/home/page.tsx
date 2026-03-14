@@ -270,7 +270,7 @@ export default function LandingPage() {
         {/* ── Nav button floating on image (top-right) ── */}
         <div className="absolute top-5 right-8 z-20 flex items-center gap-3 hero-animate">
           <Link
-            href="/login"
+            href="/welcome"
             className="transition-all duration-300"
             style={{
               fontFamily: "var(--font-inter, 'Inter', sans-serif)",
@@ -352,7 +352,7 @@ export default function LandingPage() {
                 Dopl is the always-on intelligent twin that works so you don&apos;t. Leverage the full power of OpenClaw with zero setup — just connect your accounts and let your agent operate.
               </p>
               <Link
-                href="/login"
+                href="/welcome"
                 className="inline-block transition-all duration-300"
                 style={{
                   fontFamily: "var(--font-inter, 'Inter', sans-serif)",
@@ -464,7 +464,7 @@ export default function LandingPage() {
                       { label: "Home", href: "/" },
                       { label: "Features", href: "#features" },
                       { label: "Demo", href: "#demo" },
-                      { label: "Sign In", href: "/login" },
+                      { label: "Sign In", href: "/welcome" },
                     ].map((item) => (
                       <li key={item.label}>
                         <Link

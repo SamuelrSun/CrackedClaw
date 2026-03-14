@@ -134,7 +134,7 @@ export function Header() {
             <UserMenu user={user} />
           ) : (
             <Link
-              href="/login"
+              href="/welcome"
               className="font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 text-white/70 hover:bg-white/[0.1] hover:text-white border border-white/[0.15] transition-colors"
             >
               Sign in
