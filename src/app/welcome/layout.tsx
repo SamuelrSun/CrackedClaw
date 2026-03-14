@@ -49,6 +49,13 @@ export default function WelcomeLayout({ children }: { children: React.ReactNode 
           from { transform: translateY(0); }
           to { transform: translateY(-100%); }
         }
+        @keyframes blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
+        }
+        /* Hide scrollbar on the welcome scroll container */
+        .welcome-scroll::-webkit-scrollbar { display: none; }
+        .welcome-scroll { scrollbar-width: none; -ms-overflow-style: none; }
       `}</style>
       {children}
     </div>
