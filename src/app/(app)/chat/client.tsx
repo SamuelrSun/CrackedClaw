@@ -578,6 +578,61 @@ function UserMessageContent({ content }: { content: string }) {
   return <p className="whitespace-pre-wrap text-base leading-[24px]">{content}</p>;
 }
 
+function NewConversationLanding({ onSend }: { onSend: (message: string) => void }) {
+  const [input, setInput] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleSubmit = () => {
+    const msg = input.trim();
+    if (!msg) return;
+    onSend(msg);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+    }
+  }, [input]);
+
+  return (
+    <div
+      className="flex flex-col items-center justify-center h-[calc(100vh-64px)] px-6"
+      style={{ paddingBottom: '15vh' }}
+    >
+      <h1
+        className="text-4xl font-bold text-white/90 mb-8 text-center"
+        style={{ fontFamily: 'Georgia, "Times New Roman", serif', lineHeight: '44px' }}
+      >
+        What can I do for you?
+      </h1>
+
+      <div className="w-full max-w-3xl">
+        <div className="bg-white/[0.06] border border-white/[0.12] rounded-lg shadow-lg shadow-black/20">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Describe a task or responsibility..."
+            className="w-full bg-transparent text-base text-white/90 placeholder:text-white/30 p-4 resize-none outline-none min-h-[56px] max-h-[200px]"
+            rows={1}
+            autoFocus
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ChatPageClient({ 
   initialConversations, 
   initialMessages, 
@@ -586,7 +641,9 @@ export default function ChatPageClient({
   initialConversationId,
 }: ChatPageClientProps) {
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
-  const [activeConvo, setActiveConvo] = useState(initialConversationId || initialConversations[0]?.id || "");
+  // Only auto-select a conversation when a specific ID was provided (e.g. /chat/[id]).
+  // When landing at bare /chat (no ID), start with empty string to show the landing view.
+  const [activeConvo, setActiveConvo] = useState(initialConversationId || "");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<StreamingMessage[]>(initialMessages as StreamingMessage[]);
   // Sync messages when initialMessages prop updates (async load from page-content)
@@ -642,7 +699,8 @@ export default function ChatPageClient({
   // Handle browser back/forward navigation (popstate)
   useEffect(() => {
     const handlePopState = () => {
-      const match = window.location.pathname.match(/^\/chat\/([^/]+)$/);
+      const path = window.location.pathname;
+      const match = path.match(/^\/chat\/([^/]+)$/);
       if (match) {
         const convoId = match[1];
         setActiveConvo(convoId);
@@ -663,6 +721,12 @@ export default function ChatPageClient({
           })
           .catch(() => {})
           .finally(() => setIsLoading(false));
+      } else if (path === '/chat') {
+        // Back to landing view
+        setActiveConvo('');
+        setConversationId(null);
+        setMessages([]);
+        setError(null);
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -1389,46 +1453,48 @@ User message: `
   };
 
 
-  const handleNewConversation = async () => {
-    // Optimistic UI: show the new conversation immediately
-    const tempId = `temp-${Date.now()}`;
-    const newConvo: Conversation = {
-      id: tempId,
-      title: "New conversation",
-      lastMessage: "",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-    setConversations(prev => [newConvo, ...prev]);
-    setActiveConvo(tempId);
+  const handleNewConversation = () => {
+    // Navigate to the landing view — user will type their first message there
+    setActiveConvo('');
     setConversationId(null);
     setMessages([]);
     setError(null);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/chat');
+    }
+  };
 
-    // Create the conversation in DB immediately
+  const handleLandingSend = async (message: string) => {
+    // Create the conversation in DB, then transition to the full chat view
     try {
-      const res = await fetch("/api/conversations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "New conversation" }),
+      const res = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: message.length > 50 ? message.substring(0, 47) + '...' : message }),
       });
       if (res.ok) {
         const data = await res.json();
-        const realId = data.conversation?.id;
-        if (realId) {
-          // Replace temp entry with real one
-          setConversations(prev =>
-            prev.map(c => c.id === tempId ? { ...c, id: realId } : c)
-          );
-          setActiveConvo(realId);
-          setConversationId(realId);
-          // Update URL with real conversation ID
+        const newId = data.conversation?.id;
+        if (newId) {
+          setConversations(prev => {
+            const exists = prev.find(c => c.id === newId);
+            if (exists) return prev;
+            return [{ id: newId, title: message.substring(0, 50), lastMessage: '', timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, ...prev];
+          });
+          setActiveConvo(newId);
+          setConversationId(newId);
+          setMessages([]);
           if (typeof window !== 'undefined') {
-            window.history.replaceState({}, '', `/chat/${realId}`);
+            window.history.pushState({}, '', `/chat/${newId}`);
           }
+          // Slight delay so the chat view mounts before we fire the message
+          setTimeout(() => {
+            handleSendRef.current(message);
+          }, 50);
         }
       }
     } catch (err) {
-      console.error("Failed to create conversation:", err);
+      console.error('Failed to create conversation from landing:', err);
     }
   };
 
@@ -1633,6 +1699,13 @@ User message: `
         </div>
       </div>
     );
+  }
+
+  // Landing view: shown when there is no active conversation (bare /chat route)
+  const isNewConversationView = !activeConvo;
+
+  if (isNewConversationView && !gatewayLoading && !showBanner) {
+    return <NewConversationLanding onSend={handleLandingSend} />;
   }
 
   return (
