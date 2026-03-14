@@ -8,7 +8,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ToastProvider>
       <Header />
-      <main className="pt-14 min-h-screen mosaic-bg">{children}</main>
+      <main className="pt-14 min-h-screen bg-paper mosaic-bg">{children}</main>
       <GlobalSearch />
       <KeyboardShortcuts />
       <ToastContainer />

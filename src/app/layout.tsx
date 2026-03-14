@@ -32,7 +32,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
-      <body className="bg-paper text-forest antialiased">
+      <body className="bg-[#0a0a0f] text-forest antialiased">
         <ToastProvider>
           <SearchProvider>
             <ErrorBoundary>
