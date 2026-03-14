@@ -155,7 +155,14 @@ function AuthForm({ onAuthSuccess }: AuthFormProps) {
       window.addEventListener("message", handleMessage);
 
       const pollInterval = setInterval(async () => {
-        if (popup.closed) {
+        let closed = false;
+        try {
+          closed = !!popup.closed;
+        } catch {
+          // COOP policy blocks window.closed — fall back to assuming still open
+          return;
+        }
+        if (closed) {
           clearInterval(pollInterval);
           window.removeEventListener("message", handleMessage);
           const { data: sessionData } = await supabase.auth.getSession();
