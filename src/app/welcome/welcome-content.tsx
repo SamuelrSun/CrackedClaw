@@ -422,7 +422,7 @@ export function WelcomeContent() {
     }, 2900);
   }, [router]);
 
-  // ── Auth success handler ──
+  // ── Auth success handler (popup flow) ──
   const handleAuthSuccess = useCallback(() => {
     // Start provisioning immediately in the background
     (async () => {
