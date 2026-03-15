@@ -42,7 +42,12 @@ function appendMessage(role, content, timestamp, animate = true) {
   bubble.className = 'message-bubble';
 
   if (role === 'assistant') {
-    bubble.innerHTML = renderMarkdown(content);
+    const cardResult = parseAndRenderCards(content);
+    if (cardResult.hasCards) {
+      bubble.innerHTML = cardResult.html;
+    } else {
+      bubble.innerHTML = renderMarkdown(content);
+    }
   } else {
     // User messages: plain text, preserve newlines
     bubble.innerHTML = escapeHtml(content).replace(/\n/g, '<br>');
@@ -133,8 +138,13 @@ async function sendMessage() {
   window.dopl.chat.removeStreamListeners();
   window.dopl.chat.onStreamChunk((chunk) => {
     streamedText += chunk;
-    // Update the streaming bubble with rendered markdown
-    streamingBubble.innerHTML = renderMarkdown(streamedText);
+    // Update the streaming bubble with rendered markdown (or cards)
+    const chunkCardResult = parseAndRenderCards(streamedText);
+    if (chunkCardResult.hasCards) {
+      streamingBubble.innerHTML = chunkCardResult.html;
+    } else {
+      streamingBubble.innerHTML = renderMarkdown(streamedText);
+    }
     scrollToBottom();
   });
 
@@ -144,7 +154,12 @@ async function sendMessage() {
   // Finalize the bubble
   streamingBubble.classList.remove('streaming');
   if (result.ok && result.content) {
-    streamingBubble.innerHTML = renderMarkdown(result.content);
+    const finalCardResult = parseAndRenderCards(result.content);
+    if (finalCardResult.hasCards) {
+      streamingBubble.innerHTML = finalCardResult.html;
+    } else {
+      streamingBubble.innerHTML = renderMarkdown(result.content);
+    }
   } else if (!result.ok) {
     streamingBubble.innerHTML = `<span style="color:var(--error)">Error: ${escapeHtml(result.error || 'Unknown error')}</span>`;
   }

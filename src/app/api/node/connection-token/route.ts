@@ -20,6 +20,7 @@ export async function GET() {
     instanceId: profile.instance_id,
     authToken: profile.auth_token,
     webAppUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com',
+    provisioningUrl: process.env.PROVISIONING_API_URL || undefined,
     ...(operatorToken ? { operatorToken } : {}),
   };
 
