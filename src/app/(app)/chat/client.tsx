@@ -62,7 +62,7 @@ import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { UserMenu } from "@/components/auth/user-menu";
 import { useUser } from "@/hooks/use-user";
 import { useSearchContext } from "@/contexts/search-context";
-import { Search, Command } from "lucide-react";
+import { Search, Command, Pencil, Trash2, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 interface ToolCallInfo {
@@ -721,6 +721,11 @@ export default function ChatPageClient({
     return 'sonnet';
   });
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [editingConvoId, setEditingConvoId] = useState<string | null>(null);
+  const [editingConvoTitle, setEditingConvoTitle] = useState("");
+  const [editingChatTitle, setEditingChatTitle] = useState(false);
+  const [editingChatTitleValue, setEditingChatTitleValue] = useState("");
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const lastFailedMessage = useRef<string | null>(null);
   const handleSendRef = useRef<(messageOverride?: string) => Promise<void>>(async () => {});
@@ -1710,6 +1715,67 @@ User message: `
     await loadLinkedConversations(conversationId);
   };
 
+  const handleDeleteConversation = async (convoId: string) => {
+    // Optimistic update — remove from list immediately
+    setConversations((prev) => prev.filter((c) => c.id !== convoId));
+    // If this was the active conversation, navigate away
+    if (activeConvo === convoId) {
+      const remaining = conversations.filter((c) => c.id !== convoId);
+      if (remaining.length > 0) {
+        loadConversation(remaining[0].id);
+      } else {
+        setActiveConvo('');
+        setConversationId(null);
+        setMessages([]);
+        if (typeof window !== 'undefined') {
+          window.history.pushState({}, '', '/chat');
+        }
+      }
+    }
+    // Delete from Supabase
+    try {
+      const supabase = createSupabaseClient();
+      await supabase.from('messages').delete().eq('conversation_id', convoId);
+      await supabase.from('conversations').delete().eq('id', convoId);
+    } catch (err) {
+      console.error('[Delete] Failed to delete conversation:', err);
+    }
+  };
+
+  const handleRenameConversation = async (convoId: string, newTitle: string) => {
+    const trimmed = newTitle.trim();
+    setEditingConvoId(null);
+    if (!trimmed) return;
+    // Optimistic update
+    setConversations((prev) =>
+      prev.map((c) => c.id === convoId ? { ...c, title: trimmed } : c)
+    );
+    // Persist to Supabase
+    try {
+      const supabase = createSupabaseClient();
+      await supabase.from('conversations').update({ title: trimmed }).eq('id', convoId);
+    } catch (err) {
+      console.error('[Rename] Failed to rename conversation:', err);
+    }
+  };
+
+  const handleSaveChatTitle = async () => {
+    const trimmed = editingChatTitleValue.trim();
+    setEditingChatTitle(false);
+    if (!trimmed || !activeConvo) return;
+    // Optimistic update
+    setConversations((prev) =>
+      prev.map((c) => c.id === activeConvo ? { ...c, title: trimmed } : c)
+    );
+    // Persist to Supabase
+    try {
+      const supabase = createSupabaseClient();
+      await supabase.from('conversations').update({ title: trimmed }).eq('id', activeConvo);
+    } catch (err) {
+      console.error('[SaveTitle] Failed to save conversation title:', err);
+    }
+  };
+
   handleSendRef.current = handleSend;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -1846,8 +1912,8 @@ User message: `
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "text-sm font-medium px-3 py-1.5 rounded transition-colors",
-                  isActive ? "text-white/90 bg-white/[0.1]" : "text-white/50 hover:text-white/80"
+                  "text-sm px-3 py-1.5 transition-colors",
+                  isActive ? "text-white/90 font-semibold" : "font-normal text-white/50 hover:text-white/80"
                 )}
               >
                 {link.label}
@@ -1856,44 +1922,23 @@ User message: `
           })}
         </div>
         <div className="ml-auto flex items-center gap-4">
-          <button
-            onClick={openSearch}
-            className="flex items-center gap-2 px-3 py-1.5 border border-white/[0.1] hover:border-white/[0.25] hover:bg-white/[0.08] transition-colors group"
-          >
-            <Search className="w-3.5 h-3.5 text-white/30 group-hover:text-white/60" />
-            <span className="font-mono text-[10px] text-white/30 group-hover:text-white/60 hidden sm:inline">Search...</span>
-            <div className="hidden sm:flex items-center gap-0.5 ml-2">
-              <kbd className="font-mono text-[9px] px-1 py-0.5 bg-white/[0.06] border border-white/[0.1] text-white/30">
-                <Command className="w-2.5 h-2.5 inline" />
-              </kbd>
-              <kbd className="font-mono text-[9px] px-1 py-0.5 bg-white/[0.06] border border-white/[0.1] text-white/30">K</kbd>
-            </div>
-          </button>
-          <div className="h-4 w-px bg-white/[0.1]" />
           {user && (
             <>
-              <Link href="/settings" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <Link href="/settings" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
                 {isConnected ? (
                   <>
-                    <span className="w-2 h-2 bg-[#9EFFBF] rounded-none block animate-pulse" />
-                    <span className="font-mono text-[10px] uppercase tracking-wide text-[#9EFFBF]/80">
-                      {statusInfo?.agentName || 'Connected'}
-                    </span>
+                    <div className="w-2 h-2 bg-emerald-700 rounded-none block flex-shrink-0" />
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-emerald-600">Online</span>
                   </>
                 ) : isReconnecting ? (
                   <>
-                    <span className="w-2 h-2 bg-[#F4D35E] rounded-none block animate-pulse" />
-                    <span className="font-mono text-[10px] uppercase tracking-wide text-[#F4D35E]/80">Reconnecting</span>
-                  </>
-                ) : gatewayStatus === 'error' ? (
-                  <>
-                    <span className="w-2 h-2 bg-red-400 rounded-none block" />
-                    <span className="font-mono text-[10px] uppercase tracking-wide text-red-400/80">Error</span>
+                    <div className="w-2 h-2 bg-amber-500 rounded-none block animate-pulse flex-shrink-0" />
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-amber-400">Connecting</span>
                   </>
                 ) : (
                   <>
-                    <span className="w-2 h-2 bg-white/20 rounded-none block" />
-                    <span className="font-mono text-[10px] uppercase tracking-wide text-white/30">Offline</span>
+                    <div className="w-2 h-2 bg-red-600 rounded-none block flex-shrink-0" />
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-red-500">Offline</span>
                   </>
                 )}
               </Link>
@@ -1913,78 +1958,132 @@ User message: `
       {/* Content row */}
       <div className="flex-1 flex gap-[7px] min-h-0">
       {/* PANEL 2: Conversations Sidebar */}
-      <aside className="w-72 shrink-0 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden flex flex-col">
-        <div className="px-4 py-4 border-b border-white/[0.1] flex items-center justify-between">
-          <span className="text-sm font-medium text-white/60">
-            Conversations
-          </span>
-          <Button variant="solid" size="sm" onClick={handleNewConversation}>New</Button>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {conversations.length > 0 ? (
-            conversations.map((convo) => (
-              <div
-                key={convo.id}
-                className={cn(
-                  "relative group flex items-center border-b border-white/[0.08] transition-colors",
-                  activeConvo === convo.id ? "bg-white/[0.1] border-l-2 border-l-[#9EFFBF]" : "hover:bg-white/[0.04]"
-                )}
-              >
-                <button
-                  onClick={() => loadConversation(convo.id)}
-                  className="flex-1 text-left px-4 py-3 min-w-0"
-                >
-                  <span className="text-[15px] font-medium truncate block text-white/90">{convo.title || "New conversation"}</span>
-                </button>
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity pr-2 flex-shrink-0">
-                  <ConversationContextMenu
-                    conversationId={convo.id}
-                    conversationTitle={convo.title}
-                    onLinksChanged={() => conversationId === convo.id && loadLinkedConversations(convo.id)}
-                  />
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="px-4 py-8 text-center">
-              <p className="text-sm text-white/50 mb-1">No conversations yet</p>
-              <p className="font-mono text-[10px] text-white/30">
-                Start chatting below
-              </p>
-            </div>
+      <aside className={cn(
+        "shrink-0 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden flex flex-col transition-all duration-300 ease-in-out",
+        sidebarCollapsed ? "w-12" : "w-72"
+      )}>
+        {/* Sidebar Header */}
+        <div className={cn(
+          "border-b border-white/[0.1] flex items-center transition-all duration-300",
+          sidebarCollapsed ? "px-2 py-3 justify-center" : "px-3 py-3 justify-between"
+        )}>
+          {!sidebarCollapsed && (
+            <button
+              onClick={handleNewConversation}
+              className="flex items-center gap-1.5 px-2 py-1.5 text-sm text-white/60 hover:text-white/90 border border-transparent hover:border-white/[0.1] transition-colors"
+            >
+              <Plus className="w-4 h-4 flex-shrink-0" />
+              <span>New Conversation</span>
+            </button>
           )}
+          <button
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors flex-shrink-0"
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
         </div>
-        
-        {/* Enhanced Gateway Status Panel */}
-        <GatewayStatusPanel
-          status={gatewayStatus}
-          latencyMs={latencyMs}
-          reconnectAttempt={reconnectAttempt}
-          reconnectCountdown={reconnectCountdown}
-          isReconnecting={isReconnecting}
-          isCanceled={gatewayIsCanceled}
-          error={gatewayError}
-          onRetry={forceReconnect}
-          onCancel={cancelReconnect}
-        />
-        {/* WebSocket mode indicator */}
-        {gateway && (
-          <div className="px-4 py-1.5 border-t border-white/[0.08] flex items-center gap-2">
-            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-              wsConnected ? "bg-[#9EFFBF]" : wsConnecting ? "bg-[#F4D35E] animate-pulse" : "bg-grid/20"
-            }`} />
-            <span className="font-mono text-[8px] uppercase tracking-wide text-white/30">
-              {wsConnected ? "WS live" : wsConnecting ? "WS connecting..." : "WS offline"}
-            </span>
-            {!wsConnected && !wsConnecting && (
-              <button
-                onClick={wsReconnect}
-                className="ml-auto font-mono text-[8px] text-white/30 hover:text-white/80 underline"
-              >
-                retry
-              </button>
+
+        {sidebarCollapsed ? (
+          /* Collapsed state — only show new conversation icon */
+          <div className="flex flex-col items-center pt-2 flex-1">
+            <button
+              onClick={handleNewConversation}
+              className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors"
+              title="New Conversation"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          /* Expanded state — full conversation list */
+          <div className="flex-1 overflow-y-auto">
+            {conversations.length > 0 ? (
+              conversations.map((convo) => (
+                <div
+                  key={convo.id}
+                  className={cn(
+                    "relative group flex items-center border-b border-white/[0.08] transition-colors",
+                    activeConvo === convo.id
+                      ? "bg-white/[0.08] border-l-2 border-l-emerald-800"
+                      : "hover:bg-white/[0.04]"
+                  )}
+                >
+                  {editingConvoId === convo.id ? (
+                    <input
+                      autoFocus
+                      className="flex-1 px-4 py-3 bg-transparent text-[15px] font-medium text-white/90 outline-none"
+                      value={editingConvoTitle}
+                      onChange={(e) => setEditingConvoTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleRenameConversation(convo.id, editingConvoTitle);
+                        } else if (e.key === 'Escape') {
+                          setEditingConvoId(null);
+                        }
+                      }}
+                      onBlur={() => handleRenameConversation(convo.id, editingConvoTitle)}
+                    />
+                  ) : (
+                    <button
+                      onClick={() => loadConversation(convo.id)}
+                      className="flex-1 text-left px-4 py-3 min-w-0"
+                    >
+                      <span className="text-[15px] font-medium truncate block text-white/90">
+                        {convo.title || "New conversation"}
+                      </span>
+                    </button>
+                  )}
+                  {editingConvoId !== convo.id && (
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity pr-2 flex-shrink-0 flex items-center gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingConvoId(convo.id);
+                          setEditingConvoTitle(convo.title || "");
+                        }}
+                        className="p-1 text-white/40 hover:text-white/80 transition-colors"
+                        title="Rename conversation"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteConversation(convo.id);
+                        }}
+                        className="p-1 text-white/40 hover:text-white/80 transition-colors"
+                        title="Delete conversation"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="px-4 py-8 text-center">
+                <p className="text-sm text-white/50 mb-1">No conversations yet</p>
+                <p className="font-mono text-[10px] text-white/30">Start chatting below</p>
+              </div>
             )}
           </div>
+        )}
+
+        {/* Gateway Status Panel — only show when expanded */}
+        {!sidebarCollapsed && (
+          <GatewayStatusPanel
+            status={gatewayStatus}
+            latencyMs={latencyMs}
+            reconnectAttempt={reconnectAttempt}
+            reconnectCountdown={reconnectCountdown}
+            isReconnecting={isReconnecting}
+            isCanceled={gatewayIsCanceled}
+            error={gatewayError}
+            onRetry={forceReconnect}
+            onCancel={cancelReconnect}
+          />
         )}
       </aside>
 
@@ -2023,54 +2122,65 @@ User message: `
             </div>
           </div>
         )}
-        {/* Chat header with Tasks button */}
-        <div className="flex items-center justify-end px-4 py-1.5 border-b border-white/[0.08] bg-transparent">
-          {conversationId && (
-            <button
-              onClick={() => setLinkPickerOpen(true)}
-              className="relative flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-white/50 hover:text-white/80 border border-transparent hover:border-white/[0.1] transition-all rounded-none"
-              title="Link conversations"
-            >
-              <span>🔗</span>
-              <span>Link</span>
-              {linkedConversations.length > 0 && (
-                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.12] text-white/80 font-mono text-[9px] ml-0.5">
-                  {linkedConversations.length}
+        {/* Chat header: title on left, status indicators on right */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.08] bg-transparent min-h-[44px]">
+          {/* Left: Conversation Title */}
+          <div className="flex items-center gap-2 group min-w-0 flex-1">
+            {activeConvo && (
+              editingChatTitle ? (
+                <input
+                  autoFocus
+                  className="text-lg font-bold text-white/90 bg-transparent outline-none border-b border-white/40 min-w-0 w-full max-w-xs"
+                  value={editingChatTitleValue}
+                  onChange={(e) => setEditingChatTitleValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { handleSaveChatTitle(); }
+                    else if (e.key === 'Escape') { setEditingChatTitle(false); }
+                  }}
+                  onBlur={handleSaveChatTitle}
+                />
+              ) : (
+                <>
+                  <span className="text-lg font-bold text-white/90 truncate">
+                    {conversations.find((c) => c.id === activeConvo)?.title || "Conversation"}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setEditingChatTitle(true);
+                      setEditingChatTitleValue(conversations.find((c) => c.id === activeConvo)?.title || "");
+                    }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                    title="Rename conversation"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-white/40 hover:text-white/80" />
+                  </button>
+                </>
+              )
+            )}
+          </div>
+          {/* Right: Status indicators */}
+          <div className="flex items-center gap-4 flex-shrink-0 ml-4">
+            <div className="flex items-center gap-1.5">
+              <div className={cn(
+                "w-2 h-2 rounded-none flex-shrink-0",
+                isConnected ? "bg-emerald-700" : isReconnecting ? "bg-amber-500 animate-pulse" : "bg-red-600"
+              )} />
+              <span className="font-mono text-[10px] text-white/50">
+                {isConnected ? "Gateway connected" : isReconnecting ? "Reconnecting..." : "Disconnected"}
+              </span>
+            </div>
+            {gateway && (
+              <div className="flex items-center gap-1.5">
+                <div className={cn(
+                  "w-2 h-2 rounded-none flex-shrink-0",
+                  wsConnected ? "bg-emerald-700" : wsConnecting ? "bg-amber-500 animate-pulse" : "bg-red-600"
+                )} />
+                <span className="font-mono text-[10px] text-white/50">
+                  {wsConnected ? "WS live" : wsConnecting ? "WS connecting..." : "WS offline"}
                 </span>
-              )}
-            </button>
-          )}
-          <button
-            onClick={() => setShowSubagentPanel((v) => !v)}
-            className="hidden"
-          >
-            <span>🔄</span>
-            <span>Tasks</span>
-            {subagentCount > 0 && (
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.12] text-white/90 font-mono text-[9px] ml-0.5">
-                {subagentCount}
-              </span>
+              </div>
             )}
-          </button>
-          <button
-            onClick={() => setActivityPanelOpen((v) => !v)}
-            className={cn(
-              "relative flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide border transition-all rounded-none",
-              activityPanelOpen
-                ? "text-white/80 border-white/[0.2] bg-white/[0.08]"
-                : "text-white/50 hover:text-white/80 border-transparent hover:border-white/[0.1]"
-            )}
-            title="Toggle agent activity panel"
-            style={{ display: 'none' }}
-          >
-            <span>📊</span>
-            <span>Activity</span>
-            {agentActivities.filter(a => a.status === 'running').length > 0 && (
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.12] text-white/90 font-mono text-[9px] ml-0.5">
-                {agentActivities.filter(a => a.status === 'running').length}
-              </span>
-            )}
-          </button>
+          </div>
         </div>
 
         {/* Reconnection Banner */}
