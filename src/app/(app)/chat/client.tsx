@@ -1828,7 +1828,7 @@ User message: `
       }}
     >
       {/* PANEL 1: Glass Navbar */}
-      <nav className="shrink-0 h-[56px] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden flex items-center px-6">
+      <nav className="shrink-0 h-[56px] bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden flex items-center px-6">
         <div className="mr-6">
           <WorkspaceSwitcher />
         </div>
@@ -1912,7 +1912,7 @@ User message: `
       {/* Content row */}
       <div className="flex-1 flex gap-[7px] min-h-0">
       {/* PANEL 2: Conversations Sidebar */}
-      <aside className="w-72 shrink-0 backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden flex flex-col">
+      <aside className="w-72 shrink-0 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden flex flex-col">
         <div className="px-4 py-4 border-b border-white/[0.1] flex items-center justify-between">
           <span className="text-sm font-medium text-white/70">
             Conversations
@@ -1988,7 +1988,7 @@ User message: `
       </aside>
 
       {/* PANEL 3: Main Chat Area + Activity Panel */}
-      <div className="flex-1 flex overflow-hidden backdrop-blur-[10px] rounded-[3px] border border-white/10">
+      <div className="flex-1 flex overflow-hidden bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10">
       {/* Chat Area */}
       <div
         className={cn("flex flex-col relative overflow-hidden transition-all duration-300", activityPanelOpen ? "flex-1" : "flex-1")}
