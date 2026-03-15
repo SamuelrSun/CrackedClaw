@@ -53,8 +53,8 @@ class NodeManager extends EventEmitter {
   async start() {
     this.shouldRun = true;
     await this.ensureCLI();
-    // Pre-pair with the gateway before starting node
-    await this.prePairDevice();
+    // Auto-approve handles pairing on first connect — no pre-pair needed
+    // await this.prePairDevice();
     this.spawnNode();
   }
 
@@ -308,10 +308,41 @@ class NodeManager extends EventEmitter {
       console.error('[openclaw node stderr]', line);
       this.lastError = line;
 
-      // If we get "pairing required" and haven't pre-paired yet, try pre-pairing
-      if (line.includes('pairing required') && !this.prePaired) {
-        console.log('[NodeManager] Got "pairing required" — attempting pre-pair...');
-        this.prePairDevice().catch(() => {});
+      // If we get "pairing required", use auto-approve flow
+      if (line.includes('pairing required') && !this._approvingPending) {
+        this._approvingPending = true;
+        console.log('[NodeManager] Got "pairing required" — requesting auto-approve...');
+
+        // Wait for gateway to create pending entry
+        setTimeout(async () => {
+          try {
+            const approveUrl = `${this.provisioningApiUrl}/instances/${this.instanceId}/approve-pending`;
+            const result = await this._httpPost(
+              approveUrl,
+              '{}',
+              {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.authToken}`,
+              }
+            );
+            const data = JSON.parse(result);
+            if (data.success) {
+              console.log('[NodeManager] Device approved! Reconnecting...');
+              // Wait for gateway to process, then kill process to trigger reconnect
+              setTimeout(() => {
+                if (this.process) {
+                  this.process.kill();
+                }
+              }, 3000);
+            } else {
+              console.warn('[NodeManager] Approve failed:', data.reason);
+              this._approvingPending = false;
+            }
+          } catch (err) {
+            console.warn('[NodeManager] Approve request failed:', err.message);
+            this._approvingPending = false;
+          }
+        }, 2000);
       }
     });
 
