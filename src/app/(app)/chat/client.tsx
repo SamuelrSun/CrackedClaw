@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConversationListSkeleton } from "@/components/skeletons/list-skeleton";
 import { ChatSkeleton } from "@/components/skeletons/chat-skeleton";
 import { parseMessageContent, type ParsedSegment } from "@/lib/chat/message-parser";
+import { generateConversationTitle } from "@/lib/utils/title-generator";
 import { DynamicIntegrationsCard } from "@/components/chat/dynamic-integrations-card";
 
 import { ScanTriggerCard } from "@/components/chat/scan-trigger-card";
@@ -1252,7 +1253,7 @@ User message: `
           const res = await fetch("/api/conversations", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title: messageToSend.length > 50 ? messageToSend.substring(0, 47) + "..." : messageToSend }),
+            body: JSON.stringify({ title: generateConversationTitle(messageToSend) }),
           });
           if (res.ok) {
             const data = await res.json();
@@ -1580,7 +1581,7 @@ User message: `
       const res = await fetch('/api/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: message.length > 50 ? message.substring(0, 47) + '...' : message }),
+        body: JSON.stringify({ title: generateConversationTitle(message) }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -1589,7 +1590,7 @@ User message: `
           setConversations(prev => {
             const exists = prev.find(c => c.id === newId);
             if (exists) return prev;
-            return [{ id: newId, title: message.substring(0, 50), lastMessage: '', timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, ...prev];
+            return [{ id: newId, title: generateConversationTitle(message), lastMessage: '', timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, ...prev];
           });
           setActiveConvo(newId);
           setConversationId(newId);
