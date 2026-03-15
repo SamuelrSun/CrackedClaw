@@ -176,7 +176,7 @@ function TokenUsageBar() {
         />
       </div>
       <span className={`font-mono text-[10px] uppercase tracking-wide flex-shrink-0 ${
-        isExceeded ? 'text-red-400' : isWarning ? 'text-amber-400' : 'text-zinc-500'
+        isExceeded ? 'text-red-400' : isWarning ? 'text-amber-400' : 'text-white/50'
       }`}>
         {isExceeded ? (
           <a href="/settings/billing" className="underline">Limit reached — Upgrade</a>
@@ -243,7 +243,7 @@ function RichMessage({
             );
           case "text":
             return (
-              <div key={idx} className="prose prose-base max-w-none prose-p:my-0 prose-p:mb-3 prose-p:leading-[26px] prose-headings:font-semibold prose-headings:text-zinc-800 prose-strong:text-zinc-800 prose-strong:font-semibold prose-code:text-sm prose-code:bg-white/[0.08] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-white/[0.06] prose-pre:rounded-lg prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 text-white/[0.88]">
+              <div key={idx} className="prose prose-base max-w-none prose-p:my-0 prose-p:mb-3 prose-p:leading-[26px] prose-headings:font-semibold prose-headings:text-white/90 prose-strong:text-white/90 prose-strong:font-semibold prose-code:text-sm prose-code:bg-white/[0.08] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-white/[0.06] prose-pre:rounded-lg prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 text-white/[0.88]">
                 <ReactMarkdown>{segment.content}</ReactMarkdown>
               </div>
             );
@@ -419,12 +419,12 @@ function GatewayStatusPanel({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className={cn("w-2 h-2 rounded-full", statusColors[status] || statusColors.disconnected)} />
-          <span className="font-mono text-[9px] uppercase tracking-wide text-zinc-500">
+          <span className="font-mono text-[9px] uppercase tracking-wide text-white/50">
             Gateway {statusLabels[status] || status}
           </span>
         </div>
         {status === "connected" && latencyMs && (
-          <span className="font-mono text-[8px] text-zinc-400">{latencyMs}ms</span>
+          <span className="font-mono text-[8px] text-white/30">{latencyMs}ms</span>
         )}
       </div>
       
@@ -432,7 +432,7 @@ function GatewayStatusPanel({
       {isReconnecting && (
         <div className="mt-2 space-y-1.5">
           <div className="flex justify-between items-center">
-            <span className="font-mono text-[9px] text-zinc-500">
+            <span className="font-mono text-[9px] text-white/50">
               Attempt {reconnectAttempt}/5
             </span>
             {reconnectCountdown && (
@@ -444,7 +444,7 @@ function GatewayStatusPanel({
           <div className="flex gap-1">
             <button
               onClick={onRetry}
-              className="flex-1 px-2 py-1 text-[8px] font-mono uppercase tracking-wide bg-white/[0.12] text-zinc-800 hover:bg-white/[0.18] transition-colors"
+              className="flex-1 px-2 py-1 text-[8px] font-mono uppercase tracking-wide bg-white/[0.12] text-white/90 hover:bg-white/[0.18] transition-colors"
             >
               Retry Now
             </button>
@@ -467,11 +467,11 @@ function GatewayStatusPanel({
             </p>
           )}
           {isCanceled && !error && (
-            <p className="text-[9px] text-zinc-500 mb-1.5">Reconnection canceled</p>
+            <p className="text-[9px] text-white/50 mb-1.5">Reconnection canceled</p>
           )}
           <button
             onClick={onRetry}
-            className="w-full px-2 py-1 text-[8px] font-mono uppercase tracking-wide bg-white/[0.12] text-zinc-800 hover:bg-white/[0.18] transition-colors"
+            className="w-full px-2 py-1 text-[8px] font-mono uppercase tracking-wide bg-white/[0.12] text-white/90 hover:bg-white/[0.18] transition-colors"
           >
             Reconnect
           </button>
@@ -541,7 +541,7 @@ function ReconnectionBanner({
         </div>
         <button
           onClick={onRetry}
-          className="text-xs font-mono uppercase tracking-wide text-zinc-800 px-3 py-1 bg-[#CC4444] hover:bg-[#AA2222] transition-colors"
+          className="text-xs font-mono uppercase tracking-wide text-white/90 px-3 py-1 bg-[#CC4444] hover:bg-[#AA2222] transition-colors"
         >
           Reconnect
         </button>
@@ -643,7 +643,7 @@ function NewConversationLanding({ onSend }: { onSend: (message: string) => void 
         style={{ paddingBottom: '15vh' }}
       >
         <h1
-          className="text-4xl font-bold text-zinc-800 mb-8 text-center"
+          className="text-4xl font-bold text-white/90 mb-8 text-center"
           style={{ fontFamily: 'Georgia, "Times New Roman", serif', lineHeight: '44px' }}
         >
           What can I do for you?
@@ -665,7 +665,7 @@ function NewConversationLanding({ onSend }: { onSend: (message: string) => void 
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Describe a task or responsibility..."
-              className="w-full bg-transparent text-base text-zinc-800 placeholder:text-zinc-400 p-4 resize-none outline-none min-h-[56px] max-h-[200px]"
+              className="w-full bg-transparent text-base text-white/90 placeholder:text-white/30 p-4 resize-none outline-none min-h-[56px] max-h-[200px]"
               rows={1}
               autoFocus
             />
@@ -1800,7 +1800,7 @@ User message: `
             <span className="text-2xl">🔌</span>
           </div>
           <h2 className="font-header text-xl font-bold mb-2">No Gateway Connected</h2>
-          <p className="text-sm text-zinc-600 mb-6">
+          <p className="text-sm text-white/60 mb-6">
             Connect your personal gateway instance to start chatting. Your gateway runs locally and keeps your data private.
           </p>
           <Link href="/settings">
@@ -1846,7 +1846,7 @@ User message: `
                 href={link.href}
                 className={cn(
                   "text-sm font-medium px-3 py-1.5 rounded transition-colors",
-                  isActive ? "text-zinc-800 bg-white/[0.1]" : "text-zinc-500 hover:text-zinc-700"
+                  isActive ? "text-white/90 bg-white/[0.1]" : "text-white/50 hover:text-white/80"
                 )}
               >
                 {link.label}
@@ -1859,13 +1859,13 @@ User message: `
             onClick={openSearch}
             className="flex items-center gap-2 px-3 py-1.5 border border-white/[0.1] hover:border-white/[0.25] hover:bg-white/[0.08] transition-colors group"
           >
-            <Search className="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-600" />
-            <span className="font-mono text-[10px] text-zinc-400 group-hover:text-zinc-600 hidden sm:inline">Search...</span>
+            <Search className="w-3.5 h-3.5 text-white/30 group-hover:text-white/60" />
+            <span className="font-mono text-[10px] text-white/30 group-hover:text-white/60 hidden sm:inline">Search...</span>
             <div className="hidden sm:flex items-center gap-0.5 ml-2">
-              <kbd className="font-mono text-[9px] px-1 py-0.5 bg-white/[0.06] border border-white/[0.1] text-zinc-400">
+              <kbd className="font-mono text-[9px] px-1 py-0.5 bg-white/[0.06] border border-white/[0.1] text-white/30">
                 <Command className="w-2.5 h-2.5 inline" />
               </kbd>
-              <kbd className="font-mono text-[9px] px-1 py-0.5 bg-white/[0.06] border border-white/[0.1] text-zinc-400">K</kbd>
+              <kbd className="font-mono text-[9px] px-1 py-0.5 bg-white/[0.06] border border-white/[0.1] text-white/30">K</kbd>
             </div>
           </button>
           <div className="h-4 w-px bg-white/[0.1]" />
@@ -1892,7 +1892,7 @@ User message: `
                 ) : (
                   <>
                     <span className="w-2 h-2 bg-white/20 rounded-none block" />
-                    <span className="font-mono text-[10px] uppercase tracking-wide text-zinc-400">Offline</span>
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-white/30">Offline</span>
                   </>
                 )}
               </Link>
@@ -1902,7 +1902,7 @@ User message: `
           {user ? (
             <UserMenu user={user} />
           ) : (
-            <Link href="/welcome" className="font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 text-zinc-600 hover:bg-white/[0.1] hover:text-zinc-800 border border-white/[0.15] transition-colors">
+            <Link href="/welcome" className="font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 text-white/60 hover:bg-white/[0.1] hover:text-white/90 border border-white/[0.15] transition-colors">
               Sign in
             </Link>
           )}
@@ -1914,7 +1914,7 @@ User message: `
       {/* PANEL 2: Conversations Sidebar */}
       <aside className="w-72 shrink-0 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden flex flex-col">
         <div className="px-4 py-4 border-b border-white/[0.1] flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-600">
+          <span className="text-sm font-medium text-white/60">
             Conversations
           </span>
           <Button variant="solid" size="sm" onClick={handleNewConversation}>New</Button>
@@ -1933,7 +1933,7 @@ User message: `
                   onClick={() => loadConversation(convo.id)}
                   className="flex-1 text-left px-4 py-3 min-w-0"
                 >
-                  <span className="text-[15px] font-medium truncate block text-zinc-800">{convo.title || "New conversation"}</span>
+                  <span className="text-[15px] font-medium truncate block text-white/90">{convo.title || "New conversation"}</span>
                 </button>
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity pr-2 flex-shrink-0">
                   <ConversationContextMenu
@@ -1946,8 +1946,8 @@ User message: `
             ))
           ) : (
             <div className="px-4 py-8 text-center">
-              <p className="text-sm text-zinc-500 mb-1">No conversations yet</p>
-              <p className="font-mono text-[10px] text-zinc-400">
+              <p className="text-sm text-white/50 mb-1">No conversations yet</p>
+              <p className="font-mono text-[10px] text-white/30">
                 Start chatting below
               </p>
             </div>
@@ -1972,13 +1972,13 @@ User message: `
             <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
               wsConnected ? "bg-[#9EFFBF]" : wsConnecting ? "bg-[#F4D35E] animate-pulse" : "bg-grid/20"
             }`} />
-            <span className="font-mono text-[8px] uppercase tracking-wide text-zinc-400">
+            <span className="font-mono text-[8px] uppercase tracking-wide text-white/30">
               {wsConnected ? "WS live" : wsConnecting ? "WS connecting..." : "WS offline"}
             </span>
             {!wsConnected && !wsConnecting && (
               <button
                 onClick={wsReconnect}
-                className="ml-auto font-mono text-[8px] text-zinc-400 hover:text-zinc-700 underline"
+                className="ml-auto font-mono text-[8px] text-white/30 hover:text-white/80 underline"
               >
                 retry
               </button>
@@ -2018,7 +2018,7 @@ User message: `
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/[0.04] border-2 border-dashed border-white/[0.3] pointer-events-none">
             <div className="text-center">
               <div className="text-4xl mb-2">📎</div>
-              <p className="font-mono text-sm text-zinc-700 font-medium">Drop files here</p>
+              <p className="font-mono text-sm text-white/80 font-medium">Drop files here</p>
             </div>
           </div>
         )}
@@ -2027,13 +2027,13 @@ User message: `
           {conversationId && (
             <button
               onClick={() => setLinkPickerOpen(true)}
-              className="relative flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-zinc-500 hover:text-zinc-700 border border-transparent hover:border-white/[0.1] transition-all rounded-none"
+              className="relative flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-white/50 hover:text-white/80 border border-transparent hover:border-white/[0.1] transition-all rounded-none"
               title="Link conversations"
             >
               <span>🔗</span>
               <span>Link</span>
               {linkedConversations.length > 0 && (
-                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.12] text-zinc-700 font-mono text-[9px] ml-0.5">
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.12] text-white/80 font-mono text-[9px] ml-0.5">
                   {linkedConversations.length}
                 </span>
               )}
@@ -2046,7 +2046,7 @@ User message: `
             <span>🔄</span>
             <span>Tasks</span>
             {subagentCount > 0 && (
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.12] text-zinc-800 font-mono text-[9px] ml-0.5">
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.12] text-white/90 font-mono text-[9px] ml-0.5">
                 {subagentCount}
               </span>
             )}
@@ -2056,8 +2056,8 @@ User message: `
             className={cn(
               "relative flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide border transition-all rounded-none",
               activityPanelOpen
-                ? "text-zinc-700 border-white/[0.2] bg-white/[0.08]"
-                : "text-zinc-500 hover:text-zinc-700 border-transparent hover:border-white/[0.1]"
+                ? "text-white/80 border-white/[0.2] bg-white/[0.08]"
+                : "text-white/50 hover:text-white/80 border-transparent hover:border-white/[0.1]"
             )}
             title="Toggle agent activity panel"
             style={{ display: 'none' }}
@@ -2065,7 +2065,7 @@ User message: `
             <span>📊</span>
             <span>Activity</span>
             {agentActivities.filter(a => a.status === 'running').length > 0 && (
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.12] text-zinc-800 font-mono text-[9px] ml-0.5">
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.12] text-white/90 font-mono text-[9px] ml-0.5">
                 {agentActivities.filter(a => a.status === 'running').length}
               </span>
             )}
@@ -2140,7 +2140,7 @@ User message: `
                   <div
                     className={cn(
                       msg.role === "user"
-                        ? "text-base leading-[24px] text-zinc-800 bg-white/[0.08] border border-white/[0.1] rounded py-2 px-4"
+                        ? "text-base leading-[24px] text-white/90 bg-white/[0.08] border border-white/[0.1] rounded py-2 px-4"
                         : "text-white/[0.88] p-0 border-0 bg-transparent"
                     )}
                   >
@@ -2211,7 +2211,7 @@ User message: `
                       <UserMessageContent content={msg.content} />
                     ) : (
                       <div className="relative">
-                        <div className="prose prose-base max-w-none prose-p:my-0 prose-p:mb-3 prose-p:leading-[26px] prose-headings:font-semibold prose-headings:text-zinc-800 prose-strong:text-zinc-800 prose-strong:font-semibold prose-code:text-sm prose-code:bg-white/[0.08] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-white/[0.06] prose-pre:rounded-lg prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 text-white/[0.88]">
+                        <div className="prose prose-base max-w-none prose-p:my-0 prose-p:mb-3 prose-p:leading-[26px] prose-headings:font-semibold prose-headings:text-white/90 prose-strong:text-white/90 prose-strong:font-semibold prose-code:text-sm prose-code:bg-white/[0.08] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-white/[0.06] prose-pre:rounded-lg prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 text-white/[0.88]">
                           <ReactMarkdown>{msg.content}</ReactMarkdown>
                         </div>
                         {msg.content.length >= 20 && (
@@ -2224,7 +2224,7 @@ User message: `
                   </div>
                   {msg.role === "user" && (
                     <div className="flex justify-end mt-0.5">
-                      <span className="text-xs text-zinc-500">{msg.timestamp}</span>
+                      <span className="text-xs text-white/50">{msg.timestamp}</span>
                     </div>
                   )}
                   {msg.role === "assistant" && (
@@ -2242,7 +2242,7 @@ User message: `
                 <h3 className="font-header text-lg font-bold mb-2">
                   Start a conversation
                 </h3>
-                <p className="text-sm text-zinc-500 max-w-sm">
+                <p className="text-sm text-white/50 max-w-sm">
                   Ask your assistant anything — summarize emails, draft responses, research topics, or get help with tasks.
                 </p>
               </div>
@@ -2265,7 +2265,7 @@ User message: `
           {/* Loading indicator */}
           {isLoading && (
             <div className="max-w-[70%] mr-auto px-1">
-              <span className="font-mono text-[11px] text-zinc-400 italic animate-pulse">
+              <span className="font-mono text-[11px] text-white/30 italic animate-pulse">
                 {retryCount > 0 ? `Retrying (${retryCount}/3)...` : "Thinking..."}
               </span>
             </div>
@@ -2277,7 +2277,7 @@ User message: `
           {showScrollButton && (
             <button
               onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
-              className="absolute bottom-24 right-6 w-8 h-8 flex items-center justify-center border border-white/[0.1] bg-white/[0.06] text-zinc-500 hover:text-zinc-800 hover:border-white/[0.3] transition-colors z-10"
+              className="absolute bottom-24 right-6 w-8 h-8 flex items-center justify-center border border-white/[0.1] bg-white/[0.06] text-white/50 hover:text-white/90 hover:border-white/[0.3] transition-colors z-10"
               title="Scroll to bottom"
             >
               ↓
@@ -2319,18 +2319,13 @@ User message: `
 
         {/* Input */}
         <div className="flex-shrink-0 p-4 flex justify-center">
-          <div className="w-1/2 min-w-[300px] max-w-[600px]">
+          <div className="w-3/4 min-w-[300px]">
           <FilePreview
             files={attachedFiles}
             onRemove={(id) => setAttachedFiles(prev => prev.filter(f => f.id !== id))}
           />
           <div
-            className="border border-white/[0.25] rounded-[10px] overflow-hidden"
-            style={{
-              background: "rgba(255,255,255,0.15)",
-              backdropFilter: "blur(40px) saturate(150%)",
-              WebkitBackdropFilter: "blur(40px) saturate(150%)",
-            }}
+            className="bg-white/[0.08] border border-white/[0.1] rounded-[10px] overflow-hidden"
           >
             <textarea
               value={input}
@@ -2343,36 +2338,37 @@ User message: `
               placeholder={gateway ? "Message your assistant..." : "Connect gateway to chat..."}
               disabled={!gateway || isLoading || isReconnecting}
               rows={1}
-              className="w-full bg-transparent px-4 py-3 text-sm text-zinc-800 outline-none resize-none placeholder:text-zinc-400 disabled:opacity-50 min-h-[40px] max-h-[200px]"
+              className="w-full bg-transparent px-4 pt-4 pb-2 text-base leading-[24px] text-white/90 outline-none resize-none placeholder:text-white/30 disabled:opacity-50 min-h-[48px] max-h-[200px]"
             />
-            <div className="flex items-center justify-between px-2 py-1.5">
-              <InputToolbar
-                onFileUpload={() => document.getElementById('dopl-file-input')?.click()}
+            <div className="flex items-center justify-between px-3 py-2">
+              {/* Paperclip attach button */}
+              <button
+                type="button"
+                onClick={() => document.getElementById('dopl-file-input')?.click()}
                 disabled={!gateway || isLoading}
-              />
-              <div className="flex items-center gap-1">
-                <ModelSelector value={selectedModel} onChange={setSelectedModel} />
-                <VoiceInputButton onTranscript={(text) => setInput(text)} disabled={!gateway || isLoading} />
-                <div
-                  title={
-                    !gateway
-                      ? "Connect a gateway in Settings to send messages"
-                      : gatewayStatus === "disconnected" || gatewayStatus === "error"
-                      ? "Gateway is offline — reconnecting..."
-                      : isReconnecting
-                      ? "Reconnecting to gateway..."
-                      : undefined
+                title="Attach file"
+                className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </button>
+              {/* Mic / Send button (mic when empty, arrow when typing) */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (input.trim() || attachedFiles.length > 0) {
+                    handleSend();
                   }
-                >
-                  <Button
-                    variant="solid"
-                    onClick={() => handleSend()}
-                    disabled={!gateway || (!input.trim() && attachedFiles.length === 0) || isLoading || isReconnecting}
-                  >
-                    {isLoading ? "..." : "Send"}
-                  </Button>
-                </div>
-              </div>
+                }}
+                disabled={!gateway || isLoading || isReconnecting}
+                title={input.trim() ? "Send message" : "Voice input"}
+                className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent"
+              >
+                {input.trim() || attachedFiles.length > 0 ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                )}
+              </button>
             </div>
           </div>
           </div>
