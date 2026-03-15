@@ -57,6 +57,12 @@ import { ToolTimeline } from "@/components/chat/tool-timeline";
 import { ModelSelector } from "@/components/chat/model-selector";
 import { InputToolbar } from "@/components/chat/input-toolbar";
 import { MessageFeedback } from "@/components/chat/message-feedback";
+import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
+import { UserMenu } from "@/components/auth/user-menu";
+import { useUser } from "@/hooks/use-user";
+import { useSearchContext } from "@/contexts/search-context";
+import { Search, Command } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 interface ToolCallInfo {
   tool: string;
@@ -718,6 +724,9 @@ export default function ChatPageClient({
   const lastFailedMessage = useRef<string | null>(null);
   const handleSendRef = useRef<(messageOverride?: string) => Promise<void>>(async () => {});
   const userIdRef = useRef<string | null>(null);
+  const { user } = useUser();
+  const { openSearch } = useSearchContext();
+  const pathname = usePathname();
 
   // Fetch and cache the current user's ID on mount
   useEffect(() => {
@@ -776,6 +785,7 @@ export default function ChatPageClient({
     loading: gatewayLoading, 
     status: gatewayStatus, 
     isConnected,
+    statusInfo,
     latencyMs,
     reconnectAttempt,
     reconnectCountdown,
@@ -1809,11 +1819,100 @@ User message: `
   }
 
   return (
-    <>
-    <ChatBg />
-    <div className="flex h-[calc(100vh-64px)] relative z-[1]">
-      {/* Conversation Sidebar */}
-      <aside className="w-72 border-r border-white/[0.1] bg-white/[0.03] flex flex-col">
+    <div
+      className="fixed inset-0 z-[100] flex flex-col p-[10px] gap-[10px]"
+      style={{
+        backgroundImage: "url('/img/landing_background.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      {/* PANEL 1: Glass Navbar */}
+      <nav className="shrink-0 h-[56px] backdrop-blur-[10px] rounded-[3px] overflow-hidden flex items-center px-6">
+        <div className="mr-6">
+          <WorkspaceSwitcher />
+        </div>
+        <div className="flex items-center gap-1">
+          {[
+            { href: "/chat", label: "Chat" },
+            { href: "/agents", label: "Agents" },
+            { href: "/integrations", label: "Integrations" },
+            { href: "/settings", label: "Settings" },
+          ].map((link) => {
+            const isActive = pathname === link.href || (link.href === "/chat" && pathname.startsWith("/chat"));
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "text-sm font-medium px-3 py-1.5 rounded transition-colors",
+                  isActive ? "text-white bg-white/[0.1]" : "text-white/50 hover:text-white/80"
+                )}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+        </div>
+        <div className="ml-auto flex items-center gap-4">
+          <button
+            onClick={openSearch}
+            className="flex items-center gap-2 px-3 py-1.5 border border-white/[0.1] hover:border-white/[0.25] hover:bg-white/[0.08] transition-colors group"
+          >
+            <Search className="w-3.5 h-3.5 text-white/40 group-hover:text-white/70" />
+            <span className="font-mono text-[10px] text-white/40 group-hover:text-white/70 hidden sm:inline">Search...</span>
+            <div className="hidden sm:flex items-center gap-0.5 ml-2">
+              <kbd className="font-mono text-[9px] px-1 py-0.5 bg-white/[0.06] border border-white/[0.1] text-white/30">
+                <Command className="w-2.5 h-2.5 inline" />
+              </kbd>
+              <kbd className="font-mono text-[9px] px-1 py-0.5 bg-white/[0.06] border border-white/[0.1] text-white/30">K</kbd>
+            </div>
+          </button>
+          <div className="h-4 w-px bg-white/[0.1]" />
+          {user && (
+            <>
+              <Link href="/settings" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                {isConnected ? (
+                  <>
+                    <span className="w-2 h-2 bg-[#9EFFBF] rounded-none block animate-pulse" />
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-[#9EFFBF]/80">
+                      {statusInfo?.agentName || 'Connected'}
+                    </span>
+                  </>
+                ) : isReconnecting ? (
+                  <>
+                    <span className="w-2 h-2 bg-[#F4D35E] rounded-none block animate-pulse" />
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-[#F4D35E]/80">Reconnecting</span>
+                  </>
+                ) : gatewayStatus === 'error' ? (
+                  <>
+                    <span className="w-2 h-2 bg-red-400 rounded-none block" />
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-red-400/80">Error</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 bg-white/20 rounded-none block" />
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-white/30">Offline</span>
+                  </>
+                )}
+              </Link>
+              <div className="h-4 w-px bg-white/[0.1]" />
+            </>
+          )}
+          {user ? (
+            <UserMenu user={user} />
+          ) : (
+            <Link href="/welcome" className="font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 text-white/70 hover:bg-white/[0.1] hover:text-white border border-white/[0.15] transition-colors">
+              Sign in
+            </Link>
+          )}
+        </div>
+      </nav>
+
+      {/* Content row */}
+      <div className="flex-1 flex gap-[10px] min-h-0">
+      {/* PANEL 2: Conversations Sidebar */}
+      <aside className="w-72 shrink-0 backdrop-blur-[10px] rounded-[3px] overflow-hidden flex flex-col">
         <div className="px-4 py-4 border-b border-white/[0.1] flex items-center justify-between">
           <span className="text-sm font-medium text-white/70">
             Conversations
@@ -1888,8 +1987,8 @@ User message: `
         )}
       </aside>
 
-      {/* Chat Area + Activity Panel */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* PANEL 3: Main Chat Area + Activity Panel */}
+      <div className="flex-1 flex overflow-hidden backdrop-blur-[10px] rounded-[3px]">
       {/* Chat Area */}
       <div
         className={cn("flex flex-col relative overflow-hidden transition-all duration-300", activityPanelOpen ? "flex-1" : "flex-1")}
@@ -2317,6 +2416,6 @@ User message: `
       )}
       </div>
     </div>
-    </>
+  </div>
   );
 }
