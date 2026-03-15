@@ -35,7 +35,7 @@ async function extractFactsWithHaiku(
     const convoText = messages.map(m => `${m.role}: ${m.content}`).join('\n');
 
     const response = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 512,
       system: `Extract up to ${MAX_FACTS} key facts, preferences, or important information from this conversation worth remembering long-term. Return a JSON array with "content" (the fact) and "importance" (0-1). Skip transient details. If nothing worth saving, return [].
 
