@@ -93,7 +93,7 @@ function InitialAvatar({ name, email }: { name: string | null; email: string | n
 function AccountRow({ account }: { account: ConnectedAccount }) {
   const displayName = account.email || account.name || account.id;
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5 bg-forest/5 rounded-sm">
+    <div className="flex items-center gap-2 px-2 py-1.5 bg-white/5 rounded-sm">
       {account.picture ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -105,9 +105,9 @@ function AccountRow({ account }: { account: ConnectedAccount }) {
       ) : (
         <InitialAvatar name={account.name} email={account.email} />
       )}
-      <span className="font-mono text-[11px] text-grid/80 truncate flex-1">{displayName}</span>
+      <span className="font-mono text-[11px] text-white/60 truncate flex-1">{displayName}</span>
       {account.is_default && (
-        <span className="text-[8px] uppercase tracking-wide text-forest/60 flex-shrink-0">(default)</span>
+        <span className="text-[8px] uppercase tracking-wide text-white/40 flex-shrink-0">(default)</span>
       )}
     </div>
   );
@@ -167,35 +167,36 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="bg-paper border border-white/[0.1] p-6 max-w-md w-full mx-4 space-y-4"
+        className="border border-white/[0.15] p-6 max-w-md w-full mx-4 space-y-4"
+        style={{ background: 'rgba(20,20,25,0.95)', backdropFilter: 'blur(40px)', WebkitBackdropFilter: 'blur(40px)' }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
-          <h3 className="font-header font-bold text-forest text-base">Let me use your browser for this</h3>
-          <button onClick={onClose} className="text-grid/40 hover:text-grid mt-0.5">
+          <h3 className="font-mono text-[12px] font-semibold text-white/90 text-base">Let me use your browser for this</h3>
+          <button onClick={onClose} className="text-white/40 hover:text-white mt-0.5">
             <X className="w-4 h-4" />
           </button>
         </div>
         
-        <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
-          <strong className="text-forest">{name}</strong> doesn&apos;t have a way for me to connect directly, so I&apos;ll open it in a browser on your computer — just like you&apos;d use it yourself.
+        <p className="font-mono text-[11px] text-white/70 leading-relaxed">
+          <strong className="text-white/90">{name}</strong> doesn&apos;t have a way for me to connect directly, so I&apos;ll open it in a browser on your computer — just like you&apos;d use it yourself.
         </p>
 
         {/* Live Connection Status Indicator */}
-        <div className="p-3 border border-white/[0.1] bg-forest/5">
+        <div className="p-3 border border-white/[0.1] bg-white/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {nodeStatus === null ? (
                 <>
-                  <Loader2 className="w-4 h-4 text-grid/50 animate-spin" />
-                  <span className="font-mono text-[10px] text-grid/60">Checking connection...</span>
+                  <Loader2 className="w-4 h-4 text-white/50 animate-spin" />
+                  <span className="font-mono text-[10px] text-white/50">Checking connection...</span>
                 </>
               ) : nodeStatus.isOnline ? (
                 <>
                   <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center">
                     <Check className="w-2 h-2 text-white" />
                   </div>
-                  <span className="font-mono text-[10px] text-green-700">
+                  <span className="font-mono text-[10px] text-emerald-400">
                     ✅ Connected — ready to go!
                   </span>
                 </>
@@ -214,16 +215,16 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
             <button 
               onClick={handleRefresh}
               disabled={checking}
-              className="p-1 hover:bg-forest/10 rounded transition-colors"
+              className="p-1 hover:bg-white/10 rounded transition-colors"
               title="Check connection"
             >
-              <RefreshCw className={`w-3 h-3 text-grid/50 ${checking ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3 h-3 text-white/50 ${checking ? 'animate-spin' : ''}`} />
             </button>
           </div>
           {nodeStatus?.isOnline && nodeStatus.nodeName && (
             <div className="mt-1.5 flex items-center gap-1.5">
-              <Monitor className="w-3 h-3 text-green-600" />
-              <span className="font-mono text-[9px] text-green-700">{nodeStatus.nodeName}</span>
+              <Monitor className="w-3 h-3 text-emerald-400" />
+              <span className="font-mono text-[9px] text-emerald-400">{nodeStatus.nodeName}</span>
             </div>
           )}
         </div>
@@ -235,7 +236,7 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
               onConnected?.();
               onClose();
             }}
-            className="w-full py-2 font-mono text-[10px] uppercase tracking-wide bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+            className="w-full py-2 font-mono text-[10px] uppercase tracking-wide bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
           >
             <Check className="w-3 h-3" />
             Open in Browser
@@ -243,20 +244,20 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
         ) : (
           <>
             <div className="space-y-2">
-              <p className="font-mono text-[11px] text-grid/70 font-bold">Here&apos;s how to set that up:</p>
-              <p className="font-mono text-[10px] text-grid/60">1. Download Dopl Connect from dopl.com/connect</p>
-              <p className="font-mono text-[10px] text-grid/60">2. Open the app and sign in with your Dopl account</p>
-              <p className="font-mono text-[10px] text-grid/60">3. Leave the app running in the background — that&apos;s it!</p>
+              <p className="font-mono text-[11px] text-white/60 font-bold">Here&apos;s how to set that up:</p>
+              <p className="font-mono text-[10px] text-white/50">1. Download Dopl Connect from dopl.com/connect</p>
+              <p className="font-mono text-[10px] text-white/50">2. Open the app and sign in with your Dopl account</p>
+              <p className="font-mono text-[10px] text-white/50">3. Leave the app running in the background — that&apos;s it!</p>
             </div>
 
             {/* Download link with Copy button */}
-            <div className="relative bg-forest/5 border border-white/[0.1] p-3">
-              <code className="font-mono text-[11px] text-forest break-all pr-16">
+            <div className="relative bg-white/5 border border-white/[0.1] p-3">
+              <code className="font-mono text-[11px] text-white/70 break-all pr-16">
                 dopl.com/connect
               </code>
               <button
                 onClick={handleCopy}
-                className="absolute top-2 right-2 px-2 py-1 bg-forest/10 hover:bg-forest/20 text-forest font-mono text-[9px] uppercase tracking-wide transition-colors flex items-center gap-1"
+                className="absolute top-2 right-2 px-2 py-1 bg-white/10 hover:bg-white/20 text-white/70 font-mono text-[9px] uppercase tracking-wide transition-colors flex items-center gap-1"
               >
                 {copied ? (
                   <>
@@ -272,15 +273,15 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
               </button>
             </div>
             
-            <p className="font-mono text-[10px] text-grid/60">3. Leave that window open in the background — that&apos;s it!</p>
+            <p className="font-mono text-[10px] text-white/50">3. Leave that window open in the background — that&apos;s it!</p>
             
-            <p className="font-mono text-[10px] text-grid/50 leading-relaxed">
+            <p className="font-mono text-[10px] text-white/40 leading-relaxed">
               The Copy button includes your auth token. I can only do things you ask me to. Your data stays on your device and the connection is encrypted.
             </p>
             
             <button
               onClick={onClose}
-              className="w-full py-2 font-mono text-[10px] uppercase tracking-wide bg-forest text-white hover:bg-forest/90 transition-colors"
+              className="w-full py-2 font-mono text-[10px] uppercase tracking-wide bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors"
             >
               Got it
             </button>
@@ -319,10 +320,10 @@ function CompanionOnboardingInline({ name }: { name: string }) {
   return (
     <div className="mt-3 border-t border-white/[0.1] pt-3 space-y-3">
       <div className="space-y-2">
-        <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
-          <strong className="text-forest">{name}</strong> doesn&apos;t have an API, so I need to browse it on your computer — just like you would.
+        <p className="font-mono text-[11px] text-white/70 leading-relaxed">
+          <strong className="text-white/90">{name}</strong> doesn&apos;t have an API, so I need to browse it on your computer — just like you would.
         </p>
-        <p className="font-mono text-[11px] text-grid/70 leading-relaxed">
+        <p className="font-mono text-[11px] text-white/70 leading-relaxed">
           <strong>Dopl Connect</strong> is a lightweight desktop app that lets me do that.
         </p>
       </div>
@@ -331,22 +332,22 @@ function CompanionOnboardingInline({ name }: { name: string }) {
       <a
         href="/downloads/Dopl-Connect.dmg"
         download
-        className="block w-full py-2.5 font-mono text-[10px] uppercase tracking-wide bg-grid text-paper hover:bg-grid/80 transition-colors text-center"
+        className="block w-full py-2.5 font-mono text-[10px] uppercase tracking-wide bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors text-center"
       >
         ⬇ Download for macOS
       </a>
 
       {/* Copy token button */}
-      <div className="bg-forest/5 border border-white/[0.1] p-2.5 space-y-2">
-        <p className="font-mono text-[9px] uppercase tracking-wide text-grid/50">Connection Token</p>
+      <div className="bg-white/5 border border-white/[0.1] p-2.5 space-y-2">
+        <p className="font-mono text-[9px] uppercase tracking-wide text-white/40">Connection Token</p>
         <div className="flex items-center gap-2">
-          <code className="font-mono text-[10px] text-forest/70 truncate flex-1 select-none">
+          <code className="font-mono text-[10px] text-white/60 truncate flex-1 select-none">
             {loadingToken ? "Loading…" : maskedToken}
           </code>
           <button
             onClick={handleCopy}
             disabled={!token}
-            className="flex-shrink-0 px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-wide bg-forest text-white hover:bg-forest/90 disabled:opacity-40 transition-colors flex items-center gap-1"
+            className="flex-shrink-0 px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-wide bg-white/15 hover:bg-white/25 border border-white/20 text-white disabled:opacity-40 transition-colors flex items-center gap-1"
           >
             {copied ? (
               <><Check className="w-3 h-3" /> Copied!</>
@@ -368,7 +369,7 @@ function CompanionOnboardingInline({ name }: { name: string }) {
         </span>
       </div>
 
-      <p className="font-mono text-[9px] text-grid/40 leading-relaxed">
+      <p className="font-mono text-[9px] text-white/40 leading-relaxed">
         Open the app, paste the token, and you&apos;re connected. Runs quietly in your menu bar.
       </p>
     </div>
@@ -615,8 +616,8 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-2">
-        <Loader2 className="w-3 h-3 animate-spin text-grid/40" />
-        <span className="font-mono text-[10px] text-grid/40">Resolving integrations...</span>
+        <Loader2 className="w-3 h-3 animate-spin text-white/40" />
+        <span className="font-mono text-[10px] text-white/40">Resolving integrations...</span>
       </div>
     );
   }
@@ -646,19 +647,23 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
           const showAccountsSection = card.status === "added" && isOAuth && accountCount > 0 && card.showAccounts;
 
           return (
-            <div key={card.resolved.slug} className="border border-white/[0.1] bg-gray-100 p-3 max-w-sm">
+            <div
+              key={card.resolved.slug}
+              className="border border-white/[0.15] p-3 max-w-sm"
+              style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(20px) saturate(120%)', WebkitBackdropFilter: 'blur(20px) saturate(120%)' }}
+            >
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <IntegrationIcon provider={card.resolved.slug} size={24} />
                   <div className="min-w-0">
-                    <p className="font-header font-bold text-sm truncate">{card.resolved.name}</p>
+                    <p className="font-mono text-[12px] font-semibold text-white/90 truncate">{card.resolved.name}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       {card.resolved.needsNode ? (
-                        <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-900/20 text-amber-400 px-1.5 py-0.5 border border-amber-500/30">
+                        <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-500/15 text-amber-400 px-1.5 py-0.5 border border-amber-500/25">
                           Uses your browser
                         </span>
                       ) : (
-                        <span className="font-mono text-[8px] uppercase tracking-wide text-grid/40">
+                        <span className="font-mono text-[8px] uppercase tracking-wide text-white/40">
                           {card.resolved.authType === "api_key" ? "API Key" : "OAuth"}
                         </span>
                       )}
@@ -685,26 +690,26 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
                             window.open(url, '_blank', 'noopener,noreferrer');
                             setCards(prev => prev.map((c, idx) => idx === i ? { ...c, status: "added" } : c));
                           }}
-                          className="flex-shrink-0 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1"
+                          className="flex-shrink-0 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-1"
                         >
                           <Check className="w-3 h-3" /> Ready
                         </button>
                       ) : nodeJustConnected ? (
-                        <span className="flex-shrink-0 font-mono text-[10px] text-green-600 flex items-center gap-1">
+                        <span className="flex-shrink-0 font-mono text-[10px] text-emerald-400 flex items-center gap-1">
                           <Check className="w-3 h-3" /> Connected!
                         </span>
                       ) : null
                     ) : (
                       <button
                         onClick={() => handleConnect(i)}
-                        className="flex-shrink-0 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-grid text-paper hover:bg-grid/80 transition-colors"
+                        className="flex-shrink-0 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors"
                       >
                         Connect
                       </button>
                     )}
                   </>
                 )}
-                {card.status === "adding" && <Loader2 className="flex-shrink-0 w-4 h-4 animate-spin text-grid/40" />}
+                {card.status === "adding" && <Loader2 className="flex-shrink-0 w-4 h-4 animate-spin text-white/40" />}
                 {card.status === "added" && (
                   <button
                     onClick={() =>
@@ -712,7 +717,7 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
                         ? setCards(prev => prev.map((c, idx) => idx === i ? { ...c, showAccounts: !c.showAccounts } : c))
                         : undefined
                     }
-                    className={`flex-shrink-0 flex items-center gap-1 font-mono text-[10px] text-forest ${isOAuth && accountCount > 0 ? "cursor-pointer hover:text-forest/80" : "cursor-default"}`}
+                    className={`flex-shrink-0 flex items-center gap-1 font-mono text-[10px] text-emerald-400 ${isOAuth && accountCount > 0 ? "cursor-pointer hover:text-emerald-300" : "cursor-default"}`}
                   >
                     <Check className="w-3 h-3" />
                     Connected{accountCount > 1 ? ` (${accountCount})` : ""}
@@ -724,7 +729,7 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
                 {card.status === "error" && (
                   <button
                     onClick={() => setCards(prev => prev.map((c, idx) => idx === i ? { ...c, status: "idle" } : c))}
-                    className="flex-shrink-0 font-mono text-[10px] text-coral hover:underline"
+                    className="flex-shrink-0 font-mono text-[10px] text-red-400 hover:underline"
                   >
                     Try again
                   </button>
@@ -732,7 +737,7 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
                 {card.status === "needs_key" && (
                   <button
                     onClick={() => setCards(prev => prev.map((c, idx) => idx === i ? { ...c, status: "idle" } : c))}
-                    className="flex-shrink-0 text-grid/40 hover:text-grid"
+                    className="flex-shrink-0 text-white/40 hover:text-white"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -746,14 +751,14 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
 
               {/* Connected Accounts section */}
               {showAccountsSection && (
-                <div className="mt-2 border border-white/[0.1] p-2 space-y-1">
-                  <p className="font-mono text-[8px] uppercase tracking-wide text-grid/40 mb-1.5">Connected Accounts</p>
+                <div className="mt-2 border border-white/[0.1] bg-white/5 p-2 space-y-1">
+                  <p className="font-mono text-[8px] uppercase tracking-wide text-white/40 mb-1.5">Connected Accounts</p>
                   {card.accounts!.map(account => (
                     <AccountRow key={account.id} account={account} />
                   ))}
                   <button
                     onClick={() => handleAddAnother(i)}
-                    className="mt-1.5 flex items-center gap-1 font-mono text-[10px] text-forest hover:text-forest/80 transition-colors"
+                    className="mt-1.5 flex items-center gap-1 font-mono text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors"
                   >
                     <Plus className="w-3 h-3" />
                     Connect another account
@@ -764,8 +769,8 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
               {/* "adding another" spinner when re-opening OAuth from already-connected state */}
               {card.status === "adding" && accountCount > 0 && (
                 <div className="mt-2 flex items-center gap-1.5">
-                  <Loader2 className="w-3 h-3 animate-spin text-grid/40" />
-                  <span className="font-mono text-[10px] text-grid/40">Connecting…</span>
+                  <Loader2 className="w-3 h-3 animate-spin text-white/40" />
+                  <span className="font-mono text-[10px] text-white/40">Connecting…</span>
                 </div>
               )}
 
@@ -778,12 +783,12 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
                     value={card.apiKeyValue || ""}
                     onChange={e => setCards(prev => prev.map((c, idx) => idx === i ? { ...c, apiKeyValue: e.target.value } : c))}
                     onKeyDown={e => e.key === "Enter" && handleSaveApiKey(i)}
-                    className="flex-1 font-mono text-[11px] border border-white/[0.1] px-2 py-1.5 bg-white focus:outline-none focus:border-forest"
+                    className="flex-1 font-mono text-[11px] border border-white/[0.15] px-2 py-1.5 bg-white/5 text-white focus:outline-none focus:border-white/30"
                   />
                   <button
                     onClick={() => handleSaveApiKey(i)}
                     disabled={!card.apiKeyValue?.trim()}
-                    className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-forest text-white hover:bg-forest/90 disabled:opacity-40 transition-colors"
+                    className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide bg-white/10 hover:bg-white/20 border border-white/20 text-white disabled:opacity-40 transition-colors"
                   >
                     Save
                   </button>
