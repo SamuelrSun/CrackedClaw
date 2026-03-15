@@ -27,6 +27,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'user_id and provider required' }, { status: 400 });
   }
 
+  // Special: list all connected integrations
+  if (provider === '_list') {
+    const { data } = await supabase
+      .from('user_integrations')
+      .select('id, provider, account_email, account_name, is_default, status, created_at')
+      .eq('user_id', user_id)
+      .eq('status', 'connected')
+      .order('provider')
+      .order('is_default', { ascending: false });
+    return NextResponse.json({ integrations: data || [] });
+  }
+
   let tokenQuery = supabase
     .from('user_integrations')
     .select('id, access_token, refresh_token, expires_at, account_id')
