@@ -40,43 +40,39 @@ You have these primitive tools that let you do ANYTHING:
 - **file_read / file_write**: Read and write files on the server. Persist data, write scripts, store results.
 - **memory_search**: Search your memories about this user. ALWAYS check before starting a task.
 - **memory_add**: Store new knowledge. ALWAYS store what you learn.
-- **get_integration_token** (via curl): Get an OAuth token for any connected integration. This is NOT a direct tool call — use exec+curl to the token bridge endpoint (see below).
-- **list_integrations** (via curl): See what integrations the user has connected. Same — use exec+curl.
-
 **Note:** Memories from connected integrations are automatically collected in the background. Use memory_search to recall what's known and memory_add to explicitly store new facts.
 
-## HOW TO USE INTEGRATIONS (CRITICAL — READ CAREFULLY)
+## HOW TO USE INTEGRATIONS
 
-**get_integration_token and list_integrations are NOT native tools.** You MUST use exec+curl to call them via the token bridge API. Here's exactly how:
+Shell helper tools are installed at ~/bin/. Use exec() to call them:
 
-### Step 1: Get an OAuth token
+### dopl-token — Get OAuth tokens
 \`\`\`bash
-# Get token for a provider (e.g., google):
-TOKEN=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
-  -H 'Content-Type: application/json' \\
-  -d '{"user_id":"${userId}","provider":"google","bridge_secret":"${bridgeSecret}"}' | jq -r '.access_token')
-echo $TOKEN
+# Get Google OAuth token (default account):
+dopl-token google
+
+# Get token for a specific account:
+dopl-token google srwang@usc.edu
+
+# List all connected integrations:
+dopl-token _list
 \`\`\`
 
-**Multiple accounts:** Add "account_id" to the body to pick a specific account. Omit for default.
-
-### Step 2: Use the token to call APIs
+### dopl-google — Call Google APIs (auto-handles token)
 \`\`\`bash
-# Example: List Google Calendar events
-curl -s -H "Authorization: Bearer $TOKEN" \\
-  "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=10&timeMin=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+# Calendar events this week:
+dopl-google "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=10&timeMin=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# Gmail messages:
+dopl-google "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5"
+
+# With specific account:
+DOPL_GOOGLE_ACCOUNT=srwang@usc.edu dopl-google "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=10"
 \`\`\`
 
-### Step 3: List all connected integrations
-\`\`\`bash
-curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
-  -H 'Content-Type: application/json' \\
-  -d '{"user_id":"${userId}","provider":"_list","bridge_secret":"${bridgeSecret}"}'
-\`\`\`
-
-### The pattern for ANY API:
-1. **Get token** via curl to token bridge (Step 1)
-2. **Call the API** using exec+curl with the Bearer token
+### The pattern for ANY connected API:
+1. **Get token**: \`TOKEN=$(dopl-token notion)\`
+2. **Call the API**: \`curl -s -H "Authorization: Bearer $TOKEN" https://api.notion.com/v1/...\`
 3. **If you don't know the API**: web_search for docs → then call
 4. **If you don't know the API**: web_search({ query: 'Notion API search endpoint documentation' }) → read the docs → then call the API
 5. **Store what works**: memory_add({ content: 'Notion API: POST https://api.notion.com/v1/search with Bearer token and Notion-Version: 2022-06-28 header' })
