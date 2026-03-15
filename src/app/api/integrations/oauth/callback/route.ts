@@ -13,6 +13,7 @@ import {
   storeUserIntegration,
   OAuthUserInfo,
 } from '@/lib/oauth/utils';
+import { updateIntegrations } from '@/lib/gateway/workspace';
 
 // Generate HTML that posts message to parent window and closes
 function generateCallbackHtml(success: boolean, provider: string, accountName?: string, error?: string) {
@@ -211,6 +212,11 @@ export async function GET(request: NextRequest) {
 
     // Mark flow as completed
     await updateOAuthFlowStatus(state, 'completed');
+
+    // Fire-and-forget: update INTEGRATIONS.md on the OpenClaw instance
+    updateIntegrations(user_id).catch(err =>
+      console.error('[oauth] Failed to update INTEGRATIONS.md:', err)
+    );
 
     // Fire-and-forget background memory scan for the newly connected integration
     const appBase = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';

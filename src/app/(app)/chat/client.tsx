@@ -52,7 +52,6 @@ import { EmailComposerCard } from "@/components/chat/email-composer-card";
 import type { EmailDraft } from "@/lib/email/gmail-client";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { useGatewayWS, type WSChatEvent } from "@/hooks/use-gateway-ws";
-import { useSystemPrompt } from "@/hooks/use-system-prompt";
 import { ThinkingBlock } from "@/components/chat/thinking-block";
 import { ToolTimeline } from "@/components/chat/tool-timeline";
 import { ModelSelector } from "@/components/chat/model-selector";
@@ -290,7 +289,6 @@ function RichMessage({
                 gatewayHost={gatewayHost}
                 onOpenBrowser={(url) => onOpenBrowser?.(url, false)}
                 onIntegrationConnect={(provider) => {
-                  refreshSystemPrompt();
                   setTimeout(() => {
                     const name = provider.charAt(0).toUpperCase() + provider.slice(1);
                     handleSendRef.current(`${name} companion connected ✓`);
@@ -795,6 +793,7 @@ export default function ChatPageClient({
   const wsFullTextRef = useRef<string>("");
   const wsConvoIdRef = useRef<string | null>(null);
   const wsSessionKeyRef = useRef<string | null>(null);
+  const wsLastUserMessageRef = useRef<string>("");
 
   const handleWSEvent = useCallback((event: WSChatEvent) => {
     if (event.type === "token" && event.delta) {
@@ -876,6 +875,19 @@ export default function ChatPageClient({
         }
       }
 
+      // Fire-and-forget memory extraction for WS path
+      const lastUserMsg = wsLastUserMessageRef.current;
+      if (lastUserMsg && fullText) {
+        fetch('/api/memory/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_message: lastUserMsg,
+            assistant_message: fullText,
+          }),
+        }).catch(() => {}); // Silent failure is fine
+      }
+
       // Refresh conversation list title
       if (convoId) refreshConversations(convoId);
     } else if (event.type === "error" && !event.message?.includes("falling back")) {
@@ -902,7 +914,7 @@ export default function ChatPageClient({
     enabled: !!gateway, // only open WS when gateway is configured
   });
 
-  const { systemPrompt, refreshPrompt: refreshSystemPrompt } = useSystemPrompt();
+
 
   // ── Intro kickstart: auto-send a hidden system prompt on first load ──────
   const introSentRef = useRef(false);
@@ -946,7 +958,7 @@ export default function ChatPageClient({
       "[SYSTEM: The user just completed signup and is seeing you for the first time. This is your very first conversation together. Introduce yourself — you're a brand new AI companion, fresh out of the box, no memories, no name. Be warm, curious, and excited to meet them. Ask what they'd like to call you and what you should call them.]";
 
     // Send via WebSocket only — do NOT save to Supabase (ephemeral kickstart)
-    wsSendMessage(kickstartMessage, { sessionKey, model: selectedModel, systemPrompt });
+    wsSendMessage(kickstartMessage, { sessionKey, model: selectedModel });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsConnected, messages.length, conversationId]);
 
@@ -1025,8 +1037,6 @@ export default function ChatPageClient({
               clearInterval(pollInterval);
               popup.close();
               resolve(true);
-              // Refresh system prompt so the next WS message includes updated integration context
-              refreshSystemPrompt();
               // Auto-send continuation message so agent continues the task
               setTimeout(() => {
                 const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
@@ -1259,7 +1269,8 @@ User message: `
         }).then(() => {}, (e) => console.error("[WS] Failed to save user msg:", e));
       }
 
-      wsSendMessage(messageToSend, { sessionKey, model: selectedModel, systemPrompt });
+      wsLastUserMessageRef.current = messageToSend;
+      wsSendMessage(messageToSend, { sessionKey, model: selectedModel });
       return; // WS handler drives the rest; setIsLoading(false) called on done/error
     }
 

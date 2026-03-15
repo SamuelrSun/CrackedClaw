@@ -43,6 +43,19 @@ export async function POST(request: NextRequest) {
     try {
       const result = await lightScan(userId, provider, accountEmail, accountId);
       console.log(`[scan/light] Completed for user=${userId} provider=${provider}: ${result.memoriesCreated} memories created`);
+
+      // Notify: update MEMORY_CONTEXT.md on the instance + push summary to conversation
+      const notifyUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com'}/api/memory/scan/notify`;
+      fetch(notifyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          provider,
+          memoriesCreated: result.memoriesCreated,
+          summary: `Scanned ${provider}. Found ${result.memoriesCreated} key facts.`,
+        }),
+      }).catch(err => console.error('[scan/light] Failed to notify:', err));
     } catch (err) {
       console.error('[scan/light] Unexpected error:', err);
     }

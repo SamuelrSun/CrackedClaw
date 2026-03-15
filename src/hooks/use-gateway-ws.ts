@@ -45,7 +45,7 @@ export interface UseGatewayWSReturn {
   /** Error string if connection failed and auto-reconnect gave up */
   error: string | null;
   /** Send a chat message via WS */
-  sendMessage: (text: string, opts?: { sessionKey?: string; model?: string; systemPrompt?: string | null }) => void;
+  sendMessage: (text: string, opts?: { sessionKey?: string; model?: string }) => void;
   /** Abort the current in-flight chat run */
   abortChat: (sessionKey?: string) => void;
   /** Manual reconnect (resets backoff, re-fetches token) */
@@ -307,7 +307,7 @@ export function useGatewayWS({
   }, [enabled]);
 
   const sendMessage = useCallback(
-    (text: string, opts?: { sessionKey?: string; model?: string; systemPrompt?: string | null }) => {
+    (text: string, opts?: { sessionKey?: string; model?: string }) => {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         onEventRef.current?.({
@@ -320,12 +320,7 @@ export function useGatewayWS({
       const sessionKey = opts?.sessionKey ?? `webchat-${Date.now()}`;
       const idempotencyKey = `${sessionKey}-${Date.now()}`;
 
-      // The gateway WS chat.send protocol does not support a native systemPrompt field,
-      // so we prepend the system context as a structured block in the message.
-      // The LLM will use this context for the current turn.
-      const messageWithContext = opts?.systemPrompt
-        ? `<system_context>\n${opts.systemPrompt}\n</system_context>\n\n${text}`
-        : text;
+      const messageWithContext = text;
 
       ws.send(
         JSON.stringify({

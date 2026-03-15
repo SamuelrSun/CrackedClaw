@@ -7,7 +7,7 @@ import { processAgentResponse } from "@/lib/memory/service";
 import { addChatTurn } from "@/lib/memory/chat-memory";
 import { incrementUsage } from "@/lib/usage/tracker";
 import { checkTokenLimit } from "@/lib/usage/enforcement";
-import { buildSystemPromptForUser, buildLinkedContextSummary } from "@/lib/gateway/system-prompt";
+import { buildSystemPromptForUser, buildDynamicContext, buildLinkedContextSummary } from "@/lib/gateway/system-prompt";
 import { getUserInstance } from "@/lib/gateway/openclaw-proxy";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +20,35 @@ function encode(chunk: StreamEvent): Uint8Array {
 }
 
 export async function POST(request: NextRequest) {
-  const { user, error } = await requireApiAuth();
-  if (error) return error;
+  // ── Companion app auth via X-Companion-Token ──
+  // The companion desktop app can't hold a Supabase session cookie, so it
+  // authenticates by sending the auth_token stored in the user's profile.
+  // We resolve it here before falling through to the normal session auth.
+  let user: { id: string } | null = null;
+  const companionToken = request.headers.get("X-Companion-Token");
+  if (companionToken) {
+    // Look up the user by their auth_token stored in the profiles table.
+    // createClient() returns a server-side Supabase client; without a session
+    // cookie the auth calls won't work, but direct table queries using the
+    // service/anon key still work for this lookup.
+    const supabaseLookup = await createClient();
+    const { data: profileRow } = await supabaseLookup
+      .from("profiles")
+      .select("id")
+      .eq("auth_token", companionToken)
+      .single();
+    if (profileRow?.id) {
+      user = { id: profileRow.id };
+    } else {
+      return NextResponse.json({ error: "Invalid companion token" }, { status: 401 });
+    }
+  }
+
+  if (!user) {
+    const { user: sessionUser, error } = await requireApiAuth();
+    if (error) return error;
+    user = sessionUser!;
+  }
 
   try {
     const body = await request.json();
@@ -111,7 +138,18 @@ export async function POST(request: NextRequest) {
     }
 
     // ── System prompt ──
-    let systemPrompt = await buildSystemPromptForUser(user.id, message);
+    // When the instance has workspace files (SOUL.md, AGENTS.md) configured,
+    // use lightweight dynamic context only — static identity lives in workspace files.
+    // Fall back to full system prompt for instances without workspace files.
+    const instanceForPrompt = await getUserInstance(user.id);
+    let systemPrompt: string;
+    if (instanceForPrompt) {
+      // New path: dynamic context only (static identity is in workspace files)
+      systemPrompt = await buildDynamicContext(user.id, message, activeConversationId || undefined);
+    } else {
+      // Legacy fallback: full system prompt
+      systemPrompt = await buildSystemPromptForUser(user.id, message);
+    }
     if (activeConversationId) {
       const linkedCtx = await buildLinkedContextSummary(user.id, activeConversationId);
       if (linkedCtx) systemPrompt += "\n\n" + linkedCtx;
@@ -129,7 +167,7 @@ export async function POST(request: NextRequest) {
     const capturedConvoId = activeConversationId;
 
     // ── Check for OpenClaw gateway instance ──
-    const instance = await getUserInstance(user.id);
+    const instance = instanceForPrompt;
 
     if (!instance) {
       return NextResponse.json(

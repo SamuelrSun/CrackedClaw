@@ -92,7 +92,8 @@ class ChatManager {
   // ─── Streaming Chat ─────────────────────────────────────────────────────────
 
   /**
-   * Send a message, stream the response, and persist both messages.
+   * Send a message, stream the response via the Dopl web app's SSE endpoint.
+   * Falls back to direct gateway call if the web app endpoint is unavailable.
    *
    * @param {string} conversationId
    * @param {string} userContent
@@ -100,6 +101,101 @@ class ChatManager {
    * @returns {Promise<string>} the full assistant response
    */
   async sendMessage(conversationId, userContent, onChunk) {
+    // Try the web app's SSE endpoint first (preferred — has full Dopl context)
+    try {
+      return await this._sendViaWebApp(conversationId, userContent, onChunk);
+    } catch (err) {
+      console.warn('[ChatManager] Web app stream failed, falling back to direct gateway:', err.message);
+    }
+
+    // Fallback: direct gateway call (legacy path)
+    return await this._sendViaGateway(conversationId, userContent, onChunk);
+  }
+
+  /**
+   * Route the message through the Dopl web app's /api/gateway/chat/stream endpoint.
+   * This gives the full Dopl system prompt, workflow matching, memory, etc.
+   */
+  async _sendViaWebApp(conversationId, userContent, onChunk) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120_000);
+
+    const response = await fetch(`${this.webAppUrl}/api/gateway/chat/stream`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Companion-Token': this.authToken,
+      },
+      body: JSON.stringify({
+        message: userContent,
+        conversation_id: conversationId,
+        model: 'sonnet',
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`Web app stream error ${response.status}: ${text}`);
+    }
+
+    if (!response.body) {
+      throw new Error('Web app returned no response body');
+    }
+
+    // Parse the Dopl SSE format: data: {"type":"token","text":"..."}\n\n
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data: ')) continue;
+
+          const data = trimmed.slice(6).trim();
+          if (data === '[DONE]') break;
+
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === 'token' && parsed.text) {
+              fullContent += parsed.text;
+              onChunk(parsed.text);
+            } else if (parsed.type === 'done') {
+              // Stream complete — server has already persisted the messages
+              break;
+            } else if (parsed.type === 'error') {
+              throw new Error(`Stream error: ${parsed.message}`);
+            }
+          } catch (parseErr) {
+            // Re-throw structured errors, ignore malformed chunks
+            if (parseErr.message && parseErr.message.startsWith('Stream error:')) throw parseErr;
+          }
+        }
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      reader.releaseLock();
+    }
+
+    // Server handles persistence — no need to save messages here
+    return fullContent;
+  }
+
+  /**
+   * Legacy fallback: call the gateway's /v1/chat/completions directly.
+   * Used when the web app SSE endpoint is unreachable (e.g. offline).
+   */
+  async _sendViaGateway(conversationId, userContent, onChunk) {
     // 1. Load history for context
     let history = [];
     try {
@@ -108,7 +204,7 @@ class ChatManager {
       console.warn('[ChatManager] Could not load history:', err.message);
     }
 
-    // 2. Save the user message first (fire-and-forget ok, but we await for ordering)
+    // 2. Save the user message first
     try {
       await this.saveMessage(conversationId, 'user', userContent);
     } catch (err) {
@@ -158,7 +254,7 @@ class ChatManager {
       throw new Error('Gateway returned no response body');
     }
 
-    // 5. Parse SSE stream
+    // 5. Parse OpenAI SSE stream
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let fullContent = '';
@@ -171,7 +267,6 @@ class ChatManager {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        // Keep the last (potentially incomplete) line in the buffer
         buffer = lines.pop() || '';
 
         for (const line of lines) {

@@ -10,6 +10,7 @@ import { mem0Write } from '@/lib/memory/mem0-client';
 import { getEmbedding } from '@/lib/memory/embeddings';
 import { classifyDomain } from '@/lib/memory/domain-classifier';
 import { createClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,17 +57,30 @@ Example:
 }
 
 export async function POST(request: NextRequest) {
-  // Auth: accept service role key or skip in dev (internal route)
+  // Auth: accept service role key (server-to-server), session cookie (WS client), or skip in dev
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const authHeader = request.headers.get('Authorization');
   const token = authHeader?.replace('Bearer ', '');
 
-  // Require auth in production
-  if (serviceRoleKey && token !== serviceRoleKey) {
-    // Allow unauthenticated in development for easier wiring
-    const isDev = process.env.NODE_ENV === 'development';
-    if (!isDev) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  let resolvedUserId: string | null = null;
+
+  if (serviceRoleKey && token === serviceRoleKey) {
+    // Server-to-server call — userId must be in body
+    resolvedUserId = null; // will be set from body below
+  } else {
+    // Try session cookie auth (browser/WS client)
+    try {
+      const supabaseServer = await createSupabaseServerClient();
+      const { data: { user } } = await supabaseServer.auth.getUser();
+      if (user) resolvedUserId = user.id;
+    } catch { /* ignore */ }
+
+    // If no session cookie and not service key, fail in production
+    if (!resolvedUserId) {
+      const isDev = process.env.NODE_ENV === 'development';
+      if (!isDev) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     }
   }
 
@@ -74,6 +88,9 @@ export async function POST(request: NextRequest) {
     userId?: string;
     messages?: Array<{ role: string; content: string }>;
     conversationId?: string;
+    // Simple format for WS path: single turn
+    user_message?: string;
+    assistant_message?: string;
   };
   try {
     body = await request.json();
@@ -81,7 +98,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { userId, messages, conversationId } = body;
+  // Support simple {user_message, assistant_message} format (for WS path)
+  if (body.user_message && body.assistant_message && !body.messages) {
+    body.messages = [
+      { role: 'user', content: body.user_message },
+      { role: 'assistant', content: body.assistant_message },
+    ];
+  }
+
+  // Use body userId if not resolved from session (server-to-server calls)
+  if (!resolvedUserId) resolvedUserId = body.userId || null;
+
+  const userId = resolvedUserId;
+  const { messages, conversationId } = body;
 
   if (!userId || !Array.isArray(messages) || messages.length === 0) {
     return NextResponse.json({ error: 'userId and messages are required' }, { status: 400 });

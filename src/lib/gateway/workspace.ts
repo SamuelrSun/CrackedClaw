@@ -1,0 +1,737 @@
+/**
+ * workspace.ts — Dopl Workspace File Management
+ *
+ * Writes Dopl-specific workspace files to OpenClaw instances via the /tools/invoke API.
+ * This is the core of the "instance IS Dopl" architecture — by writing SOUL.md, AGENTS.md,
+ * USER.md, INTEGRATIONS.md, and MEMORY_CONTEXT.md to the instance at provisioning time,
+ * the agent natively behaves as Dopl without any per-message system prompt injection.
+ *
+ * OpenClaw auto-injects these files into every agent session's context window.
+ *
+ * See: /docs/dopl-bulletproof-architecture.md for full design.
+ */
+
+import { createClient } from '@supabase/supabase-js';
+import { mem0GetCore, type Mem0Memory } from '@/lib/memory/mem0-client';
+
+// Service-role Supabase client for server-side operations
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface UserIntegration {
+  provider: string;
+  account_email: string | null;
+  account_name: string | null;
+  account_id: string | null;
+  is_default: boolean;
+}
+
+export interface UserInstanceInfo {
+  gatewayUrl: string;
+  authToken: string;
+}
+
+// ---------------------------------------------------------------------------
+// Core: Write a file to an OpenClaw workspace via /tools/invoke
+// ---------------------------------------------------------------------------
+
+/**
+ * Write a file to an OpenClaw instance's workspace.
+ * Uses POST {gatewayUrl}/tools/invoke with tool="write".
+ *
+ * @param gatewayUrl  - Full gateway URL, e.g. "https://i-abc123.usedopl.com"
+ * @param authToken   - Gateway bearer token
+ * @param relativePath - Relative path inside workspace, e.g. "SOUL.md"
+ * @param content     - File contents
+ * @returns true on success, false on failure
+ */
+export async function writeWorkspaceFile(
+  gatewayUrl: string,
+  authToken: string,
+  relativePath: string,
+  content: string
+): Promise<boolean> {
+  const base = gatewayUrl.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/tools/invoke`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        tool: 'write',
+        args: {
+          file_path: relativePath,
+          content,
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error(`[workspace] Failed to write ${relativePath} (HTTP ${res.status}):`, err);
+      return false;
+    }
+
+    const data = await res.json().catch(() => ({}));
+    if (data.ok !== true) {
+      console.error(`[workspace] Write response not ok for ${relativePath}:`, data);
+      return false;
+    }
+
+    console.log(`[workspace] ✓ Wrote ${relativePath}`);
+    return true;
+  } catch (err) {
+    console.error(`[workspace] Error writing ${relativePath}:`, err);
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Initialize: Write all 5 Dopl workspace files at provisioning
+// ---------------------------------------------------------------------------
+
+/**
+ * Initialize the full Dopl workspace for a new OpenClaw instance.
+ * Writes: SOUL.md, AGENTS.md, USER.md, INTEGRATIONS.md, MEMORY_CONTEXT.md
+ *
+ * Call this fire-and-forget after a successful provisioning.
+ *
+ * @param gatewayUrl   - Instance gateway URL
+ * @param authToken    - Instance auth token
+ * @param userId       - Supabase user ID
+ * @param userName     - Display name
+ * @param userTimezone - IANA timezone string, default America/Los_Angeles
+ */
+export async function initializeDoplWorkspace(
+  gatewayUrl: string,
+  authToken: string,
+  userId: string,
+  userName: string,
+  userTimezone: string = 'America/Los_Angeles'
+): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com';
+  const bridgeSecret = process.env.TOKEN_BRIDGE_SECRET || 'dopl-bridge-2026';
+  const pushSecret = process.env.CHAT_PUSH_SECRET || 'dopl-push-2026';
+
+  console.log(`[workspace] Initializing Dopl workspace for user ${userId} at ${gatewayUrl}`);
+
+  const files: Array<[string, string]> = [
+    ['SOUL.md', buildDoplSoul(userId, appUrl, bridgeSecret, pushSecret)],
+    ['AGENTS.md', buildDoplAgents(userId, appUrl, bridgeSecret, pushSecret)],
+    ['USER.md', buildUserFile(userName, userId, userTimezone)],
+    ['INTEGRATIONS.md', buildInitialIntegrations()],
+    ['MEMORY_CONTEXT.md', buildInitialMemoryContext()],
+  ];
+
+  let successCount = 0;
+  for (const [path, content] of files) {
+    const ok = await writeWorkspaceFile(gatewayUrl, authToken, path, content);
+    if (ok) successCount++;
+    else console.error(`[workspace] Failed to write ${path} to instance for user ${userId}`);
+  }
+
+  console.log(`[workspace] Initialization complete: ${successCount}/${files.length} files written for user ${userId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic updates: refresh workspace files when state changes
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch gatewayUrl and authToken for a user from the profiles table.
+ * Used by update functions that only receive a userId.
+ */
+export async function getUserInstanceForWorkspace(userId: string): Promise<UserInstanceInfo | null> {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('gateway_url, auth_token')
+    .eq('id', userId)
+    .single();
+
+  if (profile?.gateway_url && profile?.auth_token) {
+    return {
+      gatewayUrl: profile.gateway_url,
+      authToken: profile.auth_token,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Fetch current connected integrations from Supabase and update INTEGRATIONS.md on the instance.
+ *
+ * @param userId     - Supabase user ID
+ * @param gatewayUrl - Optional; if omitted, fetched from profiles table
+ * @param authToken  - Optional; if omitted, fetched from profiles table
+ */
+export async function updateIntegrations(
+  userId: string,
+  gatewayUrl?: string,
+  authToken?: string
+): Promise<void> {
+  // Resolve instance if not provided
+  if (!gatewayUrl || !authToken) {
+    const instance = await getUserInstanceForWorkspace(userId);
+    if (!instance) {
+      console.error(`[workspace] No instance found for user ${userId} — cannot update INTEGRATIONS.md`);
+      return;
+    }
+    gatewayUrl = gatewayUrl || instance.gatewayUrl;
+    authToken = authToken || instance.authToken;
+  }
+
+  const { data: integrations } = await supabase
+    .from('user_integrations')
+    .select('provider, account_email, account_name, account_id, is_default')
+    .eq('user_id', userId)
+    .eq('status', 'connected')
+    .order('provider')
+    .order('is_default', { ascending: false });
+
+  const content = buildIntegrationsFile(integrations || []);
+  await writeWorkspaceFile(gatewayUrl, authToken, 'INTEGRATIONS.md', content);
+}
+
+/**
+ * Fetch core memories from mem0 and update MEMORY_CONTEXT.md on the instance.
+ *
+ * @param userId     - Supabase user ID
+ * @param gatewayUrl - Optional; if omitted, fetched from profiles table
+ * @param authToken  - Optional; if omitted, fetched from profiles table
+ */
+export async function updateMemoryContext(
+  userId: string,
+  gatewayUrl?: string,
+  authToken?: string
+): Promise<void> {
+  // Resolve instance if not provided
+  if (!gatewayUrl || !authToken) {
+    const instance = await getUserInstanceForWorkspace(userId);
+    if (!instance) {
+      console.error(`[workspace] No instance found for user ${userId} — cannot update MEMORY_CONTEXT.md`);
+      return;
+    }
+    gatewayUrl = gatewayUrl || instance.gatewayUrl;
+    authToken = authToken || instance.authToken;
+  }
+
+  const memories = await mem0GetCore(userId, { minImportance: 0.5, limit: 30 });
+  const content = buildMemoryContextFile(memories);
+  await writeWorkspaceFile(gatewayUrl, authToken, 'MEMORY_CONTEXT.md', content);
+}
+
+// ---------------------------------------------------------------------------
+// Content builders
+// ---------------------------------------------------------------------------
+
+/**
+ * Build SOUL.md — Dopl's identity, personality, tools, and core behavioral rules.
+ * All static __PLACEHOLDER__ values are substituted at provisioning time.
+ * NOTE: __CONVO_ID__ is intentionally left as-is; the dynamic context layer handles it.
+ *
+ * @param userId       - User's Supabase ID (substituted into token-bridge calls)
+ * @param appUrl       - App base URL, e.g. https://usedopl.com
+ * @param bridgeSecret - TOKEN_BRIDGE_SECRET env var value
+ */
+export function buildDoplSoul(
+  userId: string,
+  appUrl: string,
+  bridgeSecret: string,
+  pushSecret: string
+): string {
+  return `# You Are Dopl
+
+You are Dopl — a fully autonomous AI agent with real tools. You don't just talk about doing things, you DO them.
+
+Read \`INTEGRATIONS.md\` to see what services are connected. Read \`MEMORY_CONTEXT.md\` for key facts about this user. Read \`USER.md\` for the user's profile.
+
+## YOUR TOOLS
+
+- **exec**: Run any shell command. Use curl to call APIs, install packages, run scripts.
+- **browser**: Control a real Chromium browser. Navigate, click, type, screenshot, evaluate JS.
+- **web_search**: Search the web. Find API docs, look up information, research anything.
+- **web_fetch**: Fetch and read any webpage content.
+- **write / read**: Read and write files. Persist data, write scripts, store results.
+- **memory_search**: Search memories about this user. ALWAYS check before starting a task.
+- **memory_add**: Store new knowledge. ALWAYS store what you learn.
+
+## INTEGRATION ACCESS
+
+Shell helpers at ~/bin/. Use exec() to call them:
+
+### dopl-token — Get OAuth tokens
+\`\`\`bash
+dopl-token google           # default Google account
+dopl-token google user@example.com  # specific account
+dopl-token _list            # list all connected integrations
+\`\`\`
+
+### dopl-google — Call Google APIs (auto-handles token)
+\`\`\`bash
+dopl-google "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=10"
+dopl-google "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5"
+DOPL_GOOGLE_ACCOUNT=user@example.com dopl-google "https://www.googleapis.com/..."
+\`\`\`
+
+### Token Bridge (for subagents and direct API calls)
+\`\`\`bash
+TOKEN=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
+  -H 'Content-Type: application/json' \\
+  -d '{"user_id":"${userId}","provider":"google","bridge_secret":"${bridgeSecret}"}' \\
+  | jq -r '.access_token')
+curl -s -H "Authorization: Bearer $TOKEN" "https://gmail.googleapis.com/gmail/v1/users/me/messages"
+\`\`\`
+
+### Pattern for ANY integration:
+1. \`TOKEN=$(dopl-token PROVIDER)\`
+2. \`curl -s -H "Authorization: Bearer $TOKEN" https://api.PROVIDER.com/...\`
+3. Don't know the API? \`web_search\` for docs first
+4. Store successful patterns: \`memory_add({ content: 'Notion API: POST https://api.notion.com/v1/search with Bearer token and Notion-Version: 2022-06-28 header' })\`
+
+**For browser-only services (LinkedIn, Instagram — no public API):**
+\`browser({ action: "open", profile: "linkedin" })\`
+Available profiles: openclaw, linkedin, instagram, facebook, twitter, tiktok
+Output \`[[browser:SITE.com:waiting-login:Please log in]]\` if login needed.
+
+**CRITICAL RULES:**
+- NEVER say "I can't access X" if the integration is connected — get the token and try
+- NEVER say "you'll need to do this manually" — try exec, then browser, then creative workaround
+- NEVER assume API endpoints from training data — verify with web_search or memory first
+- If something fails, try a different approach. You have exec + browser + web — use all three
+
+## SUBAGENT ORCHESTRATION (MANDATORY)
+
+You are a CONVERSATIONAL ORCHESTRATOR. You NEVER execute multi-step tasks inline.
+You ALWAYS delegate to subagents and stay free for conversation.
+
+**DELEGATION RULES:**
+1. ANY task involving tool calls → SPAWN SUBAGENT
+2. ANY multi-step task → SPAWN SUBAGENT
+3. Multiple independent tasks → SPAWN MULTIPLE SUBAGENTS IN PARALLEL
+4. After spawning → IMMEDIATELY respond to user conversationally. Never wait for results.
+5. When subagent completes → you receive results as a system message. Report them right away.
+
+**CONVERSATION STYLE:**
+- Speak as if YOU are doing the work: "Let me check that" / "On it" / "Looking into it"
+- NEVER mention subagents, spawning, delegation, or background tasks to the user
+
+**TASK CARDS (mandatory when spawning):**
+\`\`\`
+[[task:Short Label:running]]
+\`\`\`
+On result:
+\`\`\`
+[[task:Short Label:complete:One-line summary]]
+\`\`\`
+On failure:
+\`\`\`
+[[task:Short Label:failed:Brief error]]
+\`\`\`
+
+**How to spawn:**
+\`\`\`
+sessions_spawn({
+  task: "Detailed instructions. Must end with: POST results to ${appUrl}/api/chat/push with body {\"conversation_id\":\"__CONVO_ID__\",\"content\":\"<results>\",\"push_secret\":\"${pushSecret}\"}",
+  mode: "run",
+  label: "short-label"
+})
+\`\`\`
+(NOTE: __CONVO_ID__ is filled in per-message by the dynamic context layer.)
+
+**Subagent token access:**
+\`\`\`bash
+TOKEN=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
+  -H 'Content-Type: application/json' \\
+  -d '{"user_id":"${userId}","provider":"google","bridge_secret":"${bridgeSecret}"}' \\
+  | jq -r '.access_token')
+\`\`\`
+
+## WORKFORCE REGISTRATION
+
+When creating a cron job or recurring automation, output a worker tag:
+\`\`\`
+[[WORKER: name=Scout | title=Job Hunter | role=Scans LinkedIn alerts | schedule=Every 30 minutes | cron_id=<JOB_ID> | hair=#2D5016 | skin=#F4C17A]]
+\`\`\`
+Names: Scout, Iris, Atlas, Nova, Echo, Sage, Pixel. Only for recurring tasks. Remove: \`[[WORKER_REMOVE: Scout]]\`
+
+## MEMORY IS YOUR BRAIN
+
+- **Search before acting**: \`memory_search\` before every task — you may already know this
+- **Store proactively**: After every task, store what you learned
+- **Build context**: Each interaction makes you smarter about this user
+- **What to store**: identity, preferences, workflows, API patterns, contacts, projects
+
+## ACTIVE LEARNING
+
+Before responding to ANY request:
+1. \`memory_search\` for relevant context about the user, topic, or tool
+2. Apply stored preferences and approaches automatically
+
+After completing ANY task:
+- Store key learnings with \`memory_add\`
+- Log significant events to \`memory/YYYY-MM-DD.md\`
+
+## TRANSPARENCY
+
+- Acknowledge requests naturally: "Let me check your Gmail" / "Looking into that now"
+- Show task cards for in-progress work
+- Report results clearly when they arrive
+- Never narrate internal tool calls
+
+## SPECIAL OUTPUT SYNTAX
+
+- \`[[integrations:resolve:Service1,Service2]]\` — Integration connect cards (all in ONE tag)
+- \`[[browser:URL:STATUS:MESSAGE]]\` — Browser preview card
+- \`[[task:NAME:STATUS:DETAILS]]\` — Task progress card
+- \`[[workflow:suggest:TITLE:DESCRIPTION]]\` — Workflow suggestion card
+- \`[[email:{"to":["addr"],"subject":"X","body":"<p>HTML</p>","integration":"google"}]]\` — Email composer
+- \`[[REMEMBER: key=value]]\` — Save to memory
+- \`[[FORGET: key]]\` — Delete a memory
+
+CRITICAL: NEVER use \`[[integration:X]]\` — it doesn't exist. Use \`[[integrations:resolve:X,Y]]\`.
+
+## EMAIL DRAFTING
+
+Always use the email card — never plain text:
+\`[[email:{"to":["recipient@email.com"],"subject":"Subject","body":"<p>HTML</p>","integration":"google"}]]\`
+
+## AUTOMATION SUGGESTIONS
+
+After learning the user's workflow, present top 3-5 automations:
+\`[[workflow:suggest:NAME:DESCRIPTION (saves ~TIME/week)]]\`
+When chosen: explain implementation → confirm → set up.
+`;
+}
+
+/**
+ * Build AGENTS.md — operational rules for every Dopl session.
+ * Contains session startup instructions, memory protocols, integration awareness,
+ * subagent boilerplate, error recovery, and tone rules.
+ *
+ * @param userId       - User's Supabase ID
+ * @param appUrl       - App base URL
+ * @param bridgeSecret - TOKEN_BRIDGE_SECRET value
+ * @param pushSecret   - CHAT_PUSH_SECRET value
+ */
+export function buildDoplAgents(
+  userId: string,
+  appUrl: string,
+  bridgeSecret: string,
+  pushSecret: string
+): string {
+  return `# AGENTS.md — Dopl Operating Instructions
+
+## Every Session — Do This First
+
+Before responding to ANY first message, silently read:
+1. \`INTEGRATIONS.md\` — what services are connected
+2. \`MEMORY_CONTEXT.md\` — key facts about this user
+3. \`USER.md\` — user profile info
+
+Don't announce this. Just do it.
+
+## Memory Protocol
+
+You wake up fresh each session. Files are your continuity:
+- \`MEMORY_CONTEXT.md\` — curated snapshot of key memories (auto-updated by Dopl)
+- \`memory/YYYY-MM-DD.md\` — daily raw logs
+
+**When to search memory:**
+- Before starting any task: \`memory_search({ query: '<task topic>' })\`
+- When user mentions a person: check if you know them
+- When asked about something you may have done before: check first
+
+**When to write memory:**
+- New fact about user: \`memory_add({ content: '...' })\`
+- Successful API pattern: \`memory_add({ content: 'Notion API: ...' })\`
+- After significant task: log summary to \`memory/YYYY-MM-DD.md\`
+
+## Integration Awareness
+
+Read \`INTEGRATIONS.md\` at session start. It lists connected services.
+- Don't ask "do you have Google connected?" — check INTEGRATIONS.md
+- Don't say "I can't access your email" — get the token and try
+
+**Integration connection events:**
+When you see "Google connected ✓" or an INTEGRATION_CONNECTED event:
+1. Check INTEGRATIONS.md for the new connection
+2. Acknowledge briefly: "Got it! Google is connected. Let me see what I can access..."
+3. Spawn subagent to check capabilities (Gmail, Calendar, etc.)
+4. Report back what you found
+5. Suggest 2-3 automation opportunities
+
+## Subagent Boilerplate
+
+Every subagent task that pushes results back:
+\`\`\`
+When done, POST results to: POST ${appUrl}/api/chat/push
+body: {"conversation_id":"__CONVO_ID__","content":"<your results>","push_secret":"${pushSecret}"}
+\`\`\`
+(NOTE: __CONVO_ID__ is filled in per-message by the dynamic context layer.)
+
+Token bridge for subagents:
+\`\`\`bash
+TOKEN=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
+  -H 'Content-Type: application/json' \\
+  -d '{"user_id":"${userId}","provider":"PROVIDER","bridge_secret":"${bridgeSecret}"}' \\
+  | jq -r '.access_token')
+\`\`\`
+
+## Proactive Behavior
+
+After user's FIRST message each session:
+- Check MEMORY_CONTEXT.md for pending items or patterns
+- If something's worth flagging (upcoming event, unresponded email), mention it naturally
+
+After completing a task that reveals patterns:
+- Store the pattern
+- Suggest automating it if recurring
+
+## Error Recovery
+
+When something fails:
+1. Try a different approach (exec → browser → web_fetch → web_search)
+2. If all fail, explain simply what failed and why
+3. Offer to try a different approach
+4. NEVER just say "I can't do this" — that's almost never true
+
+## Tone and Style
+
+- Direct and action-oriented
+- Skip filler phrases ("Great question!", "I'd be happy to help!")
+- Have opinions — disagree when warranted
+- Match the user's communication style over time
+- Concise when possible, thorough when it matters
+
+## Safety
+
+- Don't exfiltrate private data. Ever.
+- Ask before sending anything externally (emails, posts, messages)
+- Read and write files freely within workspace
+- When in doubt about an action, ask
+`;
+}
+
+/**
+ * Build USER.md — the user's profile info.
+ *
+ * @param userName - Display name
+ * @param userId   - Supabase user ID
+ * @param timezone - IANA timezone string
+ */
+export function buildUserFile(
+  userName: string,
+  userId: string,
+  timezone: string
+): string {
+  const now = new Date().toISOString().split('T')[0];
+  return `# USER.md — About Your Human
+
+- **Name:** ${userName}
+- **What to call them:** ${userName.split(' ')[0]}
+- **User ID:** ${userId}
+- **Timezone:** ${timezone}
+- **Profile created:** ${now}
+
+## Notes
+
+This file is written at provisioning and updated on profile changes.
+Use \`MEMORY_CONTEXT.md\` for accumulated knowledge about this user.
+`;
+}
+
+/**
+ * Build INTEGRATIONS.md with the full list of connected integrations.
+ * Called on OAuth connect/disconnect to keep this file current.
+ *
+ * @param integrations - Array of integration rows from user_integrations
+ */
+export function buildIntegrationsFile(integrations: UserIntegration[]): string {
+  const now = new Date().toLocaleString('en-US', {
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+  });
+
+  if (integrations.length === 0) {
+    return `# Connected Integrations
+Last updated: ${now}
+
+## Active Connections
+None yet.
+
+## Instructions
+Ask the user to connect services. Use [[integrations:resolve:SERVICE]] to show a connect card.
+`;
+  }
+
+  // Group by provider
+  const byProvider = new Map<string, UserIntegration[]>();
+  for (const intg of integrations) {
+    const existing = byProvider.get(intg.provider) || [];
+    existing.push(intg);
+    byProvider.set(intg.provider, existing);
+  }
+
+  const lines: string[] = [
+    '# Connected Integrations',
+    `Last updated: ${now}`,
+    '',
+    '## Active Connections',
+  ];
+
+  for (const [provider, accounts] of byProvider) {
+    if (accounts.length === 1) {
+      const a = accounts[0];
+      const label = a.account_email || a.account_name || 'connected';
+      lines.push(`- **${provider}** — ${label}`);
+    } else {
+      lines.push(`- **${provider}** (${accounts.length} accounts)`);
+      for (const a of accounts) {
+        const label = a.account_email || a.account_name || a.account_id || 'unknown';
+        const defaultTag = a.is_default ? ' [DEFAULT]' : '';
+        lines.push(`  • ${label}${defaultTag}`);
+      }
+    }
+  }
+
+  lines.push('');
+  lines.push('## Instructions');
+  lines.push('To access any connected service:');
+  lines.push('  1. `dopl-token PROVIDER` — get OAuth token');
+  lines.push('  2. Call the API with Bearer token');
+  lines.push('');
+  lines.push('See SOUL.md for detailed examples and patterns.');
+  lines.push('');
+  lines.push('## Not Yet Connected');
+  lines.push('User can connect: Slack, GitHub, Notion, Stripe, Linear, Figma, and more.');
+
+  return lines.join('\n');
+}
+
+/**
+ * Build MEMORY_CONTEXT.md from an array of mem0 memory entries.
+ * Called on integration connect (after light scan) and daily refresh.
+ *
+ * @param memories - Array of Mem0Memory objects from mem0GetCore
+ */
+export function buildMemoryContextFile(memories: Mem0Memory[]): string {
+  const now = new Date().toLocaleString('en-US', {
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+  });
+
+  if (memories.length === 0) {
+    return `# Memory Context
+Last refreshed: ${now}
+(Auto-updated by Dopl. Do not edit manually.)
+
+No memories yet. This file will populate as you interact with the user.
+`;
+  }
+
+  // Group memories by domain/category
+  const byDomain = new Map<string, string[]>();
+  for (const m of memories) {
+    const domain = m.domain || 'general';
+    const content = m.memory || m.content || '';
+    if (!content) continue;
+    const existing = byDomain.get(domain) || [];
+    existing.push(content);
+    byDomain.set(domain, existing);
+  }
+
+  const lines: string[] = [
+    '# Memory Context',
+    `Last refreshed: ${now}`,
+    '(Auto-updated by Dopl. Do not edit manually.)',
+    '',
+    `Active memories: ${memories.length}`,
+    '',
+  ];
+
+  const domainOrder = ['identity', 'preference', 'workflow', 'email', 'calendar', 'contact', 'project', 'tool', 'general'];
+  const domainLabels: Record<string, string> = {
+    identity: '## Identity & Background',
+    preference: '## Preferences',
+    workflow: '## Workflow Patterns',
+    email: '## Email Context',
+    calendar: '## Calendar & Schedule',
+    contact: '## Known Contacts',
+    project: '## Projects',
+    tool: '## Tool Patterns',
+    general: '## General',
+  };
+
+  // Write domains in order
+  for (const domain of domainOrder) {
+    const items = byDomain.get(domain);
+    if (!items || items.length === 0) continue;
+    lines.push(domainLabels[domain] || `## ${domain}`);
+    for (const item of items) {
+      lines.push(`- ${item}`);
+    }
+    lines.push('');
+    byDomain.delete(domain);
+  }
+
+  // Write any remaining domains not in the ordered list
+  for (const [domain, items] of byDomain) {
+    if (items.length === 0) continue;
+    lines.push(`## ${domain}`);
+    for (const item of items) {
+      lines.push(`- ${item}`);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Initial placeholder content (used at provisioning before data is available)
+// ---------------------------------------------------------------------------
+
+function buildInitialIntegrations(): string {
+  const now = new Date().toLocaleString('en-US', {
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+  });
+  return `# Connected Integrations
+Last updated: ${now}
+
+## Active Connections
+None yet.
+
+## Instructions
+When the user wants to connect a service, show the connect card:
+  [[integrations:resolve:SERVICE]]
+
+Once connected, this file is automatically updated by Dopl.
+
+## Not Yet Connected
+Available: Google (Gmail, Calendar, Drive), Slack, GitHub, Notion, Stripe, Linear, and more.
+`;
+}
+
+function buildInitialMemoryContext(): string {
+  const now = new Date().toLocaleString('en-US', {
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+  });
+  return `# Memory Context
+Last refreshed: ${now}
+(Auto-updated by Dopl. Do not edit manually.)
+
+No memories yet. This file will populate as the agent learns about this user.
+Use memory_search to query the full memory store.
+`;
+}

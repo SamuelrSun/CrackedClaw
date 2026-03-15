@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { initializeDoplWorkspace } from "@/lib/gateway/workspace";
 
 export const dynamic = 'force-dynamic';
 
@@ -77,6 +78,15 @@ export async function POST(request: NextRequest) {
                   updated_at: new Date().toISOString(),
                 })
                 .eq("id", user.id);
+
+              // Initialize Dopl workspace files on the new instance (fire-and-forget)
+              const displayName = user_display_name || user.email?.split('@')[0] || 'User';
+              initializeDoplWorkspace(
+                provData.instance.gateway_url,
+                provData.instance.auth_token,
+                user.id,
+                displayName
+              ).catch(err => console.error('[provision] Workspace initialization failed:', err));
             }
           } else {
             const errText = await provRes.text().catch(() => provRes.statusText);

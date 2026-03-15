@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server';
 import { requireApiAuth, jsonResponse, errorResponse } from '@/lib/api-auth';
 import { createClient } from '@/lib/supabase/server';
 import { OAUTH_PROVIDERS, OAuthProvider, isValidProvider } from '@/lib/oauth/providers';
+import { updateIntegrations } from '@/lib/gateway/workspace';
 
 // GET /api/integrations/[id] - Get a single integration
 export async function GET(
@@ -144,6 +145,11 @@ export async function DELETE(
     console.error('Failed to delete integration:', deleteError);
     return errorResponse('Failed to delete integration', 500);
   }
+
+  // Fire-and-forget: update INTEGRATIONS.md on the OpenClaw instance
+  updateIntegrations(user.id).catch(err =>
+    console.error('[disconnect] Failed to update INTEGRATIONS.md:', err)
+  );
 
   return jsonResponse({
     message: 'Integration disconnected',

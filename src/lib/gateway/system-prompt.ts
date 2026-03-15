@@ -446,7 +446,7 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
     try {
       const [searchResults, coreResults] = await Promise.all([
         userMessage ? mem0Search(userMessage, userId, { limit: 15, threshold: 0.4 }) : Promise.resolve([]),
-        mem0GetCore(userId, { minImportance: 0.7, limit: 10 }),
+        mem0GetCore(userId, { minImportance: 0.5, limit: 20 }),
       ]);
       // Merge and deduplicate by id
       const seen = new Set<string>();
@@ -579,6 +579,52 @@ Connected integrations: ${(ctx.integrations || []).join(', ') || 'none yet'}
   } catch { /* no instance, skip gateway context */ }
 
   return replaceSubagentPlaceholders(basePrompt);
+}
+
+/**
+ * Build lightweight dynamic context for per-message injection.
+ * Static identity/rules are in workspace files (SOUL.md/AGENTS.md).
+ * This only provides: per-message semantic memories + subagent config + conversation ID.
+ */
+export async function buildDynamicContext(
+  userId: string,
+  userMessage?: string,
+  conversationId?: string
+): Promise<string> {
+  const parts: string[] = [];
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com';
+  const pushSecret = process.env.CHAT_PUSH_SECRET || 'dopl-push-2026';
+
+  // 1. Per-message semantic memory search (the most valuable dynamic part)
+  if (userMessage) {
+    try {
+      const searchResults = await mem0Search(userMessage, userId, { limit: 10, threshold: 0.4 });
+      if (searchResults.length > 0) {
+        const memLines = searchResults.map(m => `- ${m.memory || m.content}`).join('\n');
+        parts.push(`RELEVANT MEMORIES (from past conversations and integrations):\n${memLines}`);
+      }
+    } catch { /* memory search failure is non-fatal */ }
+  }
+
+  // 2. Conversation-specific config (CONVO_ID for subagent push-back)
+  parts.push(`CURRENT SESSION CONFIG:
+CONVERSATION_ID: ${conversationId || 'unknown'}
+PUSH_URL: ${appUrl}/api/chat/push
+PUSH_SECRET: ${pushSecret}
+(When spawning subagents, use these values for push-result calls. Replace __CONVO_ID__ with ${conversationId || 'unknown'} in any subagent task instructions.)`);
+
+  // 3. File context for this specific message
+  if (userMessage) {
+    try {
+      const chunks = await searchFileChunks(userId, userMessage, 3);
+      if (chunks.length > 0) {
+        const fileCtx = chunks.map((c: { fileName: string; content: string }) => `[From: ${c.fileName}]\n${c.content}`).join('\n---\n');
+        parts.push(`RELEVANT FILES:\n${fileCtx}`);
+      }
+    } catch { /* file chunks may not exist */ }
+  }
+
+  return parts.join('\n\n');
 }
 
 /**
