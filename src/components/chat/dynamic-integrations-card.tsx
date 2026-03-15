@@ -9,6 +9,7 @@ interface DynamicIntegrationsCardProps {
   services: string[];
   gatewayHost?: string;
   onOpenBrowser?: (url: string) => void;
+  onIntegrationConnect?: (provider: string) => void;
 }
 
 interface ConnectedAccount {
@@ -376,7 +377,7 @@ function CompanionOnboardingInline({ name }: { name: string }) {
   );
 }
 
-export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }: DynamicIntegrationsCardProps) {
+export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser, onIntegrationConnect }: DynamicIntegrationsCardProps) {
   const [cards, setCards] = useState<CardState[]>([]);
   const [loading, setLoading] = useState(true);
   const [nodeModal, setNodeModal] = useState<string | null>(null);
@@ -637,6 +638,7 @@ export function DynamicIntegrationsCard({ services, gatewayHost, onOpenBrowser }
               setCards(prev => prev.map((c, idx) => idx === nodeModalCardIndex ? { ...c, status: "added" } : c));
             }
             if (nodeModalUrl) onOpenBrowser?.(nodeModalUrl);
+            onIntegrationConnect?.(nodeModal);
           }}
         />
       )}

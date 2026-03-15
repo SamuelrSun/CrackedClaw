@@ -289,6 +289,13 @@ function RichMessage({
                 services={segment.services}
                 gatewayHost={gatewayHost}
                 onOpenBrowser={(url) => onOpenBrowser?.(url, false)}
+                onIntegrationConnect={(provider) => {
+                  refreshSystemPrompt();
+                  setTimeout(() => {
+                    const name = provider.charAt(0).toUpperCase() + provider.slice(1);
+                    handleSendRef.current(`${name} companion connected ✓`);
+                  }, 500);
+                }}
               />
             );
           case "skill-suggest":
