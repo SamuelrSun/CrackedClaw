@@ -98,24 +98,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Clean up DO server data
-    try {
-      const doUrl = process.env.DO_SERVER_URL;
-      const doSecret = process.env.DO_SERVER_SECRET;
-      if (doUrl && doSecret) {
-        await fetch(`${doUrl}/tools/cleanup`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${doSecret}`,
-          },
-          body: JSON.stringify({ user_id: user.id, action: 'delete_all' }),
-          signal: AbortSignal.timeout(10_000),
-        }).catch(err => console.error('DO cleanup failed (non-fatal):', err));
-      }
-    } catch (err) {
-      console.error('DO server cleanup error (non-fatal):', err);
-    }
+    // Note: DO server cleanup is handled by the provisioning API delete call above.
+    // The /tools/cleanup endpoint was removed — no separate DO cleanup needed.
 
     // Use the database function to delete all user data atomically
     const adminClient = createAdminClient();
