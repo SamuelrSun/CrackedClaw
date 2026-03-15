@@ -319,7 +319,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
       lines.push(`You can use browser automation on the user's machine for services like LinkedIn, Instagram, etc.`);
     } else {
       lines.push(`Status: ❌ Not connected`);
-      lines.push(`Browser automation is not available. If the user asks to use LinkedIn, Instagram, or other browser-only services, let them know they'll need Dopl Connect (the integration cards in the chat will guide them through setup).`);
+      lines.push(`Browser automation is not available. If the user asks to use LinkedIn, Instagram, or other browser-only services, output [[integrations:resolve:linkedin]] (or the relevant service) — the card will automatically show the Dopl Connect download and setup flow.`);
     }
     parts.push(lines.join('\n'));
   }
@@ -344,7 +344,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   }
 
   if (ctx.gatewayHost) {
-    parts.push(`\nDESKTOP APP CONNECTION:\nSome integrations (LinkedIn, Instagram, etc.) require the Dopl desktop companion app running on the user's computer.\n\nWhen the user needs to connect their computer, the integration card in the chat already shows:\n- A download button for the desktop app\n- A "Copy Token" button with their connection token\n- A live connection status indicator\n\nJust tell them: "You'll see a download link and connection token right in the card below. Download the app, paste the token, and you're connected."\n\nDo NOT tell users to go to Settings, use Terminal, or run CLI commands. Everything they need is in the integration card.\n\nReassurance: "The desktop app lets me interact with apps on your behalf when you ask. I'm not monitoring your screen or accessing anything without your permission. The connection is encrypted and secure."`);
+    parts.push(`\nDESKTOP APP CONNECTION:\nSome integrations (LinkedIn, Instagram, etc.) require the Dopl desktop companion app running on the user's computer.\n\nTo show the companion setup card, output the integration tag like normal: [[integrations:resolve:linkedin]] — the card will automatically include a download button for the desktop app, a "Copy Token" button, and a live connection status indicator.\n\nALWAYS use [[integrations:resolve:SERVICE]] for browser-only services — never describe the card in text. The tag renders the full interactive card with download link, token, and status.\n\nDo NOT tell users to go to Settings, use Terminal, or run CLI commands. Everything they need is in the integration card.\n\nReassurance: "The desktop app lets me interact with apps on your behalf when you ask. I'm not monitoring your screen or accessing anything without your permission. The connection is encrypted and secure."`);
   }
 
   if (ctx.skillsPrompt) {
