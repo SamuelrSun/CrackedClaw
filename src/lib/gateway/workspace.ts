@@ -118,7 +118,7 @@ export async function initializeDoplWorkspace(
   userTimezone: string = 'America/Los_Angeles'
 ): Promise<void> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com';
-  const bridgeSecret = process.env.TOKEN_BRIDGE_SECRET || 'dopl-bridge-2026';
+  const bridgeSecret = process.env.TOKEN_BRIDGE_SECRET || 'dopl-token-bridge-2026';
   const pushSecret = process.env.CHAT_PUSH_SECRET || 'dopl-push-2026';
 
   console.log(`[workspace] Initializing Dopl workspace for user ${userId} at ${gatewayUrl}`);
