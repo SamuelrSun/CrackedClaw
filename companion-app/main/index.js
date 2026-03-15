@@ -1,11 +1,13 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain } = require('electron');
 const path = require('path');
 const Store = require('electron-store');
 const NodeManager = require('./node-manager');
 const ChatManager = require('./chat-manager');
+const RuntimeManager = require('./runtime-manager');
 const { setupIPC } = require('./ipc');
 
 const store = new Store();
+const runtimeManager = new RuntimeManager();
 let inputBarWindow = null;
 let chatPanelWindow = null;
 let tray = null;
@@ -25,6 +27,11 @@ const PANEL_GAP = 7; // px between input bar and chat panel
 // ── Window creation ───────────────────────────────────────────────────────────
 
 function getInputBarPosition(height) {
+  // Use persisted position if available
+  const saved = store.get('inputBarBounds');
+  if (saved && typeof saved.x === 'number' && typeof saved.y === 'number') {
+    return { x: saved.x, y: saved.y };
+  }
   const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
   const h = height || INPUT_BAR_HEIGHT;
   const x = Math.round((sw - INPUT_BAR_WIDTH) / 2);
@@ -63,6 +70,19 @@ function createInputBarWindow() {
 
   inputBarWindow.once('ready-to-show', () => {
     inputBarWindow.show();
+    // Start ignoring mouse events on transparent areas; renderer will toggle
+    // via IPC when the cursor is over interactive elements.
+    inputBarWindow.setIgnoreMouseEvents(true, { forward: true });
+  });
+
+  // Follow chat panel when input bar is moved
+  inputBarWindow.on('moved', () => {
+    // Persist position
+    store.set('inputBarBounds', inputBarWindow.getBounds());
+    // Keep chat panel aligned
+    if (chatPanelVisible && chatPanelWindow && !chatPanelWindow.isDestroyed()) {
+      positionChatPanel();
+    }
   });
 
   // Never let the user close the input bar — only quit does that
@@ -98,6 +118,8 @@ function createChatPanelWindow() {
   });
 
   chatPanelWindow.loadFile(path.join(__dirname, '../renderer/chat-panel.html'));
+  // Chat panel starts ignoring mouse events; renderer toggles when cursor is over panel
+  chatPanelWindow.setIgnoreMouseEvents(true, { forward: true });
 
   // Intercept native close → hide (the custom X button calls close-chat-panel IPC)
   chatPanelWindow.on('close', (e) => {
@@ -239,6 +261,18 @@ function broadcastToAll(channel, data) {
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 
+// Single-instance lock — quit if another instance is already running
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (inputBarWindow && !inputBarWindow.isDestroyed()) {
+      inputBarWindow.show();
+    }
+  });
+}
+
 app.whenReady().then(() => {
   setupIPC({
     getInputBarWindow: () => inputBarWindow,
@@ -255,9 +289,36 @@ app.whenReady().then(() => {
     toggleChatPanel,
     getChatPanelVisible: () => chatPanelVisible,
     broadcastToAll,
+    getRuntimeManager: () => runtimeManager,
     SETUP_HEIGHT,
     INPUT_BAR_HEIGHT,
     INPUT_BAR_WIDTH,
+  });
+
+  // ── Runtime IPC ───────────────────────────────────────────────────────────
+  ipcMain.handle('runtime-status', () => ({
+    ready: runtimeManager.ready,
+    status: runtimeManager.status,
+    error: runtimeManager.error,
+  }));
+
+  ipcMain.handle('runtime-retry', async () => {
+    try {
+      runtimeManager.ready = false;
+      runtimeManager.error = null;
+      runtimeManager.status = 'checking';
+      await runtimeManager.ensure();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // Forward runtime status changes to the input bar renderer
+  runtimeManager.onStatus((status, detail) => {
+    if (inputBarWindow && !inputBarWindow.isDestroyed()) {
+      inputBarWindow.webContents.send('runtime-status-update', { status, detail });
+    }
   });
 
   createInputBarWindow();
@@ -295,6 +356,12 @@ app.whenReady().then(() => {
     }, 2000);
   }
 
+  // ── Kick off runtime setup (downloads Node.js + openclaw if needed) ─────────
+  // Run this eagerly so it's ready by the time the user connects.
+  runtimeManager.ensure().catch((err) => {
+    console.error('[RuntimeManager] Setup failed:', err.message);
+  });
+
   // Auto-reconnect if token exists
   const rawToken = store.get('connectionToken');
   if (rawToken) {
@@ -303,10 +370,14 @@ app.whenReady().then(() => {
       initChatManager(decoded);
 
       nodeManager = new NodeManager(decoded);
-      nodeManager.on('status', (connected) => {
+      nodeManager.setRuntimeManager(runtimeManager);
+      nodeManager.on('status', (status) => {
+        // status can be true (connected), false (disconnected), or 'connecting'
+        const connected = status === true;
         updateTrayMenu(connected);
         broadcastToAll('status-update', {
           connected,
+          connecting: status === 'connecting',
           gatewayUrl: decoded.gatewayUrl,
           instanceId: decoded.instanceId,
           error: nodeManager.lastError,

@@ -3,6 +3,8 @@
  * Central registry of all supported integrations with their capabilities
  */
 
+import { isMatonSupported } from './maton-services';
+
 export type ApiProvider = 'maton' | 'native' | 'oauth';
 export type AuthType = 'oauth' | 'browser-login' | 'api-key';
 
@@ -564,6 +566,15 @@ export function searchIntegrations(query: string): IntegrationConfig[] {
       i.capabilities.some((c) => c.toLowerCase().includes(lower)) ||
       i.description?.toLowerCase().includes(lower)
   );
+}
+
+export function getIntegrationConnectionMethod(id: string): 'maton' | 'oauth' | 'browser' | 'skill' {
+  const integration = getIntegration(id);
+  if (!integration) return 'browser';
+  if (integration.apiProvider === 'maton' && isMatonSupported(id)) return 'maton';
+  if (integration.hasApi && integration.authType === 'oauth') return 'oauth';
+  if (!integration.hasApi) return 'browser';
+  return 'oauth';
 }
 
 // Category metadata

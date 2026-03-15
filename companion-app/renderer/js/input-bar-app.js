@@ -40,9 +40,14 @@ const DROPDOWN_GAP = 6;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function setConnectedIndicator(connected) {
-  connDot.className = 'conn-dot ' + (connected ? 'connected' : 'disconnected');
-  connDot.title = connected ? 'Connected' : 'Disconnected';
+function setConnectedIndicator(connected, connecting) {
+  if (connecting) {
+    connDot.className = 'conn-dot connecting';
+    connDot.title = 'Connecting…';
+  } else {
+    connDot.className = 'conn-dot ' + (connected ? 'connected' : 'disconnected');
+    connDot.title = connected ? 'Connected' : 'Disconnected';
+  }
 }
 
 function setInputEnabled(enabled) {
@@ -162,18 +167,33 @@ async function handleTokenSubmit() {
 
   msgInput.disabled = true;
   btnSend.disabled = true;
-  msgInput.placeholder = 'Connecting…';
+  msgInput.value = '';
+  msgInput.placeholder = '⏳ Connecting…';
+  setConnectedIndicator(false, /* connecting */ true);
 
   const result = await window.dopl.connect(token);
   if (result.ok) {
+    // Show brief success state, then switch to normal chat mode
+    msgInput.placeholder = '✅ Connected!';
+    setConnectedIndicator(true);
+    // Reload conversations so the chat panel populates immediately
+    try {
+      await window.dopl.chat.listConversations();
+    } catch (_) {}
+    // Brief pause so user sees the success state
+    await new Promise((r) => setTimeout(r, 800));
     exitTokenMode();
     setConnectedIndicator(true);
   } else {
     msgInput.disabled = false;
     btnSend.disabled = false;
-    msgInput.value = '';
+    setConnectedIndicator(false);
     const errMsg = (result.error || 'Connection failed').split('\n')[0].replace(/^Error:\s*/, '');
-    msgInput.placeholder = '❌ ' + (errMsg.length > 80 ? errMsg.slice(0, 80) + '…' : errMsg) + ' — try again';
+    const shortErr = errMsg.length > 70 ? errMsg.slice(0, 70) + '…' : errMsg;
+    // Keep error visible in placeholder AND show a retry hint
+    msgInput.placeholder = '❌ ' + shortErr + ' — paste token again to retry';
+    // Re-focus so user can immediately paste a new token
+    msgInput.focus();
   }
 }
 
@@ -297,7 +317,24 @@ msgInput.addEventListener('keydown', (e) => {
   }
 });
 
-btnSend.addEventListener('click', () => {
+btnSend.addEventListener('click', async () => {
+  // Runtime retry mode — send button acts as retry
+  if (btnSend._runtimeRetry) {
+    btnSend._runtimeRetry = false;
+    btnSend.disabled = true;
+    msgInput.placeholder = '🔄 Retrying setup…';
+    try {
+      const result = await window.dopl.runtime.retry();
+      if (!result.ok) {
+        // Will be handled by the onStatus listener
+      }
+    } catch (_) {
+      msgInput.placeholder = '❌ Retry failed — click send ↗ to try again';
+      btnSend._runtimeRetry = true;
+      btnSend.disabled = false;
+    }
+    return;
+  }
   if (!isStreaming && msgInput.value.trim()) {
     sendMessage();
   }
@@ -322,7 +359,7 @@ function enterSetupMode() {
 // ── IPC Listeners ──────────────────────────────────────────────────────────────
 
 window.dopl.onStatusUpdate((data) => {
-  setConnectedIndicator(data.connected);
+  setConnectedIndicator(data.connected, data.connecting);
   // If explicitly disconnected (token cleared), switch input bar to token mode
   if (data.disconnected) {
     enterSetupMode();
@@ -343,6 +380,64 @@ window.dopl.onGlassTintChanged((value) => {
   applyGlassTint(value);
 });
 
+// ── Click-through: pass mouse events on transparent areas ──────────────────────
+
+document.addEventListener('mousemove', (e) => {
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const overInteractive = !!(el && (
+    el.closest('.input-bar-glass') ||
+    el.closest('.settings-dropdown') ||
+    el.tagName === 'TEXTAREA' ||
+    el.tagName === 'BUTTON' ||
+    el.tagName === 'INPUT'
+  ));
+  window.dopl.setIgnoreMouseEvents(!overInteractive);
+});
+
+// ── Runtime Setup Progress ─────────────────────────────────────────────────────
+
+/**
+ * Apply runtime status to the input field.
+ * Called both on initial status check and on live status updates.
+ */
+function applyRuntimeStatus(status, detail, isConnected) {
+  if (status === 'downloading-node') {
+    msgInput.placeholder = '⬇️ Downloading runtime… (first time only, ~40MB)';
+    msgInput.disabled = true;
+    btnSend.disabled = true;
+  } else if (status === 'installing-openclaw') {
+    msgInput.placeholder = '⚙️ Installing components… (almost there)';
+    msgInput.disabled = true;
+    btnSend.disabled = true;
+  } else if (status === 'ready' || status === 'checking') {
+    // Runtime ready — restore normal UI state
+    if (msgInput.disabled && !isStreaming) {
+      msgInput.disabled = false;
+      btnSend.disabled = false;
+      msgInput.placeholder = isConnected
+        ? 'Message… (Enter to send, Shift+Enter for new line)'
+        : '🔗 Paste connection token to link your instance…';
+    }
+  } else if (status === 'error') {
+    const shortErr = (detail || 'unknown error').split('\n')[0];
+    const displayErr = shortErr.length > 50 ? shortErr.slice(0, 50) + '…' : shortErr;
+    msgInput.placeholder = `❌ ${displayErr} — click send ↗ to retry`;
+    msgInput.disabled = true;
+    btnSend.disabled = false;
+    // Hijack send button to retry runtime setup
+    btnSend._runtimeRetry = true;
+  }
+}
+
+// Listen for real-time runtime status changes pushed from main process
+if (window.dopl.runtime && window.dopl.runtime.onStatus) {
+  window.dopl.runtime.onStatus((status, detail) => {
+    // Determine if we're currently connected (for placeholder restoration)
+    const connDotConnected = connDot.classList.contains('connected');
+    applyRuntimeStatus(status, detail, connDotConnected && !tokenMode);
+  });
+}
+
 // ── Initialization ─────────────────────────────────────────────────────────────
 
 (async () => {
@@ -357,8 +452,20 @@ window.dopl.onGlassTintChanged((value) => {
 
   if (state.token) {
     exitTokenMode();
-    setConnectedIndicator(state.connected);
+    setConnectedIndicator(state.connected, false);
   } else {
     enterTokenMode();
+  }
+
+  // Check runtime status and apply to UI if setup is still in progress
+  if (window.dopl.runtime && window.dopl.runtime.status) {
+    try {
+      const runtimeStatus = await window.dopl.runtime.status();
+      if (runtimeStatus && runtimeStatus.status !== 'ready' && runtimeStatus.status !== 'checking') {
+        applyRuntimeStatus(runtimeStatus.status, runtimeStatus.error, state.connected);
+      }
+    } catch (_) {
+      // Non-fatal — runtime IPC unavailable in older builds
+    }
   }
 })();

@@ -131,9 +131,13 @@ class ChatManager {
       { role: 'user', content: userContent },
     ];
 
-    // 4. Stream from gateway
+    // 4. Stream from gateway (with 2-minute abort timeout)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120_000);
+
     const response = await fetch(`${this.gatewayUrl}/v1/chat/completions`, {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.authToken}`,
@@ -190,6 +194,7 @@ class ChatManager {
         }
       }
     } finally {
+      clearTimeout(timeoutId);
       reader.releaseLock();
     }
 

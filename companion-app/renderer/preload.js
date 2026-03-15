@@ -1,6 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('dopl', {
+  // ── Click-through toggle ──────────────────────────────────────────────────
+  /** Toggle mouse event pass-through for transparent window areas. */
+  setIgnoreMouseEvents: (ignore) => ipcRenderer.send('set-ignore-mouse-events', { ignore }),
+
   // ── Window Controls (input bar resize) ────────────────────────────────────
   windowSetSize: (width, height, animate) => ipcRenderer.send('window-set-size', { width, height, animate }),
   windowGetSize: () => ipcRenderer.invoke('window-get-size'),
@@ -42,6 +46,18 @@ contextBridge.exposeInMainWorld('dopl', {
   // ── Open in Browser ──────────────────────────────────────────────────────
   /** Opens a URL in the user's default browser via shell.openExternal(). */
   openInBrowser: (url) => ipcRenderer.send('open-in-browser', url),
+
+  // ── Runtime Setup ─────────────────────────────────────────────────────────
+  runtime: {
+    /** Get current runtime status (ready, downloading-node, installing-openclaw, error). */
+    status: () => ipcRenderer.invoke('runtime-status'),
+    /** Retry runtime setup after a failure. */
+    retry: () => ipcRenderer.invoke('runtime-retry'),
+    /** Register a callback for real-time runtime status updates. */
+    onStatus: (callback) => {
+      ipcRenderer.on('runtime-status-update', (_event, data) => callback(data.status, data.detail));
+    },
+  },
 
   // ── Conversation sync across windows ─────────────────────────────────────
   /**

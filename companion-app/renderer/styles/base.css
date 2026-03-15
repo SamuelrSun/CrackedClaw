@@ -74,9 +74,10 @@ body {
   user-select: none;
 }
 
-/* ── Make entire window draggable by default ─────────────────────────────── */
+/* ── Transparent areas must NOT be drag regions (they'd block clicks) ────── */
+/* Drag is handled by .input-bar-glass and .chat-panel-header directly.      */
 html, body, .screen, .screen.active {
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
 }
 
 /* ── Screens ─────────────────────────────────────────────────────────────── */

@@ -32,6 +32,7 @@ class NodeManager extends EventEmitter {
     this.instanceId = instanceId;
     this.authToken = authToken;
     this.operatorToken = operatorToken || authToken;
+    this.runtimeManager = null;
 
     // Resolve provisioning API URL in priority order:
     // 1. Explicit provisioningUrl from token
@@ -48,6 +49,10 @@ class NodeManager extends EventEmitter {
     this.shouldRun = false;
     this.reconnectTimer = null;
     this.prePaired = false;
+  }
+
+  setRuntimeManager(rm) {
+    this.runtimeManager = rm;
   }
 
   async start() {
@@ -178,6 +183,16 @@ class NodeManager extends EventEmitter {
   }
 
   async ensureCLI() {
+    // If a RuntimeManager is attached, delegate to it
+    if (this.runtimeManager) {
+      if (this.runtimeManager.isReady()) {
+        return; // Runtime already available and verified
+      }
+      await this.runtimeManager.ensure();
+      return;
+    }
+
+    // Fallback: check system PATH for openclaw (legacy / developer path)
     const commonPaths = [
       '/opt/homebrew/bin',
       '/usr/local/bin',
@@ -190,10 +205,8 @@ class NodeManager extends EventEmitter {
     ].filter(Boolean).join(':');
     process.env.PATH = envPath;
 
-    const execOpts = { stdio: 'pipe', env: { ...process.env, PATH: envPath } };
-
     try {
-      execSync('which openclaw', { ...execOpts, stdio: 'ignore' });
+      execSync('which openclaw', { stdio: 'ignore', env: { ...process.env, PATH: envPath } });
       return;
     } catch (_) {}
 
@@ -204,49 +217,9 @@ class NodeManager extends EventEmitter {
       } catch (_) {}
     }
 
-    let nodeVersion = '';
-    try {
-      nodeVersion = execSync('node -v', { ...execOpts, encoding: 'utf-8' }).trim();
-    } catch (_) {}
-
-    const vMatch = nodeVersion.match(/^v(\d+)\.(\d+)/);
-    const major = vMatch ? parseInt(vMatch[1], 10) : 0;
-    const minor = vMatch ? parseInt(vMatch[2], 10) : 0;
-
-    if (major < 22 || (major === 22 && minor < 12)) {
-      throw new Error(
-        `OpenClaw requires Node.js >= 22.12.0 but your system has ${nodeVersion || 'none'}.\n\n` +
-        `To fix this:\n` +
-        `1. Install Node.js 22+ from https://nodejs.org\n` +
-        `2. Then run: sudo npm install -g openclaw\n` +
-        `3. Restart the app\n\n` +
-        `The companion app will work without the CLI — you just won't get device features (browser automation, screen context).`
-      );
-    }
-
-    let npmBin = 'npm';
-    for (const dir of commonPaths) {
-      try {
-        execSync(`test -x "${dir}/npm"`, { stdio: 'ignore' });
-        npmBin = `${dir}/npm`;
-        break;
-      } catch (_) {}
-    }
-
-    try {
-      execSync(`${npmBin} install -g openclaw`, { ...execOpts, timeout: 120000 });
-    } catch (err) {
-      const errMsg = err.message || '';
-      if (errMsg.includes('EACCES') || errMsg.includes('permission denied')) {
-        throw new Error(
-          `Permission denied installing OpenClaw CLI.\n\n` +
-          `Please run this in Terminal:\n` +
-          `  sudo npm install -g openclaw\n\n` +
-          `Then restart the app.`
-        );
-      }
-      throw new Error('Failed to install openclaw CLI: ' + errMsg);
-    }
+    throw new Error(
+      'OpenClaw CLI not found. Please restart the app to auto-install.'
+    );
   }
 
   parseGatewayUrl() {
@@ -263,6 +236,11 @@ class NodeManager extends EventEmitter {
 
   spawnNode() {
     if (!this.shouldRun) return;
+    // Reset approval flag so pairing works on reconnect cycles
+    this._approvingPending = false;
+    // Emit connecting status so UI can show transitional yellow state
+    this.lastError = null;
+    this.emit('status', 'connecting');
 
     const { host, port, tls } = this.parseGatewayUrl();
     const displayName = os.hostname() + ' (Dopl Companion)';
@@ -285,10 +263,17 @@ class NodeManager extends EventEmitter {
       this.reconnectTimer = setTimeout(() => this.spawnNode(), RECONNECT_DELAY_MS);
     };
 
-    this.process = spawn('openclaw', args, {
+    const openclawPath = this.runtimeManager
+      ? this.runtimeManager.getOpenclawPath()
+      : 'openclaw';
+    const spawnEnv = this.runtimeManager
+      ? this.runtimeManager.getEnv()
+      : process.env;
+
+    this.process = spawn(openclawPath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
-        ...process.env,
+        ...spawnEnv,
         OPENCLAW_GATEWAY_TOKEN: this.authToken,
       },
     });

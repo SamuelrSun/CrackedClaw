@@ -351,6 +351,19 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     parts.push(ctx.skillsPrompt);
   }
 
+  // Integration Protocol — always included
+  parts.push(`\n## Integration Connection Protocol
+When connecting new services or accessing external apps for the user:
+1. First check if MATON_API_KEY is configured — if not, guide the user through free Maton setup (maton.ai, copy key from homepage, paste here)
+2. Check Maton API Gateway for the service (100+ services with OAuth)
+3. Search ClawHub for dedicated skills: \`npx clawhub search SERVICE\` (ONLY install Security: CLEAN skills)
+4. If Maton doesn't have it but a ClawHub skill does — use that skill's own auth method  
+5. Fallback: companion browser automation (output [[integrations:resolve:SERVICE]] tag)
+
+CRITICAL: The user's Maton API key is the ONLY key they ever need to provide. Never ask them to create OAuth apps or get service-specific API keys.
+For services with limited APIs (LinkedIn, Instagram, Twitter, Facebook), prefer browser for actions the API can't do.
+`);
+
   return parts.join('\n');
 }
 

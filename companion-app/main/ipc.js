@@ -1,4 +1,4 @@
-const { ipcMain, shell } = require('electron');
+const { ipcMain, shell, BrowserWindow } = require('electron');
 const NodeManager = require('./node-manager');
 
 /**
@@ -23,9 +23,18 @@ function setupIPC(deps) {
     toggleChatPanel,
     getChatPanelVisible,
     broadcastToAll,
+    getRuntimeManager,
     INPUT_BAR_HEIGHT,
     INPUT_BAR_WIDTH,
   } = deps;
+
+  // ── Click-through IPC ─────────────────────────────────────────────────────
+  // Renderer sends this to toggle mouse event pass-through when cursor moves
+  // over transparent vs interactive areas.
+  ipcMain.on('set-ignore-mouse-events', (event, { ignore }) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) win.setIgnoreMouseEvents(!!ignore, { forward: true });
+  });
 
   // ── Permissions IPC ───────────────────────────────────────────────────────
 
@@ -153,12 +162,16 @@ function setupIPC(deps) {
       initChatManager(decoded);
 
       const nodeManager = new NodeManager({ gatewayUrl, instanceId, authToken, operatorToken, webAppUrl: webAppUrl || store.get('webAppUrl') });
+      if (getRuntimeManager) nodeManager.setRuntimeManager(getRuntimeManager());
       setNodeManager(nodeManager);
 
-      nodeManager.on('status', (connected) => {
+      nodeManager.on('status', (status) => {
+        // status can be true (connected), false (disconnected), or 'connecting'
+        const connected = status === true;
         updateTrayMenu(connected);
         broadcastToAll('status-update', {
           connected,
+          connecting: status === 'connecting',
           gatewayUrl,
           instanceId,
           error: nodeManager.lastError,

@@ -360,6 +360,14 @@ window.dopl.chat.onMessageFinalized((data) => {
   }
 });
 
+// ── Click-through: pass mouse events on transparent corner areas ───────────────
+
+document.addEventListener('mousemove', (e) => {
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const overPanel = !!(el && el.closest('.chat-panel'));
+  window.dopl.setIgnoreMouseEvents(!overPanel);
+});
+
 // ── Initialization ─────────────────────────────────────────────────────────────
 
 (async () => {
