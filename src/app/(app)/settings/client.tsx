@@ -126,6 +126,42 @@ function CompanionSetupInline() {
   );
 }
 
+function CompanionPermissionsSection({ isConnected }: { isConnected: boolean }) {
+  return (
+    <div className="mt-5 space-y-3">
+      <div className="h-px w-full bg-white/[0.08]" />
+      <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Companion Permissions</p>
+      <p className="text-[12px] text-white/40 leading-relaxed">
+        Dopl Connect needs these macOS permissions to operate on your behalf. The app will prompt you on first launch — just click Allow.
+      </p>
+      <div className="space-y-2">
+        {[
+          { icon: "🔐", label: "Accessibility", desc: "Lets Dopl click, type, and interact with apps on your Mac." },
+          { icon: "🖥️", label: "Screen Recording", desc: "Lets Dopl see what's on your screen to assist you." },
+          { icon: "🤖", label: "Automation", desc: "Lets Dopl control apps like Safari, Mail, and Finder for you." },
+        ].map(p => (
+          <div key={p.label} className="flex gap-3 p-3 bg-white/[0.04] border border-white/[0.06]">
+            <span className="text-[16px] flex-shrink-0">{p.icon}</span>
+            <div>
+              <p className="text-[13px] text-white/80 font-medium">{p.label}</p>
+              <p className="text-[12px] text-white/40 mt-0.5 leading-relaxed">{p.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      {isConnected ? (
+        <p className="text-[11px] text-emerald-400/70">
+          ✅ Companion is connected. Permissions should be active.
+        </p>
+      ) : (
+        <p className="text-[11px] text-white/30 leading-relaxed">
+          If you missed a prompt, open <strong className="text-white/50">System Settings → Privacy &amp; Security</strong> and grant the permissions manually.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ConnectedDevicesSection() {
   const [companion, setCompanion] = useState(false);
   const [devices, setDevices] = useState<NodeDevice[]>([]);
@@ -194,6 +230,8 @@ function ConnectedDevicesSection() {
           <CompanionSetupInline />
         </>
       )}
+
+      {loaded && <CompanionPermissionsSection isConnected={hasConnected} />}
     </div>
   );
 }

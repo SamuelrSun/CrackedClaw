@@ -27,6 +27,25 @@ function setupIPC(deps) {
     INPUT_BAR_WIDTH,
   } = deps;
 
+  // ── Permissions IPC ───────────────────────────────────────────────────────
+
+  ipcMain.handle('check-permissions', async () => {
+    const { systemPreferences } = require('electron');
+    return {
+      accessibility: systemPreferences.isTrustedAccessibilityClient(false),
+      // Screen recording can't be directly checked, but we can try
+      screenRecording: true, // assume true, will fail gracefully if not
+    };
+  });
+
+  ipcMain.handle('open-accessibility-settings', async () => {
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
+  });
+
+  ipcMain.handle('open-screen-recording-settings', async () => {
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+  });
+
   // ── Open in Browser ───────────────────────────────────────────────────────
 
   ipcMain.on('open-in-browser', (_event, url) => {

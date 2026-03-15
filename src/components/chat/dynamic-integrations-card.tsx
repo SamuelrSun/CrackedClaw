@@ -230,6 +230,35 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
           )}
         </div>
 
+        {/* Permissions guide — shown after companion is connected */}
+        {nodeStatus?.isOnline && (
+          <div className="mt-3 pt-3 border-t border-white/[0.1]">
+            <p className="font-mono text-[9px] uppercase tracking-wide text-white/40 mb-2">
+              Grant Permissions
+            </p>
+            <p className="font-mono text-[10px] text-white/50 mb-2">
+              Dopl Connect needs these macOS permissions to work properly. The app will prompt you on first launch — just click Allow.
+            </p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px]">🔐</span>
+                <span className="font-mono text-[10px] text-white/70">Accessibility — lets me click and type</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px]">🖥️</span>
+                <span className="font-mono text-[10px] text-white/70">Screen Recording — lets me see your screen</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px]">🤖</span>
+                <span className="font-mono text-[10px] text-white/70">Automation — lets me control apps for you</span>
+              </div>
+            </div>
+            <p className="font-mono text-[9px] text-white/30 mt-2">
+              If you missed a prompt, open System Settings → Privacy &amp; Security to grant manually.
+            </p>
+          </div>
+        )}
+
         {nodeStatus?.isOnline ? (
           <button
             onClick={() => {
@@ -293,6 +322,8 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
   );
 }
 
+const COMPANION_DOWNLOAD_URL = "https://usedopl.com/api/download/companion";
+
 /** Inline companion onboarding with download + copy-token button */
 function CompanionOnboardingInline({ name }: { name: string }) {
   const [token, setToken] = useState<string | null>(null);
@@ -331,8 +362,7 @@ function CompanionOnboardingInline({ name }: { name: string }) {
 
       {/* Download button */}
       <a
-        href="/downloads/Dopl-Connect.dmg"
-        download
+        href={COMPANION_DOWNLOAD_URL}
         className="block w-full py-2.5 font-mono text-[10px] uppercase tracking-wide bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors text-center"
       >
         ⬇ Download for macOS
@@ -373,6 +403,33 @@ function CompanionOnboardingInline({ name }: { name: string }) {
       <p className="font-mono text-[9px] text-white/40 leading-relaxed">
         Open the app, paste the token, and you&apos;re connected. Runs quietly in your menu bar.
       </p>
+
+      {/* Permissions guide */}
+      <div className="mt-3 pt-3 border-t border-white/[0.1]">
+        <p className="font-mono text-[9px] uppercase tracking-wide text-white/40 mb-2">
+          Grant Permissions
+        </p>
+        <p className="font-mono text-[10px] text-white/50 mb-2">
+          Dopl Connect needs these macOS permissions to work properly. The app will prompt you on first launch — just click Allow.
+        </p>
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px]">🔐</span>
+            <span className="font-mono text-[10px] text-white/70">Accessibility — lets me click and type</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px]">🖥️</span>
+            <span className="font-mono text-[10px] text-white/70">Screen Recording — lets me see your screen</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px]">🤖</span>
+            <span className="font-mono text-[10px] text-white/70">Automation — lets me control apps for you</span>
+          </div>
+        </div>
+        <p className="font-mono text-[9px] text-white/30 mt-2">
+          If you missed a prompt, open System Settings → Privacy &amp; Security to grant manually.
+        </p>
+      </div>
     </div>
   );
 }

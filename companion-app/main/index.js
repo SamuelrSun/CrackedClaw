@@ -264,6 +264,37 @@ app.whenReady().then(() => {
   createChatPanelWindow();
   createTray();
 
+  // ── First-launch permission triggers ──
+  // Attempt actions that cause macOS to show permission prompts
+  function triggerPermissionPrompts() {
+    const { systemPreferences } = require('electron');
+
+    // Check and request Accessibility
+    const accessibilityGranted = systemPreferences.isTrustedAccessibilityClient(true);
+    // passing `true` shows the system prompt if not already granted
+    console.log('[Permissions] Accessibility:', accessibilityGranted ? 'granted' : 'prompt shown');
+
+    // Screen Recording — triggered by attempting screen capture
+    try {
+      const { desktopCapturer } = require('electron');
+      desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } })
+        .then(() => console.log('[Permissions] Screen Recording: accessible'))
+        .catch(() => console.log('[Permissions] Screen Recording: prompt may have shown'));
+    } catch (e) {
+      console.log('[Permissions] Screen Recording check failed:', e.message);
+    }
+  }
+
+  // Only trigger on first launch (check a flag in store)
+  const isFirstLaunch = !store.get('permissionsPrompted');
+  if (isFirstLaunch) {
+    // Delay slightly so the app window is visible first
+    setTimeout(() => {
+      triggerPermissionPrompts();
+      store.set('permissionsPrompted', true);
+    }, 2000);
+  }
+
   // Auto-reconnect if token exists
   const rawToken = store.get('connectionToken');
   if (rawToken) {

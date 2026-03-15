@@ -32,6 +32,13 @@ contextBridge.exposeInMainWorld('dopl', {
     ipcRenderer.on('glass-tint-changed', (_event, value) => callback(value));
   },
 
+  // ── Permissions ──────────────────────────────────────────────────────────
+  permissions: {
+    check: () => ipcRenderer.invoke('check-permissions'),
+    openAccessibility: () => ipcRenderer.invoke('open-accessibility-settings'),
+    openScreenRecording: () => ipcRenderer.invoke('open-screen-recording-settings'),
+  },
+
   // ── Open in Browser ──────────────────────────────────────────────────────
   /** Opens a URL in the user's default browser via shell.openExternal(). */
   openInBrowser: (url) => ipcRenderer.send('open-in-browser', url),
