@@ -57,6 +57,8 @@ import { ThinkingBlock } from "@/components/chat/thinking-block";
 import { ToolTimeline } from "@/components/chat/tool-timeline";
 import { ModelSelector } from "@/components/chat/model-selector";
 import { InputToolbar } from "@/components/chat/input-toolbar";
+import { ConnectionsPopup } from "@/components/chat/connections-popup";
+import { ComputerPopup } from "@/components/chat/computer-popup";
 import { MessageFeedback } from "@/components/chat/message-feedback";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { UserMenu } from "@/components/auth/user-menu";
@@ -712,6 +714,9 @@ export default function ChatPageClient({
   const [browserCurrentUrl, setBrowserCurrentUrl] = useState<string | undefined>(undefined);
   const [attachedFiles, setAttachedFiles] = useState<UploadedFile[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const [computerOpen, setComputerOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const [linkedConversations, setLinkedConversations] = useState<Array<{id: string; title: string; link_type: string; link_id: string}>>([]);
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const prevSubagentCountRef = { current: 0 };
@@ -2462,6 +2467,68 @@ User message: `
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
               </button>
+
+              {/* Connections button */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => { setConnectionsOpen(!connectionsOpen); setComputerOpen(false); setContactOpen(false); }}
+                  title="Connections"
+                  className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors bg-transparent"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                  </svg>
+                </button>
+                {connectionsOpen && <ConnectionsPopup onClose={() => setConnectionsOpen(false)} />}
+              </div>
+
+              {/* Computer / Companion button */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => { setComputerOpen(!computerOpen); setConnectionsOpen(false); setContactOpen(false); }}
+                  title="Desktop Companion"
+                  className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors bg-transparent"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect width="20" height="14" x="2" y="3" rx="2"/>
+                    <line x1="8" x2="16" y1="21" y2="21"/>
+                    <line x1="12" x2="12" y1="17" y2="21"/>
+                  </svg>
+                </button>
+                {computerOpen && <ComputerPopup onClose={() => setComputerOpen(false)} />}
+              </div>
+
+              {/* Contact Methods button */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => { setContactOpen(!contactOpen); setConnectionsOpen(false); setComputerOpen(false); }}
+                  title="Contact Methods"
+                  className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors bg-transparent"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                  </svg>
+                </button>
+                {contactOpen && (
+                  <div className="absolute bottom-full mb-2 left-0 z-50 w-[300px] rounded-[10px] border border-white/[0.1] bg-black/70 backdrop-blur-[10px] shadow-xl p-4 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-white">Contact Methods</span>
+                      <button onClick={() => setContactOpen(false)} className="text-white/40 hover:text-white/80 transition-colors text-xs">✕</button>
+                    </div>
+                    <div className="text-xs text-white/50 leading-relaxed">
+                      Configure how your agent can reach you — email, SMS, Slack DMs, and more.
+                    </div>
+                    <div className="text-xs text-white/30 bg-white/[0.04] border border-white/[0.06] rounded-[6px] px-3 py-2">
+                      🚧 Coming soon
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Mic / Send button (mic when empty, arrow when typing) */}
               <button
                 type="button"
