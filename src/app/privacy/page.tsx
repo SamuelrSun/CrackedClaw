@@ -24,7 +24,7 @@ export default function PrivacyPage() {
       <nav className="relative z-10 px-6 py-5">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <Link
-            href="/home"
+            href="/"
             className="text-lg font-bold text-white/90 hover:text-white transition-colors"
             style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic" }}
           >

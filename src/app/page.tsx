@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import HomeLayout from "./home/layout";
-import HomePage from "./home/page";
+import HomeLayout from "@/components/home/layout";
+import HomePage from "@/components/home/page";
 
 export const dynamic = 'force-dynamic';
 
