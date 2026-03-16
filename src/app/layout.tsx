@@ -65,6 +65,7 @@ export const metadata: Metadata = {
   other: {
     "theme-color": "#0a0a0f",
     "msapplication-TileColor": "#0a0a0f",
+    "mobile-web-app-capable": "yes",
   },
 };
 
