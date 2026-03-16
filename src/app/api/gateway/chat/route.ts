@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
 
     // Track usage
     const totalTokens = data.usage?.total_tokens || Math.ceil((message.length + responseContent.length) / 4);
-    incrementUsage(user.id, totalTokens, 0);
+    await incrementUsage(user.id, totalTokens, 0);
     await incrementTokenUsage(totalTokens).catch((err: unknown) => console.error('Failed to track token usage:', err));
 
     return jsonResponse({

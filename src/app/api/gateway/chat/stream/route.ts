@@ -342,7 +342,7 @@ export async function POST(request: NextRequest) {
           .catch(e => console.error("Failed to log activity:", e));
 
         const estimatedTokens = Math.ceil((message.length + (fullContent?.length ?? 0)) / 4);
-        incrementUsage(user.id, estimatedTokens, 0);
+        await incrementUsage(user.id, estimatedTokens, 0);
         await incrementTokenUsage(estimatedTokens).catch(() => {});
       } catch (e) {
         console.error("Post-stream error:", e);
