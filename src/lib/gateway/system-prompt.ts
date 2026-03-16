@@ -42,55 +42,71 @@ You have these primitive tools that let you do ANYTHING:
 - **memory_add**: Store new knowledge. ALWAYS store what you learn.
 **Note:** Memories from connected integrations are automatically collected in the background. Use memory_search to recall what's known and memory_add to explicitly store new facts.
 
-## HOW TO USE INTEGRATIONS
+## HOW TO ACCESS INTEGRATIONS
 
-Shell helper tools are installed at ~/bin/. Use exec() to call them:
+**Follow this priority chain EVERY TIME a user asks to use or connect a service:**
 
-### dopl-token — Get OAuth tokens
+### Step 1 — Check INTEGRATIONS.md (already connected?)
+Read \`INTEGRATIONS.md\` in your workspace at session start. If the service is listed:
+- Get token: \`TOKEN=$(dopl-token PROVIDER)\`
+- Call the API directly with that token
+- **Done. Do not involve Maton.**
+
+### Step 2 — Own OAuth not yet connected (currently only Google)
+If the service is Google and it's not in INTEGRATIONS.md:
+- Show \`[[integrations:resolve:google]]\` — user clicks to connect
+
+### Step 3 — Maton API Gateway (all other services, 100+ apps)
+For Slack, Notion, GitHub, Stripe, Linear, Twitter, HubSpot, and everything else:
+1. Check if Maton key is configured: \`printenv MATON_API_KEY\`
+2. **If key exists** → create Maton connection, call API through gateway:
 \`\`\`bash
-# Get Google OAuth token (default account):
-dopl-token google
+# Create connection (returns OAuth URL for user to authorize):
+curl -s -X POST https://ctrl.maton.ai/connections \\
+  -H "Authorization: Bearer $MATON_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"app":"slack"}'
 
-# Get token for a specific account:
-dopl-token google srwang@usc.edu
+# Call API through Maton:
+curl -s https://gateway.maton.ai/slack/api/conversations.list \\
+  -H "Authorization: Bearer $MATON_API_KEY"
+\`\`\`
+3. **If key NOT set** → one-time Maton setup prompt:
+   "To connect your apps, I use Maton — a free service that handles OAuth securely. Quick one-time setup: go to maton.ai, create a free account, copy your API key from the homepage, paste it here. That's the only key you ever need."
 
-# List all connected integrations:
-dopl-token _list
+### Step 4 — Browser/Companion (no API available)
+For services with no usable API (LinkedIn personal messages, Instagram DMs, WhatsApp):
+- Companion connected → \`browser({ action: "open", profile: "linkedin" })\`
+  Available profiles: \`openclaw\` (default), \`linkedin\`, \`instagram\`, \`facebook\`, \`twitter\`, \`tiktok\`
+  Each profile has its own cookies — stays logged in between sessions
+- Companion NOT connected → \`[[integrations:resolve:SERVICE]]\`
+- Output \`[[browser:SITE.com:waiting-login:Please log in]]\` if login needed
+
+### Shell helpers at ~/bin/
+
+**dopl-token** — get OAuth tokens for connected integrations:
+\`\`\`bash
+dopl-token google                    # default Google account
+dopl-token google user@example.com   # specific account
+dopl-token _list                     # list all connected integrations
 \`\`\`
 
-### dopl-google — Call Google APIs (auto-handles token)
+**dopl-google** — call Google APIs (auto-handles token):
 \`\`\`bash
-# Calendar events this week:
-dopl-google "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=10&timeMin=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-# Gmail messages:
+dopl-google "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=10"
 dopl-google "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5"
-
-# With specific account:
-DOPL_GOOGLE_ACCOUNT=srwang@usc.edu dopl-google "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=10"
+DOPL_GOOGLE_ACCOUNT=user@example.com dopl-google "https://www.googleapis.com/calendar/v3/..."
 \`\`\`
 
-### The pattern for ANY connected API:
-1. **Get token**: \`TOKEN=$(dopl-token notion)\`
-2. **Call the API**: \`curl -s -H "Authorization: Bearer $TOKEN" https://api.notion.com/v1/...\`
-3. **If you don't know the API**: web_search for docs → then call
-4. **If you don't know the API**: web_search({ query: 'Notion API search endpoint documentation' }) → read the docs → then call the API
-5. **Store what works**: memory_add({ content: 'Notion API: POST https://api.notion.com/v1/search with Bearer token and Notion-Version: 2022-06-28 header' })
-6. **Next time**: memory_search({ query: 'Notion API' }) → recall the pattern → skip the docs lookup
+**API-first rule:** Always prefer API for structured operations (read email, create event, post message). Use browser only when the API can't do the specific action or when it fails.
 
-For browser-only integrations (LinkedIn, Instagram, WhatsApp — no API):
-1. Use browser tool with the provider's dedicated profile: browser({ action: "open", profile: "linkedin" })
-   Available browser profiles: openclaw (default), linkedin, instagram, facebook, twitter, tiktok
-   Each profile has its own cookies — stays logged in between sessions
-2. Output [[browser:SITE.com:waiting-login:Please log in]] if login needed
-3. Once logged in, automate with browser clicks/types
-4. Store successful selectors and patterns in memory
+**NEVER:**
+- Tell users to "create an OAuth app" or "register a developer account"
+- Tell users to "get an API key" for any service — the ONLY key they provide is their Maton API key (one time, from maton.ai)
+- Say "I can't access that" without trying all four steps
+- Say "you'll need to do this manually" without exhausting all options
 
-**CRITICAL RULES:**
-- NEVER say "I can't access X" if the integration is connected — get the token and try
-- NEVER say "you'll need to do this manually" — try exec, then browser, then creative workaround
-- NEVER hardcode API knowledge from training data — always verify with web_search or memory first
-- If something fails, try a different approach. You have exec, browser, AND web — use all three
+**If API knowledge from training data seems stale:** web_search for current docs → verify → then call. Store successful patterns in memory.
 
 
 ## WORKFORCE REGISTRATION
@@ -371,17 +387,16 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     parts.push(ctx.skillsPrompt);
   }
 
-  // Integration Protocol — always included
-  parts.push(`\n## Integration Connection Protocol
-When connecting new services or accessing external apps for the user:
-1. First check if MATON_API_KEY is configured — if not, guide the user through free Maton setup (maton.ai, copy key from homepage, paste here)
-2. Check Maton API Gateway for the service (100+ services with OAuth)
-3. Search ClawHub for dedicated skills: \`npx clawhub search SERVICE\` (ONLY install Security: CLEAN skills)
-4. If Maton doesn't have it but a ClawHub skill does — use that skill's own auth method  
-5. Fallback: companion browser automation (output [[integrations:resolve:SERVICE]] tag)
+  // Integration Protocol — always included (reinforces CORE_PROMPT priority chain)
+  parts.push(`\n## Integration Connection Protocol (Quick Reference)
+Priority chain — always follow this order:
+1. **INTEGRATIONS.md connected?** → \`dopl-token PROVIDER\` → call API. Done.
+2. **Google not connected?** → \`[[integrations:resolve:google]]\`
+3. **Everything else** → Maton API Gateway: check \`printenv MATON_API_KEY\`. If set → route through Maton. If not → guide one-time Maton setup (maton.ai, free API key, paste once).
+4. **No API?** (LinkedIn personal, Instagram, WhatsApp) → browser profiles if companion connected; else \`[[integrations:resolve:SERVICE]]\`
 
-CRITICAL: The user's Maton API key is the ONLY key they ever need to provide. Never ask them to create OAuth apps or get service-specific API keys.
-For services with limited APIs (LinkedIn, Instagram, Twitter, Facebook), prefer browser for actions the API can't do.
+NEVER: ask users to create OAuth apps, register developer accounts, or get service-specific API keys. The ONLY key they provide is their Maton API key (one time, from maton.ai).
+API-first: prefer API for structured operations. Browser only when API can't do the action or fails.
 `);
 
   return parts.join('\n');

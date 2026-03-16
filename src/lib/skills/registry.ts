@@ -219,95 +219,38 @@ Expert research methodology:
     capabilities: ['OAuth connection', 'API gateway routing', 'Skill discovery', 'Browser fallback', 'Integration search'],
     systemPromptSection: `## Dopl Integration Protocol (MANDATORY)
 
-When a user asks to connect a new service or interact with an external app, follow this protocol IN ORDER:
+When a user asks to use or connect a service, follow this EXACT priority chain:
 
-### Layer 0: Check for Maton API Key
-Before using Maton, check if the user has set up their API key:
-- Check if MATON_API_KEY environment variable is set (non-empty)
-- If NOT set, guide the user through one-time setup:
+**Step 1 — Check INTEGRATIONS.md (already connected?)**
+If the service is listed → \`TOKEN=$(dopl-token PROVIDER)\` → call API directly. Done.
 
-"To connect your apps, I use a free service called Maton that handles all the login stuff securely. Quick one-time setup:
+**Step 2 — Own OAuth (currently only Google)**
+If the service is Google and not connected → show \`[[integrations:resolve:google]]\`
 
-1. Head to [maton.ai](https://maton.ai) — create a free account (or sign in)
-2. Copy your API key from the homepage
-3. Paste it here
+**Step 3 — Maton API Gateway (all other services)**
+For Slack, Notion, GitHub, Stripe, Linear, HubSpot, Twitter, and 100+ more:
+- Check: \`printenv MATON_API_KEY\`
+- **Key exists** → create Maton connection (returns OAuth URL for user to authorize), then call API:
+  \`curl -s -X POST https://ctrl.maton.ai/connections -H "Authorization: Bearer $MATON_API_KEY" -d '{"app":"SERVICE"}'\`
+  \`curl -s https://gateway.maton.ai/SERVICE/api/ENDPOINT -H "Authorization: Bearer $MATON_API_KEY"\`
+- **Key missing** → one-time setup prompt: "I use Maton to connect your apps securely — it's free. Go to maton.ai, copy your API key from the homepage, paste it here. That's the only key you'll ever need."
+  Maton handles OAuth for the user — they just click an authorize link, no app registration needed.
 
-Free forever, no credit card needed. After this I can connect 100+ apps for you with one click."
+**Step 4 — Browser/Companion (no API available)**
+For services with no usable API (LinkedIn personal messages, Instagram DMs, WhatsApp):
+- Companion connected → \`browser({ action: "open", profile: "SERVICE" })\`
+  Profiles: \`linkedin\`, \`instagram\`, \`facebook\`, \`twitter\`, \`tiktok\`, \`openclaw\`
+- Companion NOT connected → \`[[integrations:resolve:SERVICE]]\`
 
-- When the user pastes their key, store it securely:
-  1. Write to instance environment: add MATON_API_KEY to the gateway config
-  2. Confirm: "Got it! Your API key is saved securely. Now let's connect [SERVICE]."
-- Then proceed to Layer 1
+**API-first:** Prefer API for structured operations. Use browser only when API can't do the action or fails.
 
-### Layer 1: Maton API Gateway (100+ services with managed OAuth)
-- Check if the service exists in Maton's supported services
-- If YES → create connection: \`curl -s -X POST https://ctrl.maton.ai/connections -H "Authorization: Bearer $MATON_API_KEY" -H "Content-Type: application/json" -d '{"app":"SERVICE_NAME"}'\`
-- The response includes an OAuth URL — present it to the user to authorize
-- After auth, API calls go through: \`curl -s https://gateway.maton.ai/SERVICE/api/ENDPOINT -H "Authorization: Bearer $MATON_API_KEY"\`
-- Maton handles token refresh automatically
+**NEVER:**
+- Tell users to "create an OAuth app" or "register a developer account"
+- Tell users to "get an API key" for any service — the ONLY key they provide is Maton (one time, maton.ai)
+- Say "I can't access that" without trying all four steps
+- Say "you'll need to do this manually"
 
-### Layer 2: Search ClawHub for Dedicated Skills
-Even if Maton has the service, search ClawHub for a dedicated skill with richer tool support:
-\`\`\`bash
-npx clawhub search SERVICE_NAME
-\`\`\`
-- Check each result with \`npx clawhub inspect SLUG\`
-- **SECURITY: ONLY install skills marked "Security: CLEAN"** — reject ANY skill marked SUSPICIOUS
-- If a clean dedicated skill exists → install it with \`npx clawhub install SLUG\`
-- Dedicated skills often provide structured actions that are better than raw API calls
-
-### Layer 3: ClawHub Skill with Own Auth (When Maton Doesn't Have It)
-If Maton does NOT support the service:
-- The ClawHub skill search (Layer 2) may find a skill with its own auth method
-- Skill auth methods vary: API key, local app token, OAuth flow, MCP server
-- Follow the skill's own setup instructions to authenticate
-- Guide the user through any required steps
-
-### Layer 4: Companion Browser (Universal Fallback)
-If neither Maton nor any ClawHub skill covers the service:
-- Use the companion app's browser automation
-- Output: \`[[integrations:resolve:SERVICE]]\` to show the connection card
-- If companion is connected, open the service in the companion browser
-- If companion is NOT connected, the card will show the Dopl Connect download flow
-
-### API vs Browser Decision Matrix
-Even for services WITH API access, some actions require browser:
-
-| Service | API Can Do | Browser Required For |
-|---------|-----------|---------------------|
-| LinkedIn | Post, read profile | Search people, send messages, browse connections, view feed |
-| Instagram | Page management, insights | Browse feed, send DMs, view stories, follow |
-| Twitter/X | Post, read, basic search | DMs, advanced search, analytics |
-| Facebook | Page management | Personal profile, Messenger, groups |
-| WhatsApp | None (personal) | All messaging |
-
-**Default rule:** If a service has API access, use API first. Fall back to browser when:
-1. The specific action isn't supported by the API
-2. The API call fails with a permissions/scope error
-3. The service has no API integration at all
-
-### Integration Search (User-Initiated)
-When a user searches for an integration in the UI:
-1. Check the local registry first (instant)
-2. Check the resolver's extended map
-3. If not found locally → search Maton's service list
-4. If still not found → search ClawHub for a skill
-5. If nothing → offer companion browser fallback
-
-### Maton API Key Security
-- The user's Maton API key is stored as an environment variable on their dedicated instance
-- It is NEVER sent to other users' instances or shared
-- It is NEVER logged or included in chat messages
-- If the user asks to remove it, delete the env var immediately
-
-### CRITICAL RULES
-- NEVER tell users to "create an OAuth app" or "get API keys" for specific services — Maton handles that
-- The ONLY key the user provides is their Maton API key (one-time, from maton.ai)
-- NEVER display the user's API key back to them in chat
-- When connecting via Maton, the user ONLY needs to click the OAuth authorize link
-- Always filter ClawHub results by Security: CLEAN
-- Always check ClawHub even when Maton has the service — dedicated skills add value
-- Store successful API patterns in memory for faster future use`,
+**Maton key security:** Stored as env var on user's private instance. Never log it or include it in chat messages.`,
     source: 'builtin',
     autoSuggestTriggers: ['connect', 'integration', 'set up', 'link', 'sign in to', 'log in to', 'access my', 'connect to', 'add integration', 'install', 'maton', 'clawhub'],
   },
