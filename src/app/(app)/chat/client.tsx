@@ -1574,14 +1574,34 @@ User message: `
   };
 
 
-  const handleNewConversation = () => {
-    // Navigate to the landing view — user will type their first message there
-    setActiveConvo('');
-    setConversationId(null);
-    setMessages([]);
-    setError(null);
-    if (typeof window !== 'undefined') {
-      window.history.pushState({}, '', '/chat');
+  const handleNewConversation = async () => {
+    // Create a new conversation immediately and navigate to it
+    try {
+      const res = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'New Conversation' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const newId = data.conversation?.id;
+        if (newId) {
+          setConversations(prev => [
+            { id: newId, title: 'New Conversation', lastMessage: '', timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
+            ...prev,
+          ]);
+          setActiveConvo(newId);
+          setConversationId(newId);
+          setMessages([]);
+          setError(null);
+          setMobileSidebarOpen(false);
+          if (typeof window !== 'undefined') {
+            window.history.pushState({}, '', `/chat/${newId}`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to create new conversation:', err);
     }
   };
 
