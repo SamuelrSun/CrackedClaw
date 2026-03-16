@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Dopl",
+  title: "Privacy Policy",
   description: "Dopl AI Companion Privacy Policy",
 };
 

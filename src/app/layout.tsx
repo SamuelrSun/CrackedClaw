@@ -21,8 +21,51 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dopl",
-  description: "AI Agent Management Platform",
+  title: {
+    default: "Dopl — Your AI Companion",
+    template: "%s — Dopl",
+  },
+  description: "A fully autonomous AI companion that connects to your apps, manages your workflow, and gets things done. Google, Slack, GitHub, and 100+ integrations.",
+  metadataBase: new URL("https://usedopl.com"),
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/site.webmanifest",
+  openGraph: {
+    title: "Dopl — Your AI Companion",
+    description: "A fully autonomous AI companion that connects to your apps, manages your workflow, and gets things done.",
+    url: "https://usedopl.com",
+    siteName: "Dopl",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Dopl AI Companion",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Dopl — Your AI Companion",
+    description: "A fully autonomous AI companion that connects to your apps, manages your workflow, and gets things done.",
+    images: ["/og-image.jpg"],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Dopl",
+  },
+  other: {
+    "theme-color": "#0a0a0f",
+    "msapplication-TileColor": "#0a0a0f",
+  },
 };
 
 export default function RootLayout({

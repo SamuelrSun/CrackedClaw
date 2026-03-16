@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Dopl",
+  title: "Terms of Service",
   description: "Dopl AI Companion Terms of Service",
 };
 
