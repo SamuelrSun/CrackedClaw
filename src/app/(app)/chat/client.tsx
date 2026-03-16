@@ -2573,8 +2573,21 @@ User message: `
             onRemove={(id) => setAttachedFiles(prev => prev.filter(f => f.id !== id))}
           />
           <div
-            className="bg-white/[0.08] border border-white/[0.1] rounded-[10px] overflow-hidden"
+            className="relative bg-white/[0.08] border border-white/[0.1] rounded-[10px] overflow-hidden"
           >
+            {/* Connection status indicators — top-right of input box */}
+            <div className="absolute top-2 right-3 flex items-center gap-2.5 pointer-events-none z-10">
+              <div className="flex items-center gap-1">
+                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isConnected ? "bg-emerald-500" : isReconnecting ? "bg-amber-400 animate-pulse" : "bg-red-500"}`} />
+                <span className="font-mono text-[9px] text-white/30">{isConnected ? "connected" : isReconnecting ? "reconnecting" : "offline"}</span>
+              </div>
+              {gateway && (
+                <div className="flex items-center gap-1">
+                  <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${wsConnected ? "bg-emerald-500" : wsConnecting ? "bg-amber-400 animate-pulse" : "bg-red-500/60"}`} />
+                  <span className="font-mono text-[9px] text-white/30">{wsConnected ? "ws" : wsConnecting ? "ws…" : "ws off"}</span>
+                </div>
+              )}
+            </div>
             <textarea
               value={input}
               onChange={(e) => {
