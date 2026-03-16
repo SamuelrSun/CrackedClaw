@@ -2,16 +2,13 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Integration, IntegrationAccount } from "@/types/integration";
-import { IntegrationGridSkeleton } from "@/components/skeletons/integration-skeleton";
 import type { ResolvedIntegration } from "@/lib/integrations/resolver";
 import { IntegrationIcon } from "@/components/integrations/integration-icon";
 import { INTEGRATIONS } from "@/lib/integrations/registry";
 import { Star, Trash2, Plus } from "lucide-react";
+import { GlassNavbar } from "@/components/layout/glass-navbar";
 
 
 // ── Deep Scan types ──────────────────────────────────────────────────────────
@@ -544,7 +541,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
           slug: regEntry.id,
           icon: regEntry.icon,
           type: 'browser' as const,
-          status: 'syncing' as const, // Pending = yellow state
+          status: 'syncing' as const,
           config: { needs_node: true },
           accounts: [],
           last_sync: null,
@@ -558,8 +555,8 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
         });
         // Start polling for status change (pending → connected)
         const pollBrowserStatus = async () => {
-          for (let i = 0; i < 60; i++) { // Poll for up to 5 minutes
-            await new Promise(r => setTimeout(r, 5000)); // Check every 5s
+          for (let i = 0; i < 60; i++) {
+            await new Promise(r => setTimeout(r, 5000));
             try {
               const statusRes = await fetch(`/api/integrations/status-by-slugs`, {
                 method: 'POST',
@@ -576,10 +573,9 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
               }
             } catch { /* continue polling */ }
           }
-          // Timeout — still show as pending
           toast.info(`${regEntry.name} login`, 'Still waiting for login. The card will update when detected.');
         };
-        pollBrowserStatus(); // Fire and forget
+        pollBrowserStatus();
       } catch {
         toast.error('Error', `Failed to connect ${regEntry.name}`);
       }
@@ -686,225 +682,287 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
 
   const hasIntegrations = items.length > 0;
 
-  return (
-    <div className="p-6">
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h1 className="font-header text-3xl font-bold tracking-tight leading-tight">
-            Integrations
-          </h1>
-          <p className="font-mono text-[10px] uppercase tracking-wide text-white/50 mt-1">
-            Connect any app or service
-          </p>
+  // Quick Connect section
+  const quickConnectSection = (() => {
+    const connectedSlugs = new Set(items.map(i => i.slug));
+    const visible = POPULAR_INTEGRATIONS.filter(p =>
+      !dismissedIds.includes(p.id) && !connectedSlugs.has(p.id)
+    );
+    if (visible.length === 0) return null;
+    return (
+      <>
+        <div className="mb-3">
+          <p className="font-mono text-[11px] uppercase tracking-wide text-white/80 font-semibold">📌 Quick Connect</p>
+          <p className="font-mono text-[9px] text-white/40 mt-0.5">Popular integrations — click to connect, ✕ to dismiss</p>
         </div>
-        <div className="flex items-center gap-2">
-          {items.filter(i => i.status === 'connected').length > 0 && (
-            <button
-              onClick={checkAllStatuses}
-              disabled={statusCheckInProgress}
-              className="font-mono text-[10px] uppercase tracking-wide px-3 py-2 border border-white/[0.1] text-white/60 hover:text-white/80 hover:border-white/[0.3] transition-colors disabled:opacity-50"
-              title="Verify all integration connections"
-            >
-              {statusCheckInProgress ? '⟳ Checking...' : '⟳ Verify All'}
-            </button>
-          )}
-          <Link href="/integrations/add">
-            <Button variant="solid">
-              <span className="mr-1">+</span> Add Integration
-            </Button>
-          </Link>
-        </div>
-      </div>
-
-      {/* Popular Integrations Quick Connect */}
-      {(() => {
-        const connectedSlugs = new Set(items.map(i => i.slug));
-        const visible = POPULAR_INTEGRATIONS.filter(p =>
-          !dismissedIds.includes(p.id) && !connectedSlugs.has(p.id)
-        );
-        if (visible.length === 0) return null;
-        return (
-          <div className="mb-6 border border-white/[0.1] bg-white/[0.03] p-4">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-wide text-white/80 font-semibold">📌 Quick Connect</p>
-                <p className="font-mono text-[9px] text-white/40 mt-0.5">Popular integrations — click to connect, ✕ to dismiss</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {visible.map(p => {
-                const reg = INTEGRATIONS.find(r => r.id === p.id);
-                if (!reg) return null;
-                const needsNode = reg.authType === 'browser-login';
-                const isConnected = items.some(i => i.slug === p.id || i.id === p.id);
-                return (
-                  <div key={p.id} className="relative flex items-center gap-1.5 border border-white/[0.1] bg-white/[0.05] px-2.5 py-1.5 pr-6 hover:border-white/[0.3] transition-colors group">
-                    <IntegrationIcon provider={p.id} size={16} />
-                    <span className="font-mono text-[10px] text-white/80">{reg.name}</span>
-                    {needsNode && (
-                      <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-500/20 text-amber-300 px-1 py-0.5 border border-amber-400/30 leading-none">Node</span>
-                    )}
-                    {isConnected ? (
-                      <span className="text-[#9EFFBF] text-xs">✓</span>
-                    ) : (
-                      <button
-                        onClick={() => connectPopular(p.id)}
-                        className="font-mono text-[9px] uppercase tracking-wide text-[#9EFFBF] border border-white/[0.15] px-1.5 py-0.5 hover:bg-white/[0.08] transition-colors leading-none"
-                      >
-                        Connect
-                      </button>
-                    )}
-                    <button
-                      onClick={() => dismissPopular(p.id)}
-                      className="absolute top-0.5 right-0.5 text-white/30 hover:text-white/70 transition-colors text-[10px] leading-none w-4 h-4 flex items-center justify-center"
-                      title="Dismiss"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Dynamic integration search bar */}
-      <form onSubmit={handleResolve} className="mb-6">
-        <div className="flex gap-2 items-center border border-white/[0.12] bg-white/[0.03] p-3">
-          <span className="text-lg">🔌</span>
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder='Connect any app... e.g. "Notion, Linear, LinkedIn" or "I use Attio for CRM and check Twitter daily"'
-            className="flex-1 bg-transparent font-mono text-xs outline-none placeholder:text-white/30 text-white/80"
-          />
-          <button
-            type="submit"
-            disabled={resolving || !query.trim()}
-            className="font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 bg-white/[0.12] text-white/90 hover:bg-white/[0.18] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {resolving ? "Resolving..." : "Connect →"}
-          </button>
-        </div>
-        <p className="font-mono text-[9px] text-white/30 mt-1 ml-1">
-          Any app, any service — we'll figure out how to connect it
-        </p>
-      </form>
-
-      {/* Resolved integration cards */}
-      {resolvedCards.length > 0 && (
-        <div className="mb-6">
-          <p className="font-mono text-[10px] uppercase tracking-wide text-white/40 mb-3">Found {resolvedCards.length} service{resolvedCards.length > 1 ? 's' : ''}</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {resolvedCards.map((card, i) => (
-              <div key={card.resolved.slug} className="border border-white/[0.1] bg-white/[0.03] p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <IntegrationIcon provider={card.resolved.slug} size={36} />
-                    <div>
-                      <p className="font-header font-bold text-sm">{card.resolved.name}</p>
-                      <p className="font-mono text-[9px] text-white/40 uppercase">{card.resolved.category}</p>
-                    </div>
-                  </div>
-                  {card.resolved.needsNode && (
-                    <span className="font-mono text-[9px] uppercase tracking-wide bg-amber-500/20 text-amber-300 px-2 py-0.5 border border-amber-400/30">
-                      Requires Node
-                    </span>
-                  )}
-                  {!card.resolved.needsNode && (
-                    <span className="font-mono text-[9px] uppercase tracking-wide bg-white/[0.06] text-[#9EFFBF] px-2 py-0.5 border border-white/[0.1]">
-                      {card.resolved.authType === 'api_key' ? 'API Key' : 'OAuth'}
-                    </span>
-                  )}
-                </div>
-                <p className="font-mono text-[10px] text-white/50 mb-3">{card.resolved.description}</p>
-                {card.resolved.needsNode && (
-                  <p className="font-mono text-[9px] text-amber-600 mb-3">
-                    This service has no public API — your local node will use browser automation to access it.
-                  </p>
+        <div className="flex flex-wrap gap-2">
+          {visible.map(p => {
+            const reg = INTEGRATIONS.find(r => r.id === p.id);
+            if (!reg) return null;
+            const needsNode = reg.authType === 'browser-login';
+            const isConnected = items.some(i => i.slug === p.id || i.id === p.id);
+            return (
+              <div key={p.id} className="relative flex items-center gap-1.5 border border-white/[0.1] bg-white/[0.05] px-2.5 py-1.5 pr-6 hover:border-white/[0.3] transition-colors group">
+                <IntegrationIcon provider={p.id} size={16} />
+                <span className="font-mono text-[10px] text-white/80">{reg.name}</span>
+                {needsNode && (
+                  <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-500/20 text-amber-300 px-1 py-0.5 border border-amber-400/30 leading-none">Node</span>
                 )}
-                {card.created ? (
-                  <div className="flex items-center gap-1 font-mono text-[10px] text-[#9EFFBF]">
-                    <span>✓</span> Added to integrations
-                  </div>
+                {isConnected ? (
+                  <span className="text-emerald-600 text-xs">✓</span>
                 ) : (
                   <button
-                    onClick={() => connectResolved(i)}
-                    disabled={card.creating}
-                    className="w-full py-1.5 font-mono text-[10px] uppercase tracking-wide border border-grid/40 hover:bg-grid hover:text-paper transition-colors disabled:opacity-50"
+                    onClick={() => connectPopular(p.id)}
+                    className="font-mono text-[9px] uppercase tracking-wide text-emerald-600 border border-white/[0.15] px-1.5 py-0.5 hover:bg-white/[0.08] transition-colors leading-none"
                   >
-                    {card.creating ? "Adding..." : card.resolved.needsNode ? "Add (Browser via Node)" : "Add Integration"}
+                    Connect
                   </button>
                 )}
+                <button
+                  onClick={() => dismissPopular(p.id)}
+                  className="absolute top-0.5 right-0.5 text-white/30 hover:text-white/70 transition-colors text-[10px] leading-none w-4 h-4 flex items-center justify-center"
+                  title="Dismiss"
+                >
+                  ✕
+                </button>
               </div>
-            ))}
+            );
+          })}
+        </div>
+      </>
+    );
+  })();
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex flex-col p-[7px] gap-[7px]"
+      style={{
+        backgroundImage: "url('/img/landing_background.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      <GlassNavbar />
+
+      <div className="flex-1 overflow-y-auto flex flex-col gap-[7px] min-h-0">
+
+        {/* Quick Connect + Maton panel */}
+        <div className="bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 p-5">
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex-1">
+              {quickConnectSection}
+            </div>
+            <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+              {items.filter(i => i.status === 'connected').length > 0 && (
+                <button
+                  onClick={checkAllStatuses}
+                  disabled={statusCheckInProgress}
+                  className="font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 border border-white/[0.1] text-white/60 hover:text-white/80 hover:border-white/[0.3] transition-colors disabled:opacity-50"
+                  title="Verify all integration connections"
+                >
+                  {statusCheckInProgress ? '⟳ Checking...' : '⟳ Verify All'}
+                </button>
+              )}
+              <Link href="/integrations/add">
+                <button className="font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 border border-white/[0.1] text-white/70 hover:bg-white/[0.08] hover:text-white/90 transition-colors flex items-center gap-1.5">
+                  <Plus size={12} />
+                  Add Integration
+                </button>
+              </Link>
+            </div>
+          </div>
+
+          {/* Maton API section */}
+          <div className="mt-4 pt-4 border-t border-white/[0.08]">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-sm font-semibold text-white/80">Maton API Gateway</span>
+                <p className="text-xs text-white/40 mt-0.5">
+                  Access 100+ cloud APIs through a single key —{' '}
+                  <a href="https://maton.ai" target="_blank" rel="noreferrer" className="text-white/60 hover:text-white/80 underline">
+                    maton.ai
+                  </a>
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="password"
+                  placeholder="Enter Maton API key..."
+                  className="bg-white/[0.06] border border-white/[0.1] rounded-[4px] px-3 py-1.5 text-xs text-white/80 placeholder:text-white/30 outline-none focus:border-white/[0.25] w-64"
+                />
+                <button className="px-3 py-1.5 text-xs font-medium text-white/70 border border-white/[0.1] rounded-[4px] hover:bg-white/[0.08] transition-colors">
+                  Save
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      )}
 
-      {isLoading ? (
-        <IntegrationGridSkeleton count={6} />
-      ) : hasIntegrations ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((integration) => {
-            const accountCount = integration.accounts.length;
-            const badgeText = integration.status === "connected" 
-              ? (accountCount === 1 ? '1 Account' : accountCount + ' Accounts') + ' Connected' 
-              : integration.status === 'syncing' ? 'Waiting for login...'
-              : 'Disconnected';
-            const needsNode = getNeedsNode(integration);
-            const liveStatus = liveStatuses[integration.slug];
+        {/* Search bar panel */}
+        <div className="bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 p-4">
+          <form onSubmit={handleResolve}>
+            <div className="flex gap-2 items-center">
+              <span className="text-lg">🔌</span>
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder='Connect any app... e.g. "Notion, Linear, LinkedIn" or "I use Attio for CRM and check Twitter daily"'
+                className="flex-1 bg-transparent font-mono text-xs outline-none placeholder:text-white/30 text-white/80"
+              />
+              <button
+                type="submit"
+                disabled={resolving || !query.trim()}
+                className="font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 bg-white/[0.12] text-white/90 hover:bg-white/[0.18] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {resolving ? "Resolving..." : "Connect →"}
+              </button>
+            </div>
+          </form>
+          <p className="font-mono text-[9px] text-white/30 mt-2">
+            Any app, any service — we'll figure out how to connect it
+          </p>
+        </div>
 
-            return (
-              <Card key={integration.id} label={<IntegrationIcon provider={integration.slug || ""} size={36} />} accentColor={integration.status === "connected" ? "#9EFFBF" : undefined} bordered={true}>
-                <div className="mt-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-header text-sm font-medium tracking-tight text-white/70">{integration.name}</h3>
-                    <div className="flex items-center gap-1">
-                      {needsNode && (
-                        <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-500/20 text-amber-300 px-1.5 py-0.5 border border-amber-400/30">
-                          Node
-                        </span>
-                      )}
-                      {/* Live status indicator */}
-                      {liveStatus && integration.status === "connected" && (
-                        <span className="relative flex-shrink-0" title={
-                          liveStatus.tokenStatus === 'checking' ? 'Checking connection...' :
-                          liveStatus.tokenStatus === 'valid' ? 'Connection verified' :
-                          liveStatus.tokenStatus === 'refreshed' ? 'Token refreshed' :
-                          liveStatus.tokenStatus === 'expired' ? 'Token expired — re-authenticate' :
-                          liveStatus.tokenStatus === 'browser' ? 'Browser-based connection' :
-                          'Connection error'
-                        }>
-                          {liveStatus.tokenStatus === 'checking' ? (
-                            <span className="flex h-2.5 w-2.5">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400" />
+        {/* Resolved integration cards */}
+        {resolvedCards.length > 0 && (
+          <div className="bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 p-5">
+            <p className="font-mono text-[10px] uppercase tracking-wide text-white/40 mb-3">
+              Found {resolvedCards.length} service{resolvedCards.length > 1 ? 's' : ''}
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[7px]">
+              {resolvedCards.map((card, i) => (
+                <div key={card.resolved.slug} className="bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <IntegrationIcon provider={card.resolved.slug} size={36} />
+                      <div>
+                        <p className="font-header font-bold text-sm text-white/90">{card.resolved.name}</p>
+                        <p className="font-mono text-[9px] text-white/40 uppercase">{card.resolved.category}</p>
+                      </div>
+                    </div>
+                    {card.resolved.needsNode ? (
+                      <span className="font-mono text-[9px] uppercase tracking-wide bg-amber-500/20 text-amber-300 px-2 py-0.5 border border-amber-400/30">
+                        Requires Node
+                      </span>
+                    ) : (
+                      <span className="font-mono text-[9px] uppercase tracking-wide bg-white/[0.06] text-emerald-600 px-2 py-0.5 border border-white/[0.1]">
+                        {card.resolved.authType === 'api_key' ? 'API Key' : 'OAuth'}
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-mono text-[10px] text-white/50 mb-3">{card.resolved.description}</p>
+                  {card.resolved.needsNode && (
+                    <p className="font-mono text-[9px] text-amber-600 mb-3">
+                      This service has no public API — your local node will use browser automation to access it.
+                    </p>
+                  )}
+                  {card.created ? (
+                    <div className="flex items-center gap-1 font-mono text-[10px] text-emerald-600">
+                      <span>✓</span> Added to integrations
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => connectResolved(i)}
+                      disabled={card.creating}
+                      className="w-full py-1.5 font-mono text-[10px] uppercase tracking-wide border border-white/[0.1] text-white/70 hover:bg-white/[0.08] hover:text-white/90 transition-colors disabled:opacity-50"
+                    >
+                      {card.creating ? "Adding..." : card.resolved.needsNode ? "Add (Browser via Node)" : "Add Integration"}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Integration cards grid */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[7px]">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 p-5 h-48 animate-pulse" />
+            ))}
+          </div>
+        ) : hasIntegrations ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[7px]">
+            {items.map((integration) => {
+              const accountCount = integration.accounts.length;
+              const badgeText = integration.status === "connected"
+                ? (accountCount === 1 ? '1 Account' : accountCount + ' Accounts') + ' Connected'
+                : integration.status === 'syncing' ? 'Waiting for login...'
+                : 'Disconnected';
+              const needsNode = getNeedsNode(integration);
+              const liveStatus = liveStatuses[integration.slug];
+
+              return (
+                <div
+                  key={integration.id}
+                  className="bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 p-5"
+                  style={integration.status === "connected" ? { borderColor: 'rgba(5, 150, 105, 0.3)' } : undefined}
+                >
+                  {/* Card header */}
+                  <div className="flex items-start gap-3 mb-3">
+                    <IntegrationIcon provider={integration.slug || ""} size={36} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="font-header text-sm font-medium tracking-tight text-white/80">{integration.name}</h3>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {needsNode && (
+                            <span className="font-mono text-[8px] uppercase tracking-wide bg-amber-500/20 text-amber-300 px-1.5 py-0.5 border border-amber-400/30">
+                              Node
                             </span>
-                          ) : liveStatus.tokenStatus === 'valid' || liveStatus.tokenStatus === 'refreshed' ? (
-                            <span className="flex h-2.5 w-2.5">
-                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                          )}
+                          {/* Live status dot */}
+                          {liveStatus && integration.status === "connected" && (
+                            <span
+                              className="relative flex-shrink-0"
+                              title={
+                                liveStatus.tokenStatus === 'checking' ? 'Checking connection...' :
+                                liveStatus.tokenStatus === 'valid' ? 'Connection verified' :
+                                liveStatus.tokenStatus === 'refreshed' ? 'Token refreshed' :
+                                liveStatus.tokenStatus === 'expired' ? 'Token expired — re-authenticate' :
+                                liveStatus.tokenStatus === 'browser' ? 'Browser-based connection' :
+                                'Connection error'
+                              }
+                            >
+                              {liveStatus.tokenStatus === 'checking' ? (
+                                <span className="flex h-2.5 w-2.5">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400" />
+                                </span>
+                              ) : liveStatus.tokenStatus === 'valid' || liveStatus.tokenStatus === 'refreshed' ? (
+                                <span className="flex h-2.5 w-2.5">
+                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-700" />
+                                </span>
+                              ) : liveStatus.tokenStatus === 'expired' || liveStatus.tokenStatus === 'error' ? (
+                                <span className="flex h-2.5 w-2.5">
+                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+                                </span>
+                              ) : liveStatus.tokenStatus === 'browser' ? (
+                                <span className="flex h-2.5 w-2.5">
+                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-400" />
+                                </span>
+                              ) : null}
                             </span>
-                          ) : liveStatus.tokenStatus === 'expired' || liveStatus.tokenStatus === 'error' ? (
-                            <span className="flex h-2.5 w-2.5">
-                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
-                            </span>
-                          ) : liveStatus.tokenStatus === 'browser' ? (
-                            <span className="flex h-2.5 w-2.5">
-                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-400" />
-                            </span>
-                          ) : null}
-                        </span>
-                      )}
-                      <Badge status={integration.status === "connected" ? "active" : "inactive"}>{badgeText}</Badge>
+                          )}
+                          {/* Status badge */}
+                          <span className={`font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 border ${
+                            integration.status === 'connected'
+                              ? 'text-emerald-600 border-emerald-700/30 bg-emerald-900/20'
+                              : integration.status === 'syncing'
+                              ? 'text-amber-400 border-amber-500/30 bg-amber-900/20'
+                              : 'text-white/40 border-white/[0.08] bg-white/[0.03]'
+                          }`}>
+                            {badgeText}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   {needsNode && integration.status === "disconnected" && (
-                    <div className="mt-3 p-2 bg-amber-500/10 border border-amber-400/30">
+                    <div className="mb-3 p-2 bg-amber-500/10 border border-amber-400/30">
                       <p className="font-mono text-[9px] text-amber-300">
                         Uses browser automation.{' '}
                         <a href="/settings/nodes" className="underline">Connect your desktop via Settings</a>.
@@ -914,7 +972,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
 
                   {/* Token expired warning */}
                   {liveStatus?.tokenStatus === 'expired' && (
-                    <div className="mt-3 p-2 bg-red-500/10 border border-red-400/30 flex items-center justify-between">
+                    <div className="mb-3 p-2 bg-red-500/10 border border-red-400/30 flex items-center justify-between">
                       <p className="font-mono text-[9px] text-red-300">
                         ⚠ Token expired — re-authenticate to restore access
                       </p>
@@ -927,37 +985,35 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                     </div>
                   )}
 
-                  <div className="mt-4">
+                  {/* Connected Accounts */}
+                  <div>
                     <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">Connected Accounts</span>
                     {integration.accounts.length > 0 ? (
                       <div className="mt-2 space-y-1.5">
                         {integration.accounts.map((account) => (
                           <div key={account.id} className="flex items-center gap-2 py-1.5 px-2 border border-white/[0.08] bg-white/[0.03]">
-                            {/* Avatar */}
                             {account.picture ? (
                               <img src={account.picture} alt="" className="w-6 h-6 rounded-full flex-shrink-0" />
                             ) : (
                               <div className="w-6 h-6 rounded-full bg-white/[0.06] flex items-center justify-center flex-shrink-0">
-                                <span className="font-mono text-[9px] text-[#9EFFBF] uppercase">{(account.email || account.name || '?')[0]}</span>
+                                <span className="font-mono text-[9px] text-emerald-600 uppercase">{(account.email || account.name || '?')[0]}</span>
                               </div>
                             )}
-                            {/* Account info */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
                                 <span className="font-mono text-[10px] text-white/80 truncate">{account.email || account.name || 'Account'}</span>
                                 {account.is_default && (
-                                  <span className="flex-shrink-0 font-mono text-[8px] uppercase tracking-wide bg-white/[0.06] text-[#9EFFBF] px-1.5 py-0.5 border border-white/[0.1]">Default</span>
+                                  <span className="flex-shrink-0 font-mono text-[8px] uppercase tracking-wide bg-white/[0.06] text-emerald-600 px-1.5 py-0.5 border border-white/[0.1]">Default</span>
                                 )}
                               </div>
                               <span className="font-mono text-[9px] text-white/40">Connected {account.connectedAt}</span>
                             </div>
-                            {/* Actions */}
                             <div className="flex items-center gap-1 flex-shrink-0">
                               {!account.is_default && (
                                 <button
                                   onClick={() => setAsDefault(integration.id, account.id)}
                                   title="Set as default"
-                                  className="p-1 text-white/30 hover:text-[#9EFFBF] transition-colors"
+                                  className="p-1 text-white/30 hover:text-emerald-600 transition-colors"
                                 >
                                   <Star size={12} />
                                 </button>
@@ -965,7 +1021,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                               <button
                                 onClick={() => disconnectAccount(integration.id, account.id)}
                                 title="Disconnect"
-                                className="p-1 text-white/30 hover:text-coral transition-colors"
+                                className="p-1 text-white/30 hover:text-red-400 transition-colors"
                               >
                                 <Trash2 size={12} />
                               </button>
@@ -976,7 +1032,10 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                     ) : (
                       <p className="mt-2 font-mono text-[11px] text-white/40 italic">No accounts connected</p>
                     )}
-                    <button onClick={() => addAccount(integration.id)} className="mt-3 w-full py-2 px-3 font-mono text-[11px] uppercase tracking-wide text-[#9EFFBF] border border-white/[0.15] hover:bg-white/[0.04] transition-colors flex items-center justify-center gap-1.5">
+                    <button
+                      onClick={() => addAccount(integration.id)}
+                      className="mt-3 w-full py-2 px-3 font-mono text-[11px] uppercase tracking-wide text-emerald-600 border border-white/[0.15] hover:bg-white/[0.04] transition-colors flex items-center justify-center gap-1.5"
+                    >
                       <Plus size={14} />
                       <span>{integration.accounts.length > 0 ? 'Add Account' : 'Connect'}</span>
                     </button>
@@ -987,7 +1046,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                       <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">Scopes</span>
                       <div className="flex gap-1 mt-1 flex-wrap">
                         {getScopes(integration).map((scope) => (
-                          <span key={scope} className="font-mono text-[10px] bg-white/[0.04] px-2 py-0.5 border border-white/[0.08]">{scope}</span>
+                          <span key={scope} className="font-mono text-[10px] bg-white/[0.04] px-2 py-0.5 border border-white/[0.08] text-white/60">{scope}</span>
                         ))}
                       </div>
                     </div>
@@ -995,26 +1054,29 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
 
                   <p className="font-mono text-[10px] text-white/40 mt-4">Last sync: {integration.last_sync || "Never"}</p>
 
-                  {/* Deep Scan — only for connected integrations with a known provider */}
+                  {/* Deep Scan */}
                   {integration.status === "connected" && (
                     <DeepScanPanel provider={integration.slug || integration.name?.toLowerCase() || ""} />
                   )}
                 </div>
-              </Card>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="border border-white/[0.1] bg-white/[0.03] p-12 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 border border-white/[0.1] flex items-center justify-center">
-            <span className="text-2xl">🔗</span>
+              );
+            })}
           </div>
-          <h2 className="font-header text-xl font-bold mb-2">No integrations yet</h2>
-          <p className="text-sm text-white/50 mb-6 max-w-md mx-auto">
-            Use the search bar above to connect any app — just type what you use and we'll figure out the rest.
-          </p>
-        </div>
-      )}
+        ) : (
+          <div className="bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 p-12 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 border border-white/[0.1] flex items-center justify-center">
+              <span className="text-2xl">🔗</span>
+            </div>
+            <h2 className="font-header text-xl font-bold mb-2 text-white/90">No integrations yet</h2>
+            <p className="text-sm text-white/50 mb-6 max-w-md mx-auto">
+              Use the search bar above to connect any app — just type what you use and we'll figure out the rest.
+            </p>
+          </div>
+        )}
+
+        {/* Bottom padding */}
+        <div className="h-2 shrink-0" />
+      </div>
     </div>
   );
 }
