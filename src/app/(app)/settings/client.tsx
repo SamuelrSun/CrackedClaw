@@ -74,7 +74,7 @@ function CompanionSetupInline() {
 
   return (
     <div className="mt-4 space-y-4">
-      <p className="text-[13px] text-white/50 leading-relaxed">
+      <p className="text-[13px] text-white/70 leading-relaxed">
         The companion app runs on your Mac and gives your AI access to local apps, files, and your browser.
       </p>
 
@@ -84,11 +84,11 @@ function CompanionSetupInline() {
       >
         <Download className="w-4 h-4 text-emerald-400 flex-shrink-0" />
         <span>Download Dopl Connect (.dmg)</span>
-        <ArrowRight className="w-3 h-3 ml-auto text-white/40" />
+        <ArrowRight className="w-3 h-3 ml-auto text-white/60" />
       </a>
 
       <div className="space-y-3">
-        <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Setup</p>
+        <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Setup</p>
         {[
           { n: "1", title: "Install the app", desc: "Open the downloaded .dmg and drag Dopl Connect to Applications." },
           { n: "2", title: "Grant permissions", desc: "Enable Accessibility, Screen Recording, and Full Disk Access in System Settings → Privacy & Security." },
@@ -98,19 +98,19 @@ function CompanionSetupInline() {
             <span className="text-[13px] text-emerald-400 font-bold w-5 flex-shrink-0 pt-0.5">{step.n}.</span>
             <div>
               <p className="text-[13px] text-white/80 font-medium">{step.title}</p>
-              <p className="text-[12px] text-white/40 mt-0.5 leading-relaxed">{step.desc}</p>
+              <p className="text-[12px] text-white/60 mt-0.5 leading-relaxed">{step.desc}</p>
             </div>
           </div>
         ))}
       </div>
 
       <div className="space-y-2">
-        <p className="text-[11px] uppercase tracking-widest text-white/30">Connection Token</p>
+        <p className="text-[11px] uppercase tracking-widest text-white/50">Connection Token</p>
         {tokenLoading ? (
           <div className="h-10 bg-white/[0.05] animate-pulse" />
         ) : token ? (
           <div className="flex items-center gap-2">
-            <code className="flex-1 text-[11px] text-white/60 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate">
+            <code className="flex-1 text-[11px] text-white/75 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate">
               {token}
             </code>
             <button
@@ -118,7 +118,7 @@ function CompanionSetupInline() {
               className="flex-shrink-0 p-2.5 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 transition-colors"
               title="Copy token"
             >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-white/50" />}
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-white/70" />}
             </button>
           </div>
         ) : (
@@ -133,8 +133,8 @@ function CompanionPermissionsSection({ isConnected }: { isConnected: boolean }) 
   return (
     <div className="mt-5 space-y-3">
       <div className="h-px w-full bg-white/[0.08]" />
-      <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Companion Permissions</p>
-      <p className="text-[12px] text-white/40 leading-relaxed">
+      <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Companion Permissions</p>
+      <p className="text-[12px] text-white/60 leading-relaxed">
         Dopl Connect needs these macOS permissions to operate on your behalf. The app will prompt you on first launch — just click Allow.
       </p>
       <div className="space-y-2">
@@ -147,7 +147,7 @@ function CompanionPermissionsSection({ isConnected }: { isConnected: boolean }) 
             <span className="text-[16px] flex-shrink-0">{p.icon}</span>
             <div>
               <p className="text-[13px] text-white/80 font-medium">{p.label}</p>
-              <p className="text-[12px] text-white/40 mt-0.5 leading-relaxed">{p.desc}</p>
+              <p className="text-[12px] text-white/60 mt-0.5 leading-relaxed">{p.desc}</p>
             </div>
           </div>
         ))}
@@ -157,8 +157,8 @@ function CompanionPermissionsSection({ isConnected }: { isConnected: boolean }) 
           ✅ Companion is connected. Permissions should be active.
         </p>
       ) : (
-        <p className="text-[11px] text-white/30 leading-relaxed">
-          If you missed a prompt, open <strong className="text-white/50">System Settings → Privacy &amp; Security</strong> and grant the permissions manually.
+        <p className="text-[11px] text-white/50 leading-relaxed">
+          If you missed a prompt, open <strong className="text-white/70">System Settings → Privacy &amp; Security</strong> and grant the permissions manually.
         </p>
       )}
     </div>
@@ -197,11 +197,11 @@ function ConnectedDevicesSection() {
     <div className="space-y-3">
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 bg-white/[0.06] flex items-center justify-center flex-shrink-0">
-          <Smartphone className="w-4 h-4 text-white/50" />
+          <Smartphone className="w-4 h-4 text-white/70" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[13px] text-white/80 font-medium">Companion App</p>
-          <p className="text-[12px] text-white/40 mt-0.5">
+          <p className="text-[12px] text-white/60 mt-0.5">
             {!loaded ? "Checking…" : hasConnected ? "Connected to your Mac" : "Not connected"}
           </p>
         </div>
@@ -219,9 +219,9 @@ function ConnectedDevicesSection() {
           ))}
           {offlineDevices.map(d => (
             <div key={d.id} className="flex items-center gap-2.5 py-1.5 px-3 bg-white/[0.03] opacity-40">
-              <Monitor className="w-3.5 h-3.5 text-white/30 flex-shrink-0" />
-              <span className="text-[13px] text-white/50 truncate flex-1">{d.name}</span>
-              <span className="text-[10px] uppercase tracking-wider text-white/30 ml-auto">Offline</span>
+              <Monitor className="w-3.5 h-3.5 text-white/50 flex-shrink-0" />
+              <span className="text-[13px] text-white/70 truncate flex-1">{d.name}</span>
+              <span className="text-[10px] uppercase tracking-wider text-white/50 ml-auto">Offline</span>
             </div>
           ))}
         </div>
@@ -250,7 +250,7 @@ function CopyButton({ value, label }: { value: string; label?: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/50 text-[11px] transition-colors"
+      className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/70 text-[11px] transition-colors"
       title={label ? `Copy ${label}` : "Copy"}
     >
       {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -271,14 +271,14 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
   return (
     <div className="space-y-4">
       {!hasInstance ? (
-        <p className="text-[12px] text-white/40 leading-relaxed">
+        <p className="text-[12px] text-white/60 leading-relaxed">
           No instance provisioned yet. Upgrade to a paid plan to get a dedicated OpenClaw instance with browser relay support.
         </p>
       ) : (
         <>
           {/* Instance URL */}
           <div className="space-y-1.5">
-            <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Instance URL</p>
+            <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Instance URL</p>
             <div className="flex items-center gap-2">
               <code className="flex-1 text-[11px] text-white/70 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate font-mono">
                 {instanceUrl}
@@ -289,9 +289,9 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
 
           {/* Relay URL */}
           <div className="space-y-1.5">
-            <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Relay URL</p>
+            <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Relay URL</p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-[11px] text-white/60 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate font-mono">
+              <code className="flex-1 text-[11px] text-white/75 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate font-mono">
                 {relayWssUrl}
               </code>
               <CopyButton value={relayWssUrl!} label="Copy" />
@@ -300,16 +300,16 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
 
           {/* Gateway Token */}
           <div className="space-y-1.5">
-            <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Gateway Token</p>
+            <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Gateway Token</p>
             {authToken ? (
               <div className="flex items-center gap-2">
-                <code className="flex-1 text-[11px] text-white/60 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate font-mono">
+                <code className="flex-1 text-[11px] text-white/75 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate font-mono">
                   {authToken.slice(0, 8)}••••••••••••••••{authToken.slice(-4)}
                 </code>
                 <CopyButton value={authToken} label="Copy" />
               </div>
             ) : (
-              <p className="text-[12px] text-white/30">No token available</p>
+              <p className="text-[12px] text-white/50">No token available</p>
             )}
           </div>
 
@@ -320,12 +320,12 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
           >
             <Download className="w-4 h-4 text-emerald-400 flex-shrink-0" />
             <span>Download Dopl Browser Relay Extension</span>
-            <ArrowRight className="w-3 h-3 ml-auto text-white/40" />
+            <ArrowRight className="w-3 h-3 ml-auto text-white/60" />
           </a>
 
           {/* Setup steps */}
           <div className="space-y-3">
-            <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Setup</p>
+            <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Setup</p>
             {[
               { n: "1", title: "Download & install", desc: "Download the Dopl Browser Relay extension and load it in Chrome." },
               { n: "2", title: "Open extension options", desc: "Click the extension icon in your toolbar → Options." },
@@ -337,7 +337,7 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
                 <span className="text-[13px] text-emerald-400 font-bold w-5 flex-shrink-0 pt-0.5">{step.n}.</span>
                 <div>
                   <p className="text-[13px] text-white/80 font-medium">{step.title}</p>
-                  <p className="text-[12px] text-white/40 mt-0.5 leading-relaxed">{step.desc}</p>
+                  <p className="text-[12px] text-white/60 mt-0.5 leading-relaxed">{step.desc}</p>
                 </div>
               </div>
             ))}
@@ -416,7 +416,7 @@ function DeleteAccountModal({ onClose }: { onClose: () => void }) {
           {loading ? (
             <div className="text-center py-8">
               <div className="w-6 h-6 border-2 border-white/20 border-t-white/60 rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-[12px] text-white/40">Loading account info…</p>
+              <p className="text-[12px] text-white/60">Loading account info…</p>
             </div>
           ) : error && !deletionInfo ? (
             <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-[12px]">
@@ -424,12 +424,12 @@ function DeleteAccountModal({ onClose }: { onClose: () => void }) {
             </div>
           ) : deletionInfo ? (
             <div className="space-y-4">
-              <p className="text-[13px] text-white/60 leading-relaxed">
+              <p className="text-[13px] text-white/75 leading-relaxed">
                 This action is permanent and cannot be undone. The following data will be permanently deleted:
               </p>
               <ul className="space-y-1.5">
                 {deletionInfo.dataToDelete.map((item, i) => (
-                  <li key={i} className="flex items-center gap-2 text-[12px] text-white/50">
+                  <li key={i} className="flex items-center gap-2 text-[12px] text-white/70">
                     <span className="w-1 h-1 rounded-full bg-red-400/60 flex-shrink-0" />
                     {item}
                   </li>
@@ -437,7 +437,7 @@ function DeleteAccountModal({ onClose }: { onClose: () => void }) {
               </ul>
 
               <div className="space-y-2">
-                <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">
+                <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">
                   Type <span className="text-red-400">DELETE</span> to confirm
                 </p>
                 <input
@@ -465,7 +465,7 @@ function DeleteAccountModal({ onClose }: { onClose: () => void }) {
           <button
             onClick={onClose}
             disabled={deleting}
-            className="px-4 py-2 text-[13px] text-white/60 hover:text-white/80 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-[13px] text-white/75 hover:text-white/80 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
@@ -579,12 +579,12 @@ export default function SettingsPageClient({
 
             {/* Account & Plan */}
             <div className={glassPanel}>
-              <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Account &amp; Plan</span>
+              <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium">Account &amp; Plan</span>
 
               <div className="mt-4 space-y-4">
                 {initialProfile?.email && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[12px] text-white/40">Email</span>
+                    <span className="text-[12px] text-white/60">Email</span>
                     <span className="text-[13px] text-white/80 font-medium truncate max-w-[65%] text-right">
                       {initialProfile.email}
                     </span>
@@ -593,8 +593,8 @@ export default function SettingsPageClient({
 
                 {initialProfile?.created_at && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[12px] text-white/40">Member since</span>
-                    <span className="text-[13px] text-white/60">
+                    <span className="text-[12px] text-white/60">Member since</span>
+                    <span className="text-[13px] text-white/75">
                       {new Date(initialProfile.created_at).toLocaleDateString("en-US", {
                         year: "numeric",
                         month: "long",
@@ -610,13 +610,13 @@ export default function SettingsPageClient({
                   <div className="h-5 bg-white/[0.05] animate-pulse" />
                 ) : (
                   <div className="flex items-center justify-between">
-                    <span className="text-[12px] text-white/40">Plan</span>
+                    <span className="text-[12px] text-white/60">Plan</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] uppercase tracking-wide px-2 py-0.5 border border-white/10 text-white/60 bg-white/[0.04]">
+                      <span className="text-[11px] uppercase tracking-wide px-2 py-0.5 border border-white/10 text-white/75 bg-white/[0.04]">
                         {billingPlan.charAt(0).toUpperCase() + billingPlan.slice(1)}
                       </span>
                       {billingPlan !== "free" && billingPeriodEnd && (
-                        <span className="text-[11px] text-white/30">
+                        <span className="text-[11px] text-white/50">
                           Renews {new Date(billingPeriodEnd).toLocaleDateString()}
                         </span>
                       )}
@@ -639,16 +639,16 @@ export default function SettingsPageClient({
             {/* Token Usage */}
             <div className={glassPanel}>
               <div className="flex items-center gap-2 mb-4">
-                <Zap className="w-4 h-4 text-white/40" />
-                <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Token Usage</span>
-                <span className="text-[12px] text-white/30 ml-auto">
+                <Zap className="w-4 h-4 text-white/60" />
+                <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium">Token Usage</span>
+                <span className="text-[12px] text-white/50 ml-auto">
                   Resets {featuredUsage?.resetDate ?? initialTokenUsage.resetDate}
                 </span>
               </div>
 
               <div className="flex items-baseline gap-3 mb-3">
                 <span className="text-4xl font-bold text-white/90 tracking-tight">{featuredPct}%</span>
-                <span className="text-[13px] text-white/40">
+                <span className="text-[13px] text-white/60">
                   {featuredUsage
                     ? `${Math.round(featuredUsage.used / 1000)}k / ${Math.round(featuredUsage.limit / 1000)}k`
                     : `${Math.round(initialTokenUsage.used / 1000)}k / ${Math.round(initialTokenUsage.limit / 1000)}k`}
@@ -669,8 +669,8 @@ export default function SettingsPageClient({
               {usageStatus && (
                 <div className="mt-3 space-y-1.5">
                   <div className="flex justify-between">
-                    <span className="text-[11px] text-white/30 uppercase tracking-wider">Weekly</span>
-                    <span className="text-[11px] text-white/30">
+                    <span className="text-[11px] text-white/50 uppercase tracking-wider">Weekly</span>
+                    <span className="text-[11px] text-white/50">
                       {Math.round(usageStatus.weekly.used / 1000)}k / {Math.round(usageStatus.weekly.limit / 1000)}k
                     </span>
                   </div>
@@ -685,8 +685,8 @@ export default function SettingsPageClient({
                     />
                   </div>
                   <div className="flex justify-between mt-1">
-                    <span className="text-[11px] text-white/30 uppercase tracking-wider">Monthly</span>
-                    <span className="text-[11px] text-white/30">
+                    <span className="text-[11px] text-white/50 uppercase tracking-wider">Monthly</span>
+                    <span className="text-[11px] text-white/50">
                       {Math.round(usageStatus.monthly.used / 1000)}k / {Math.round(usageStatus.monthly.limit / 1000)}k
                     </span>
                   </div>
@@ -716,7 +716,7 @@ export default function SettingsPageClient({
           {/* Row 2+3: Connected Devices + Browser Relay side by side */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-[7px]">
             <div className={glassPanel}>
-              <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Connected Devices</span>
+              <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium">Connected Devices</span>
               <div className="mt-4">
                 <ConnectedDevicesSection />
               </div>
@@ -724,8 +724,8 @@ export default function SettingsPageClient({
 
             <div className={glassPanel}>
               <div className="flex items-center gap-2 mb-4">
-                <Globe className="w-4 h-4 text-white/40" />
-                <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Browser Relay</span>
+                <Globe className="w-4 h-4 text-white/60" />
+                <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium">Browser Relay</span>
               </div>
               <BrowserRelaySection profile={initialProfile} />
             </div>
@@ -734,7 +734,7 @@ export default function SettingsPageClient({
           {/* Danger Zone */}
           <div className="px-4 md:px-5 py-3 flex items-center justify-between">
             <div>
-              <p className="text-[12px] text-white/30">Danger Zone</p>
+              <p className="text-[12px] text-white/50">Danger Zone</p>
             </div>
             <button
               onClick={() => setShowDeleteModal(true)}
