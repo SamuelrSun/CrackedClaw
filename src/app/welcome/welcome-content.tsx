@@ -598,7 +598,7 @@ export function WelcomeContent() {
           backgroundPosition: "center",
         }}
       />
-      <div className="absolute inset-0 z-0" style={{ background: "rgba(0,0,0,0.25)" }} />
+
 
       {/* ── Login section (title + glass panel, exact clone of old /login page) ── */}
       {showLoginPanel && (

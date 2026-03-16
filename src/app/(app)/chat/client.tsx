@@ -592,91 +592,7 @@ function UserMessageContent({ content }: { content: string }) {
   return <p className="whitespace-pre-wrap text-base leading-[24px]">{content}</p>;
 }
 
-// Fixed background — renders the landing image behind the chat UI
-function ChatBg() {
-  return (
-    <>
-      <div
-        className="fixed inset-0 z-0 pointer-events-none"
-        style={{
-          backgroundImage: "url('/img/landing_background.jpg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      />
-      <div
-        className="fixed inset-0 z-0 pointer-events-none"
-        style={{ background: "rgba(0,0,0,0.45)" }}
-      />
-    </>
-  );
-}
 
-function NewConversationLanding({ onSend }: { onSend: (message: string) => void }) {
-  const [input, setInput] = useState('');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const handleSubmit = () => {
-    const msg = input.trim();
-    if (!msg) return;
-    onSend(msg);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
-
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (el) {
-      el.style.height = 'auto';
-      el.style.height = Math.min(el.scrollHeight, 200) + 'px';
-    }
-  }, [input]);
-
-  return (
-    <>
-      <ChatBg />
-      <div
-        className="relative z-[1] flex flex-col items-center justify-center h-[calc(100vh-64px)] px-6"
-        style={{ paddingBottom: '15vh' }}
-      >
-        <h1
-          className="text-4xl font-bold text-white/90 mb-8 text-center"
-          style={{ fontFamily: 'Georgia, "Times New Roman", serif', lineHeight: '44px' }}
-        >
-          What can I do for you?
-        </h1>
-
-        <div className="w-full max-w-3xl">
-          <div
-            className="border border-white/[0.25]"
-            style={{
-              background: "rgba(255,255,255,0.15)",
-              backdropFilter: "blur(40px) saturate(150%)",
-              WebkitBackdropFilter: "blur(40px) saturate(150%)",
-              borderRadius: 0,
-            }}
-          >
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Describe a task or responsibility..."
-              className="w-full bg-transparent text-base text-white/90 placeholder:text-white/30 p-4 resize-none outline-none min-h-[56px] max-h-[200px]"
-              rows={1}
-              autoFocus
-            />
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
 
 export default function ChatPageClient({ 
   initialConversations, 
@@ -1830,7 +1746,11 @@ User message: `
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      if (!activeConvo) {
+        handleLandingSend(input.trim());
+      } else {
+        handleSend();
+      }
     }
   };
 
@@ -1984,10 +1904,6 @@ User message: `
 
   // Landing view: shown when there is no active conversation (bare /chat route)
   const isNewConversationView = !activeConvo;
-
-  if (isNewConversationView && !gatewayLoading && !showBanner) {
-    return <NewConversationLanding onSend={handleLandingSend} />;
-  }
 
   return (
     <div
@@ -2686,7 +2602,11 @@ User message: `
                 type="button"
                 onClick={() => {
                   if (input.trim() || attachedFiles.length > 0) {
-                    handleSend();
+                    if (!activeConvo) {
+                      handleLandingSend(input.trim());
+                    } else {
+                      handleSend();
+                    }
                   }
                 }}
                 disabled={!gateway || isLoading || isReconnecting}
@@ -2700,26 +2620,7 @@ User message: `
                 <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">{input.trim() ? 'Send' : 'Voice'}</span>
               </button>
 
-              {/* Full-page popup overlays */}
-              {connectionsOpen && <ConnectionsPopup onClose={() => setConnectionsOpen(false)} />}
-              {computerOpen && <ComputerPopup onClose={() => setComputerOpen(false)} />}
-              {contactOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setContactOpen(false)}>
-                  <div className="absolute inset-0 bg-black/30" />
-                  <div className="relative z-10 w-[calc(100%-2rem)] md:w-[380px] rounded-[10px] border border-white/[0.1] bg-white/[0.08] backdrop-blur-[20px] shadow-2xl p-6 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-base font-semibold text-white">Contact Methods</span>
-                      <button onClick={() => setContactOpen(false)} className="text-white/40 hover:text-white/80 transition-colors text-sm">✕</button>
-                    </div>
-                    <div className="text-sm text-white/60 leading-relaxed">
-                      Configure how your agent can reach you — email, SMS, Slack DMs, and more.
-                    </div>
-                    <div className="text-sm text-white/40 bg-white/[0.04] border border-white/[0.06] rounded-[6px] px-4 py-3 text-center">
-                      🚧 Coming soon
-                    </div>
-                  </div>
-                </div>
-              )}
+
             </div>
           </div>
           </div>
@@ -2814,6 +2715,26 @@ User message: `
               </h1>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Full-page popup overlays — rendered at top level to escape stacking contexts */}
+      {connectionsOpen && <ConnectionsPopup onClose={() => setConnectionsOpen(false)} />}
+      {computerOpen && <ComputerPopup onClose={() => setComputerOpen(false)} />}
+      {contactOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setContactOpen(false)}>
+          <div className="relative z-10 w-[calc(100%-2rem)] md:w-[380px] rounded-[3px] border border-white/10 bg-black/[0.07] backdrop-blur-[10px] shadow-2xl p-6 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <span className="text-base font-semibold text-white">Contact Methods</span>
+              <button onClick={() => setContactOpen(false)} className="text-white/40 hover:text-white/80 transition-colors text-sm">✕</button>
+            </div>
+            <div className="text-sm text-white/60 leading-relaxed">
+              Configure how your agent can reach you — email, SMS, Slack DMs, and more.
+            </div>
+            <div className="text-sm text-white/40 bg-white/[0.04] border border-white/[0.06] rounded-[6px] px-4 py-3 text-center">
+              🚧 Coming soon
+            </div>
+          </div>
         </div>
       )}
   </div>
