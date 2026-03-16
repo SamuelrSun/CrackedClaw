@@ -1,190 +1,207 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { X, Check, Loader2, Key } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { IntegrationIcon } from "@/components/integrations/integration-icon";
 
-const AVAILABLE_INTEGRATIONS = [
-  { id: 'google', name: 'Google', desc: 'Gmail, Calendar, Drive, Contacts', icon: '🔵', hasOAuth: true },
-  { id: 'slack', name: 'Slack', desc: 'Messages, channels, notifications', icon: '💬', hasOAuth: true },
-  { id: 'github', name: 'GitHub', desc: 'Repos, issues, PRs, actions', icon: '🐙', hasOAuth: true },
-  { id: 'notion', name: 'Notion', desc: 'Pages, databases, wikis', icon: '📝', hasOAuth: true },
-  { id: 'linear', name: 'Linear', desc: 'Issues, projects, cycles', icon: '🔷', hasOAuth: true },
-  { id: 'figma', name: 'Figma', desc: 'Designs, files, comments', icon: '🎨', hasOAuth: true },
-  { id: 'stripe', name: 'Stripe', desc: 'Payments, subscriptions, invoices', icon: '💳', hasOAuth: true },
-  { id: 'hubspot', name: 'HubSpot', desc: 'CRM, contacts, deals', icon: '🟠', hasOAuth: true },
-  { id: 'salesforce', name: 'Salesforce', desc: 'CRM, leads, opportunities', icon: '☁️', hasOAuth: true },
-  { id: 'jira', name: 'Jira', desc: 'Issues, sprints, boards', icon: '🔵', hasOAuth: true },
-  { id: 'linkedin', name: 'LinkedIn', desc: 'Profile, connections, messaging', icon: '🔗', requiresCompanion: true },
-  { id: 'instagram', name: 'Instagram', desc: 'Posts, stories, DMs', icon: '📸', requiresCompanion: true },
-  { id: 'twitter', name: 'X / Twitter', desc: 'Posts, DMs, notifications', icon: '🐦', hasOAuth: true },
+const INTEGRATIONS = [
+  { id: "google",      name: "Google",     hasOAuth: true },
+  { id: "github",      name: "GitHub",     hasOAuth: true },
+  { id: "slack",       name: "Slack",      hasOAuth: true },
+  { id: "notion",      name: "Notion",     hasOAuth: true },
+  { id: "linear",      name: "Linear",     hasOAuth: true },
+  { id: "figma",       name: "Figma",      hasOAuth: true },
+  { id: "stripe",      name: "Stripe",     hasOAuth: true },
+  { id: "hubspot",     name: "HubSpot",    hasOAuth: true },
+  { id: "salesforce",  name: "Salesforce", hasOAuth: true },
+  { id: "jira",        name: "Jira",       hasOAuth: true },
+  { id: "twitter",     name: "X / Twitter",hasOAuth: true },
+  { id: "linkedin",    name: "LinkedIn",   requiresCompanion: true },
+  { id: "instagram",   name: "Instagram",  requiresCompanion: true },
 ] as const;
-
-interface ConnectedIntegration {
-  id: string;
-  provider: string;
-  email?: string;
-  status: string;
-}
 
 interface ConnectionsPopupProps {
   onClose: () => void;
 }
 
 export function ConnectionsPopup({ onClose }: ConnectionsPopupProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [search, setSearch] = useState("");
-  const [connected, setConnected] = useState<ConnectedIntegration[]>([]);
-  const [loadingStatus, setLoadingStatus] = useState(true);
+  const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [matonKey, setMatonKey] = useState("");
+  const [matonSaved, setMatonSaved] = useState(false);
+  const [matonSaving, setMatonSaving] = useState(false);
 
-  // Fetch connected integrations on open
   useEffect(() => {
-    let cancelled = false;
     fetch("/api/integrations/status")
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled) {
-          setConnected(Array.isArray(data) ? data : (data?.integrations ?? []));
-        }
+        // API returns { connected: ['google', 'slack', ...] }
+        const list: string[] = data?.connected ?? (Array.isArray(data) ? data : []);
+        setConnectedIds(new Set(list.map((s: string) => String(s).toLowerCase())));
       })
-      .catch(() => {
-        if (!cancelled) setConnected([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingStatus(false);
-      });
-    return () => { cancelled = true; };
+      .catch(() => setConnectedIds(new Set()))
+      .finally(() => setLoading(false));
   }, []);
 
-  // Click-outside handled by overlay onClick
+  async function handleSaveMaton() {
+    if (!matonKey.trim()) return;
+    setMatonSaving(true);
+    try {
+      await fetch("/api/integrations/maton", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: matonKey.trim() }),
+      });
+      setMatonSaved(true);
+      setTimeout(() => setMatonSaved(false), 3000);
+    } catch { /* ignore */ }
+    setMatonSaving(false);
+  }
 
-  const connectedIds = new Set(connected.map((c) => c.id ?? c.provider));
-
-  const filtered = AVAILABLE_INTEGRATIONS.filter(
-    (i) =>
-      i.name.toLowerCase().includes(search.toLowerCase()) ||
-      i.desc.toLowerCase().includes(search.toLowerCase())
-  );
+  const connected = INTEGRATIONS.filter((i) => connectedIds.has(i.id));
+  const available = INTEGRATIONS.filter((i) => !connectedIds.has(i.id));
 
   return (
-    <div
-      ref={ref}
-      className="fixed inset-0 z-[200] flex items-center justify-center"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={onClose}>
       <div
-        className="relative z-10 w-[calc(100%-2rem)] md:w-[480px] max-h-[80vh] md:max-h-[70vh] overflow-y-auto flex flex-col gap-0 rounded-[3px] border border-white/10 bg-black/[0.07] backdrop-blur-[10px] shadow-2xl"
-        onClick={e => e.stopPropagation()}
-      style={{ scrollbarWidth: "thin" }}
-    >
-      {/* Header */}
-      <div className="px-4 pt-4 pb-2 border-b border-white/[0.08] flex items-center justify-between sticky top-0 bg-transparent z-10 rounded-t-[3px]">
-        <span className="text-sm font-semibold text-white">Connections</span>
-        <button
-          onClick={onClose}
-          className="text-white/40 hover:text-white/80 transition-colors text-xs"
-        >
-          ✕
-        </button>
-      </div>
+        className="relative z-10 w-[calc(100%-2rem)] md:w-[680px] max-h-[85vh] overflow-y-auto rounded-[3px] border border-white/10 bg-black/[0.07] backdrop-blur-[10px] shadow-2xl flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+        style={{ scrollbarWidth: "thin" }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.08] sticky top-0 bg-black/[0.5] backdrop-blur-[10px] z-10 rounded-t-[3px]">
+          <span className="text-[13px] font-semibold text-white">Connections</span>
+          <button onClick={onClose} className="text-white/40 hover:text-white/80 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
-      <div className="flex flex-col gap-3 p-4">
-        {/* Connected section */}
-        {loadingStatus ? (
-          <div className="text-white/40 text-xs">Loading connected integrations…</div>
-        ) : connected.length > 0 ? (
+        <div className="flex flex-col gap-4 p-5">
+
+          {/* ── Contact Methods (top) ── */}
           <div>
-            <div className="text-xs font-medium text-white/50 uppercase tracking-wider mb-2">Connected</div>
-            <div className="flex flex-col gap-1.5">
-              {connected.map((c) => {
-                const meta = AVAILABLE_INTEGRATIONS.find((i) => i.id === (c.id ?? c.provider));
-                return (
-                  <div
-                    key={c.id ?? c.provider}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-[6px] bg-white/[0.04] border border-white/[0.06]"
-                  >
-                    <span className="text-base leading-none">{meta?.icon ?? "🔌"}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-white/90 font-medium leading-tight truncate">{meta?.name ?? c.provider}</div>
-                      {c.email && <div className="text-xs text-white/40 truncate">{c.email}</div>}
-                    </div>
-                    <span className="text-[10px] font-medium text-green-400 bg-green-400/10 border border-green-400/20 rounded-full px-2 py-0.5 whitespace-nowrap">
-                      Connected
-                    </span>
-                  </div>
-                );
-              })}
+            <p className="text-[10px] uppercase tracking-widest text-white/40 font-medium mb-2">Contact Methods</p>
+            <div className="flex flex-col gap-1.5 text-[12px] text-white/60">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-[4px] bg-white/[0.04] border border-white/[0.06]">
+                <div className="w-6 h-6 rounded-full bg-white/[0.06] flex items-center justify-center">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                </div>
+                <span className="text-white/70 font-medium flex-1">OAuth / Companion</span>
+                <span className="text-[10px] text-white/30">Connected via app</span>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-[4px] bg-white/[0.04] border border-white/[0.06]">
+                <div className="w-6 h-6 rounded-full bg-white/[0.06] flex items-center justify-center">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                </div>
+                <span className="text-white/70 font-medium flex-1">SMS</span>
+                <a href="/settings" onClick={onClose} className="text-[10px] text-white/40 hover:text-white/60 underline transition-colors">Configure in Settings</a>
+              </div>
             </div>
           </div>
-        ) : (
-          <div className="text-white/30 text-xs">No integrations connected yet.</div>
-        )}
 
-        {/* Add Connection section */}
-        <div>
-          <div className="text-xs font-medium text-white/50 uppercase tracking-wider mb-2">Add Connection</div>
-          {/* Search */}
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search integrations…"
-            className="w-full bg-white/[0.05] border border-white/[0.1] rounded-[6px] px-3 py-1.5 text-sm text-white/80 placeholder:text-white/30 outline-none focus:border-white/20 mb-2"
-          />
-          <div className="flex flex-col gap-1.5">
-            {filtered.map((integration) => {
-              const isConnected = connectedIds.has(integration.id);
-              return (
-                <div
+          {/* ── Maton API Gateway ── */}
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-white/40 font-medium mb-2">Maton API Gateway</p>
+            <div className="px-3 py-3 rounded-[4px] bg-white/[0.04] border border-white/[0.06]">
+              <div className="flex items-start justify-between gap-3 mb-2.5">
+                <div>
+                  <p className="text-[12px] text-white/80 font-medium">100+ Cloud APIs</p>
+                  <p className="text-[11px] text-white/40 mt-0.5">
+                    Access Notion, Linear, Stripe, HubSpot &amp; more via a single key —{" "}
+                    <a href="https://maton.ai" target="_blank" rel="noreferrer" className="underline hover:text-white/60 transition-colors">
+                      maton.ai
+                    </a>
+                  </p>
+                </div>
+                <Key className="w-4 h-4 text-white/30 flex-shrink-0 mt-0.5" />
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={matonKey}
+                  onChange={(e) => setMatonKey(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSaveMaton()}
+                  placeholder="Enter Maton API key..."
+                  className="flex-1 bg-white/[0.05] border border-white/[0.1] text-white/80 text-[12px] px-3 py-2 outline-none focus:border-white/20 placeholder:text-white/25 rounded-[3px]"
+                />
+                <button
+                  onClick={handleSaveMaton}
+                  disabled={!matonKey.trim() || matonSaving}
+                  className="px-3 py-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/70 text-[11px] rounded-[3px] transition-colors disabled:opacity-40 flex items-center gap-1.5"
+                >
+                  {matonSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : matonSaved ? <Check className="w-3 h-3 text-emerald-400" /> : null}
+                  {matonSaved ? "Saved!" : "Save"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Connected integrations ── */}
+          {loading ? (
+            <div className="flex items-center gap-2 text-[11px] text-white/40">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Loading connections...
+            </div>
+          ) : connected.length > 0 && (
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-white/40 font-medium mb-2">Connected</p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
+                {connected.map((integration) => (
+                  <div
+                    key={integration.id}
+                    className="flex flex-col items-center gap-1.5 px-3 py-3 rounded-[4px] bg-white/[0.05] border border-emerald-500/20"
+                  >
+                    <IntegrationIcon provider={integration.id} size={24} />
+                    <span className="text-[11px] text-white/70 text-center leading-tight">{integration.name}</span>
+                    <div className="flex items-center gap-1">
+                      <Check className="w-2.5 h-2.5 text-emerald-400" />
+                      <span className="text-[9px] text-emerald-400">Connected</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Available integrations (grid) ── */}
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-white/40 font-medium mb-2">
+              {connected.length > 0 ? "Add More" : "Integrations"}
+            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
+              {available.map((integration) => (
+                <button
                   key={integration.id}
+                  onClick={() => {
+                    if ("requiresCompanion" in integration && integration.requiresCompanion) return;
+                    window.open(
+                      `/api/integrations/oauth/start?provider=${integration.id}`,
+                      "_blank",
+                      "popup,width=600,height=700"
+                    );
+                  }}
+                  disabled={"requiresCompanion" in integration && integration.requiresCompanion}
                   className={cn(
-                    "flex items-center gap-2.5 px-3 py-2 rounded-[6px] border transition-colors",
-                    isConnected
-                      ? "bg-white/[0.03] border-white/[0.04] opacity-60"
-                      : "bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.07]"
+                    "flex flex-col items-center gap-1.5 px-3 py-3 rounded-[4px] border transition-colors text-left",
+                    "requiresCompanion" in integration && integration.requiresCompanion
+                      ? "bg-white/[0.02] border-white/[0.04] opacity-50 cursor-default"
+                      : "bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.12] cursor-pointer"
                   )}
                 >
-                  <span className="text-base leading-none">{integration.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-white/90 font-medium leading-tight">{integration.name}</div>
-                    <div className="text-xs text-white/40 truncate">{integration.desc}</div>
-                  </div>
-                  {isConnected ? (
-                    <span className="text-[10px] font-medium text-green-400/70 whitespace-nowrap">✓ Done</span>
-                  ) : "requiresCompanion" in integration && integration.requiresCompanion ? (
-                    <span className="text-[10px] text-white/30 whitespace-nowrap">Companion</span>
+                  <IntegrationIcon provider={integration.id} size={24} />
+                  <span className="text-[11px] text-white/70 text-center leading-tight">{integration.name}</span>
+                  {"requiresCompanion" in integration && integration.requiresCompanion ? (
+                    <span className="text-[9px] text-white/25">Companion</span>
                   ) : (
-                    <button
-                      onClick={() =>
-                        window.open(
-                          `/api/integrations/oauth/start?provider=${integration.id}`,
-                          "_blank",
-                          "popup,width=600,height=700"
-                        )
-                      }
-                      className="text-xs font-medium text-white/70 hover:text-white bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.1] rounded-[4px] px-2.5 py-1 transition-colors whitespace-nowrap"
-                    >
-                      Connect
-                    </button>
+                    <span className="text-[9px] text-white/40">Connect</span>
                   )}
-                </div>
-              );
-            })}
-            {filtered.length === 0 && (
-              <div className="text-white/30 text-xs py-2">No integrations match your search.</div>
-            )}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Connection Methods */}
-        <div className="border-t border-white/[0.06] pt-3">
-          <div className="text-xs font-medium text-white/50 uppercase tracking-wider mb-2">Connection Methods</div>
-          <div className="flex flex-col gap-1.5 text-xs text-white/50">
-            <div>☁️ <span className="text-white/70 font-medium">OAuth</span> — One-click connect for Google, Slack, GitHub &amp; more</div>
-            <div>🔑 <span className="text-white/70 font-medium">Maton</span> — API gateway for 100+ services. Get your key at maton.ai</div>
-            <div>🖥️ <span className="text-white/70 font-medium">Companion</span> — Desktop app for browser-based services (LinkedIn, Instagram)</div>
-          </div>
         </div>
-      </div>
       </div>
     </div>
   );
