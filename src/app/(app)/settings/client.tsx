@@ -15,6 +15,7 @@ import {
   Copy,
   Check,
   Trash2,
+  Globe,
 } from "lucide-react";
 
 
@@ -236,6 +237,115 @@ function ConnectedDevicesSection() {
   );
 }
 
+function CopyButton({ value, label }: { value: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  function handleCopy() {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white/50 text-[11px] transition-colors"
+      title={label ? `Copy ${label}` : "Copy"}
+    >
+      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+      {label && <span className="hidden sm:inline">{copied ? "Copied" : label}</span>}
+    </button>
+  );
+}
+
+function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
+  const instanceUrl = profile?.gateway_url
+    ? profile.gateway_url.replace(/^https?:\/\//, "")
+    : null;
+  const authToken = profile?.auth_token ?? null;
+  const relayWssUrl = instanceUrl ? `wss://${instanceUrl}/relay/` : null;
+
+  const hasInstance = !!instanceUrl;
+
+  return (
+    <div className="space-y-4">
+      {!hasInstance ? (
+        <p className="text-[12px] text-white/40 leading-relaxed">
+          No instance provisioned yet. Upgrade to a paid plan to get a dedicated OpenClaw instance with browser relay support.
+        </p>
+      ) : (
+        <>
+          {/* Instance URL */}
+          <div className="space-y-1.5">
+            <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Instance URL</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-[11px] text-white/70 bg-white/[0.05] border border-white/[0.1] px-3 py-2.5 truncate font-mono">
+                {instanceUrl}
+              </code>
+              <CopyButton value={instanceUrl!} label="Copy" />
+            </div>
+          </div>
+
+          {/* Relay URL */}
+          <div className="space-y-1.5">
+            <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Relay URL</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-[11px] text-white/60 bg-white/[0.05] border border-white/[0.1] px-3 py-2.5 truncate font-mono">
+                {relayWssUrl}
+              </code>
+              <CopyButton value={relayWssUrl!} label="Copy" />
+            </div>
+          </div>
+
+          {/* Gateway Token */}
+          <div className="space-y-1.5">
+            <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Gateway Token</p>
+            {authToken ? (
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-[11px] text-white/60 bg-white/[0.05] border border-white/[0.1] px-3 py-2.5 truncate font-mono">
+                  {authToken.slice(0, 8)}••••••••••••••••{authToken.slice(-4)}
+                </code>
+                <CopyButton value={authToken} label="Copy" />
+              </div>
+            ) : (
+              <p className="text-[12px] text-white/30">No token available</p>
+            )}
+          </div>
+
+          {/* Download extension */}
+          <a
+            href="/extension/dopl-browser-relay/"
+            className="flex items-center gap-2 w-full px-4 py-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white/80 text-[13px] transition-colors"
+          >
+            <Download className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span>Download Dopl Browser Relay Extension</span>
+            <ArrowRight className="w-3 h-3 ml-auto text-white/40" />
+          </a>
+
+          {/* Setup steps */}
+          <div className="space-y-3">
+            <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Setup</p>
+            {[
+              { n: "1", title: "Download & install", desc: "Download the Dopl Browser Relay extension and load it in Chrome." },
+              { n: "2", title: "Open extension options", desc: "Click the extension icon in your toolbar → Options." },
+              { n: "3", title: "Paste your credentials", desc: "Enter your Instance URL and Gateway Token, then click Save." },
+              { n: "4", title: "Verify connection", desc: "You should see a green checkmark confirming the connection." },
+              { n: "5", title: "Attach a tab", desc: "Navigate to any tab and click the extension icon to attach it." },
+            ].map(step => (
+              <div key={step.n} className="flex gap-3">
+                <span className="text-[13px] text-emerald-400 font-bold w-5 flex-shrink-0 pt-0.5">{step.n}.</span>
+                <div>
+                  <p className="text-[13px] text-white/80 font-medium">{step.title}</p>
+                  <p className="text-[12px] text-white/40 mt-0.5 leading-relaxed">{step.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPageClient({
   initialTokenUsage,
   initialProfile,
@@ -446,12 +556,21 @@ export default function SettingsPageClient({
           </div>
         </div>
 
-        {/* ── Connected Devices (bottom, full width) ── */}
-        <div className={`${panel} col-span-2`}>
+        {/* ── Connected Devices (bottom-left) ── */}
+        <div className={panel}>
           <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Connected Devices</span>
           <div className="mt-4">
             <ConnectedDevicesSection />
           </div>
+        </div>
+
+        {/* ── Browser Relay (bottom-right) ── */}
+        <div className={panel}>
+          <div className="flex items-center gap-2 mb-4">
+            <Globe className="w-4 h-4 text-white/40" />
+            <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Browser Relay</span>
+          </div>
+          <BrowserRelaySection profile={initialProfile} />
         </div>
 
       </div>
