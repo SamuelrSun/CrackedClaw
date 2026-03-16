@@ -16,6 +16,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { GlassNavbar } from "@/components/layout/glass-navbar";
+import { PricingModal } from "@/components/settings/pricing-modal";
 
 interface SettingsPageClientProps {
   initialTokenUsage: {
@@ -512,6 +513,7 @@ export default function SettingsPageClient({
     percentMonthly: number;
   } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
 
   useEffect(() => {
     fetchBilling();
@@ -541,6 +543,23 @@ export default function SettingsPageClient({
         setUsageStatus(data);
       }
     } catch { /* non-critical */ }
+  }
+
+  async function handleUpgradePlan(planSlug: string) {
+    setBillingUpgrading(true);
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: planSlug }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      console.error("Failed to open checkout:", err);
+    } finally {
+      setBillingUpgrading(false);
+    }
   }
 
   async function handleManageBilling() {
@@ -626,11 +645,10 @@ export default function SettingsPageClient({
 
                 {!billingLoading && (
                   <button
-                    onClick={handleManageBilling}
-                    disabled={billingUpgrading}
-                    className="w-full py-2 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/70 text-[13px] transition-colors disabled:opacity-50"
+                    onClick={() => setShowPricingModal(true)}
+                    className="w-full py-2 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/70 text-[13px] transition-colors"
                   >
-                    {billingUpgrading ? "Opening…" : "Manage Billing"}
+                    Plans & Billing
                   </button>
                 )}
               </div>
@@ -704,9 +722,8 @@ export default function SettingsPageClient({
               )}
 
               <button
-                onClick={handleManageBilling}
-                disabled={billingUpgrading}
-                className="w-full mt-5 py-2.5 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/70 text-[13px] transition-colors disabled:opacity-50"
+                onClick={() => setShowPricingModal(true)}
+                className="w-full mt-5 py-2.5 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/70 text-[13px] transition-colors"
               >
                 Get More Usage
               </button>
@@ -753,6 +770,16 @@ export default function SettingsPageClient({
       {/* Delete Account Modal */}
       {showDeleteModal && (
         <DeleteAccountModal onClose={() => setShowDeleteModal(false)} />
+      )}
+
+      {/* Pricing Modal */}
+      {showPricingModal && (
+        <PricingModal
+          onClose={() => setShowPricingModal(false)}
+          currentPlan={billingPlan}
+          onUpgrade={async (slug) => { await handleUpgradePlan(slug); }}
+          onManageBilling={async () => { await handleManageBilling(); }}
+        />
       )}
     </>
   );
