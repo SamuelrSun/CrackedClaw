@@ -1,6 +1,7 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -246,9 +247,7 @@ function RichMessage({
             );
           case "text":
             return (
-              <div key={idx} className="prose prose-base max-w-none prose-p:my-0 prose-p:mb-3 prose-p:leading-[26px] prose-headings:font-semibold prose-headings:text-white/90 prose-strong:text-white/90 prose-strong:font-semibold prose-code:text-sm prose-code:bg-white/[0.08] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-white/[0.06] prose-pre:rounded-lg prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 text-white/[0.88]">
-                <ReactMarkdown>{segment.content}</ReactMarkdown>
-              </div>
+              <MarkdownMessage key={idx} content={segment.content} />
             );
           case "integration-connect":
             return (
@@ -2462,9 +2461,7 @@ User message: `
                       <UserMessageContent content={msg.content} />
                     ) : (
                       <div className="relative">
-                        <div className="prose prose-base max-w-none prose-p:my-0 prose-p:mb-3 prose-p:leading-[26px] prose-headings:font-semibold prose-headings:text-white/90 prose-strong:text-white/90 prose-strong:font-semibold prose-code:text-sm prose-code:bg-white/[0.08] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-white/[0.06] prose-pre:rounded-lg prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 text-white/[0.88]">
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
-                        </div>
+                        <MarkdownMessage content={msg.content} />
                         {msg.content.length >= 20 && (
                           <div className="flex justify-end mt-1">
                             <VoiceOutputButton text={msg.content} />
