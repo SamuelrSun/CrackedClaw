@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 import ChatPageClient from "./client";
 import { Conversation, Message } from "@/lib/mock-data";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ConversationListSkeleton } from "@/components/skeletons/list-skeleton";
-import { ChatSkeleton } from "@/components/skeletons/chat-skeleton";
+
 
 export default function ChatPage({ initialConversationId: propConversationId }: { initialConversationId?: string } = {}) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
