@@ -49,6 +49,7 @@ import type { FileAttachmentMeta } from "@/lib/chat/message-parser";
 import { VoiceInputButton } from "@/components/chat/voice-input-button";
 import { VoiceOutputButton } from "@/components/chat/voice-output-button";
 import { EmailComposerCard } from "@/components/chat/email-composer-card";
+import { ContactMethodsPopup } from "@/components/chat/contact-methods-popup";
 import type { EmailDraft } from "@/lib/email/gmail-client";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { useGatewayWS, type WSChatEvent } from "@/hooks/use-gateway-ws";
@@ -2768,20 +2769,10 @@ User message: `
       {connectionsOpen && <ConnectionsPopup onClose={() => setConnectionsOpen(false)} />}
       {computerOpen && <ComputerPopup onClose={() => setComputerOpen(false)} />}
       {contactOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setContactOpen(false)}>
-          <div className="relative z-10 w-[calc(100%-2rem)] md:w-[380px] rounded-[3px] border border-white/10 bg-black/[0.07] backdrop-blur-[10px] shadow-2xl p-6 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <span className="text-base font-semibold text-white">Contact Methods</span>
-              <button onClick={() => setContactOpen(false)} className="text-white/40 hover:text-white/80 transition-colors text-sm">✕</button>
-            </div>
-            <div className="text-sm text-white/60 leading-relaxed">
-              Configure how your agent can reach you — email, SMS, Slack DMs, and more.
-            </div>
-            <div className="text-sm text-white/40 bg-white/[0.04] border border-white/[0.06] rounded-[6px] px-4 py-3 text-center">
-              🚧 Coming soon
-            </div>
-          </div>
-        </div>
+        <ContactMethodsPopup
+          onClose={() => setContactOpen(false)}
+          userEmail={user?.email ?? null}
+        />
       )}
   </div>
   );
