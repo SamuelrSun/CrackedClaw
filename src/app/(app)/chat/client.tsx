@@ -887,7 +887,7 @@ export default function ChatPageClient({
   const introSentRef = useRef(false);
   useEffect(() => {
     if (introSentRef.current) return;
-    if (!wsConnected) return;
+    if (!gateway) return;        // wait for gateway to be known
     if (messages.length > 0) return;
 
     // Check if ?intro=1 is in the URL
@@ -913,21 +913,83 @@ export default function ChatPageClient({
     setMessages([placeholderMsg]);
     setIsLoading(true);
 
-    // Point WS refs at this placeholder
     wsStreamingMsgIdRef.current = streamingMsgId;
     wsFullTextRef.current = "";
     wsConvoIdRef.current = conversationId;
 
-    const sessionKey = `webchat-${conversationId || Date.now()}`;
-    wsSessionKeyRef.current = sessionKey;
-
     const kickstartMessage =
-      "[SYSTEM: The user just completed signup and is seeing you for the first time. This is your very first conversation together. Introduce yourself — you're a brand new AI companion, fresh out of the box, no memories, no name. Be warm, curious, and excited to meet them. Ask what they'd like to call you and what you should call them.]";
+      "[SYSTEM: The user just completed signup and is seeing you for the very first time. You have no memories and no name yet — you literally just came online. This is your first ever conversation. Be warm, playful, and a little in awe of existing. Introduce yourself as a brand new AI companion fresh out of the box — curious, excited, maybe slightly dramatic about the whole 'just came into existence' thing. Ask what they'd like to call you, and what to call them. Keep it short and fun — 2-3 sentences max before asking.]";
 
-    // Send via WebSocket only — do NOT save to Supabase (ephemeral kickstart)
-    wsSendMessage(kickstartMessage, { sessionKey, model: selectedModel });
+    // Send via HTTP/SSE path (same as regular chat)
+    (async () => {
+      try {
+        const response = await fetch("/api/gateway/chat/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: kickstartMessage,
+            conversation_id: conversationId,
+            save_user_message: false,
+          }),
+        });
+
+        if (!response.ok || !response.body) {
+          setMessages([]);
+          setIsLoading(false);
+          return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const event = JSON.parse(line.slice(6));
+              if (event.type === "token" && event.content) {
+                wsFullTextRef.current += event.content;
+                setMessages([{
+                  ...placeholderMsg,
+                  content: wsFullTextRef.current,
+                  isStreaming: true,
+                }]);
+              } else if (event.type === "done" || event.type === "end") {
+                const finalContent = wsFullTextRef.current;
+                const finalConvoId = event.conversation_id || conversationId;
+                setMessages([{
+                  id: event.message_id || streamingMsgId,
+                  role: "assistant",
+                  content: finalContent,
+                  timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                  isStreaming: false,
+                  toolCalls: [],
+                }]);
+                if (finalConvoId && !conversationId) {
+                  wsConvoIdRef.current = finalConvoId;
+                }
+                setIsLoading(false);
+              } else if (event.type === "error") {
+                setMessages([]);
+                setIsLoading(false);
+              }
+            } catch { /* ignore parse errors */ }
+          }
+        }
+        setIsLoading(false);
+      } catch {
+        setMessages([]);
+        setIsLoading(false);
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsConnected, messages.length, conversationId]);
+  }, [gateway, messages.length, conversationId]);
 
   const {
     isOnline: nodeIsOnline,
@@ -2257,29 +2319,7 @@ User message: `
               )
             )}
           </div>
-          {/* Right: Status indicators */}
-          <div className="flex items-center gap-4 flex-shrink-0 ml-4">
-            <div className="flex items-center gap-1.5">
-              <div className={cn(
-                "w-2 h-2 rounded-none flex-shrink-0",
-                isConnected ? "bg-emerald-700" : isReconnecting ? "bg-amber-500 animate-pulse" : "bg-red-600"
-              )} />
-              <span className="font-mono text-[10px] text-white/50">
-                {isConnected ? "Gateway connected" : isReconnecting ? "Reconnecting..." : "Disconnected"}
-              </span>
-            </div>
-            {gateway && (
-              <div className="flex items-center gap-1.5">
-                <div className={cn(
-                  "w-2 h-2 rounded-none flex-shrink-0",
-                  wsConnected ? "bg-emerald-700" : wsConnecting ? "bg-amber-500 animate-pulse" : "bg-red-600"
-                )} />
-                <span className="font-mono text-[10px] text-white/50">
-                  {wsConnected ? "WS live" : wsConnecting ? "WS connecting..." : "WS offline"}
-                </span>
-              </div>
-            )}
-          </div>
+
         </div>
 
         {/* Reconnection Banner */}
