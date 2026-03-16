@@ -47,7 +47,7 @@ export function ComputerPopup({ onClose }: ComputerPopupProps) {
     >
       <div className="absolute inset-0 bg-black/30" />
       <div
-        className="relative z-10 w-[420px] rounded-[10px] border border-white/[0.1] bg-white/[0.08] backdrop-blur-[20px] shadow-2xl"
+        className="relative z-10 w-[calc(100%-2rem)] md:w-[420px] rounded-[10px] border border-white/[0.1] bg-white/[0.08] backdrop-blur-[20px] shadow-2xl"
         onClick={e => e.stopPropagation()}
     >
       {/* Header */}

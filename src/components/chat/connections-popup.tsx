@@ -73,7 +73,7 @@ export function ConnectionsPopup({ onClose }: ConnectionsPopupProps) {
     >
       <div className="absolute inset-0 bg-black/30" />
       <div
-        className="relative z-10 w-[480px] max-h-[70vh] overflow-y-auto flex flex-col gap-0 rounded-[10px] border border-white/[0.1] bg-white/[0.08] backdrop-blur-[20px] shadow-2xl"
+        className="relative z-10 w-[calc(100%-2rem)] md:w-[480px] max-h-[80vh] md:max-h-[70vh] overflow-y-auto flex flex-col gap-0 rounded-[10px] border border-white/[0.1] bg-white/[0.08] backdrop-blur-[20px] shadow-2xl"
         onClick={e => e.stopPropagation()}
       style={{ scrollbarWidth: "thin" }}
     >

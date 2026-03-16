@@ -165,9 +165,9 @@ const INTEGRATIONS = [
 function IntegrationsVisual() {
   return (
     <div
-      className="grid grid-cols-3 gap-4 max-w-sm mx-auto"
+      className="grid grid-cols-3 gap-2 sm:gap-4 max-w-sm mx-auto"
       style={{
-        transform: "scale(1.2)",
+        transform: "scale(1)",
         transformOrigin: "center center",
       }}
     >
@@ -220,12 +220,12 @@ export default function LandingPage() {
 
       {/* ═══ Hero ═══ */}
       <section
-        className="relative z-10 flex flex-col items-start justify-start px-12 md:px-20 pt-20 pb-16"
+        className="relative z-10 flex flex-col items-start justify-start px-6 sm:px-12 md:px-20 pt-16 sm:pt-20 pb-12 sm:pb-16"
         style={{ minHeight: "78vh" }}
       >
         {/* Coordinates — top left */}
         <div
-          className="absolute top-5 left-5 z-20 hero-animate"
+          className="absolute top-5 left-5 z-20 hero-animate hidden sm:block"
           style={{
             fontSize: 10,
             fontWeight: 700,
@@ -251,7 +251,7 @@ export default function LandingPage() {
         </div>
 
         {/* ── Nav button floating on image (top-right) ── */}
-        <div className="absolute top-5 right-8 z-20 flex items-center gap-3 hero-animate">
+        <div className="absolute top-4 right-4 sm:top-5 sm:right-8 z-20 flex items-center gap-3 hero-animate">
           <Link
             href="/welcome"
             className="transition-all duration-300"
@@ -400,7 +400,7 @@ export default function LandingPage() {
               </div>
 
               {/* Right: columns */}
-              <div className="flex gap-16 md:gap-20">
+              <div className="flex flex-wrap gap-10 sm:gap-16 md:gap-20">
 
                 {/* Connect */}
                 <nav aria-label="Social links">

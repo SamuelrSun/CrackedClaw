@@ -735,7 +735,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex flex-col p-[7px] gap-[7px]"
+      className="fixed inset-0 z-[100] flex flex-col p-1 gap-1 md:p-[7px] md:gap-[7px]"
       style={{
         backgroundImage: "url('/img/landing_background.jpg')",
         backgroundSize: "cover",
@@ -744,7 +744,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
     >
       <GlassNavbar />
 
-      <div className="flex-1 overflow-y-auto flex flex-col gap-[7px] min-h-0">
+      <div className="flex-1 overflow-y-auto flex flex-col gap-1 md:gap-[7px] min-h-0">
 
         {/* Quick Connect + Maton panel */}
         <div className="bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 p-5">
@@ -774,7 +774,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
 
           {/* Maton API section */}
           <div className="mt-4 pt-4 border-t border-white/[0.08]">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <span className="text-sm font-semibold text-white/80">Maton API Gateway</span>
                 <p className="text-xs text-white/40 mt-0.5">
@@ -788,9 +788,9 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                 <input
                   type="password"
                   placeholder="Enter Maton API key..."
-                  className="bg-white/[0.06] border border-white/[0.1] rounded-[4px] px-3 py-1.5 text-xs text-white/80 placeholder:text-white/30 outline-none focus:border-white/[0.25] w-64"
+                  className="bg-white/[0.06] border border-white/[0.1] rounded-[4px] px-3 py-1.5 text-xs text-white/80 placeholder:text-white/30 outline-none focus:border-white/[0.25] flex-1 sm:w-64"
                 />
-                <button className="px-3 py-1.5 text-xs font-medium text-white/70 border border-white/[0.1] rounded-[4px] hover:bg-white/[0.08] transition-colors">
+                <button className="px-3 py-1.5 text-xs font-medium text-white/70 border border-white/[0.1] rounded-[4px] hover:bg-white/[0.08] transition-colors flex-shrink-0">
                   Save
                 </button>
               </div>

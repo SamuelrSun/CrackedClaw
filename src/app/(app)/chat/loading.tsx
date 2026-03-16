@@ -1,7 +1,7 @@
 export default function ChatLoading() {
   return (
     <div
-      className="fixed inset-0 z-[100] flex flex-col p-[7px] gap-[7px]"
+      className="fixed inset-0 z-[100] flex flex-col p-1 gap-1 md:p-[7px] md:gap-[7px]"
       style={{
         backgroundImage: "url('/img/landing_background.jpg')",
         backgroundSize: "cover",
@@ -33,7 +33,7 @@ export default function ChatLoading() {
       <div className="flex-1 flex gap-[7px] min-h-0">
 
         {/* Left Sidebar Panel */}
-        <aside className="shrink-0 w-72 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 flex flex-col overflow-hidden">
+        <aside className="hidden md:flex shrink-0 w-72 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 flex-col overflow-hidden">
           {/* New Conversation button placeholder */}
           <div className="px-3 py-3">
             <div className="flex items-center gap-2 px-3 py-2 rounded-[4px] bg-white/[0.04]">

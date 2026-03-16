@@ -63,7 +63,7 @@ import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { UserMenu } from "@/components/auth/user-menu";
 import { useUser } from "@/hooks/use-user";
 import { useSearchContext } from "@/contexts/search-context";
-import { Search, Command, Pencil, Trash2, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Command, Pencil, Trash2, Plus, ChevronLeft, ChevronRight, Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 interface ToolCallInfo {
@@ -726,6 +726,7 @@ export default function ChatPageClient({
   });
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [editingConvoId, setEditingConvoId] = useState<string | null>(null);
   const [editingConvoTitle, setEditingConvoTitle] = useState("");
   const [editingChatTitle, setEditingChatTitle] = useState(false);
@@ -1946,7 +1947,7 @@ User message: `
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex flex-col p-[7px] gap-[7px]"
+      className="fixed inset-0 z-[100] flex flex-col p-1 gap-1 md:p-[7px] md:gap-[7px]"
       style={{
         backgroundImage: "url('/img/landing_background.jpg')",
         backgroundSize: "cover",
@@ -1954,11 +1955,18 @@ User message: `
       }}
     >
       {/* PANEL 1: Glass Navbar */}
-      <nav className="shrink-0 h-[56px] bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden flex items-center px-6">
-        <div className="mr-6">
+      <nav className="shrink-0 h-[48px] md:h-[56px] bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden flex items-center px-3 md:px-6">
+        {/* Mobile hamburger */}
+        <button
+          onClick={() => setMobileSidebarOpen(v => !v)}
+          className="md:hidden w-8 h-8 flex items-center justify-center text-white/50 hover:text-white/80 mr-2"
+        >
+          {mobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+        <div className="mr-4 md:mr-6">
           <WorkspaceSwitcher />
         </div>
-        <div className="flex items-center gap-1">
+        <div className="hidden md:flex items-center gap-1">
           {[
             { href: "/chat", label: "Chat" },
             { href: "/agents", label: "Agents" },
@@ -1980,24 +1988,24 @@ User message: `
             );
           })}
         </div>
-        <div className="ml-auto flex items-center gap-4">
+        <div className="ml-auto flex items-center gap-2 md:gap-4">
           {user && (
             <>
               <Link href="/settings" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
                 {isConnected ? (
                   <>
                     <div className="w-2 h-2 bg-emerald-700 rounded-none block flex-shrink-0" />
-                    <span className="font-mono text-[10px] uppercase tracking-wide text-emerald-600">Online</span>
+                    <span className="hidden sm:inline font-mono text-[10px] uppercase tracking-wide text-emerald-600">Online</span>
                   </>
                 ) : isReconnecting ? (
                   <>
                     <div className="w-2 h-2 bg-amber-500 rounded-none block animate-pulse flex-shrink-0" />
-                    <span className="font-mono text-[10px] uppercase tracking-wide text-amber-400">Connecting</span>
+                    <span className="hidden sm:inline font-mono text-[10px] uppercase tracking-wide text-amber-400">Connecting</span>
                   </>
                 ) : (
                   <>
                     <div className="w-2 h-2 bg-red-600 rounded-none block flex-shrink-0" />
-                    <span className="font-mono text-[10px] uppercase tracking-wide text-red-500">Offline</span>
+                    <span className="hidden sm:inline font-mono text-[10px] uppercase tracking-wide text-red-500">Offline</span>
                   </>
                 )}
               </Link>
@@ -2014,11 +2022,77 @@ User message: `
         </div>
       </nav>
 
+      {/* Mobile Sidebar Overlay */}
+      {mobileSidebarOpen && (
+        <div className="fixed inset-0 z-[150] md:hidden" onClick={() => setMobileSidebarOpen(false)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <aside
+            className="absolute top-0 left-0 w-72 h-full bg-black/[0.15] backdrop-blur-[20px] border-r border-white/10 flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Mobile sidebar header */}
+            <div className="px-3 py-3 border-b border-white/[0.1] flex items-center justify-between">
+              <button
+                onClick={handleNewConversation}
+                className="flex items-center gap-1.5 px-2 py-1.5 text-sm text-white/60 hover:text-white/90 border border-transparent hover:border-white/[0.1] transition-colors"
+              >
+                <Plus className="w-4 h-4 flex-shrink-0" />
+                <span>New Conversation</span>
+              </button>
+              <button onClick={() => setMobileSidebarOpen(false)} className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {/* Mobile nav links */}
+            <div className="px-3 py-2 border-b border-white/[0.08] flex flex-col gap-0.5">
+              {[
+                { href: "/chat", label: "Chat" },
+                { href: "/agents", label: "Agents" },
+                { href: "/integrations", label: "Integrations" },
+                { href: "/settings", label: "Settings" },
+              ].map((link) => {
+                const isActive = pathname === link.href;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileSidebarOpen(false)}
+                    className={cn(
+                      "text-sm px-3 py-2 rounded transition-colors",
+                      isActive ? "text-white/90 font-semibold bg-white/[0.06]" : "text-white/50 hover:text-white/80"
+                    )}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </div>
+            {/* Mobile conversation list */}
+            <div className="flex-1 overflow-y-auto">
+              {conversations.map((convo) => (
+                <button
+                  key={convo.id}
+                  onClick={() => { loadConversation(convo.id); setMobileSidebarOpen(false); }}
+                  className={cn(
+                    "w-full text-left px-4 py-3 border-b border-white/[0.08] transition-colors",
+                    activeConvo === convo.id ? "bg-white/[0.08] border-l-2 border-l-emerald-800" : "hover:bg-white/[0.04]"
+                  )}
+                >
+                  <span className="text-[15px] font-medium truncate block text-white/90">
+                    {convo.title || "New conversation"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </aside>
+        </div>
+      )}
+
       {/* Content row */}
-      <div className="flex-1 flex gap-[7px] min-h-0">
-      {/* PANEL 2: Conversations Sidebar */}
+      <div className="flex-1 flex gap-1 md:gap-[7px] min-h-0">
+      {/* PANEL 2: Conversations Sidebar — desktop only */}
       <aside className={cn(
-        "shrink-0 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden flex flex-col transition-all duration-300 ease-in-out",
+        "hidden md:flex shrink-0 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden flex-col transition-all duration-300 ease-in-out",
         sidebarCollapsed ? "w-12" : "w-72"
       )}>
         {/* Sidebar Header */}
@@ -2303,7 +2377,7 @@ User message: `
                 <div
                   key={msg.id}
                   className={cn(
-                    "max-w-[80%]",
+                    "max-w-[90%] md:max-w-[80%]",
                     msg.role === "user" ? "ml-auto" : "mr-auto group"
                   )}
                 >
@@ -2488,8 +2562,8 @@ User message: `
         <TokenUsageBar />
 
         {/* Input */}
-        <div className="flex-shrink-0 p-4 flex justify-center">
-          <div className="w-3/4 min-w-[300px]">
+        <div className="flex-shrink-0 p-2 md:p-4 flex justify-center">
+          <div className="w-[95%] md:w-3/4 min-w-0 md:min-w-[300px]">
           <FilePreview
             files={attachedFiles}
             onRemove={(id) => setAttachedFiles(prev => prev.filter(f => f.id !== id))}
@@ -2588,7 +2662,7 @@ User message: `
               {contactOpen && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setContactOpen(false)}>
                   <div className="absolute inset-0 bg-black/30" />
-                  <div className="relative z-10 w-[380px] rounded-[10px] border border-white/[0.1] bg-white/[0.08] backdrop-blur-[20px] shadow-2xl p-6 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
+                  <div className="relative z-10 w-[calc(100%-2rem)] md:w-[380px] rounded-[10px] border border-white/[0.1] bg-white/[0.08] backdrop-blur-[20px] shadow-2xl p-6 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-between">
                       <span className="text-base font-semibold text-white">Contact Methods</span>
                       <button onClick={() => setContactOpen(false)} className="text-white/40 hover:text-white/80 transition-colors text-sm">✕</button>
