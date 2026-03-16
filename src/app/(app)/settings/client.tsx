@@ -1,12 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { createClient } from "@/lib/supabase/client";
 import type { UserProfile } from "@/lib/supabase/data";
 import {
-  Sparkles,
   ArrowRight,
   Monitor,
   Zap,
@@ -16,8 +13,9 @@ import {
   Check,
   Trash2,
   Globe,
+  AlertTriangle,
 } from "lucide-react";
-
+import { GlassNavbar } from "@/components/layout/glass-navbar";
 
 interface SettingsPageClientProps {
   initialTokenUsage: {
@@ -35,6 +33,11 @@ interface NodeDevice {
   lastSeen?: string;
 }
 
+interface DeletionInfo {
+  requiresConfirmation: boolean;
+  dataToDelete: string[];
+}
+
 function StatusDot({ status }: { status: "green" | "gray" | "red" }) {
   const colors = {
     green: "bg-emerald-400",
@@ -46,8 +49,7 @@ function StatusDot({ status }: { status: "green" | "gray" | "red" }) {
   );
 }
 
-/* ── Shared panel style ── */
-const panel = "bg-white/[0.04] border border-white/[0.1] p-5";
+const glassPanel = "bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 p-4 md:p-5";
 
 function CompanionSetupInline() {
   const [token, setToken] = useState<string | null>(null);
@@ -78,7 +80,7 @@ function CompanionSetupInline() {
 
       <a
         href="/downloads/dopl-connect.dmg"
-        className="flex items-center gap-2 w-full px-4 py-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white/80 text-[13px] transition-colors"
+        className="flex items-center gap-2 w-full px-4 py-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/80 text-[13px] transition-colors"
       >
         <Download className="w-4 h-4 text-emerald-400 flex-shrink-0" />
         <span>Download Dopl Connect (.dmg)</span>
@@ -108,12 +110,12 @@ function CompanionSetupInline() {
           <div className="h-10 bg-white/[0.05] animate-pulse" />
         ) : token ? (
           <div className="flex items-center gap-2">
-            <code className="flex-1 text-[11px] text-white/60 bg-white/[0.05] border border-white/[0.1] px-3 py-2.5 truncate">
+            <code className="flex-1 text-[11px] text-white/60 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate">
               {token}
             </code>
             <button
               onClick={copyToken}
-              className="flex-shrink-0 p-2.5 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] transition-colors"
+              className="flex-shrink-0 p-2.5 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 transition-colors"
               title="Copy token"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-white/50" />}
@@ -248,7 +250,7 @@ function CopyButton({ value, label }: { value: string; label?: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white/50 text-[11px] transition-colors"
+      className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/50 text-[11px] transition-colors"
       title={label ? `Copy ${label}` : "Copy"}
     >
       {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -278,7 +280,7 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
           <div className="space-y-1.5">
             <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Instance URL</p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-[11px] text-white/70 bg-white/[0.05] border border-white/[0.1] px-3 py-2.5 truncate font-mono">
+              <code className="flex-1 text-[11px] text-white/70 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate font-mono">
                 {instanceUrl}
               </code>
               <CopyButton value={instanceUrl!} label="Copy" />
@@ -289,7 +291,7 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
           <div className="space-y-1.5">
             <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Relay URL</p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-[11px] text-white/60 bg-white/[0.05] border border-white/[0.1] px-3 py-2.5 truncate font-mono">
+              <code className="flex-1 text-[11px] text-white/60 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate font-mono">
                 {relayWssUrl}
               </code>
               <CopyButton value={relayWssUrl!} label="Copy" />
@@ -301,7 +303,7 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
             <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Gateway Token</p>
             {authToken ? (
               <div className="flex items-center gap-2">
-                <code className="flex-1 text-[11px] text-white/60 bg-white/[0.05] border border-white/[0.1] px-3 py-2.5 truncate font-mono">
+                <code className="flex-1 text-[11px] text-white/60 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate font-mono">
                   {authToken.slice(0, 8)}••••••••••••••••{authToken.slice(-4)}
                 </code>
                 <CopyButton value={authToken} label="Copy" />
@@ -314,7 +316,7 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
           {/* Download extension */}
           <a
             href="/extension/dopl-browser-relay/"
-            className="flex items-center gap-2 w-full px-4 py-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white/80 text-[13px] transition-colors"
+            className="flex items-center gap-2 w-full px-4 py-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/80 text-[13px] transition-colors"
           >
             <Download className="w-4 h-4 text-emerald-400 flex-shrink-0" />
             <span>Download Dopl Browser Relay Extension</span>
@@ -346,6 +348,151 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
   );
 }
 
+/* ── Delete Account Modal ── */
+function DeleteAccountModal({ onClose }: { onClose: () => void }) {
+  const [deletionInfo, setDeletionInfo] = useState<DeletionInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchDeletionInfo() {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/account/delete");
+        if (!res.ok) throw new Error("Failed to fetch account info");
+        const data = await res.json();
+        setDeletionInfo(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load deletion info");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchDeletionInfo();
+  }, []);
+
+  async function handleDelete() {
+    if (confirmText !== "DELETE") {
+      setError("Please type DELETE to confirm");
+      return;
+    }
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete account");
+
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      window.location.href = "/";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete account");
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center">
+      <div className="bg-black/[0.07] backdrop-blur-[10px] border border-white/10 rounded-[3px] w-full max-w-lg mx-4">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-white/10 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+          <span className="text-[13px] font-medium text-white/80">Delete Account</span>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 max-h-[60vh] overflow-y-auto">
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="w-6 h-6 border-2 border-white/20 border-t-white/60 rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-[12px] text-white/40">Loading account info…</p>
+            </div>
+          ) : error && !deletionInfo ? (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-[12px]">
+              {error}
+            </div>
+          ) : deletionInfo ? (
+            <div className="space-y-4">
+              <p className="text-[13px] text-white/60 leading-relaxed">
+                This action is permanent and cannot be undone. The following data will be permanently deleted:
+              </p>
+              <ul className="space-y-1.5">
+                {deletionInfo.dataToDelete.map((item, i) => (
+                  <li key={i} className="flex items-center gap-2 text-[12px] text-white/50">
+                    <span className="w-1 h-1 rounded-full bg-red-400/60 flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="space-y-2">
+                <p className="text-[11px] uppercase tracking-widest text-white/30 font-medium">
+                  Type <span className="text-red-400">DELETE</span> to confirm
+                </p>
+                <input
+                  value={confirmText}
+                  onChange={(e) => {
+                    setConfirmText(e.target.value.toUpperCase());
+                    setError(null);
+                  }}
+                  placeholder="DELETE"
+                  className="w-full bg-white/[0.05] border border-white/10 text-white/80 text-[13px] px-3 py-2.5 outline-none focus:border-white/20 placeholder:text-white/20"
+                />
+              </div>
+
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-[12px]">
+                  {error}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-white/10 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            disabled={deleting}
+            className="px-4 py-2 text-[13px] text-white/60 hover:text-white/80 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting || confirmText !== "DELETE" || loading}
+            className="px-4 py-2 text-[13px] text-red-400 hover:text-red-300 bg-red-500/[0.06] hover:bg-red-500/[0.12] border border-red-500/20 transition-colors disabled:opacity-40 flex items-center gap-2"
+          >
+            {deleting ? (
+              <>
+                <div className="w-3 h-3 border-2 border-red-400/40 border-t-red-400 rounded-full animate-spin" />
+                Deleting…
+              </>
+            ) : (
+              <>
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete Forever
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Main Page ── */
 export default function SettingsPageClient({
   initialTokenUsage,
   initialProfile,
@@ -358,22 +505,17 @@ export default function SettingsPageClient({
   );
   const [billingLoading, setBillingLoading] = useState(true);
   const [billingUpgrading, setBillingUpgrading] = useState(false);
-  const [upgradedBanner, setUpgradedBanner] = useState(false);
   const [usageStatus, setUsageStatus] = useState<{
     weekly: { used: number; limit: number; resetDate: string };
     monthly: { used: number; limit: number; resetDate: string };
     percentWeekly: number;
     percentMonthly: number;
   } | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     fetchBilling();
     fetchUsage();
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("upgraded") === "true") {
-      setUpgradedBanner(true);
-      setTimeout(() => setUpgradedBanner(false), 5000);
-    }
   }, []);
 
   async function fetchBilling() {
@@ -418,162 +560,199 @@ export default function SettingsPageClient({
   const featuredPct = usageStatus?.percentMonthly ?? pct;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      {/* Upgraded banner */}
-      {upgradedBanner && (
-        <div className="px-4 py-3 mb-4 bg-[#9EFFBF]/10 border border-[#9EFFBF]/30 text-[13px] text-[#9EFFBF] font-medium">
-          🎉 You&apos;re now on Pro! Enjoy unlimited access.
-        </div>
-      )}
+    <>
+      <div
+        className="fixed inset-0 z-[100] flex flex-col p-1 gap-1 md:p-[7px] md:gap-[7px]"
+        style={{
+          backgroundImage: "url('/img/landing_background.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        <GlassNavbar />
 
-      {/* ── Bento Grid ── */}
-      <div className="grid grid-cols-2 gap-px bg-white/[0.1]">
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto flex flex-col gap-1 md:gap-[7px] min-h-0">
 
-        {/* ── Usage (top-left) ── */}
-        <div className={panel}>
-          <div className="flex items-center gap-2 mb-4">
-            <Zap className="w-4 h-4 text-white/40" />
-            <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Token Usage</span>
-            <span className="text-[12px] text-white/30 ml-auto">
-              Resets {featuredUsage?.resetDate ?? initialTokenUsage.resetDate}
-            </span>
-          </div>
+          {/* Row 1: Account & Plan + Token Usage */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-[7px]">
 
-          <div className="flex items-baseline gap-3 mb-3">
-            <span className="text-4xl font-bold text-white/90 tracking-tight">{featuredPct}%</span>
-            <span className="text-[13px] text-white/40">
-              {featuredUsage
-                ? `${Math.round(featuredUsage.used / 1000)}k / ${Math.round(featuredUsage.limit / 1000)}k`
-                : `${Math.round(initialTokenUsage.used / 1000)}k / ${Math.round(initialTokenUsage.limit / 1000)}k`}
-              {" "}tokens
-            </span>
-          </div>
+            {/* Account & Plan */}
+            <div className={glassPanel}>
+              <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Account &amp; Plan</span>
 
-          <div className="w-full h-2 bg-white/[0.08] overflow-hidden">
-            <div
-              className="h-full transition-all duration-700"
-              style={{
-                width: `${Math.min(featuredPct, 100)}%`,
-                background: featuredPct >= 100 ? "#f87171" : featuredPct >= 80 ? "#fbbf24" : "#9EFFBF",
-              }}
-            />
-          </div>
+              <div className="mt-4 space-y-4">
+                {initialProfile?.email && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] text-white/40">Email</span>
+                    <span className="text-[13px] text-white/80 font-medium truncate max-w-[65%] text-right">
+                      {initialProfile.email}
+                    </span>
+                  </div>
+                )}
 
-          {usageStatus && (
-            <div className="mt-3 space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-[11px] text-white/30 uppercase tracking-wider">Weekly</span>
-                <span className="text-[11px] text-white/30">
-                  {Math.round(usageStatus.weekly.used / 1000)}k / {Math.round(usageStatus.weekly.limit / 1000)}k
+                {initialProfile?.created_at && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] text-white/40">Member since</span>
+                    <span className="text-[13px] text-white/60">
+                      {new Date(initialProfile.created_at).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </span>
+                  </div>
+                )}
+
+                <div className="h-px w-full bg-white/[0.08]" />
+
+                {billingLoading ? (
+                  <div className="h-5 bg-white/[0.05] animate-pulse" />
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] text-white/40">Plan</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] uppercase tracking-wide px-2 py-0.5 border border-white/10 text-white/60 bg-white/[0.04]">
+                        {billingPlan.charAt(0).toUpperCase() + billingPlan.slice(1)}
+                      </span>
+                      {billingPlan !== "free" && billingPeriodEnd && (
+                        <span className="text-[11px] text-white/30">
+                          Renews {new Date(billingPeriodEnd).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {!billingLoading && (
+                  <button
+                    onClick={handleManageBilling}
+                    disabled={billingUpgrading}
+                    className="w-full py-2 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/70 text-[13px] transition-colors disabled:opacity-50"
+                  >
+                    {billingUpgrading ? "Opening…" : "Manage Billing"}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Token Usage */}
+            <div className={glassPanel}>
+              <div className="flex items-center gap-2 mb-4">
+                <Zap className="w-4 h-4 text-white/40" />
+                <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Token Usage</span>
+                <span className="text-[12px] text-white/30 ml-auto">
+                  Resets {featuredUsage?.resetDate ?? initialTokenUsage.resetDate}
                 </span>
               </div>
-              <div className="w-full h-1 bg-white/[0.06] overflow-hidden">
+
+              <div className="flex items-baseline gap-3 mb-3">
+                <span className="text-4xl font-bold text-white/90 tracking-tight">{featuredPct}%</span>
+                <span className="text-[13px] text-white/40">
+                  {featuredUsage
+                    ? `${Math.round(featuredUsage.used / 1000)}k / ${Math.round(featuredUsage.limit / 1000)}k`
+                    : `${Math.round(initialTokenUsage.used / 1000)}k / ${Math.round(initialTokenUsage.limit / 1000)}k`}
+                  {" "}tokens
+                </span>
+              </div>
+
+              <div className="w-full h-2 bg-white/[0.08] overflow-hidden rounded-[1px]">
                 <div
-                  className="h-full"
+                  className="h-full transition-all duration-700"
                   style={{
-                    width: `${Math.min(usageStatus.percentWeekly, 100)}%`,
-                    background: usageStatus.percentWeekly >= 100 ? "#f87171" : usageStatus.percentWeekly >= 80 ? "#fbbf24" : "#9EFFBF",
-                    opacity: 0.6,
+                    width: `${Math.min(featuredPct, 100)}%`,
+                    background: featuredPct >= 100 ? "#f87171" : featuredPct >= 80 ? "#fbbf24" : "#9EFFBF",
                   }}
                 />
               </div>
-            </div>
-          )}
 
-          <Link href="/settings/billing" className="block mt-5">
-            <button
-              className="w-full py-3 font-semibold text-[14px] text-black/80 transition-all hover:brightness-110 active:scale-[0.98]"
-              style={{ background: "linear-gradient(135deg, #9EFFBF 0%, #6ee7a0 100%)" }}
-            >
-              <span className="flex items-center justify-center gap-2">
-                <Sparkles className="w-4 h-4" />
-                Get More Usage
-              </span>
-            </button>
-          </Link>
-        </div>
-
-        {/* ── Account (top-right) ── */}
-        <div className={panel}>
-          <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Account</span>
-
-          <div className="mt-4 space-y-4">
-            {initialProfile?.email && (
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] text-white/40">Email</span>
-                <span className="text-[13px] text-white/80 font-medium truncate max-w-[65%] text-right">
-                  {initialProfile.email}
-                </span>
-              </div>
-            )}
-
-            <div className="h-px w-full bg-white/[0.08]" />
-
-            {billingLoading ? (
-              <div className="h-5 bg-white/[0.05] animate-pulse" />
-            ) : (
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] text-white/40">Plan</span>
-                <div className="flex items-center gap-2">
-                  <Badge status={billingPlan !== "free" ? "active" : "pending"}>
-                    {billingPlan.charAt(0).toUpperCase() + billingPlan.slice(1)}
-                  </Badge>
-                  {billingPlan !== "free" && billingPeriodEnd && (
+              {usageStatus && (
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-[11px] text-white/30 uppercase tracking-wider">Weekly</span>
                     <span className="text-[11px] text-white/30">
-                      Renews {new Date(billingPeriodEnd).toLocaleDateString()}
+                      {Math.round(usageStatus.weekly.used / 1000)}k / {Math.round(usageStatus.weekly.limit / 1000)}k
                     </span>
-                  )}
+                  </div>
+                  <div className="w-full h-1 bg-white/[0.06] overflow-hidden rounded-[1px]">
+                    <div
+                      className="h-full"
+                      style={{
+                        width: `${Math.min(usageStatus.percentWeekly, 100)}%`,
+                        background: usageStatus.percentWeekly >= 100 ? "#f87171" : usageStatus.percentWeekly >= 80 ? "#fbbf24" : "#9EFFBF",
+                        opacity: 0.6,
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-[11px] text-white/30 uppercase tracking-wider">Monthly</span>
+                    <span className="text-[11px] text-white/30">
+                      {Math.round(usageStatus.monthly.used / 1000)}k / {Math.round(usageStatus.monthly.limit / 1000)}k
+                    </span>
+                  </div>
+                  <div className="w-full h-1 bg-white/[0.06] overflow-hidden rounded-[1px]">
+                    <div
+                      className="h-full"
+                      style={{
+                        width: `${Math.min(usageStatus.percentMonthly, 100)}%`,
+                        background: usageStatus.percentMonthly >= 100 ? "#f87171" : usageStatus.percentMonthly >= 80 ? "#fbbf24" : "#9EFFBF",
+                        opacity: 0.6,
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {!billingLoading && billingPlan !== "free" && (
               <button
                 onClick={handleManageBilling}
                 disabled={billingUpgrading}
-                className="w-full py-2 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white/70 text-[13px] transition-colors disabled:opacity-50"
+                className="w-full mt-5 py-2.5 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/70 text-[13px] transition-colors disabled:opacity-50"
               >
-                {billingUpgrading ? "Opening…" : "Manage Billing"}
+                Get More Usage
               </button>
-            )}
-          </div>
-
-          {/* Danger zone — bottom of account panel */}
-          <div className="mt-auto pt-6">
-            <div className="h-px w-full bg-white/[0.08] mb-4" />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[13px] text-white/50">Delete Account</p>
-                <p className="text-[11px] text-white/25 mt-0.5">Permanently remove all data</p>
-              </div>
-              <Link href="/settings/account">
-                <button className="flex items-center gap-1.5 py-1.5 px-3 bg-red-500/[0.06] hover:bg-red-500/[0.12] border border-red-500/[0.15] text-red-400/70 text-[12px] transition-colors">
-                  <Trash2 className="w-3 h-3" />
-                  Delete
-                </button>
-              </Link>
             </div>
           </div>
-        </div>
 
-        {/* ── Connected Devices (bottom-left) ── */}
-        <div className={panel}>
-          <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Connected Devices</span>
-          <div className="mt-4">
-            <ConnectedDevicesSection />
+          {/* Row 2: Connected Devices */}
+          <div className={glassPanel}>
+            <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Connected Devices</span>
+            <div className="mt-4">
+              <ConnectedDevicesSection />
+            </div>
           </div>
-        </div>
 
-        {/* ── Browser Relay (bottom-right) ── */}
-        <div className={panel}>
-          <div className="flex items-center gap-2 mb-4">
-            <Globe className="w-4 h-4 text-white/40" />
-            <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Browser Relay</span>
+          {/* Row 3: Browser Relay */}
+          <div className={glassPanel}>
+            <div className="flex items-center gap-2 mb-4">
+              <Globe className="w-4 h-4 text-white/40" />
+              <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Browser Relay</span>
+            </div>
+            <BrowserRelaySection profile={initialProfile} />
           </div>
-          <BrowserRelaySection profile={initialProfile} />
-        </div>
 
+          {/* Danger Zone */}
+          <div className="px-4 md:px-5 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-[12px] text-white/30">Danger Zone</p>
+            </div>
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="flex items-center gap-1.5 py-1.5 px-3 bg-red-500/[0.06] hover:bg-red-500/[0.12] border border-red-500/[0.15] text-red-400/70 text-[12px] transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+              Delete Account
+            </button>
+          </div>
+
+          {/* Bottom padding */}
+          <div className="h-2 shrink-0" />
+        </div>
       </div>
-    </div>
+
+      {/* Delete Account Modal */}
+      {showDeleteModal && (
+        <DeleteAccountModal onClose={() => setShowDeleteModal(false)} />
+      )}
+    </>
   );
 }
