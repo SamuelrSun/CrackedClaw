@@ -2457,79 +2457,59 @@ User message: `
               className="w-full bg-transparent px-4 pt-4 pb-2 text-base leading-[24px] text-white/90 outline-none resize-none placeholder:text-white/30 disabled:opacity-50 min-h-[48px] max-h-[200px]"
             />
             <div className="flex items-center justify-between px-3 py-2">
+              <div className="flex items-center gap-1.5">
               {/* Paperclip attach button */}
               <button
                 type="button"
                 onClick={() => document.getElementById('dopl-file-input')?.click()}
                 disabled={!gateway || isLoading}
-                title="Attach file"
-                className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent"
+                className="group/btn relative w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">Attach</span>
               </button>
 
               {/* Connections button */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => { setConnectionsOpen(!connectionsOpen); setComputerOpen(false); setContactOpen(false); }}
-                  title="Connections"
-                  className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors bg-transparent"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                  </svg>
-                </button>
-                {connectionsOpen && <ConnectionsPopup onClose={() => setConnectionsOpen(false)} />}
-              </div>
+              <button
+                type="button"
+                onClick={() => { setConnectionsOpen(!connectionsOpen); setComputerOpen(false); setContactOpen(false); }}
+                className="group/btn relative w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors bg-transparent"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+                <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">Integrations</span>
+              </button>
 
               {/* Computer / Companion button */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => { setComputerOpen(!computerOpen); setConnectionsOpen(false); setContactOpen(false); }}
-                  title="Desktop Companion"
-                  className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors bg-transparent"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect width="20" height="14" x="2" y="3" rx="2"/>
-                    <line x1="8" x2="16" y1="21" y2="21"/>
-                    <line x1="12" x2="12" y1="17" y2="21"/>
-                  </svg>
-                </button>
-                {computerOpen && <ComputerPopup onClose={() => setComputerOpen(false)} />}
-              </div>
+              <button
+                type="button"
+                onClick={() => { setComputerOpen(!computerOpen); setConnectionsOpen(false); setContactOpen(false); }}
+                className="group/btn relative w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors bg-transparent"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect width="20" height="14" x="2" y="3" rx="2"/>
+                  <line x1="8" x2="16" y1="21" y2="21"/>
+                  <line x1="12" x2="12" y1="17" y2="21"/>
+                </svg>
+                <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">Computer</span>
+              </button>
 
               {/* Contact Methods button */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => { setContactOpen(!contactOpen); setConnectionsOpen(false); setComputerOpen(false); }}
-                  title="Contact Methods"
-                  className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors bg-transparent"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                  </svg>
-                </button>
-                {contactOpen && (
-                  <div className="absolute bottom-full mb-2 left-0 z-50 w-[300px] rounded-[10px] border border-white/[0.1] bg-black/70 backdrop-blur-[10px] shadow-xl p-4 flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-white">Contact Methods</span>
-                      <button onClick={() => setContactOpen(false)} className="text-white/40 hover:text-white/80 transition-colors text-xs">✕</button>
-                    </div>
-                    <div className="text-xs text-white/50 leading-relaxed">
-                      Configure how your agent can reach you — email, SMS, Slack DMs, and more.
-                    </div>
-                    <div className="text-xs text-white/30 bg-white/[0.04] border border-white/[0.06] rounded-[6px] px-3 py-2">
-                      🚧 Coming soon
-                    </div>
-                  </div>
-                )}
+              <button
+                type="button"
+                onClick={() => { setContactOpen(!contactOpen); setConnectionsOpen(false); setComputerOpen(false); }}
+                className="group/btn relative w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors bg-transparent"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                </svg>
+                <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">Contact</span>
+              </button>
               </div>
 
-              {/* Mic / Send button (mic when empty, arrow when typing) */}
+              {/* Mic / Send button (mic when empty, arrow when typing) — stays on the right */}
               <button
                 type="button"
                 onClick={() => {
@@ -2538,15 +2518,36 @@ User message: `
                   }
                 }}
                 disabled={!gateway || isLoading || isReconnecting}
-                title={input.trim() ? "Send message" : "Voice input"}
-                className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent"
+                className="group/btn relative w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent"
               >
                 {input.trim() || attachedFiles.length > 0 ? (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
                 ) : (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
                 )}
+                <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">{input.trim() ? 'Send' : 'Voice'}</span>
               </button>
+
+              {/* Full-page popup overlays */}
+              {connectionsOpen && <ConnectionsPopup onClose={() => setConnectionsOpen(false)} />}
+              {computerOpen && <ComputerPopup onClose={() => setComputerOpen(false)} />}
+              {contactOpen && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setContactOpen(false)}>
+                  <div className="absolute inset-0 bg-black/30" />
+                  <div className="relative z-10 w-[380px] rounded-[10px] border border-white/[0.1] bg-white/[0.08] backdrop-blur-[20px] shadow-2xl p-6 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-base font-semibold text-white">Contact Methods</span>
+                      <button onClick={() => setContactOpen(false)} className="text-white/40 hover:text-white/80 transition-colors text-sm">✕</button>
+                    </div>
+                    <div className="text-sm text-white/60 leading-relaxed">
+                      Configure how your agent can reach you — email, SMS, Slack DMs, and more.
+                    </div>
+                    <div className="text-sm text-white/40 bg-white/[0.04] border border-white/[0.06] rounded-[6px] px-4 py-3 text-center">
+                      🚧 Coming soon
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           </div>

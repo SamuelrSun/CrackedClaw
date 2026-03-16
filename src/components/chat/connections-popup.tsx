@@ -55,16 +55,7 @@ export function ConnectionsPopup({ onClose }: ConnectionsPopupProps) {
     return () => { cancelled = true; };
   }, []);
 
-  // Click-outside to close
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
+  // Click-outside handled by overlay onClick
 
   const connectedIds = new Set(connected.map((c) => c.id ?? c.provider));
 
@@ -77,7 +68,13 @@ export function ConnectionsPopup({ onClose }: ConnectionsPopupProps) {
   return (
     <div
       ref={ref}
-      className="absolute bottom-full mb-2 left-0 z-50 w-[380px] max-h-[420px] overflow-y-auto flex flex-col gap-0 rounded-[10px] border border-white/[0.1] bg-black/70 backdrop-blur-[10px] shadow-xl"
+      className="fixed inset-0 z-[200] flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/30" />
+      <div
+        className="relative z-10 w-[480px] max-h-[70vh] overflow-y-auto flex flex-col gap-0 rounded-[10px] border border-white/[0.1] bg-white/[0.08] backdrop-blur-[20px] shadow-2xl"
+        onClick={e => e.stopPropagation()}
       style={{ scrollbarWidth: "thin" }}
     >
       {/* Header */}
@@ -188,6 +185,7 @@ export function ConnectionsPopup({ onClose }: ConnectionsPopupProps) {
             <div>🖥️ <span className="text-white/70 font-medium">Companion</span> — Desktop app for browser-based services (LinkedIn, Instagram)</div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

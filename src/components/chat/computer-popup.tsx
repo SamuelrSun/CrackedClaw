@@ -37,21 +37,18 @@ export function ComputerPopup({ onClose }: ComputerPopupProps) {
     return () => { cancelled = true; };
   }, []);
 
-  // Click-outside to close
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
+  // Click-outside handled by overlay onClick
 
   return (
     <div
       ref={ref}
-      className="absolute bottom-full mb-2 left-0 z-50 w-[340px] rounded-[10px] border border-white/[0.1] bg-black/70 backdrop-blur-[10px] shadow-xl"
+      className="fixed inset-0 z-[200] flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/30" />
+      <div
+        className="relative z-10 w-[420px] rounded-[10px] border border-white/[0.1] bg-white/[0.08] backdrop-blur-[20px] shadow-2xl"
+        onClick={e => e.stopPropagation()}
     >
       {/* Header */}
       <div className="px-4 pt-4 pb-2 border-b border-white/[0.08] flex items-center justify-between">
@@ -151,6 +148,7 @@ export function ComputerPopup({ onClose }: ComputerPopupProps) {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );
