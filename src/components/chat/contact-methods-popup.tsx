@@ -184,22 +184,28 @@ export function ContactMethodsPopup({ onClose, userEmail }: ContactMethodsPopupP
             )}
 
             {phoneState.status === "idle" && (
-              <div className="pl-11 flex gap-2">
-                <input
-                  type="tel"
-                  value={phoneInput}
-                  onChange={(e) => setPhoneInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSubmitPhone()}
-                  placeholder="+1 (555) 000-0000"
-                  className="flex-1 bg-white/[0.05] border border-white/[0.1] text-white/80 text-[12px] px-3 py-2 outline-none focus:border-white/20 placeholder:text-white/25 rounded-[3px]"
-                />
-                <button
-                  onClick={handleSubmitPhone}
-                  disabled={!phoneInput.trim() || submitting}
-                  className="px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 text-[11px] rounded-[3px] transition-colors disabled:opacity-40"
-                >
-                  {submitting ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirm"}
-                </button>
+              <div className="pl-11 flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    value={phoneInput}
+                    onChange={(e) => setPhoneInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSubmitPhone()}
+                    placeholder="+1 (555) 000-0000"
+                    className="flex-1 bg-white/[0.05] border border-white/[0.1] text-white/80 text-[12px] px-3 py-2 outline-none focus:border-white/20 placeholder:text-white/25 rounded-[3px]"
+                  />
+                  <button
+                    onClick={handleSubmitPhone}
+                    disabled={!phoneInput.trim() || submitting}
+                    className="px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 text-[11px] rounded-[3px] transition-colors disabled:opacity-40"
+                  >
+                    {submitting ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirm"}
+                  </button>
+                </div>
+                <p className="text-[10px] text-white/30 leading-relaxed">
+                  By confirming, you agree to receive SMS messages from your AI companion. Msg & data rates may apply.{" "}
+                  <a href="/privacy#sms" target="_blank" className="underline hover:text-white/50 transition-colors">Privacy Policy</a>
+                </p>
               </div>
             )}
 

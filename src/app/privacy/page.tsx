@@ -119,20 +119,38 @@ export default function PrivacyPage() {
               <li><strong className="text-white">OpenAI</strong> — AI model inference (when selected by user)</li>
               <li><strong className="text-white">Vercel</strong> — web application hosting and deployment</li>
               <li><strong className="text-white">DigitalOcean</strong> — agent instance hosting</li>
+              <li><strong className="text-white">Twilio</strong> — SMS messaging infrastructure for phone number verification and agent notifications</li>
               <li><strong className="text-white">Google</strong> — OAuth authentication and workspace integrations</li>
               <li><strong className="text-white">GitHub</strong> — OAuth authentication</li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold mb-3 text-white">6. Data Sharing</h2>
+            <h2 className="text-sm font-semibold mb-3 text-white">6. SMS Communications &amp; Phone Number Collection</h2>
+            <p className="mb-3">
+              If you choose to add a phone number as a contact method, you are explicitly opting in to receive SMS messages from your Dopl AI companion. Specifically:
+            </p>
+            <ul className="list-disc pl-5 space-y-1.5 text-white/70">
+              <li>Your phone number is collected voluntarily through the Contact Methods section of the app</li>
+              <li>By submitting your phone number and completing verification, you consent to receive SMS messages from your AI companion, including responses to your messages and agent-initiated notifications</li>
+              <li>SMS messages are delivered via Twilio. Standard message and data rates may apply</li>
+              <li>You can opt out at any time by removing your phone number from Contact Methods in the app, or by replying STOP to any message</li>
+              <li>We do not share your phone number with third parties for marketing purposes</li>
+            </ul>
+            <p className="mt-3 text-white/70">
+              Phone number verification is completed by texting our dedicated number from the registered phone. This confirms consent and ownership of the number.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-sm font-semibold mb-3 text-white">7. Data Sharing</h2>
             <p>
               We do not share your personal information with third parties except: (a) with service providers strictly necessary to operate the Service, under contractual data protection obligations; (b) when required by law, subpoena, or valid legal process; (c) to protect the rights, safety, and property of our users, Company, or the public; or (d) with your explicit consent.
             </p>
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold mb-3 text-white">7. Your Rights</h2>
+            <h2 className="text-sm font-semibold mb-3 text-white">8. Your Rights</h2>
             <p className="mb-3">You have the following rights regarding your data:</p>
             <ul className="list-disc pl-5 space-y-1.5 text-white/70">
               <li><strong className="text-white">Access</strong> — download your data at any time via the Export feature in Settings</li>
@@ -149,49 +167,49 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold mb-3 text-white">8. Cookies and Local Storage</h2>
+            <h2 className="text-sm font-semibold mb-3 text-white">9. Cookies and Local Storage</h2>
             <p>
               We use essential cookies and browser local storage for authentication, session management, and user preferences. We do not use tracking cookies, advertising pixels, or third-party analytics. You may disable cookies in your browser settings, but this may impair core Service functionality.
             </p>
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold mb-3 text-white">9. Data Retention</h2>
+            <h2 className="text-sm font-semibold mb-3 text-white">10. Data Retention</h2>
             <p>
               We retain your data for as long as your account remains active. If you delete your account, your data remains available for export for 30 days, after which it is permanently and irreversibly deleted from our systems. Anonymized, aggregated usage statistics may be retained indefinitely for service improvement purposes.
             </p>
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold mb-3 text-white">10. Children&rsquo;s Privacy</h2>
+            <h2 className="text-sm font-semibold mb-3 text-white">11. Children&rsquo;s Privacy</h2>
             <p>
               The Service is not directed to individuals under 18 years of age. We do not knowingly collect personal information from children. If you believe a child has provided us with personal information, please contact us immediately and we will take steps to delete such information.
             </p>
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold mb-3 text-white">11. International Data Transfers</h2>
+            <h2 className="text-sm font-semibold mb-3 text-white">12. International Data Transfers</h2>
             <p>
               If you access the Service from outside the United States, your information may be transferred to, stored, and processed in the United States. By using the Service, you consent to such transfers. We take reasonable steps to ensure your data receives an adequate level of protection in accordance with applicable data protection laws.
             </p>
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold mb-3 text-white">12. California Privacy Rights (CCPA)</h2>
+            <h2 className="text-sm font-semibold mb-3 text-white">13. California Privacy Rights (CCPA)</h2>
             <p>
               California residents have the right to know what personal information is collected, request its deletion, and opt out of its sale. We do not sell personal information. To exercise your California privacy rights, contact us at the address below.
             </p>
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold mb-3 text-white">13. Changes to This Policy</h2>
+            <h2 className="text-sm font-semibold mb-3 text-white">14. Changes to This Policy</h2>
             <p>
               We may update this Privacy Policy from time to time. We will notify you of material changes via email or through an in-app notification. Your continued use of the Service after changes take effect constitutes acceptance of the updated policy.
             </p>
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold mb-3 text-white">14. Contact Us</h2>
+            <h2 className="text-sm font-semibold mb-3 text-white">15. Contact Us</h2>
             <p>
               If you have questions about this Privacy Policy or your data, contact us at{" "}
               <a href="mailto:build@usedopl.com" className="underline text-white hover:text-white/60 transition-colors">
