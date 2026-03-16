@@ -2019,6 +2019,24 @@ User message: `
         <div className="ml-auto flex items-center gap-2 md:gap-4">
           {user && (
             <>
+              <Link href="/settings" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+                {isConnected ? (
+                  <>
+                    <div className="w-2 h-2 bg-emerald-700 rounded-none block flex-shrink-0" />
+                    <span className="hidden sm:inline font-mono text-[10px] uppercase tracking-wide text-emerald-600">Online</span>
+                  </>
+                ) : isReconnecting ? (
+                  <>
+                    <div className="w-2 h-2 bg-amber-500 rounded-none block animate-pulse flex-shrink-0" />
+                    <span className="hidden sm:inline font-mono text-[10px] uppercase tracking-wide text-amber-400">Connecting</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-2 h-2 bg-red-600 rounded-none block flex-shrink-0" />
+                    <span className="hidden sm:inline font-mono text-[10px] uppercase tracking-wide text-red-500">Offline</span>
+                  </>
+                )}
+              </Link>
               <div className="h-4 w-px bg-white/[0.1]" />
             </>
           )}
@@ -2214,20 +2232,6 @@ User message: `
           </div>
         )}
 
-        {/* Gateway Status Panel — only show when expanded */}
-        {!sidebarCollapsed && (
-          <GatewayStatusPanel
-            status={gatewayStatus}
-            latencyMs={latencyMs}
-            reconnectAttempt={reconnectAttempt}
-            reconnectCountdown={reconnectCountdown}
-            isReconnecting={isReconnecting}
-            isCanceled={gatewayIsCanceled}
-            error={gatewayError}
-            onRetry={forceReconnect}
-            onCancel={cancelReconnect}
-          />
-        )}
       </aside>
 
       {/* PANEL 3: Main Chat Area + Activity Panel */}
