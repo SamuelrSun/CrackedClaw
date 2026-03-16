@@ -739,6 +739,30 @@ export default function ChatPageClient({
   const { openSearch } = useSearchContext();
   const pathname = usePathname();
 
+  // ── Intro curtain animation (from welcome page transition) ──
+  const [introAnimation, setIntroAnimation] = useState(false);
+  const [introRevealing, setIntroRevealing] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+    if (params.get('intro') !== '1') return;
+    // Start with panels covering the screen
+    setIntroAnimation(true);
+    // After brief hold (page hydrates and renders), slide panels up to reveal
+    const revealTimeout = setTimeout(() => {
+      setIntroRevealing(true);
+    }, 800);
+    // After reveal animation completes, remove overlay
+    const doneTimeout = setTimeout(() => {
+      setIntroAnimation(false);
+    }, 800 + 2000);
+    return () => {
+      clearTimeout(revealTimeout);
+      clearTimeout(doneTimeout);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Fetch and cache the current user's ID on mount
   useEffect(() => {
     const supabase = createSupabaseClient();
@@ -2740,6 +2764,58 @@ User message: `
       )}
       </div>
     </div>
+
+      {/* ── Intro curtain animation overlay (from welcome → chat transition) ── */}
+      {introAnimation && (
+        <div className="fixed inset-0 z-[300] flex pointer-events-none">
+          {/* Sidebar-width panel */}
+          <div
+            style={{
+              width: sidebarCollapsed ? 0 : 288,
+              flexShrink: 0,
+              background: "#373024",
+              transform: introRevealing ? "translateY(-100%)" : "translateY(0)",
+              transition: introRevealing
+                ? "transform 1.2s cubic-bezier(0.76,0,0.24,1) 0s"
+                : "none",
+            }}
+          />
+          {/* 3 content panels, staggered */}
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              style={{
+                flex: 1,
+                background: "#373024",
+                transform: introRevealing ? "translateY(-100%)" : "translateY(0)",
+                transition: introRevealing
+                  ? `transform 1.2s cubic-bezier(0.76,0,0.24,1) ${i * 0.15}s`
+                  : "none",
+              }}
+            />
+          ))}
+          {/* Centered "Dopl" text — visible until reveal starts */}
+          {!introRevealing && (
+            <div
+              className="absolute inset-0 flex items-center justify-center"
+              style={{ zIndex: 1 }}
+            >
+              <h1
+                style={{
+                  fontFamily: "'Playfair Display', serif",
+                  fontStyle: "italic",
+                  color: "white",
+                  fontSize: 32,
+                  opacity: 0.9,
+                  margin: 0,
+                }}
+              >
+                Dopl
+              </h1>
+            </div>
+          )}
+        </div>
+      )}
   </div>
   );
 }

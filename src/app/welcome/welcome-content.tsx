@@ -408,35 +408,47 @@ export function WelcomeContent() {
   const [msgOpacity, setMsgOpacity] = useState(1);
   const [showWaiting, setShowWaiting] = useState(false); // "Give me just a moment..." with animated dots
 
-  // Post-messaging reveal panels
+  // Post-messaging cover panels (phase 1: slide up from below to cover screen)
   const [showPanels, setShowPanels] = useState(false);
-  const [panelsAnimating, setPanelsAnimating] = useState(false);
+  const [panelsCovering, setPanelsCovering] = useState(false);
+  const [showDoplText, setShowDoplText] = useState(false);
 
   // Refs to coordinate provisioning + messaging completion
   const provisionDoneRef = useRef(false);
   const completionFiredRef = useRef(false);
   const firstConvoIdRef = useRef<string | null>(null);
 
-  // ── Trigger the final panels-up + redirect ──
+  // ── Trigger the final panels cover + redirect ──
   const triggerCompletion = useCallback(() => {
     if (completionFiredRef.current) return;
     completionFiredRef.current = true;
 
+    // Prefetch the chat route so it's ready
+    router.prefetch('/chat');
+
+    // Phase 1: show panels off-screen below, then animate them up to cover
     setShowPanels(true);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        setPanelsAnimating(true);
+        setPanelsCovering(true);
       });
     });
 
+    // Show "Dopl" text after panels finish covering (~1.8s for last panel)
+    setTimeout(() => {
+      setShowDoplText(true);
+    }, 2000);
+
+    // Navigate to chat while panels are still covering (chat page renders underneath)
+    // The chat page will handle the reveal animation via ?intro=1
     setTimeout(() => {
       const convoId = firstConvoIdRef.current;
       if (convoId) {
         router.push(`/chat?c=${convoId}&intro=1`);
       } else {
-        router.push("/chat");
+        router.push('/chat?intro=1');
       }
-    }, 2900);
+    }, 3500);
   }, [router]);
 
   // ── Auth success handler (popup flow) ──
@@ -687,33 +699,55 @@ export function WelcomeContent() {
         </div>
       )}
 
-      {/* ── Post-messages: reveal panels ── */}
+      {/* ── Post-messages: cover panels (slide UP from below to cover screen) ── */}
       {showPanels && (
-        <div className="fixed inset-0 z-30 flex">
+        <div className="fixed inset-0 z-30 flex" style={{ pointerEvents: "none" }}>
+          {/* Sidebar-width panel */}
           <div
             style={{
               width: 288,
               flexShrink: 0,
-              background: "#0a0a0f",
-              transform: panelsAnimating ? "translateY(-100%)" : "translateY(0)",
-              transition: panelsAnimating
-                ? "transform 2s cubic-bezier(0.76,0,0.24,1) 0s"
+              background: "#373024",
+              transform: panelsCovering ? "translateY(0)" : "translateY(100%)",
+              transition: panelsCovering
+                ? "transform 1.2s cubic-bezier(0.76,0,0.24,1) 0s"
                 : "none",
             }}
           />
+          {/* 3 content panels, staggered */}
           {[1, 2, 3].map((i) => (
             <div
               key={i}
               style={{
                 flex: 1,
-                background: "#0a0a0f",
-                transform: panelsAnimating ? "translateY(-100%)" : "translateY(0)",
-                transition: panelsAnimating
-                  ? `transform 2s cubic-bezier(0.76,0,0.24,1) ${i * 0.2}s`
+                background: "#373024",
+                transform: panelsCovering ? "translateY(0)" : "translateY(100%)",
+                transition: panelsCovering
+                  ? `transform 1.2s cubic-bezier(0.76,0,0.24,1) ${i * 0.2}s`
                   : "none",
               }}
             />
           ))}
+          {/* Centered "Dopl" text — appears after panels finish covering */}
+          {showDoplText && (
+            <div
+              className="absolute inset-0 flex items-center justify-center"
+              style={{ zIndex: 1 }}
+            >
+              <h1
+                style={{
+                  fontFamily: "'Playfair Display', serif",
+                  fontStyle: "italic",
+                  color: "white",
+                  fontSize: 32,
+                  opacity: 0.9,
+                  margin: 0,
+                }}
+              >
+                Dopl
+              </h1>
+            </div>
+          )}
         </div>
       )}
     </div>
