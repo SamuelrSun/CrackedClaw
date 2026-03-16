@@ -656,14 +656,15 @@ export default function ChatPageClient({
   const pathname = usePathname();
 
   // ── Intro curtain animation (from welcome page transition) ──
-  const [introAnimation, setIntroAnimation] = useState(false);
+  // Initialize synchronously from URL to avoid flash of uncovered chat page
+  const [introAnimation, setIntroAnimation] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('intro') === '1';
+  });
   const [introRevealing, setIntroRevealing] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-    if (params.get('intro') !== '1') return;
-    // Start with panels covering the screen
-    setIntroAnimation(true);
+    if (!introAnimation) return;
     // After brief hold (page hydrates and renders), slide panels up to reveal
     const revealTimeout = setTimeout(() => {
       setIntroRevealing(true);
@@ -672,12 +673,17 @@ export default function ChatPageClient({
     const doneTimeout = setTimeout(() => {
       setIntroAnimation(false);
     }, 800 + 2000);
+    // Clean intro param from URL
+    const url = new URL(window.location.href);
+    url.searchParams.delete('intro');
+    window.history.replaceState({}, '', url.pathname + url.search);
+
     return () => {
       clearTimeout(revealTimeout);
       clearTimeout(doneTimeout);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [introAnimation]);
 
   // Fetch and cache the current user's ID on mount
   useEffect(() => {
