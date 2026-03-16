@@ -315,7 +315,7 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
 
           {/* Download extension */}
           <a
-            href="/extension/dopl-browser-relay/"
+            href="/api/download/browser-relay"
             className="flex items-center gap-2 w-full px-4 py-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/80 text-[13px] transition-colors"
           >
             <Download className="w-4 h-4 text-emerald-400 flex-shrink-0" />
@@ -713,21 +713,22 @@ export default function SettingsPageClient({
             </div>
           </div>
 
-          {/* Row 2: Connected Devices */}
-          <div className={glassPanel}>
-            <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Connected Devices</span>
-            <div className="mt-4">
-              <ConnectedDevicesSection />
+          {/* Row 2+3: Connected Devices + Browser Relay side by side */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-[7px]">
+            <div className={glassPanel}>
+              <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Connected Devices</span>
+              <div className="mt-4">
+                <ConnectedDevicesSection />
+              </div>
             </div>
-          </div>
 
-          {/* Row 3: Browser Relay */}
-          <div className={glassPanel}>
-            <div className="flex items-center gap-2 mb-4">
-              <Globe className="w-4 h-4 text-white/40" />
-              <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Browser Relay</span>
+            <div className={glassPanel}>
+              <div className="flex items-center gap-2 mb-4">
+                <Globe className="w-4 h-4 text-white/40" />
+                <span className="text-[11px] uppercase tracking-widest text-white/40 font-medium">Browser Relay</span>
+              </div>
+              <BrowserRelaySection profile={initialProfile} />
             </div>
-            <BrowserRelaySection profile={initialProfile} />
           </div>
 
           {/* Danger Zone */}
