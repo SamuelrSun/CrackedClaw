@@ -51,12 +51,14 @@ export type ParsedSegment =
   | { type: "browser-preview"; url: string; status: "browsing" | "waiting-login" | "complete" | "error"; message?: string }
   | { type: "browser-open"; url: string; message?: string }
   | { type: "email-composer"; to: string[]; cc?: string[]; bcc?: string[]; subject: string; body: string; integration: 'google' | 'microsoft' }
-  | { type: "scan-result"; scanId: string; totalMemories: number; durationSeconds: number; providers: Array<{ name: string; memories: number; error?: string }>; workflowSuggestions?: Array<{ name: string; description: string }> };
+  | { type: "scan-result"; scanId: string; totalMemories: number; durationSeconds: number; providers: Array<{ name: string; memories: number; error?: string }>; workflowSuggestions?: Array<{ name: string; description: string }> }
+  | { type: "browser-relay-download" };
 
 const PATTERNS = {
   inlineTask: /\[\[task:([^:]+):([^:]+)(?::([^\]]+))?\]\]/g,
   browserOpen: /\[\[browser:(https?:\/\/[^\]:\s]+)(?::([^\]]+))?\]\]/g,
   integrationsResolve: /\[\[integrations:resolve:([^\]]+)\]\]/g,
+  browserRelay: /\[\[browser-relay:download\]\]/g,
   skillSuggest: /\[\[skill:suggest:([^,\]]+)(?:,([^\]]+))?\]\]/g,
   integrationConnect: /\[\[integration:([a-z][a-z0-9-]*)\]\]/g,
   scanTrigger: /\[\[scan:(google|slack|notion)\]\]/g,
@@ -359,6 +361,16 @@ export function parseMessageContent(content: string): ParsedSegment[] {
         });
       }
     }
+  }
+
+  // Browser relay download card
+  PATTERNS.browserRelay.lastIndex = 0;
+  while ((match = PATTERNS.browserRelay.exec(processedContent)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      segment: { type: "browser-relay-download" },
+    });
   }
 
   // Skill suggest
