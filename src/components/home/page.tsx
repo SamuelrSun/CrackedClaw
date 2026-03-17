@@ -258,13 +258,16 @@ export default function LandingPage() {
               textTransform: "uppercase" as const,
               letterSpacing: "0.2em",
               padding: "12px 24px",
-              border: "1px solid #18181B",
+              border: "1px solid rgba(255, 255, 255, 0.2)",
               borderRadius: 50,
-              color: "#18181B",
+              color: "white",
               textDecoration: "none",
+              background: "rgba(255, 255, 255, 0.1)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#18181B"; e.currentTarget.style.color = "white"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#18181B"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"; }}
           >
             Get Access
           </Link>
@@ -308,9 +311,13 @@ export default function LandingPage() {
               style={{
                 fontWeight: 900,
                 fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-                WebkitTextStroke: "1px #18181B",
-                color: "transparent",
+                WebkitTextStroke: "1.5px rgba(24, 24, 27, 0.7)",
                 letterSpacing: "-0.08em",
+                background: "rgba(255, 255, 255, 0.12)",
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                color: "transparent",
               }}
             >
               Companion
@@ -340,16 +347,18 @@ export default function LandingPage() {
                   textTransform: "uppercase" as const,
                   letterSpacing: "0.2em",
                   padding: "14px 32px",
-                  border: "1px solid #18181B",
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
                   borderRadius: 50,
                   color: "white",
-                  background: "#18181B",
+                  background: "rgba(255, 255, 255, 0.1)",
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
                   textDecoration: "none",
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "#333"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "#18181B"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"; }}
               >
-                Claim Access
+                Get Access
               </Link>
           </div>
         </div>
