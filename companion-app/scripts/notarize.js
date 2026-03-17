@@ -1,35 +1,31 @@
 /**
- * afterSign hook: notarize the signed .app bundle with Apple.
+ * afterSign hook: notarize the signed .app bundle with Apple using notarytool.
  *
  * Required environment variables:
- *   APPLE_ID            — your Apple ID email
- *   APPLE_ID_PASSWORD   — app-specific password (NOT your real password)
- *   APPLE_TEAM_ID       — your 10-character Apple Developer Team ID
- *
- * To generate an app-specific password:
- *   1. Go to https://appleid.apple.com/account/manage
- *   2. Sign in → Security → App-Specific Passwords → Generate
- *   3. Name it "Dopl Connect Notarization" or similar
+ *   APPLE_ID                       — your Apple ID email
+ *   APPLE_APP_SPECIFIC_PASSWORD    — app-specific password
  *
  * Skip notarization in dev by setting SKIP_NOTARIZE=true
  */
-const { notarize } = require('@electron/notarize');
+const { execSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
+
+const TEAM_ID = '7352NBAF44';
 
 module.exports = async function (context) {
   if (process.platform !== 'darwin') return;
 
-  // Allow skipping in dev
   if (process.env.SKIP_NOTARIZE === 'true') {
     console.log('  • Skipping notarization (SKIP_NOTARIZE=true)');
     return;
   }
 
-  const { APPLE_ID, APPLE_ID_PASSWORD, APPLE_TEAM_ID } = process.env;
+  const appleId = process.env.APPLE_ID;
+  const password = process.env.APPLE_APP_SPECIFIC_PASSWORD;
 
-  if (!APPLE_ID || !APPLE_ID_PASSWORD || !APPLE_TEAM_ID) {
-    console.warn('  • Skipping notarization: missing APPLE_ID, APPLE_ID_PASSWORD, or APPLE_TEAM_ID');
-    console.warn('    Set these env vars to enable notarization, or set SKIP_NOTARIZE=true to suppress this warning');
+  if (!appleId || !password) {
+    console.warn('  • Skipping notarization: missing APPLE_ID or APPLE_APP_SPECIFIC_PASSWORD');
     return;
   }
 
@@ -38,15 +34,42 @@ module.exports = async function (context) {
     `${context.packager.appInfo.productFilename}.app`
   );
 
-  console.log(`  • Notarizing ${appPath} ...`);
+  // Create a zip for notarization submission
+  const zipPath = path.join(context.appOutDir, 'notarize.zip');
+  console.log(`  • Zipping ${appPath} for notarization...`);
+  execSync(`ditto -c -k --keepParent "${appPath}" "${zipPath}"`, { stdio: 'inherit' });
+
+  console.log('  • Submitting to Apple notarization service...');
   console.log('    This usually takes 5-15 minutes.');
 
-  await notarize({
-    appPath,
-    appleId: APPLE_ID,
-    appleIdPassword: APPLE_ID_PASSWORD,
-    teamId: APPLE_TEAM_ID,
-  });
+  try {
+    const result = execSync(
+      `xcrun notarytool submit "${zipPath}" ` +
+      `--apple-id "${appleId}" ` +
+      `--password "${password}" ` +
+      `--team-id "${TEAM_ID}" ` +
+      `--wait`,
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 1200000 }
+    );
+    console.log(result);
 
-  console.log('  • Notarization complete ✓');
+    // Staple the notarization ticket to the app
+    console.log('  • Stapling notarization ticket...');
+    execSync(`xcrun stapler staple "${appPath}"`, { stdio: 'inherit' });
+    console.log('  • Notarization complete ✓');
+  } catch (err) {
+    console.error('  • Notarization failed:', err.stderr || err.message);
+    // Log the submission for debugging
+    try {
+      const log = execSync(
+        `xcrun notarytool log --apple-id "${appleId}" --password "${password}" --team-id "${TEAM_ID}" $(echo "${err.stdout}" | grep -o '[0-9a-f-]\\{36\\}' | head -1)`,
+        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+      );
+      console.error('  • Notarization log:', log);
+    } catch (_) {}
+    throw err;
+  } finally {
+    // Clean up zip
+    if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+  }
 };
