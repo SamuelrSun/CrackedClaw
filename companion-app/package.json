@@ -21,10 +21,12 @@
     "mac": {
       "target": "dmg",
       "category": "public.app-category.utilities",
-      "identity": null,
-      "forceCodeSigning": false
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist"
     },
-    "afterPack": "./scripts/sign.js",
+    "afterSign": "./scripts/notarize.js",
     "dmg": {
       "title": "Dopl Connect",
       "contents": [
