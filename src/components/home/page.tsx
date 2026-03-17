@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -27,115 +27,6 @@ function useScrollReveal() {
     return () => observer.disconnect();
   }, []);
   return ref;
-}
-
-/* ─────────────────────────────────────────────────────────
-   GlassText — backdrop-blur visible through letter shapes
-───────────────────────────────────────────────────────── */
-function GlassText({ children, className, style }: { children: string; className?: string; style?: React.CSSProperties }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const textRef = useRef<HTMLDivElement>(null);
-  const [maskUrl, setMaskUrl] = useState<string>("");
-
-  useEffect(() => {
-    const generate = () => {
-      const textEl = textRef.current;
-      if (!textEl) return;
-
-      const rect = textEl.getBoundingClientRect();
-      if (rect.width === 0) return;
-
-      const dpr = window.devicePixelRatio || 1;
-      const canvas = document.createElement("canvas");
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      ctx.scale(dpr, dpr);
-
-      const computed = getComputedStyle(textEl);
-      ctx.font = `${computed.fontWeight} ${computed.fontSize} ${computed.fontFamily}`;
-      ctx.fillStyle = "white";
-      ctx.textBaseline = "top";
-
-      const letterSpacing = parseFloat(computed.letterSpacing) || 0;
-      const text = children;
-      let x = 0;
-      for (const char of text) {
-        ctx.fillText(char, x, 0);
-        x += ctx.measureText(char).width + letterSpacing;
-      }
-
-      setMaskUrl(canvas.toDataURL());
-    };
-
-    document.fonts.ready.then(generate);
-
-    const observer = new ResizeObserver(generate);
-    if (containerRef.current) observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, [children]);
-
-  return (
-    <div ref={containerRef} className={className} style={{ position: "relative", ...style }}>
-      {/* Hidden text for layout sizing */}
-      <div
-        ref={textRef}
-        aria-hidden="true"
-        style={{
-          visibility: "hidden",
-          fontWeight: 900,
-          fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-          letterSpacing: "-0.08em",
-          textTransform: "uppercase",
-          fontSize: "inherit",
-          lineHeight: "inherit",
-        }}
-      >
-        {children}
-      </div>
-
-      {/* Backdrop blur layer masked to text shape */}
-      {maskUrl && (
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.07)",
-            backdropFilter: "blur(10px)",
-            WebkitBackdropFilter: "blur(10px)",
-            WebkitMaskImage: `url(${maskUrl})`,
-            maskImage: `url(${maskUrl})`,
-            WebkitMaskSize: "100% 100%",
-            maskSize: "100% 100%",
-            WebkitMaskRepeat: "no-repeat",
-            maskRepeat: "no-repeat",
-          }}
-        />
-      )}
-
-      {/* Visible stroke outline */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          fontWeight: 900,
-          fontFamily: "var(--font-inter, 'Inter', sans-serif)",
-          WebkitTextStroke: "1px rgba(255, 255, 255, 0.1)",
-          WebkitTextFillColor: "transparent",
-          color: "transparent",
-          letterSpacing: "-0.08em",
-          textTransform: "uppercase",
-          fontSize: "inherit",
-          lineHeight: "inherit",
-        }}
-      >
-        {children}
-      </div>
-    </div>
-  );
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -367,16 +258,16 @@ export default function LandingPage() {
               textTransform: "uppercase" as const,
               letterSpacing: "0.2em",
               padding: "12px 24px",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              borderRadius: 3,
+              border: "1px solid rgba(255, 255, 255, 0.2)",
+              borderRadius: 50,
               color: "white",
               textDecoration: "none",
-              background: "rgba(0, 0, 0, 0.07)",
-              backdropFilter: "blur(10px)",
-              WebkitBackdropFilter: "blur(10px)",
+              background: "rgba(255, 255, 255, 0.1)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(0, 0, 0, 0.07)"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"; }}
           >
             Get Access
           </Link>
@@ -415,14 +306,22 @@ export default function LandingPage() {
             >
               Digital
             </div>
-            <GlassText
+            <div
+              className="uppercase"
               style={{
-                fontSize: "inherit",
-                lineHeight: "inherit",
+                fontWeight: 900,
+                fontFamily: "var(--font-inter, 'Inter', sans-serif)",
+                WebkitTextStroke: "1.5px rgba(24, 24, 27, 0.7)",
+                letterSpacing: "-0.08em",
+                background: "rgba(255, 255, 255, 0.12)",
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                color: "transparent",
               }}
             >
               Companion
-            </GlassText>
+            </div>
           </h1>
 
           {/* Body + CTA */}
@@ -448,16 +347,16 @@ export default function LandingPage() {
                   textTransform: "uppercase" as const,
                   letterSpacing: "0.2em",
                   padding: "14px 32px",
-                  border: "1px solid rgba(255, 255, 255, 0.1)",
-                  borderRadius: 3,
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                  borderRadius: 50,
                   color: "white",
-                  background: "rgba(0, 0, 0, 0.07)",
-                  backdropFilter: "blur(10px)",
-                  WebkitBackdropFilter: "blur(10px)",
+                  background: "rgba(255, 255, 255, 0.1)",
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
                   textDecoration: "none",
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(0, 0, 0, 0.07)"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"; }}
               >
                 Get Access
               </Link>
