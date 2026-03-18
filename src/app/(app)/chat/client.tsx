@@ -83,6 +83,9 @@ interface ToolCallInfo {
 interface StreamingMessage extends Message {
   isStreaming?: boolean;
   toolCalls?: ToolCallInfo[];
+  thinkingText?: string;
+  thinkingStartTime?: number;
+  thinkingDuration?: number;
 }
 
 function getToolEmoji(tool: string): string {
@@ -1357,9 +1360,19 @@ User message: `
 
           if (chunk.type === "token" && chunk.text) {
             setIsLoading(false);
-            updateMsg((m) => ({ ...m, content: m.content + chunk.text! }));
+            updateMsg((m) => {
+              const sm = m as StreamingMessage;
+              const duration = sm.thinkingStartTime && !sm.thinkingDuration
+                ? Date.now() - sm.thinkingStartTime
+                : sm.thinkingDuration;
+              return { ...m, content: m.content + chunk.text!, ...(duration !== sm.thinkingDuration ? { thinkingDuration: duration } : {}) };
+            });
           } else if (chunk.type === "thinking" && chunk.text) {
-            // Optionally show thinking
+            updateMsg((m) => {
+              const sm = m as StreamingMessage;
+              const isFirst = !sm.thinkingStartTime;
+              return { ...m, thinkingText: (sm.thinkingText || "") + chunk.text!, ...(isFirst ? { thinkingStartTime: Date.now() } : {}) };
+            });
           } else if (chunk.type === "tool_start" && chunk.tool) {
             setIsLoading(false);
             const label = getToolLabel(chunk.tool, chunk.input);
@@ -2364,9 +2377,12 @@ User message: `
             messages.map((msg) => {
               const segments = parseMessageContent(msg.content);
               const hasRichContent = segments.some((s) => s.type !== "text");
-              const toolCalls = (msg as StreamingMessage).toolCalls || [];
+              const streamingMsg = msg as StreamingMessage;
+              const toolCalls = streamingMsg.toolCalls || [];
               const totalDuration = toolCalls.reduce((sum, tc) => sum + (tc.duration || 0), 0);
               const thinkingText = toolCalls.length === 1 ? toolCalls[0].label : undefined;
+              const msgThinkingText = streamingMsg.thinkingText;
+              const msgThinkingDuration = streamingMsg.thinkingDuration ?? (streamingMsg.thinkingStartTime ? Date.now() - streamingMsg.thinkingStartTime : 0);
 
               return (
                 <div
@@ -2383,6 +2399,10 @@ User message: `
                         : "text-white/[0.88] p-0 border-0 bg-transparent"
                     )}
                   >
+                    {/* Thinking tokens — ThinkingBlock */}
+                    {msg.role === "assistant" && msgThinkingText && (
+                      <ThinkingBlock duration={msgThinkingDuration / 1000} thinkingText={msgThinkingText} />
+                    )}
                     {/* Tool calls — ThinkingBlock */}
                     {msg.role === "assistant" && toolCalls.length > 0 && (
                       toolCalls.length === 1 ? (
