@@ -6,7 +6,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Integration, IntegrationAccount } from "@/types/integration";
 import type { ResolvedIntegration } from "@/lib/integrations/resolver";
 import { IntegrationIcon } from "@/components/integrations/integration-icon";
-import { INTEGRATIONS } from "@/lib/integrations/registry";
+import { INTEGRATIONS, getAvailableConnectionMethods } from "@/lib/integrations/registry";
+import type { ConnectionMethod } from "@/lib/integrations/registry";
 import { Star, Trash2, Plus } from "lucide-react";
 import { GlassNavbar } from "@/components/layout/glass-navbar";
 
@@ -259,8 +260,36 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [liveStatuses, setLiveStatuses] = useState<Record<string, LiveStatus>>({});
   const [statusCheckInProgress, setStatusCheckInProgress] = useState(false);
+  const [configuredProviders, setConfiguredProviders] = useState<string[]>([]);
+  const [hasMatonKey, setHasMatonKey] = useState(false);
+  const [showMethodPicker, setShowMethodPicker] = useState<string | null>(null);
+  const [methodPickerMethods, setMethodPickerMethods] = useState<ConnectionMethod[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
+
+  // Fetch which OAuth providers have server-side credentials configured
+  useEffect(() => {
+    fetch('/api/integrations/configured-providers')
+      .then(r => r.json())
+      .then(data => {
+        if (data.providers) setConfiguredProviders(data.providers);
+        if (data.hasMatonKey) setHasMatonKey(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Close method picker on outside click
+  useEffect(() => {
+    if (!showMethodPicker) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-method-picker]')) {
+        setShowMethodPicker(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showMethodPicker]);
 
   // Check live status for all connected OAuth integrations
   const checkAllStatuses = useCallback(async () => {
@@ -504,21 +533,14 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
     try { localStorage.setItem('dismissed_integrations', JSON.stringify(next)); } catch {}
   };
 
-  const connectPopular = async (registryId: string) => {
+  // Execute a specific connection method for a service
+  const connectWithMethod = async (registryId: string, methodType: ConnectionMethod['type']) => {
     const regEntry = INTEGRATIONS.find(r => r.id === registryId);
     if (!regEntry) return;
+    setShowMethodPicker(null);
 
-    // Check if already in items list
-    const existing = items.find(i =>
-      i.slug === registryId || i.slug === regEntry.id || i.id === registryId
-    );
-    if (existing) {
-      addAccount(existing.id);
-      return;
-    }
-
-    // Browser-login: initiate browser connection flow
-    if (regEntry.authType === 'browser-login') {
+    // Browser method: initiate browser connection flow
+    if (methodType === 'browser') {
       try {
         toast.info(
           `Opening ${regEntry.name}...`,
@@ -534,7 +556,6 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
           toast.error('Connection failed', data.error || 'Could not start browser login');
           return;
         }
-        // Add to items as pending
         const newInt = {
           id: data.integration_id,
           name: regEntry.name,
@@ -553,7 +574,6 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
           }
           return [...prev, newInt];
         });
-        // Start polling for status change (pending → connected)
         const pollBrowserStatus = async () => {
           for (let i = 0; i < 60; i++) {
             await new Promise(r => setTimeout(r, 5000));
@@ -565,7 +585,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
               });
               const statusData = await statusRes.json();
               if (statusData.connected?.includes(registryId)) {
-                setItems(prev => prev.map(i => 
+                setItems(prev => prev.map(i =>
                   i.slug === registryId ? { ...i, status: 'connected' as const } : i
                 ));
                 toast.success(`${regEntry.name} connected!`, 'Browser login verified successfully.');
@@ -582,7 +602,8 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
       return;
     }
 
-    // Create integration then connect
+    // OAuth / Maton / API-key: create integration then connect
+    const authTypeForApi = methodType === 'api-key' ? 'api_key' : (methodType === 'maton' ? 'oauth' : regEntry.authType);
     try {
       const res = await fetch('/api/integrations/create-dynamic', {
         method: 'POST',
@@ -592,7 +613,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
             name: regEntry.name,
             slug: regEntry.id,
             icon: regEntry.icon,
-            authType: regEntry.authType === 'api-key' ? 'api_key' : regEntry.authType,
+            authType: authTypeForApi === 'api-key' ? 'api_key' : authTypeForApi,
             category: regEntry.category,
             description: regEntry.description || '',
             needsNode: false,
@@ -611,7 +632,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
           name: regEntry.name,
           slug: regEntry.id,
           icon: regEntry.icon,
-          type: regEntry.authType === 'api-key' ? 'api_key' as const : 'oauth' as const,
+          type: methodType === 'api-key' ? 'api_key' as const : 'oauth' as const,
           status: 'disconnected' as const,
           config: { needs_node: false },
           accounts: [],
@@ -623,6 +644,45 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
     } catch {
       toast.error('Error', 'Failed to connect integration');
     }
+  };
+
+  const connectPopular = async (registryId: string) => {
+    const regEntry = INTEGRATIONS.find(r => r.id === registryId);
+    if (!regEntry) return;
+
+    // Check if already in items list
+    const existing = items.find(i =>
+      i.slug === registryId || i.slug === regEntry.id || i.id === registryId
+    );
+    if (existing) {
+      addAccount(existing.id);
+      return;
+    }
+
+    // Get available connection methods dynamically
+    const hasCompanionApp = false; // TODO: wire up companion app detection
+    const methods = getAvailableConnectionMethods(registryId, configuredProviders, hasMatonKey, hasCompanionApp);
+    const availableMethods = methods.filter(m => m.available);
+
+    if (availableMethods.length === 0) {
+      // Fallback to legacy behavior based on authType
+      if (regEntry.authType === 'browser-login') {
+        connectWithMethod(registryId, 'browser');
+      } else {
+        connectWithMethod(registryId, 'oauth');
+      }
+      return;
+    }
+
+    if (availableMethods.length === 1) {
+      // Single method — use it directly, no picker
+      connectWithMethod(registryId, availableMethods[0].type);
+      return;
+    }
+
+    // Multiple methods available — show picker
+    setMethodPickerMethods(methods);
+    setShowMethodPicker(registryId);
   };
 
   const disconnectAccount = async (integrationId: string, accountId: string) => {
@@ -717,6 +777,31 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                   >
                     Connect
                   </button>
+                )}
+                {showMethodPicker === p.id && (
+                  <div data-method-picker className="absolute z-50 top-full left-0 mt-1 w-64 border border-white/[0.08] bg-[#0d0d12]/95 backdrop-blur-md shadow-xl rounded-[3px]">
+                    <div className="px-3 py-2 border-b border-white/[0.06]">
+                      <p className="font-mono text-[10px] uppercase tracking-widest text-white/30">
+                        Connect {reg.name}
+                      </p>
+                    </div>
+                    {methodPickerMethods.map(method => (
+                      <button
+                        key={method.type}
+                        onClick={() => connectWithMethod(p.id, method.type)}
+                        disabled={!method.available}
+                        className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-white/[0.04] transition-colors disabled:opacity-30"
+                      >
+                        <div>
+                          <p className="font-mono text-[11px] text-white/70 text-left">{method.label}</p>
+                          <p className="font-mono text-[9px] text-white/30 text-left">{method.description}</p>
+                        </div>
+                        {method.multiAccount && (
+                          <span className="font-mono text-[8px] text-emerald-400/60 uppercase">Multi-account</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 )}
                 <button
                   onClick={() => dismissPopular(p.id)}

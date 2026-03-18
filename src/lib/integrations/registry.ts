@@ -577,6 +577,109 @@ export function getIntegrationConnectionMethod(id: string): 'maton' | 'oauth' | 
   return 'oauth';
 }
 
+// ── Dynamic connection method resolution ──────────────────────────────────
+
+export interface ConnectionMethod {
+  type: 'oauth' | 'maton' | 'browser' | 'api-key';
+  label: string;
+  available: boolean;
+  multiAccount: boolean;
+  description: string;
+}
+
+/**
+ * Maps registry IDs to OAuth provider slugs (as defined in OAUTH_PROVIDERS).
+ */
+function mapToOAuthProvider(registryId: string): string | null {
+  const map: Record<string, string> = {
+    google: 'google',
+    slack: 'slack',
+    notion: 'notion',
+    github: 'github',
+    microsoft: 'microsoft',
+    linear: 'linear',
+    discord: 'discord',
+    zoom: 'zoom',
+    twitter: 'twitter',
+    hubspot: 'hubspot',
+    jira: 'jira',
+    figma: 'figma',
+    reddit: 'reddit',
+  };
+  return map[registryId] || null;
+}
+
+/**
+ * Get available connection methods for a service, ordered by preference.
+ * Runs on the client — env-var availability is passed in via configuredOAuthProviders.
+ */
+export function getAvailableConnectionMethods(
+  id: string,
+  configuredOAuthProviders: string[],
+  hasMatonKey: boolean,
+  hasCompanionApp: boolean,
+): ConnectionMethod[] {
+  const methods: ConnectionMethod[] = [];
+  const integration = getIntegration(id);
+
+  if (!integration) {
+    return [{
+      type: 'browser',
+      label: 'Connect via browser',
+      available: hasCompanionApp,
+      multiAccount: false,
+      description: hasCompanionApp ? 'Log in via companion browser' : 'Requires companion app',
+    }];
+  }
+
+  // 1. Direct OAuth — if this service maps to a configured OAuth provider
+  const oauthSlug = mapToOAuthProvider(id);
+  if (oauthSlug && configuredOAuthProviders.includes(oauthSlug)) {
+    methods.push({
+      type: 'oauth',
+      label: `Connect with ${integration.name}`,
+      available: true,
+      multiAccount: true,
+      description: 'OAuth — supports multiple accounts',
+    });
+  }
+
+  // 2. Maton gateway
+  if (isMatonSupported(id) && hasMatonKey) {
+    methods.push({
+      type: 'maton',
+      label: 'Connect via Maton',
+      available: true,
+      multiAccount: false,
+      description: 'Via your Maton API key',
+    });
+  }
+
+  // 3. Browser fallback
+  if (integration.browserFallback) {
+    methods.push({
+      type: 'browser',
+      label: 'Connect via browser',
+      available: hasCompanionApp,
+      multiAccount: false,
+      description: hasCompanionApp ? 'Log in via companion browser' : 'Requires companion app',
+    });
+  }
+
+  // 4. API key
+  if (integration.authType === 'api-key' || ['stripe', 'sendgrid', 'twilio', 'telegram'].includes(id)) {
+    methods.push({
+      type: 'api-key',
+      label: 'API Key',
+      available: true,
+      multiAccount: false,
+      description: 'Paste your API key',
+    });
+  }
+
+  return methods;
+}
+
 // Category metadata
 export const CATEGORIES = {
   productivity: { name: 'Productivity', icon: 'Briefcase', order: 1 },
