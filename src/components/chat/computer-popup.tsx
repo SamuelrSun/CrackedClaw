@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { Globe, Download, ExternalLink } from "lucide-react";
 
 interface NodeStatusResponse {
   connected: boolean;
@@ -144,6 +145,47 @@ export function ComputerPopup({ onClose }: ComputerPopupProps) {
             </div>
             <div className="text-[11px] text-white/30 border-t border-white/[0.06] pt-2">
               Enables: LinkedIn, Instagram, and any browser-based service
+            </div>
+          </div>
+        )}
+
+        {/* Browser Relay section */}
+        {!loading && (
+          <div className="flex flex-col gap-3 pt-3 border-t border-white/[0.08]">
+            <div className="flex items-center gap-2">
+              <Globe className="w-3.5 h-3.5 text-white/50" />
+              <span className="text-xs font-semibold text-white/70 uppercase tracking-wider">Browser Relay</span>
+            </div>
+            <p className="text-xs text-white/50 leading-relaxed">
+              Chrome extension that lets your AI see and interact with your browser tabs.
+            </p>
+            <div className="flex gap-2">
+              <a
+                href="/api/download/browser-relay"
+                download
+                className="flex items-center justify-center gap-1.5 flex-1 py-2 rounded-[6px] bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.1] text-xs text-white/80 hover:text-white transition-colors font-medium"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Download Extension
+              </a>
+              <a
+                href="https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-[6px] bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs text-white/40 hover:text-white/60 transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Setup Guide
+              </a>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-white/50 uppercase tracking-wider mb-2">Setup</div>
+              <div className="flex flex-col gap-1.5 text-xs text-white/50">
+                <div className="flex gap-2"><span className="text-white/30 font-medium w-4 shrink-0">1.</span><span>Download the extension</span></div>
+                <div className="flex gap-2"><span className="text-white/30 font-medium w-4 shrink-0">2.</span><span>Open <span className="text-white/40 font-mono">chrome://extensions</span></span></div>
+                <div className="flex gap-2"><span className="text-white/30 font-medium w-4 shrink-0">3.</span><span>Enable &quot;Developer mode&quot; and click &quot;Load unpacked&quot;</span></div>
+                <div className="flex gap-2"><span className="text-white/30 font-medium w-4 shrink-0">4.</span><span>Select the downloaded folder</span></div>
+              </div>
             </div>
           </div>
         )}
