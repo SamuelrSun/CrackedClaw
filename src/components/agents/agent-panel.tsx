@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Maximize2, Square, X } from "lucide-react";
+import { AGENT_MODES } from "@/lib/agent/modes";
 
 export interface AgentMessage {
   role: 'user' | 'assistant';
@@ -20,7 +21,11 @@ export interface AgentInstance {
   createdAt: string;
   lastActiveAt: string;
   model?: string;
+  mode?: string;
   integrations?: string[];
+  totalInputTokens?: number;
+  totalOutputTokens?: number;
+  totalCost?: number;
   // Client-side streaming state
   currentTool?: string | null;
   streamBuffer?: string;
@@ -74,7 +79,7 @@ function ElapsedTimer({ startedAt }: { startedAt: number }) {
   const mins = Math.floor(elapsed / 60);
   const secs = elapsed % 60;
   return (
-    <span className="font-mono text-[10px] text-white/80/60 tabular-nums">
+    <span className="font-mono text-[10px] text-white/60 tabular-nums">
       {mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}
     </span>
   );
@@ -86,7 +91,7 @@ function MiniLog({ content }: { content: string }) {
 
   return (
     <div
-      className="font-mono text-[11px] leading-[1.5] text-white/50/80 whitespace-pre-wrap break-words overflow-hidden"
+      className="font-mono text-[11px] leading-[1.5] text-white/50 whitespace-pre-wrap break-words overflow-hidden"
       style={{ maxHeight: '7.5em' }}
     >
       {lastLines.length > 0 ? lastLines.join('\n') : (
@@ -109,6 +114,7 @@ export function AgentPanel({ agent, onStop, onDelete, onExpand }: AgentPanelProp
   const isFailed = agent.status === 'failed';
   const isSpawning = isRunning && !agent.streamBuffer && !agent.currentTool;
   const modelLabel = getModelLabel(agent.model);
+  const modeEmoji = AGENT_MODES[agent.mode || 'agent']?.emoji || '🤖';
   const toolInfo = agent.currentTool ? TOOL_LABELS[agent.currentTool] : null;
 
   // Content for the mini-log
@@ -128,19 +134,19 @@ export function AgentPanel({ agent, onStop, onDelete, onExpand }: AgentPanelProp
   return (
     <div
       className={cn(
-        "bg-[#0d0d12] border flex flex-col overflow-hidden",
+        "bg-black/[0.07] backdrop-blur-[10px] border flex flex-col overflow-hidden",
         "transition-colors duration-300",
-        "rounded-[2px]",
-        isSpawning && "animate-spawn-pulse border-[#F4D35E]",
-        isRunning && !isSpawning && "animate-running-border",
-        isFailed && "border-[#FF8C69]",
-        !isRunning && !isFailed && "border-white/[0.1]",
+        "rounded-[3px]",
+        isSpawning && "border-[#F4D35E]/30",
+        isRunning && !isSpawning && "border-[#9EFFBF]/30",
+        isFailed && "border-[#FF8C69]/30",
+        !isRunning && !isFailed && "border-white/10",
       )}
       style={{ animation: 'agentFadeIn 0.3s ease-out' }}
       onMouseLeave={() => setShowDeleteConfirm(false)}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/[0.08] bg-white/[0.06] backdrop-blur-sm">
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/[0.06] bg-white/[0.04]">
         {/* Status dot */}
         <div
           className={cn(
@@ -165,7 +171,7 @@ export function AgentPanel({ agent, onStop, onDelete, onExpand }: AgentPanelProp
         <div className="flex items-center gap-0.5">
           <button
             onClick={onExpand}
-            className="p-1 hover:bg-[#3A3A38]/5 rounded-[2px] text-white/25 hover:text-white/80 transition-colors"
+            className="p-1 hover:bg-white/[0.06] rounded-[3px] text-white/25 hover:text-white/80 transition-colors"
             title="Expand"
           >
             <Maximize2 className="w-3 h-3" />
@@ -173,7 +179,7 @@ export function AgentPanel({ agent, onStop, onDelete, onExpand }: AgentPanelProp
           {isRunning && (
             <button
               onClick={onStop}
-              className="p-1 hover:bg-[#FF8C69]/10 rounded-[2px] text-white/25 hover:text-[#FF8C69] transition-colors"
+              className="p-1 hover:bg-[#FF8C69]/10 rounded-[3px] text-white/25 hover:text-[#FF8C69] transition-colors"
               title="Stop"
             >
               <Square className="w-3 h-3" />
@@ -182,7 +188,7 @@ export function AgentPanel({ agent, onStop, onDelete, onExpand }: AgentPanelProp
           <button
             onClick={handleDelete}
             className={cn(
-              "p-1 rounded-[2px] transition-colors text-white/25",
+              "p-1 rounded-[3px] transition-colors text-white/25",
               showDeleteConfirm
                 ? "bg-[#FF8C69]/15 text-[#FF8C69]"
                 : "hover:bg-[#FF8C69]/10 hover:text-[#FF8C69]"
@@ -196,15 +202,15 @@ export function AgentPanel({ agent, onStop, onDelete, onExpand }: AgentPanelProp
 
       {/* Task description */}
       <div className="px-3 py-2 border-b border-white/[0.05]">
-        <p className="text-[11px] text-white/50/60 truncate">{agent.task}</p>
+        <p className="text-[11px] text-white/50 truncate">{agent.task}</p>
       </div>
 
       {/* Tool indicator */}
       {toolInfo && (
-        <div className="px-3 py-1.5 border-b border-white/[0.05] bg-[#9EFFBF]/10">
+        <div className="px-3 py-1.5 border-b border-white/[0.05] bg-[#9EFFBF]/[0.06]">
           <div className="flex items-center gap-1.5">
             <span className="text-[12px]">{toolInfo.icon}</span>
-            <span className="text-[11px] font-medium text-white/80/80 font-mono">
+            <span className="text-[11px] font-medium text-white/80 font-mono">
               {toolInfo.label}...
             </span>
           </div>
@@ -213,10 +219,10 @@ export function AgentPanel({ agent, onStop, onDelete, onExpand }: AgentPanelProp
 
       {/* Spawning indicator */}
       {isSpawning && (
-        <div className="px-3 py-1.5 border-b border-white/[0.05] bg-[#F4D35E]/10">
+        <div className="px-3 py-1.5 border-b border-white/[0.05] bg-[#F4D35E]/[0.06]">
           <div className="flex items-center gap-1.5">
             <span className="text-[12px] animate-pulse">✨</span>
-            <span className="text-[11px] font-medium text-white/50/60 font-mono">
+            <span className="text-[11px] font-medium text-white/50 font-mono">
               Deploying agent...
             </span>
           </div>
@@ -228,16 +234,16 @@ export function AgentPanel({ agent, onStop, onDelete, onExpand }: AgentPanelProp
         {miniLogContent ? (
           <MiniLog content={miniLogContent} />
         ) : (
-          <div className="text-[11px] text-white/50/30 italic font-mono">
+          <div className="text-[11px] text-white/30 italic font-mono">
             No output yet
           </div>
         )}
       </div>
 
       {/* Status bar */}
-      <div className="px-3 py-1.5 border-t border-white/[0.08] bg-white flex items-center gap-1.5">
-        <span className="text-[10px] text-white/50/50 font-mono">
-          {modelLabel}
+      <div className="px-3 py-1.5 border-t border-white/[0.06] bg-white/[0.03] flex items-center gap-1.5">
+        <span className="text-[10px] text-white/50 font-mono">
+          {modeEmoji} {modelLabel}
           {' · '}
           {isRunning ? (
             <span className="text-white/80">Running</span>
@@ -248,7 +254,12 @@ export function AgentPanel({ agent, onStop, onDelete, onExpand }: AgentPanelProp
           )}
         </span>
         <span className="flex-1" />
-        <span className="text-[10px] text-white/50/30 font-mono">
+        {agent.totalCost != null && agent.totalCost > 0 && (
+          <span className="text-[10px] text-white/40 font-mono">
+            ${agent.totalCost.toFixed(4)}
+          </span>
+        )}
+        <span className="text-[10px] text-white/30 font-mono">
           {agent.messages.length} msg{agent.messages.length !== 1 ? 's' : ''}
         </span>
       </div>

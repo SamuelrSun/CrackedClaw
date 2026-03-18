@@ -5,7 +5,7 @@ import { X, Send } from "lucide-react";
 import { AgentInstance, AgentMessage } from "./agent-panel";
 import { cn } from "@/lib/utils";
 
-interface AgentExpandModalProps {
+interface AgentSidePanelProps {
   agent: AgentInstance;
   onClose: () => void;
   onSendMessage: (message: string) => void;
@@ -38,21 +38,21 @@ function MessageRow({ msg }: { msg: AgentMessage }) {
   return (
     <div className={cn("flex gap-3 group", isUser ? "flex-row-reverse" : "flex-row")}>
       <div className={cn(
-        "w-7 h-7 rounded-[2px] flex items-center justify-center text-[11px] font-medium flex-shrink-0 mt-0.5",
-        isUser ? "bg-white/[0.12] text-white" : "bg-[#0d0d12] text-white/50 border border-white/[0.1]"
+        "w-7 h-7 rounded-[3px] flex items-center justify-center text-[11px] font-medium flex-shrink-0 mt-0.5",
+        isUser ? "bg-white/[0.12] text-white" : "bg-white/[0.04] text-white/50 border border-white/10"
       )}>
         {isUser ? 'You' : '🤖'}
       </div>
       <div className={cn("flex flex-col max-w-[75%]", isUser ? "items-end" : "items-start")}>
         <div className={cn(
-          "px-3 py-2 rounded-[2px] text-sm leading-relaxed whitespace-pre-wrap break-words",
+          "px-3 py-2 rounded-[3px] text-sm leading-relaxed whitespace-pre-wrap break-words",
           isUser
             ? "bg-white/[0.12] text-white"
-            : "bg-white/[0.06] backdrop-blur-sm border border-white/[0.1] text-white/50"
+            : "bg-white/[0.06] backdrop-blur-[10px] border border-white/10 text-white/50"
         )}>
           {msg.content}
         </div>
-        <span className="text-[10px] text-white/50/30 mt-1 opacity-0 group-hover:opacity-100 transition-opacity font-mono">
+        <span className="text-[10px] text-white/30 mt-1 opacity-0 group-hover:opacity-100 transition-opacity font-mono">
           {formatTime(msg.timestamp)}
         </span>
       </div>
@@ -60,12 +60,19 @@ function MessageRow({ msg }: { msg: AgentMessage }) {
   );
 }
 
-export function AgentExpandModal({ agent, onClose, onSendMessage }: AgentExpandModalProps) {
+export function AgentSidePanel({ agent, onClose, onSendMessage }: AgentSidePanelProps) {
   const [input, setInput] = useState('');
+  const [visible, setVisible] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isRunning = agent.status === 'running';
   const toolInfo = agent.currentTool ? TOOL_LABELS[agent.currentTool] : null;
+
+  // Trigger slide-in after mount
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -76,10 +83,17 @@ export function AgentExpandModal({ agent, onClose, onSendMessage }: AgentExpandM
   }, []);
 
   useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleClose = () => {
+    setVisible(false);
+    // Wait for slide-out transition before unmounting
+    setTimeout(onClose, 210);
+  };
 
   const handleSend = () => {
     if (!input.trim() || isRunning) return;
@@ -91,13 +105,28 @@ export function AgentExpandModal({ agent, onClose, onSendMessage }: AgentExpandM
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-6"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-[#0d0d12] w-full max-w-2xl h-[85vh] flex flex-col rounded-[2px] border border-white/[0.1] overflow-hidden">
+    <div className="absolute inset-0 z-50 flex overflow-hidden pointer-events-none">
+      {/* Overlay */}
+      <div
+        className="flex-1 transition-opacity duration-200 pointer-events-auto cursor-pointer"
+        style={{
+          backgroundColor: 'rgba(0,0,0,0.30)',
+          opacity: visible ? 1 : 0,
+        }}
+        onClick={handleClose}
+      />
+
+      {/* Side Panel */}
+      <div
+        className="flex flex-col h-full bg-black/[0.07] backdrop-blur-[10px] border-l border-white/10 pointer-events-auto overflow-hidden"
+        style={{
+          width: 'clamp(400px, 55%, 700px)',
+          transform: visible ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 200ms ease-out',
+        }}
+      >
         {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.08] bg-white/[0.06] backdrop-blur-sm flex-shrink-0">
+        <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.06] bg-white/[0.04] flex-shrink-0">
           <div
             className={cn(
               "w-2.5 h-2.5 rounded-full flex-shrink-0",
@@ -115,20 +144,25 @@ export function AgentExpandModal({ agent, onClose, onSendMessage }: AgentExpandM
             >
               {agent.name}
             </h2>
-            <p className="text-[11px] text-white/50/50 truncate mt-0.5 font-mono">{agent.task}</p>
+            <p className="text-[11px] text-white/50 truncate mt-0.5 font-mono">{agent.task}</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {agent.totalCost != null && agent.totalCost > 0 && (
+              <span className="text-[10px] font-mono text-white/40 tabular-nums" title={`${agent.totalInputTokens?.toLocaleString() ?? 0} in / ${agent.totalOutputTokens?.toLocaleString() ?? 0} out`}>
+                ${agent.totalCost.toFixed(4)}
+              </span>
+            )}
             <span className={cn(
-              "text-[10px] font-mono px-2 py-0.5 rounded-[2px] border",
+              "text-[10px] font-mono px-2 py-0.5 rounded-[3px] border",
               isRunning ? "border-[#9EFFBF]/50 text-white/80 bg-[#9EFFBF]/10" :
               agent.status === 'failed' ? "border-[#FF8C69]/50 text-[#FF8C69] bg-[#FF8C69]/5" :
-              "border-white/[0.1] text-white/50/50"
+              "border-white/10 text-white/50"
             )}>
               {agent.status.toUpperCase()}
             </span>
             <button
-              onClick={onClose}
-              className="p-1.5 hover:bg-white/[0.05] rounded-[2px] text-white/25 hover:text-white/80 transition-colors"
+              onClick={handleClose}
+              className="p-1.5 hover:bg-white/[0.06] rounded-[3px] text-white/25 hover:text-white/80 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -137,9 +171,9 @@ export function AgentExpandModal({ agent, onClose, onSendMessage }: AgentExpandM
 
         {/* Tool indicator bar */}
         {toolInfo && (
-          <div className="px-5 py-2 border-b border-white/[0.05] bg-[#9EFFBF]/10 flex items-center gap-2 flex-shrink-0">
+          <div className="px-5 py-2 border-b border-white/[0.05] bg-[#9EFFBF]/[0.06] flex items-center gap-2 flex-shrink-0">
             <span className="text-[13px]">{toolInfo.icon}</span>
-            <span className="text-[12px] font-mono text-white/80/70">{toolInfo.label}...</span>
+            <span className="text-[12px] font-mono text-white/70">{toolInfo.label}...</span>
           </div>
         )}
 
@@ -158,11 +192,11 @@ export function AgentExpandModal({ agent, onClose, onSendMessage }: AgentExpandM
               {/* Streaming buffer as partial assistant message */}
               {isRunning && agent.streamBuffer && (
                 <div className="flex gap-3">
-                  <div className="w-7 h-7 rounded-[2px] bg-[#0d0d12] border border-white/[0.1] flex items-center justify-center text-[11px] flex-shrink-0">
+                  <div className="w-7 h-7 rounded-[3px] bg-white/[0.04] border border-white/10 flex items-center justify-center text-[11px] flex-shrink-0">
                     🤖
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="bg-white/[0.06] backdrop-blur-sm border border-[#9EFFBF]/30 px-3 py-2 rounded-[2px] text-sm leading-relaxed whitespace-pre-wrap break-words text-white/50">
+                    <div className="bg-white/[0.06] backdrop-blur-[10px] border border-[#9EFFBF]/30 px-3 py-2 rounded-[3px] text-sm leading-relaxed whitespace-pre-wrap break-words text-white/50">
                       {agent.streamBuffer}
                       <span className="inline-block w-1.5 h-3.5 bg-white/[0.12] ml-0.5 animate-pulse" />
                     </div>
@@ -173,14 +207,14 @@ export function AgentExpandModal({ agent, onClose, onSendMessage }: AgentExpandM
               {/* Typing indicator when running but no buffer yet */}
               {isRunning && !agent.streamBuffer && (
                 <div className="flex gap-3">
-                  <div className="w-7 h-7 rounded-[2px] bg-[#0d0d12] border border-white/[0.1] flex items-center justify-center text-[11px] flex-shrink-0">
+                  <div className="w-7 h-7 rounded-[3px] bg-white/[0.04] border border-white/10 flex items-center justify-center text-[11px] flex-shrink-0">
                     🤖
                   </div>
-                  <div className="bg-white/[0.06] backdrop-blur-sm border border-white/[0.1] px-3 py-2 rounded-[2px]">
+                  <div className="bg-white/[0.06] backdrop-blur-[10px] border border-white/10 px-3 py-2 rounded-[3px]">
                     <div className="flex gap-1 items-center h-4">
-                      <span className="w-1.5 h-1.5 bg-[#3A3A38]/30 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1.5 h-1.5 bg-[#3A3A38]/30 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1.5 h-1.5 bg-[#3A3A38]/30 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      <span className="w-1.5 h-1.5 bg-white/20 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 bg-white/20 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 bg-white/20 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                   </div>
                 </div>
@@ -191,7 +225,7 @@ export function AgentExpandModal({ agent, onClose, onSendMessage }: AgentExpandM
         </div>
 
         {/* Input area */}
-        <div className="border-t border-white/[0.08] bg-white/[0.05] backdrop-blur-sm px-4 py-3 flex-shrink-0">
+        <div className="border-t border-white/[0.06] bg-white/[0.04] backdrop-blur-[10px] px-4 py-3 flex-shrink-0">
           <div className="flex gap-3 items-end">
             <textarea
               ref={textareaRef}
@@ -210,20 +244,23 @@ export function AgentExpandModal({ agent, onClose, onSendMessage }: AgentExpandM
               placeholder={`Message ${agent.name}...`}
               rows={1}
               disabled={isRunning}
-              className="flex-1 text-sm bg-[#0d0d12] border border-white/[0.1] px-3 py-2 rounded-[2px] outline-none focus:border-white/[0.15] text-white/50 placeholder-[#3A3A38]/35 transition-colors resize-none disabled:opacity-50 font-mono"
+              className="flex-1 text-sm bg-white/[0.04] border border-white/[0.08] px-3 py-2 rounded-[3px] outline-none focus:border-white/[0.15] text-white/50 placeholder-white/20 transition-colors resize-none disabled:opacity-50 font-mono"
               style={{ minHeight: '40px', maxHeight: '120px' }}
             />
             <button
               onClick={handleSend}
               disabled={!input.trim() || isRunning}
-              className="p-2.5 bg-white/[0.12] text-white rounded-[2px] hover:bg-white/[0.12]/80 disabled:opacity-30 transition-colors flex-shrink-0 self-end"
+              className="p-2.5 bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.1] text-white rounded-[3px] disabled:opacity-30 transition-colors flex-shrink-0 self-end"
             >
               <Send className="w-4 h-4" />
             </button>
           </div>
-          <p className="text-[10px] text-white/50/30 mt-1.5 ml-1 font-mono">Enter to send · Shift+Enter for new line · Esc to close</p>
+          <p className="text-[10px] text-white/30 mt-1.5 ml-1 font-mono">Enter to send · Shift+Enter for new line · Esc to close</p>
         </div>
       </div>
     </div>
   );
 }
+
+// Keep old name as alias for any remaining references
+export { AgentSidePanel as AgentExpandModal };

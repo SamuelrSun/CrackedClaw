@@ -44,8 +44,11 @@ export async function GET() {
       task: a.task,
       status: a.status,
       model: a.model,
+      mode: a.mode || 'agent',
       position: { x: a.position_x, y: a.position_y },
       integrations: a.integrations || [],
+      totalInputTokens: a.total_input_tokens || 0,
+      totalOutputTokens: a.total_output_tokens || 0,
       createdAt: a.created_at,
       lastActiveAt: a.updated_at,
       messages: (a.agent_messages || [])
@@ -71,7 +74,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { task } = body;
+    const { task, model, mode } = body;
 
     if (!task || typeof task !== 'string') {
       return errorResponse("Task is required", 400);
@@ -105,6 +108,8 @@ export async function POST(request: NextRequest) {
         status: 'running',
         position_x,
         position_y,
+        mode: mode || 'agent',
+        model: model || 'claude-sonnet-4-20250514',
       })
       .select()
       .single();

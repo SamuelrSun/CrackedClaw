@@ -12,6 +12,7 @@ interface StreamEvent {
   output?: unknown;
   message?: string;
   usage?: { inputTokens: number; outputTokens: number };
+  cost?: number;
 }
 
 export function AgentsClient() {
@@ -157,6 +158,9 @@ export function AgentsClient() {
                       messages: fullResponse
                         ? [...a.messages, { role: 'assistant' as const, content: fullResponse, timestamp: new Date().toISOString() }]
                         : a.messages,
+                      totalInputTokens: (a.totalInputTokens || 0) + (evt.usage?.inputTokens || 0),
+                      totalOutputTokens: (a.totalOutputTokens || 0) + (evt.usage?.outputTokens || 0),
+                      totalCost: (a.totalCost || 0) + (evt.cost || 0),
                     }
                   : a
               ));
@@ -209,12 +213,12 @@ export function AgentsClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
-  const handleSpawnAgent = useCallback(async (task: string) => {
+  const handleSpawnAgent = useCallback(async (task: string, model?: string, mode?: string) => {
     try {
       const res = await fetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task }),
+        body: JSON.stringify({ task, model, mode }),
       });
       const data = await res.json();
       if (data.agent) {
@@ -281,7 +285,7 @@ export function AgentsClient() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-56px)] bg-[#0d0d12]">
+      <div className="flex items-center justify-center h-[calc(100vh-56px)]">
         <div className="font-mono text-[11px] text-white/25 animate-pulse">Loading agents...</div>
       </div>
     );
