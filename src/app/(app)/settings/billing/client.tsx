@@ -90,7 +90,7 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
             <div className="space-y-1.5">
               <div className="flex items-baseline gap-3">
                 <span className="font-mono text-3xl font-bold text-white/90">
-                  {creditStatus.daily.remaining}
+                  {Number(creditStatus.daily.remaining).toFixed(1)}
                 </span>
                 <span className="font-mono text-[12px] text-white/50">credits remaining today</span>
               </div>
@@ -104,7 +104,7 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
                 />
               </div>
               <p className="font-mono text-[10px] text-white/30">
-                {creditStatus.daily.used} / {creditStatus.daily.limit} daily &middot; Resets at midnight UTC
+                {Number(creditStatus.daily.used).toFixed(1)} / {Number(creditStatus.daily.limit).toFixed(1)} daily &middot; Resets at midnight UTC
               </p>
             </div>
 
@@ -114,7 +114,7 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
                 <div className="flex justify-between">
                   <span className="font-mono text-[11px] uppercase tracking-wider text-white/40">Monthly Pool</span>
                   <span className="font-mono text-[11px] text-white/50">
-                    {creditStatus.monthly.poolBalance} / {creditStatus.monthly.poolLimit}
+                    {Number(creditStatus.monthly.poolBalance).toFixed(1)} / {Number(creditStatus.monthly.poolLimit).toFixed(1)}
                   </span>
                 </div>
                 <div className="w-full h-1 bg-white/[0.06] overflow-hidden">
@@ -135,7 +135,7 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
 
             {creditStatus.welcomeGrant.remaining > 0 && (
               <p className="font-mono text-[11px] text-emerald-400/60">
-                +{creditStatus.welcomeGrant.remaining} welcome grant credits remaining
+                +{Number(creditStatus.welcomeGrant.remaining).toFixed(1)} welcome grant credits remaining
               </p>
             )}
           </div>

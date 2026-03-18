@@ -674,7 +674,7 @@ export default function SettingsPageClient({
 
               <div className="flex items-baseline gap-3 mb-3">
                 <span className="text-4xl font-bold text-white/90 tracking-tight">
-                  {usageStatus ? usageStatus.daily.remaining : "..."}
+                  {usageStatus ? Number(usageStatus.daily.remaining).toFixed(1) : "..."}
                 </span>
                 <span className="text-[13px] text-white/60 font-mono">
                   credits remaining today
@@ -697,14 +697,14 @@ export default function SettingsPageClient({
                   <div className="flex justify-between">
                     <span className="text-[11px] text-white/50 uppercase tracking-wider font-mono">Daily</span>
                     <span className="text-[11px] text-white/50 font-mono">
-                      {usageStatus.daily.used} / {usageStatus.daily.limit}
+                      {Number(usageStatus.daily.used).toFixed(1)} / {Number(usageStatus.daily.limit).toFixed(1)}
                     </span>
                   </div>
                   {usageStatus.monthly.poolLimit > 0 && (
                     <div className="flex justify-between">
                       <span className="text-[11px] text-white/50 uppercase tracking-wider font-mono">Monthly Pool</span>
                       <span className="text-[11px] text-white/50 font-mono">
-                        {usageStatus.monthly.poolBalance} / {usageStatus.monthly.poolLimit}
+                        {Number(usageStatus.monthly.poolBalance).toFixed(1)} / {Number(usageStatus.monthly.poolLimit).toFixed(1)}
                       </span>
                     </div>
                   )}
@@ -712,7 +712,7 @@ export default function SettingsPageClient({
                     <div className="flex justify-between">
                       <span className="text-[11px] text-emerald-400/60 uppercase tracking-wider font-mono">Welcome Grant</span>
                       <span className="text-[11px] text-emerald-400/60 font-mono">
-                        {usageStatus.welcomeGrant.remaining} remaining
+                        {Number(usageStatus.welcomeGrant.remaining).toFixed(1)} remaining
                       </span>
                     </div>
                   )}

@@ -199,9 +199,9 @@ function TokenUsageBar() {
           </a>
         ) : (
           <>
-            &#9889; {credits.daily.remaining} credits today
+            &#9889; {Number(credits.daily.remaining).toFixed(1)} credits today
             {credits.monthly.poolLimit > 0 && (
-              <span className="text-white/30"> &middot; {credits.monthly.poolBalance} monthly</span>
+              <span className="text-white/30"> &middot; {Number(credits.monthly.poolBalance).toFixed(1)} monthly</span>
             )}
           </>
         )}

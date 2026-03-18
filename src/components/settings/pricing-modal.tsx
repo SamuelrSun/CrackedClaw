@@ -56,10 +56,10 @@ export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, on
               <div className="flex items-center gap-3">
                 <Zap className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="font-mono text-[12px] text-white/70">
-                  <span className="text-white font-semibold">{creditStatus.daily.remaining}</span> credits remaining today
+                  <span className="text-white font-semibold">{Number(creditStatus.daily.remaining).toFixed(1)}</span> credits remaining today
                   {creditStatus.monthly.poolLimit > 0 && (
                     <span className="text-white/40">
-                      {" "}&middot; <span className="text-white/60">{creditStatus.monthly.poolBalance}</span> monthly pool
+                      {" "}&middot; <span className="text-white/60">{Number(creditStatus.monthly.poolBalance).toFixed(1)}</span> monthly pool
                     </span>
                   )}
                 </span>
