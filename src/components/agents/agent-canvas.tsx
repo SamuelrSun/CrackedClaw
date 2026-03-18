@@ -112,220 +112,230 @@ export function AgentCanvas({
   };
 
   return (
-    <div className="relative flex flex-col h-[calc(100vh-56px)]">
-      {/* Top spawn bar */}
-      <div className="border-b border-white/[0.08] bg-black/[0.07] backdrop-blur-[10px] px-4 sm:px-6 py-3 flex-shrink-0">
-        <div className="max-w-5xl mx-auto flex items-center gap-3">
-          <div className="flex items-center gap-2 flex-1 bg-white/[0.04] border border-white/[0.08] rounded-[3px] px-3 py-2">
-            <span className="text-[13px] select-none flex-shrink-0">✨</span>
-            <input
-              ref={spawnInputRef}
-              type="text"
-              value={spawnInput}
-              onChange={(e) => setSpawnInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSpawn()}
-              placeholder="What do you want done? Press Enter to deploy an agent..."
-              className="flex-1 text-[13px] bg-transparent outline-none text-white/80 placeholder-white/20"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              disabled={spawning}
-            />
-          </div>
+    /* Full-screen background with navbar offset */
+    <div
+      className="fixed inset-0 flex flex-col"
+      style={{
+        backgroundImage: "url('/img/landing_background.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        paddingTop: "64px", // navbar height
+      }}
+    >
+      <div className="flex-1 flex flex-col p-[7px] gap-[7px] min-h-0">
 
-          {/* Mode selector */}
-          <select
-            value={selectedMode}
-            onChange={(e) => setSelectedMode(e.target.value)}
-            className={selectClass}
-          >
-            {MODE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value} className="bg-[#0a0a0a] text-white/80">
-                {opt.label}
-              </option>
-            ))}
-          </select>
+        {/* Glass panel — agents grid area (flex-1, scrollable) */}
+        <div className="flex-1 bg-black/[0.07] backdrop-blur-[10px] border border-white/10 rounded-[3px] overflow-y-auto relative min-h-0">
 
-          {/* Model selector */}
-          <select
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            className={selectClass}
-          >
-            {MODEL_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value} className="bg-[#0a0a0a] text-white/80">
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          {/* Sticky batch controls — only when agents exist */}
+          {agents.length > 0 && (
+            <div className="sticky top-0 z-10 bg-black/[0.12] backdrop-blur-[10px] border-b border-white/[0.08] px-4 py-2 flex items-center gap-2">
+              {(["all", "running", "idle", "failed"] as FilterType[]).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={[
+                    "text-[11px] font-mono uppercase tracking-wider px-3 py-1.5 rounded-[3px] transition-colors",
+                    filter === f
+                      ? "bg-white/[0.08] text-white/80"
+                      : "text-white/40 hover:text-white/60",
+                  ].join(" ")}
+                >
+                  {f} ({filterCounts[f]})
+                </button>
+              ))}
 
-          {/* Templates dropdown button */}
-          <div className="relative flex-shrink-0" ref={templatesDropdownRef}>
-            <button
-              onClick={() => setShowTemplates((v) => !v)}
-              className={[
-                "font-mono text-[11px] uppercase tracking-wider px-3 py-2 border rounded-[3px] transition-colors flex items-center gap-1.5",
-                showTemplates
-                  ? "bg-white/[0.10] border-white/[0.18] text-white/80"
-                  : "bg-white/[0.04] border-white/[0.08] text-white/50 hover:bg-white/[0.08] hover:text-white/70",
-              ].join(" ")}
-              title="Templates"
-            >
-              {/* Grid icon */}
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                fill="none"
-                className="opacity-70"
-              >
-                <rect x="0" y="0" width="5" height="5" rx="0.5" fill="currentColor" />
-                <rect x="7" y="0" width="5" height="5" rx="0.5" fill="currentColor" />
-                <rect x="0" y="7" width="5" height="5" rx="0.5" fill="currentColor" />
-                <rect x="7" y="7" width="5" height="5" rx="0.5" fill="currentColor" />
-              </svg>
-              Templates
-            </button>
+              <div className="flex-1" />
 
-            {/* Templates dropdown */}
-            {showTemplates && (
-              <div className="absolute right-0 top-full mt-1.5 z-50 w-72 bg-black/[0.85] backdrop-blur-[10px] border border-white/10 rounded-[3px] p-2 shadow-xl">
-                <p className="text-[10px] font-mono uppercase tracking-wider text-white/30 px-2 pb-2">
-                  Quick templates
-                </p>
-                {BUILTIN_TEMPLATES.map((tpl) => (
-                  <button
-                    key={tpl.id}
-                    onClick={() => handleSelectTemplate(tpl)}
-                    className="w-full text-left flex items-start gap-2.5 px-2 py-2 rounded-[3px] hover:bg-white/[0.07] transition-colors group"
-                  >
-                    <span className="text-base leading-none mt-0.5 flex-shrink-0">{tpl.emoji}</span>
-                    <div className="min-w-0">
-                      <div className="text-[12px] font-medium text-white/70 group-hover:text-white/90 transition-colors">
-                        {tpl.name}
-                      </div>
-                      <div className="text-[11px] text-white/35 leading-snug truncate">
-                        {tpl.description}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={handleSpawn}
-            disabled={!spawnInput.trim() || spawning}
-            className="font-mono text-[11px] uppercase tracking-wider px-4 py-2 bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.1] text-white disabled:opacity-30 transition-colors rounded-[3px] flex-shrink-0"
-          >
-            {spawning ? "Deploying..." : "Deploy"}
-          </button>
-
-          {runningCount > 0 && (
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <div className="w-2 h-2 rounded-full bg-[#9EFFBF] animate-pulse" />
-              <span className="text-[11px] font-mono text-white/60">{runningCount} active</span>
+              {runningCount > 0 && (
+                <button
+                  onClick={handleStopAll}
+                  className="text-[11px] font-mono uppercase tracking-wider text-[#FF8C69]/70 hover:text-[#FF8C69] hover:bg-[#FF8C69]/10 px-3 py-1.5 rounded-[3px] transition-colors"
+                >
+                  Stop All
+                </button>
+              )}
             </div>
           )}
+
+          {/* Grid content or empty state */}
+          <div className="p-4 sm:p-6">
+            {agents.length === 0 ? (
+              /* Empty state */
+              <div className="flex flex-col items-center justify-center min-h-[calc(100vh-220px)] max-w-2xl mx-auto text-center gap-6">
+                <div className="space-y-2">
+                  <h2
+                    className="text-lg font-medium text-white/80"
+                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  >
+                    No agents deployed yet
+                  </h2>
+                  <p className="text-[13px] text-white/50">
+                    Deploy agents to work on tasks concurrently. Each agent runs independently with
+                    access to tools.
+                  </p>
+                </div>
+
+                {/* Template cards grid */}
+                <div className="w-full">
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-white/25 mb-3">
+                    Start from a template
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-[7px]">
+                    {BUILTIN_TEMPLATES.map((tpl) => (
+                      <button
+                        key={tpl.id}
+                        onClick={() => handleSelectTemplate(tpl)}
+                        className="bg-white/[0.04] border border-white/[0.08] rounded-[3px] p-3 hover:bg-white/[0.08] hover:border-white/[0.12] transition-colors cursor-pointer text-left"
+                      >
+                        <div className="text-xl mb-1.5">{tpl.emoji}</div>
+                        <div className="text-[12px] font-medium text-white/70 mb-0.5">{tpl.name}</div>
+                        <div className="text-[11px] text-white/40 leading-snug line-clamp-2">
+                          {tpl.description}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Agent grid */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-[7px] max-w-7xl mx-auto">
+                {filteredAgents.map((agent) => (
+                  <AgentPanel
+                    key={agent.id}
+                    agent={agent}
+                    onStop={() => onStopAgent(agent.id)}
+                    onDelete={() => onDeleteAgent(agent.id)}
+                    onExpand={() => setExpandedId(agent.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Side panel — overlays on top of grid area */}
+          {expandedAgent && (
+            <AgentSidePanel
+              agent={expandedAgent}
+              onClose={() => setExpandedId(null)}
+              onSendMessage={(msg) => onSendMessage(expandedAgent.id, msg)}
+            />
+          )}
         </div>
-      </div>
 
-      {/* Batch controls bar — only visible when agents exist */}
-      {agents.length > 0 && (
-        <div className="border-b border-white/[0.06] bg-white/[0.03] px-4 sm:px-6 py-2 flex-shrink-0">
-          <div className="max-w-5xl mx-auto flex items-center gap-2">
-            {(["all", "running", "idle", "failed"] as FilterType[]).map((f) => (
+        {/* Floating spawn bar at bottom */}
+        <div className="shrink-0 bg-black/[0.07] backdrop-blur-[10px] border border-white/10 rounded-[3px] px-4 py-3">
+          <div className="flex items-center gap-3">
+            {/* Spawn input */}
+            <div className="flex items-center gap-2 flex-1 bg-white/[0.04] border border-white/[0.08] rounded-[3px] px-3 py-2">
+              <span className="text-[13px] select-none flex-shrink-0">✨</span>
+              <input
+                ref={spawnInputRef}
+                type="text"
+                value={spawnInput}
+                onChange={(e) => setSpawnInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSpawn()}
+                placeholder="What do you want done? Press Enter to deploy an agent..."
+                className="flex-1 text-[13px] bg-transparent outline-none text-white/80 placeholder-white/20"
+                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                disabled={spawning}
+              />
+            </div>
+
+            {/* Templates dropdown button */}
+            <div className="relative flex-shrink-0" ref={templatesDropdownRef}>
               <button
-                key={f}
-                onClick={() => setFilter(f)}
+                onClick={() => setShowTemplates((v) => !v)}
                 className={[
-                  "text-[11px] font-mono uppercase tracking-wider px-3 py-1.5 rounded-[3px] transition-colors",
-                  filter === f
-                    ? "bg-white/[0.08] text-white/80"
-                    : "text-white/40 hover:text-white/60",
+                  "font-mono text-[11px] uppercase tracking-wider px-3 py-2 border rounded-[3px] transition-colors flex items-center gap-1.5",
+                  showTemplates
+                    ? "bg-white/[0.10] border-white/[0.18] text-white/80"
+                    : "bg-white/[0.04] border-white/[0.08] text-white/50 hover:bg-white/[0.08] hover:text-white/70",
                 ].join(" ")}
+                title="Templates"
               >
-                {f} ({filterCounts[f]})
+                {/* Grid icon */}
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="opacity-70">
+                  <rect x="0" y="0" width="5" height="5" rx="0.5" fill="currentColor" />
+                  <rect x="7" y="0" width="5" height="5" rx="0.5" fill="currentColor" />
+                  <rect x="0" y="7" width="5" height="5" rx="0.5" fill="currentColor" />
+                  <rect x="7" y="7" width="5" height="5" rx="0.5" fill="currentColor" />
+                </svg>
+                Templates
               </button>
-            ))}
 
-            <div className="flex-1" />
+              {/* Templates dropdown — opens upward */}
+              {showTemplates && (
+                <div className="absolute right-0 bottom-full mb-1.5 z-50 w-72 bg-black/[0.85] backdrop-blur-[10px] border border-white/10 rounded-[3px] p-2 shadow-xl">
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-white/30 px-2 pb-2">
+                    Quick templates
+                  </p>
+                  {BUILTIN_TEMPLATES.map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      onClick={() => handleSelectTemplate(tpl)}
+                      className="w-full text-left flex items-start gap-2.5 px-2 py-2 rounded-[3px] hover:bg-white/[0.07] transition-colors group"
+                    >
+                      <span className="text-base leading-none mt-0.5 flex-shrink-0">{tpl.emoji}</span>
+                      <div className="min-w-0">
+                        <div className="text-[12px] font-medium text-white/70 group-hover:text-white/90 transition-colors">
+                          {tpl.name}
+                        </div>
+                        <div className="text-[11px] text-white/35 leading-snug truncate">
+                          {tpl.description}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Mode selector */}
+            <select
+              value={selectedMode}
+              onChange={(e) => setSelectedMode(e.target.value)}
+              className={selectClass}
+            >
+              {MODE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value} className="bg-[#0a0a0a] text-white/80">
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Model selector */}
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className={selectClass}
+            >
+              {MODEL_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value} className="bg-[#0a0a0a] text-white/80">
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={handleSpawn}
+              disabled={!spawnInput.trim() || spawning}
+              className="font-mono text-[11px] uppercase tracking-wider px-4 py-2 bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.1] text-white disabled:opacity-30 transition-colors rounded-[3px] flex-shrink-0"
+            >
+              {spawning ? "Deploying..." : "Deploy"}
+            </button>
 
             {runningCount > 0 && (
-              <button
-                onClick={handleStopAll}
-                className="text-[11px] font-mono uppercase tracking-wider text-[#FF8C69]/70 hover:text-[#FF8C69] hover:bg-[#FF8C69]/10 px-3 py-1.5 rounded-[3px] transition-colors"
-              >
-                Stop All
-              </button>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="w-2 h-2 rounded-full bg-[#9EFFBF] animate-pulse" />
+                <span className="text-[11px] font-mono text-white/60">{runningCount} active</span>
+              </div>
             )}
           </div>
         </div>
-      )}
 
-      {/* Grid area */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        {agents.length === 0 ? (
-          /* Empty state */
-          <div className="flex flex-col items-center justify-center h-full max-w-2xl mx-auto text-center gap-6">
-            <div className="bg-black/[0.07] backdrop-blur-[10px] border border-white/10 rounded-[3px] px-8 py-10 space-y-2">
-              <h2
-                className="text-lg font-medium text-white/80"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                No agents deployed yet
-              </h2>
-              <p className="text-[13px] text-white/50">
-                Deploy agents to work on tasks concurrently. Each agent runs independently with
-                access to tools.
-              </p>
-            </div>
-
-            {/* Template cards grid */}
-            <div className="w-full">
-              <p className="text-[10px] font-mono uppercase tracking-wider text-white/25 mb-3">
-                Start from a template
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-[7px]">
-                {BUILTIN_TEMPLATES.map((tpl) => (
-                  <button
-                    key={tpl.id}
-                    onClick={() => handleSelectTemplate(tpl)}
-                    className="bg-white/[0.04] border border-white/[0.08] rounded-[3px] p-3 hover:bg-white/[0.08] hover:border-white/[0.12] transition-colors cursor-pointer text-left"
-                  >
-                    <div className="text-xl mb-1.5">{tpl.emoji}</div>
-                    <div className="text-[12px] font-medium text-white/70 mb-0.5">{tpl.name}</div>
-                    <div className="text-[11px] text-white/40 leading-snug line-clamp-2">
-                      {tpl.description}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* Agent grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-[7px] max-w-7xl mx-auto">
-            {filteredAgents.map((agent) => (
-              <AgentPanel
-                key={agent.id}
-                agent={agent}
-                onStop={() => onStopAgent(agent.id)}
-                onDelete={() => onDeleteAgent(agent.id)}
-                onExpand={() => setExpandedId(agent.id)}
-              />
-            ))}
-          </div>
-        )}
       </div>
-
-      {/* Side panel */}
-      {expandedAgent && (
-        <AgentSidePanel
-          agent={expandedAgent}
-          onClose={() => setExpandedId(null)}
-          onSendMessage={(msg) => onSendMessage(expandedAgent.id, msg)}
-        />
-      )}
 
       <style>{`
         @keyframes agentFadeIn {
