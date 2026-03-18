@@ -151,45 +151,59 @@ function getAgentTaskLabel(tool: string, input: Record<string, unknown>): string
 }
 
 function TokenUsageBar() {
-  const [usage, setUsage] = useState<{
-    percentWeekly: number;
-    percentMonthly: number;
-    weekly: { used: number; limit: number };
-    plan: string;
+  const [credits, setCredits] = useState<{
+    daily: { used: number; limit: number; remaining: number; resetsAt: string };
+    monthly: { poolBalance: number; poolLimit: number };
+    totalAvailableToday: number;
   } | null>(null);
 
   useEffect(() => {
     fetch('/api/usage/status')
       .then(r => r.ok ? r.json() : null)
-      .then(d => setUsage(d))
+      .then(d => setCredits(d))
       .catch(() => {});
   }, []);
 
-  if (!usage) return null;
+  if (!credits) return null;
 
-  const pct = Math.max(usage.percentWeekly, usage.percentMonthly);
-  const isWarning = pct >= 80 && pct < 100;
-  const isExceeded = pct >= 100;
+  const dailyPct = credits.daily.limit > 0
+    ? Math.round((credits.daily.used / credits.daily.limit) * 100)
+    : 0;
+  const isDepleted = credits.totalAvailableToday <= 0;
+  const isLow = credits.daily.remaining <= 2 && credits.daily.remaining > 0;
 
-  if (pct < 60) return null; // hide when usage is low
+  // Only show when usage is above 40% of daily limit
+  if (dailyPct < 40 && !isDepleted) return null;
+
+  // Calculate time until reset
+  let resetLabel = '';
+  if (isDepleted) {
+    const now = new Date();
+    const resetTime = new Date(credits.daily.resetsAt);
+    const diffMs = resetTime.getTime() - now.getTime();
+    const hours = Math.floor(diffMs / 3600000);
+    const mins = Math.floor((diffMs % 3600000) / 60000);
+    resetLabel = `resets in ${hours}h ${mins}m`;
+  }
 
   return (
     <div className={`flex-shrink-0 px-4 py-1.5 border-t border-white/[0.08] flex items-center gap-3 ${
-      isExceeded ? 'bg-red-500/10' : isWarning ? 'bg-amber-500/10' : 'bg-transparent'
+      isDepleted ? 'bg-red-500/10' : isLow ? 'bg-amber-500/10' : 'bg-transparent'
     }`}>
-      <div className="flex-1 h-1 bg-white/[0.06]">
-        <div
-          className={`h-full transition-all ${isExceeded ? 'bg-red-500' : isWarning ? 'bg-amber-400' : 'bg-emerald-500'}`}
-          style={{ width: `${Math.min(pct, 100)}%` }}
-        />
-      </div>
-      <span className={`font-mono text-[10px] uppercase tracking-wide flex-shrink-0 ${
-        isExceeded ? 'text-red-400' : isWarning ? 'text-amber-400' : 'text-white/50'
+      <span className={`font-mono text-[10px] flex-shrink-0 ${
+        isDepleted ? 'text-red-400' : isLow ? 'text-amber-400' : 'text-white/50'
       }`}>
-        {isExceeded ? (
-          <a href="/settings/billing" className="underline">Limit reached — Upgrade</a>
+        {isDepleted ? (
+          <a href="/settings" className="underline">
+            &#9889; 0 credits today &mdash; {resetLabel}
+          </a>
         ) : (
-          `${pct}% of weekly limit`
+          <>
+            &#9889; {credits.daily.remaining} credits today
+            {credits.monthly.poolLimit > 0 && (
+              <span className="text-white/30"> &middot; {credits.monthly.poolBalance} monthly</span>
+            )}
+          </>
         )}
       </span>
     </div>
@@ -857,6 +871,18 @@ export default function ChatPageClient({
           body: JSON.stringify({
             user_message: lastUserMsg,
             assistant_message: fullText,
+          }),
+        }).catch(() => {}); // Silent failure is fine
+      }
+
+      // Fire-and-forget usage tracking for WS path
+      if (lastUserMsg || fullText) {
+        fetch('/api/usage/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userMessageLength: lastUserMsg?.length ?? 0,
+            assistantMessageLength: fullText?.length ?? 0,
           }),
         }).catch(() => {}); // Silent failure is fine
       }

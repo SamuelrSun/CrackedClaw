@@ -182,6 +182,7 @@ export async function POST(request: NextRequest) {
 
     (async () => {
       let fullContent = '';
+      let actualUsageTokens = 0;
 
       try {
         const gatewayBase = instance.port === 443
@@ -268,6 +269,13 @@ export async function POST(request: NextRequest) {
                   }
                 }
 
+                // Capture usage data from gateway response
+                if (chunk.usage) {
+                  const total = chunk.usage.total_tokens
+                    || ((chunk.usage.prompt_tokens || 0) + (chunk.usage.completion_tokens || 0));
+                  if (total > 0) actualUsageTokens = total;
+                }
+
                 if (finishReason === 'stop' || finishReason === 'end_turn') {
                   try {
                     await writer.write(encode({ type: 'done', conversation_id: capturedConvoId }));
@@ -341,7 +349,9 @@ export async function POST(request: NextRequest) {
         await logActivity("Chat message sent", message.length > 50 ? message.substring(0, 50) + "..." : message, { conversation_id: capturedConvoId })
           .catch(e => console.error("Failed to log activity:", e));
 
-        const estimatedTokens = Math.ceil((message.length + (fullContent?.length ?? 0)) / 4);
+        const estimatedTokens = actualUsageTokens > 0
+          ? actualUsageTokens
+          : Math.ceil((message.length + (fullContent?.length ?? 0)) / 4) + 4000;
         await incrementUsage(user.id, estimatedTokens, 0);
         await incrementTokenUsage(estimatedTokens).catch(() => {});
       } catch (e) {

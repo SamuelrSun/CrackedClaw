@@ -9,7 +9,7 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 // Re-export plan helpers for server-side code convenience
-export { PLANS, getPlanBySlug, getTokenLimit } from '@/lib/plans';
+export { PLANS, getPlanBySlug, getTokenLimit, tokensToCredits, creditsToTokens, ALL_FEATURES, TOKENS_PER_CREDIT } from '@/lib/plans';
 export type { PlanSlug } from '@/lib/plans';
 
 // Price ID lookup (server-only, uses env vars)

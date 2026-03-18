@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
     ).catch((err: unknown) => console.error('Failed to log activity:', err));
 
     // Track usage
-    const totalTokens = data.usage?.total_tokens || Math.ceil((message.length + responseContent.length) / 4);
+    const totalTokens = data.usage?.total_tokens || (Math.ceil((message.length + responseContent.length) / 4) + 4000);
     await incrementUsage(user.id, totalTokens, 0);
     await incrementTokenUsage(totalTokens).catch((err: unknown) => console.error('Failed to track token usage:', err));
 

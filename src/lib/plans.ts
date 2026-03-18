@@ -6,46 +6,82 @@
 export const PLANS = {
   free: {
     name: 'Free',
-    slug: 'free',
+    slug: 'free' as const,
     price: 0,
-    monthlyTokens: 40_000,
-    weeklyTokens: 10_000,
-    features: ['10k tokens/week', 'AI chat', 'Web access', 'Basic memory'],
+    dailyCredits: 5,
+    monthlyPool: 0,
+    maxMonthly: 30,
+    rolloverCap: 0,
+    welcomeGrant: 20,
+    opusCostCredits: 5,
+    tagline: 'Try Dopl for free',
   },
   starter: {
     name: 'Starter',
-    slug: 'starter',
-    price: 20,
-    monthlyTokens: 300_000,
-    weeklyTokens: 75_000,
-    features: ['300k tokens/month', 'Companion app', 'All integrations', 'Full memory', 'Workflows'],
+    slug: 'starter' as const,
+    price: 10,
+    dailyCredits: 5,
+    monthlyPool: 100,
+    maxMonthly: 250,
+    rolloverCap: 200,
+    welcomeGrant: 20,
+    opusCostCredits: 5,
+    tagline: 'For personal use',
   },
   pro: {
     name: 'Pro',
-    slug: 'pro',
-    price: 50,
-    monthlyTokens: 1_200_000,
-    weeklyTokens: 300_000,
-    features: ['1.2M tokens/month', 'Everything in Starter', 'Priority support', 'Advanced workflows'],
+    slug: 'pro' as const,
+    price: 25,
+    dailyCredits: 10,
+    monthlyPool: 400,
+    maxMonthly: 700,
+    rolloverCap: 800,
+    welcomeGrant: 0,
+    opusCostCredits: 5,
+    tagline: 'For power users',
     popular: true,
   },
   power: {
     name: 'Power',
-    slug: 'power',
-    price: 100,
-    monthlyTokens: 3_000_000,
-    weeklyTokens: 750_000,
-    features: ['3M tokens/month', 'Everything in Pro', 'Highest priority', 'Unlimited conversations'],
+    slug: 'power' as const,
+    price: 50,
+    dailyCredits: 25,
+    monthlyPool: 1200,
+    maxMonthly: 1950,
+    rolloverCap: 2400,
+    welcomeGrant: 0,
+    opusCostCredits: 5,
+    tagline: 'For heavy workflows',
   },
 } as const;
 
 export type PlanSlug = keyof typeof PLANS;
 
+export const ALL_FEATURES = [
+  'AI chat & full memory',
+  'Companion app',
+  'All integrations',
+  'Workflows & agents',
+  'Browser relay',
+  'Opus model access',
+] as const;
+
+export const TOKENS_PER_CREDIT = 10_000;
+
 export function getPlanBySlug(slug: string) {
   return PLANS[slug as PlanSlug] || PLANS.free;
 }
 
-export function getTokenLimit(planSlug: string): { monthly: number; weekly: number } {
+export function tokensToCredits(tokens: number): number {
+  return tokens / TOKENS_PER_CREDIT;
+}
+
+export function creditsToTokens(credits: number): number {
+  return credits * TOKENS_PER_CREDIT;
+}
+
+/** For backward compat with enforcement — returns monthly token limit */
+export function getTokenLimit(planSlug: string): { monthly: number } {
   const plan = getPlanBySlug(planSlug);
-  return { monthly: plan.monthlyTokens, weekly: plan.weeklyTokens };
+  return { monthly: plan.maxMonthly * TOKENS_PER_CREDIT };
 }

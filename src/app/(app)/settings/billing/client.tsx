@@ -2,63 +2,24 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { PLANS, type PlanSlug } from "@/lib/plans";
-
-interface UsageStatus {
-  plan: string;
-  weekly: { used: number; limit: number; resetDate: string };
-  monthly: { used: number; limit: number; resetDate: string };
-  percentWeekly: number;
-  percentMonthly: number;
-}
+import { Check, Zap } from "lucide-react";
+import { PLANS, ALL_FEATURES, type PlanSlug } from "@/lib/plans";
+import type { CreditStatus } from "@/lib/usage/types";
 
 interface BillingPageClientProps {
   currentPlan: string;
   isSubscribed: boolean;
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
-  return String(n);
-}
-
-function UsageBar({ label, used, limit, percent, resetDate }: {
-  label: string;
-  used: number;
-  limit: number;
-  percent: number;
-  resetDate: string;
-}) {
-  const color = percent >= 100 ? 'bg-red-500' : percent >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
-  return (
-    <div className="space-y-1.5">
-      <div className="flex justify-between items-baseline">
-        <span className="font-mono text-[11px] uppercase tracking-wide text-[rgba(58,58,56,0.5)]">{label}</span>
-        <span className="font-mono text-[11px] text-[rgba(58,58,56,0.6)]">
-          {formatTokens(used)} / {formatTokens(limit)}
-        </span>
-      </div>
-      <div className="w-full h-1.5 bg-[rgba(58,58,56,0.08)]">
-        <div
-          className={`h-full ${color} transition-all`}
-          style={{ width: `${Math.min(percent, 100)}%` }}
-        />
-      </div>
-      <p className="font-mono text-[10px] text-[rgba(58,58,56,0.4)]">Resets {resetDate}</p>
-    </div>
-  );
-}
-
 export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClientProps) {
   const [upgrading, setUpgrading] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
-  const [usage, setUsage] = useState<UsageStatus | null>(null);
+  const [creditStatus, setCreditStatus] = useState<CreditStatus | null>(null);
 
   useEffect(() => {
     fetch('/api/usage/status')
       .then(r => r.ok ? r.json() : null)
-      .then(d => setUsage(d))
+      .then(d => setCreditStatus(d))
       .catch(() => {});
   }, []);
 
@@ -95,6 +56,10 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
 
   const planOrder: PlanSlug[] = ['free', 'starter', 'pro', 'power'];
 
+  const dailyPct = creditStatus && creditStatus.daily.limit > 0
+    ? Math.round((creditStatus.daily.used / creditStatus.daily.limit) * 100)
+    : 0;
+
   return (
     <div className="min-h-screen bg-[#0d0d12] p-6 md:p-10">
       {/* Header */}
@@ -104,36 +69,75 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
             href="/settings"
             className="font-mono text-[11px] uppercase tracking-wide text-[rgba(58,58,56,0.5)] hover:text-white/80 transition-colors"
           >
-            ← Settings
+            &larr; Settings
           </Link>
         </div>
         <h1 className="font-mono text-4xl font-bold text-white/80 tracking-tight">
-          Plan & Billing
+          Plan & Credits
         </h1>
         <p className="font-mono text-[13px] text-[rgba(58,58,56,0.55)] mt-2 uppercase tracking-wide">
-          Choose the plan that fits your workflow
+          All features on every plan. Only credits differ.
         </p>
 
-        {/* Current usage */}
-        {usage && (
-          <div className="mt-6 border border-white/[0.1] bg-white p-5 max-w-lg space-y-4">
-            <p className="font-mono text-[11px] uppercase tracking-wide text-[rgba(58,58,56,0.5)]">
-              Current Usage — {currentPlan.toUpperCase()} Plan
+        {/* Credit status hero */}
+        {creditStatus && (
+          <div className="mt-6 border border-white/[0.1] bg-black/[0.07] backdrop-blur-[20px] p-5 max-w-lg space-y-4">
+            <p className="font-mono text-[11px] uppercase tracking-wide text-white/40">
+              Current Credits &mdash; {currentPlan.toUpperCase()} Plan
             </p>
-            <UsageBar
-              label="This week"
-              used={usage.weekly.used}
-              limit={usage.weekly.limit}
-              percent={usage.percentWeekly}
-              resetDate={usage.weekly.resetDate}
-            />
-            <UsageBar
-              label="This month"
-              used={usage.monthly.used}
-              limit={usage.monthly.limit}
-              percent={usage.percentMonthly}
-              resetDate={usage.monthly.resetDate}
-            />
+
+            {/* Daily */}
+            <div className="space-y-1.5">
+              <div className="flex items-baseline gap-3">
+                <span className="font-mono text-3xl font-bold text-white/90">
+                  {creditStatus.daily.remaining}
+                </span>
+                <span className="font-mono text-[12px] text-white/50">credits remaining today</span>
+              </div>
+              <div className="w-full h-1.5 bg-white/[0.08] overflow-hidden">
+                <div
+                  className="h-full transition-all"
+                  style={{
+                    width: `${Math.min(dailyPct, 100)}%`,
+                    background: dailyPct >= 90 ? "#f87171" : dailyPct >= 70 ? "#fbbf24" : "#34d399",
+                  }}
+                />
+              </div>
+              <p className="font-mono text-[10px] text-white/30">
+                {creditStatus.daily.used} / {creditStatus.daily.limit} daily &middot; Resets at midnight UTC
+              </p>
+            </div>
+
+            {/* Monthly pool */}
+            {creditStatus.monthly.poolLimit > 0 && (
+              <div className="space-y-1">
+                <div className="flex justify-between">
+                  <span className="font-mono text-[11px] uppercase tracking-wider text-white/40">Monthly Pool</span>
+                  <span className="font-mono text-[11px] text-white/50">
+                    {creditStatus.monthly.poolBalance} / {creditStatus.monthly.poolLimit}
+                  </span>
+                </div>
+                <div className="w-full h-1 bg-white/[0.06] overflow-hidden">
+                  <div
+                    className="h-full transition-all"
+                    style={{
+                      width: `${creditStatus.monthly.poolLimit > 0 ? Math.min(Math.round(((creditStatus.monthly.poolLimit - creditStatus.monthly.poolBalance) / creditStatus.monthly.poolLimit) * 100), 100) : 0}%`,
+                      background: "#34d399",
+                      opacity: 0.6,
+                    }}
+                  />
+                </div>
+                <p className="font-mono text-[10px] text-white/30">
+                  Resets {creditStatus.monthly.resetsAt}
+                </p>
+              </div>
+            )}
+
+            {creditStatus.welcomeGrant.remaining > 0 && (
+              <p className="font-mono text-[11px] text-emerald-400/60">
+                +{creditStatus.welcomeGrant.remaining} welcome grant credits remaining
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -143,8 +147,7 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
         {planOrder.map((slug) => {
           const plan = PLANS[slug];
           const isCurrent = currentPlan === slug;
-          const isPaid = slug !== 'free';
-          const isPopular = 'popular' in plan && plan.popular;
+          const isPopular = slug === 'pro';
 
           return (
             <div
@@ -161,7 +164,6 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
               )}
 
               <div className={isPopular ? 'mt-7' : ''}>
-                {/* Current plan badge */}
                 {isCurrent && (
                   <div className="mb-3">
                     <span className="font-mono text-[10px] uppercase tracking-wide bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/30 px-2 py-0.5">
@@ -170,12 +172,10 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
                   </div>
                 )}
 
-                {/* Plan name */}
                 <h2 className="font-mono text-[11px] uppercase tracking-widest text-[rgba(58,58,56,0.5)] mb-1">
                   {plan.name}
                 </h2>
 
-                {/* Price */}
                 <div className="mb-4">
                   {plan.price === 0 ? (
                     <span className="font-mono text-3xl font-bold text-white/80">Free</span>
@@ -187,25 +187,28 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
                   )}
                 </div>
 
-                {/* Token info */}
-                <div className="border-t border-[rgba(58,58,56,0.12)] pt-4 mb-4 space-y-1">
-                  <p className="font-mono text-[12px] text-white/80 font-semibold">
-                    {formatTokens(plan.monthlyTokens)} tokens/month
-                  </p>
+                {/* Credit info */}
+                <div className="border-t border-[rgba(58,58,56,0.12)] pt-4 mb-4 space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="w-3 h-3 text-emerald-400/60" />
+                    <span className="font-mono text-[12px] text-white/80 font-semibold">
+                      {plan.dailyCredits} daily credits
+                    </span>
+                  </div>
                   <p className="font-mono text-[11px] text-[rgba(58,58,56,0.5)]">
-                    {formatTokens(plan.weeklyTokens)} tokens/week
+                    {plan.monthlyPool > 0 ? `+ ${plan.monthlyPool} monthly pool` : 'No monthly pool'}
                   </p>
+                  <p className="font-mono text-[10px] text-[rgba(58,58,56,0.4)]">
+                    Up to {plan.maxMonthly} credits/mo
+                  </p>
+                  {plan.rolloverCap > 0 && (
+                    <p className="font-mono text-[10px] text-[rgba(58,58,56,0.35)]">
+                      Rollover cap: {plan.rolloverCap}
+                    </p>
+                  )}
                 </div>
 
-                {/* Features */}
-                <ul className="space-y-2 flex-1 mb-6">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2">
-                      <span className="text-[#10b981] font-mono text-[12px] mt-0.5 flex-shrink-0">✓</span>
-                      <span className="font-mono text-[12px] text-[rgba(58,58,56,0.7)]">{f}</span>
-                    </li>
-                  ))}
-                </ul>
+                <div className="flex-1" />
 
                 {/* CTA */}
                 {isCurrent ? (
@@ -242,10 +245,23 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
         })}
       </div>
 
-      {/* Footer note */}
-      <div className="max-w-5xl mx-auto mt-8">
+      {/* All features */}
+      <div className="max-w-5xl mx-auto mt-8 border border-white/[0.08] bg-black/[0.07] backdrop-blur-[20px] p-6">
+        <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 mb-4">All plans include</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {ALL_FEATURES.map((f) => (
+            <div key={f} className="flex items-center gap-2">
+              <Check className="w-3.5 h-3.5 text-emerald-400/60 flex-shrink-0" />
+              <span className="font-mono text-[12px] text-white/60">{f}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="max-w-5xl mx-auto mt-6">
         <p className="font-mono text-[11px] text-[rgba(58,58,56,0.4)] text-center">
-          All plans include a 14-day free trial. Cancel anytime. Prices in USD.
+          Top-ups: $1 per 10 credits. Billed monthly. Cancel anytime.
         </p>
       </div>
     </div>

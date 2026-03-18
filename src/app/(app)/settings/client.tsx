@@ -512,10 +512,12 @@ export default function SettingsPageClient({
   const [billingLoading, setBillingLoading] = useState(true);
   const [billingUpgrading, setBillingUpgrading] = useState(false);
   const [usageStatus, setUsageStatus] = useState<{
-    weekly: { used: number; limit: number; resetDate: string };
-    monthly: { used: number; limit: number; resetDate: string };
-    percentWeekly: number;
-    percentMonthly: number;
+    plan: string;
+    daily: { used: number; limit: number; remaining: number; resetsAt: string };
+    monthly: { poolBalance: number; poolLimit: number; resetsAt: string };
+    welcomeGrant: { total: number; used: boolean; remaining: number };
+    totalAvailableToday: number;
+    totalUsedThisMonth: number;
   } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
@@ -580,8 +582,9 @@ export default function SettingsPageClient({
     }
   }
 
-  const featuredUsage = usageStatus?.monthly ?? null;
-  const featuredPct = usageStatus?.percentMonthly ?? pct;
+  const dailyPct = usageStatus
+    ? (usageStatus.daily.limit > 0 ? Math.round((usageStatus.daily.used / usageStatus.daily.limit) * 100) : 0)
+    : pct;
 
   return (
     <>
@@ -659,78 +662,68 @@ export default function SettingsPageClient({
               </div>
             </div>
 
-            {/* Token Usage */}
+            {/* Credit Usage */}
             <div className={glassPanel}>
               <div className="flex items-center gap-2 mb-4">
-                <Zap className="w-4 h-4 text-white/60" />
-                <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium">Token Usage</span>
-                <span className="text-[12px] text-white/50 ml-auto">
-                  Resets {featuredUsage?.resetDate ?? initialTokenUsage.resetDate}
+                <Zap className="w-4 h-4 text-emerald-400/70" />
+                <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium font-mono">Credits</span>
+                <span className="text-[12px] text-white/40 ml-auto font-mono">
+                  Resets at midnight UTC
                 </span>
               </div>
 
               <div className="flex items-baseline gap-3 mb-3">
-                <span className="text-4xl font-bold text-white/90 tracking-tight">{featuredPct}%</span>
-                <span className="text-[13px] text-white/60">
-                  {featuredUsage
-                    ? `${Math.round(featuredUsage.used / 1000)}k / ${Math.round(featuredUsage.limit / 1000)}k`
-                    : `${Math.round(initialTokenUsage.used / 1000)}k / ${Math.round(initialTokenUsage.limit / 1000)}k`}
-                  {" "}tokens
+                <span className="text-4xl font-bold text-white/90 tracking-tight">
+                  {usageStatus ? usageStatus.daily.remaining : "..."}
+                </span>
+                <span className="text-[13px] text-white/60 font-mono">
+                  credits remaining today
                 </span>
               </div>
 
+              {/* Daily progress bar */}
               <div className="w-full h-2 bg-white/[0.08] overflow-hidden rounded-[1px]">
                 <div
                   className="h-full transition-all duration-700"
                   style={{
-                    width: `${Math.min(featuredPct, 100)}%`,
-                    background: featuredPct >= 100 ? "#f87171" : featuredPct >= 80 ? "#fbbf24" : "#9EFFBF",
+                    width: `${Math.min(dailyPct, 100)}%`,
+                    background: dailyPct >= 90 ? "#f87171" : dailyPct >= 70 ? "#fbbf24" : "#34d399",
                   }}
                 />
               </div>
 
               {usageStatus && (
-                <div className="mt-3 space-y-1.5">
+                <div className="mt-3 space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-[11px] text-white/50 uppercase tracking-wider">Weekly</span>
-                    <span className="text-[11px] text-white/50">
-                      {Math.round(usageStatus.weekly.used / 1000)}k / {Math.round(usageStatus.weekly.limit / 1000)}k
+                    <span className="text-[11px] text-white/50 uppercase tracking-wider font-mono">Daily</span>
+                    <span className="text-[11px] text-white/50 font-mono">
+                      {usageStatus.daily.used} / {usageStatus.daily.limit}
                     </span>
                   </div>
-                  <div className="w-full h-1 bg-white/[0.06] overflow-hidden rounded-[1px]">
-                    <div
-                      className="h-full"
-                      style={{
-                        width: `${Math.min(usageStatus.percentWeekly, 100)}%`,
-                        background: usageStatus.percentWeekly >= 100 ? "#f87171" : usageStatus.percentWeekly >= 80 ? "#fbbf24" : "#9EFFBF",
-                        opacity: 0.6,
-                      }}
-                    />
-                  </div>
-                  <div className="flex justify-between mt-1">
-                    <span className="text-[11px] text-white/50 uppercase tracking-wider">Monthly</span>
-                    <span className="text-[11px] text-white/50">
-                      {Math.round(usageStatus.monthly.used / 1000)}k / {Math.round(usageStatus.monthly.limit / 1000)}k
-                    </span>
-                  </div>
-                  <div className="w-full h-1 bg-white/[0.06] overflow-hidden rounded-[1px]">
-                    <div
-                      className="h-full"
-                      style={{
-                        width: `${Math.min(usageStatus.percentMonthly, 100)}%`,
-                        background: usageStatus.percentMonthly >= 100 ? "#f87171" : usageStatus.percentMonthly >= 80 ? "#fbbf24" : "#9EFFBF",
-                        opacity: 0.6,
-                      }}
-                    />
-                  </div>
+                  {usageStatus.monthly.poolLimit > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-[11px] text-white/50 uppercase tracking-wider font-mono">Monthly Pool</span>
+                      <span className="text-[11px] text-white/50 font-mono">
+                        {usageStatus.monthly.poolBalance} / {usageStatus.monthly.poolLimit}
+                      </span>
+                    </div>
+                  )}
+                  {usageStatus.welcomeGrant.remaining > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-[11px] text-emerald-400/60 uppercase tracking-wider font-mono">Welcome Grant</span>
+                      <span className="text-[11px] text-emerald-400/60 font-mono">
+                        {usageStatus.welcomeGrant.remaining} remaining
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
               <button
                 onClick={() => setShowPricingModal(true)}
-                className="w-full mt-5 py-2.5 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/70 text-[13px] transition-colors"
+                className="w-full mt-5 py-2.5 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/70 text-[13px] font-mono transition-colors"
               >
-                Get More Usage
+                Get More Credits
               </button>
             </div>
           </div>
@@ -782,6 +775,7 @@ export default function SettingsPageClient({
         <PricingModal
           onClose={() => setShowPricingModal(false)}
           currentPlan={billingPlan}
+          creditStatus={usageStatus}
           onUpgrade={async (slug) => { await handleUpgradePlan(slug); }}
           onManageBilling={async () => { await handleManageBilling(); }}
         />

@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   email TEXT,
   full_name TEXT,
   avatar_url TEXT,
-  plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'starter', 'pro', 'enterprise')),
+  plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'starter', 'pro', 'power')),
   -- Billing / Stripe columns (added Session 13)
   plan_status TEXT DEFAULT 'active',
   stripe_customer_id TEXT,
@@ -22,6 +22,10 @@ CREATE TABLE IF NOT EXISTS profiles (
   auth_token TEXT,
   instance_status TEXT DEFAULT 'pending',
   instance_settings JSONB DEFAULT '{}'::jsonb,
+  -- Credit system columns
+  welcome_grant_used BOOLEAN DEFAULT FALSE,
+  monthly_pool_credits INTEGER DEFAULT 0,
+  pool_last_reset TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
