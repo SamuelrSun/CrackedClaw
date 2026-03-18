@@ -66,6 +66,9 @@ export async function POST(request: NextRequest) {
               if (provData.instance.operator_device_token) {
                 settingsUpdate.operator_device_token = provData.instance.operator_device_token;
               }
+              if (provData.instance.port) {
+                settingsUpdate.gatewayPort = provData.instance.port;
+              }
 
               await supabase
                 .from("profiles")

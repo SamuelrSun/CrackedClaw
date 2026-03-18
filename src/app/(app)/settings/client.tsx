@@ -265,9 +265,34 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
     ? profile.gateway_url.replace(/^https?:\/\//, "")
     : null;
   const authToken = profile?.auth_token ?? null;
-  const relayWssUrl = instanceUrl ? `wss://${instanceUrl}/relay/` : null;
 
   const hasInstance = !!instanceUrl;
+
+  const [relayPort, setRelayPort] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!hasInstance) return;
+    fetch("/api/instance/relay-port")
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d.relayPort === "number") setRelayPort(d.relayPort);
+      })
+      .catch(() => {/* ignore */});
+  }, [hasInstance]);
+
+  const connectionKey = (() => {
+    if (!instanceUrl || !authToken) return null;
+    const payload: Record<string, unknown> = { h: instanceUrl, t: authToken };
+    if (relayPort !== null) payload.p = relayPort;
+    try {
+      return `dopl_${btoa(JSON.stringify(payload))
+        .replace(/=/g, "")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")}`;
+    } catch {
+      return null;
+    }
+  })();
 
   return (
     <div className="space-y-4">
@@ -277,41 +302,22 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
         </p>
       ) : (
         <>
-          {/* Instance URL */}
+          {/* Connection Key */}
           <div className="space-y-1.5">
-            <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Instance URL</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 text-[11px] text-white/70 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate font-mono">
-                {instanceUrl}
-              </code>
-              <CopyButton value={instanceUrl!} label="Copy" />
-            </div>
-          </div>
-
-          {/* Relay URL */}
-          <div className="space-y-1.5">
-            <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Relay URL</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 text-[11px] text-white/75 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate font-mono">
-                {relayWssUrl}
-              </code>
-              <CopyButton value={relayWssUrl!} label="Copy" />
-            </div>
-          </div>
-
-          {/* Gateway Token */}
-          <div className="space-y-1.5">
-            <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Gateway Token</p>
-            {authToken ? (
+            <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Connection Key</p>
+            {connectionKey ? (
               <div className="flex items-center gap-2">
                 <code className="flex-1 text-[11px] text-white/75 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate font-mono">
-                  {authToken.slice(0, 8)}••••••••••••••••{authToken.slice(-4)}
+                  {connectionKey}
                 </code>
-                <CopyButton value={authToken} label="Copy" />
+                <CopyButton value={connectionKey} label="Copy" />
               </div>
             ) : (
-              <p className="text-[12px] text-white/50">No token available</p>
+              <p className="text-[12px] text-white/50">Generating key…</p>
             )}
+            <p className="text-[11px] text-white/40 leading-relaxed">
+              Copy this key and paste it into the extension options page to connect.
+            </p>
           </div>
 
           {/* Download extension */}
@@ -328,11 +334,10 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
           <div className="space-y-3">
             <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Setup</p>
             {[
-              { n: "1", title: "Download & install", desc: "Download the Dopl Browser Relay extension and load it in Chrome." },
-              { n: "2", title: "Open extension options", desc: "Click the extension icon in your toolbar → Options." },
-              { n: "3", title: "Paste your credentials", desc: "Enter your Instance URL and Gateway Token, then click Save." },
-              { n: "4", title: "Verify connection", desc: "You should see a green checkmark confirming the connection." },
-              { n: "5", title: "Attach a tab", desc: "Navigate to any tab and click the extension icon to attach it." },
+              { n: "1", title: "Download & install", desc: "Download the extension above and load it as an unpacked extension in Chrome (chrome://extensions → Load unpacked)." },
+              { n: "2", title: "Open extension options", desc: "Right-click the extension icon in your toolbar and choose Options." },
+              { n: "3", title: "Paste your Connection Key", desc: "Copy the Connection Key above, paste it into the options page, and click Save." },
+              { n: "4", title: "Attach a tab", desc: "Navigate to any tab and click the extension icon to attach it to Dopl." },
             ].map(step => (
               <div key={step.n} className="flex gap-3">
                 <span className="text-[13px] text-emerald-400 font-bold w-5 flex-shrink-0 pt-0.5">{step.n}.</span>
