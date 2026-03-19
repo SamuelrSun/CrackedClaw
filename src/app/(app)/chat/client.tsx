@@ -810,12 +810,31 @@ export default function ChatPageClient({
       setIsLoading(false);
       wsFullTextRef.current += event.delta;
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msgId ? { ...m, content: (m.content || "") + event.delta! } : m
-        )
+        prev.map((m) => {
+          if (m.id !== msgId) return m;
+          const sm = m as StreamingMessage;
+          // Freeze thinking duration when content starts arriving
+          const duration = sm.thinkingStartTime && !sm.thinkingDuration
+            ? Date.now() - sm.thinkingStartTime
+            : sm.thinkingDuration;
+          return { ...m, content: (m.content || "") + event.delta!, ...(duration !== sm.thinkingDuration ? { thinkingDuration: duration } : {}) };
+        })
+      );
+    } else if (event.type === "thinking" && event.text) {
+      // Accumulate thinking text — shows "Worked for Xs" block above the message
+      const msgId = wsStreamingMsgIdRef.current;
+      if (!msgId) return;
+      const thinkingDelta = event.text;
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== msgId) return m;
+          const sm = m as StreamingMessage;
+          const isFirst = !sm.thinkingStartTime;
+          return { ...m, thinkingText: (sm.thinkingText || "") + thinkingDelta, ...(isFirst ? { thinkingStartTime: Date.now() } : {}) };
+        })
       );
     } else if (event.type === "lifecycle_start") {
-      setIsLoading(false);
+      // Don't clear isLoading here — keep "Thinking..." visible until first token arrives
     } else if (event.type === "done") {
       const msgId = wsStreamingMsgIdRef.current;
       if (!msgId) return;

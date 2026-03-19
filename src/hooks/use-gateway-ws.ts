@@ -19,9 +19,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 export interface WSChatEvent {
-  type: "token" | "done" | "error" | "lifecycle_start" | "lifecycle_end";
-  /** Incremental text delta (for type:"token") */
+  type: "token" | "thinking" | "done" | "error" | "lifecycle_start" | "lifecycle_end";
+  /** Incremental text delta (for type:"token" or type:"thinking") */
   delta?: string;
+  /** Thinking text chunk (for type:"thinking") */
+  text?: string;
   /** Full message text (for type:"done") */
   fullText?: string;
   /** Error message (for type:"error") */
@@ -183,6 +185,16 @@ export function useGatewayWS({
             onEventRef.current?.({
               type: "token",
               delta: data.delta as string,
+              runId: payload?.runId as string,
+              sessionKey: payload?.sessionKey as string,
+            });
+          }
+
+          // Thinking stream — forward as "thinking" events
+          if (stream === "thinking" && data?.delta) {
+            onEventRef.current?.({
+              type: "thinking",
+              text: data.delta as string,
               runId: payload?.runId as string,
               sessionKey: payload?.sessionKey as string,
             });
