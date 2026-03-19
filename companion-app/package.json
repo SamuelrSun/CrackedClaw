@@ -19,6 +19,7 @@
     "appId": "com.dopl.connect",
     "productName": "Dopl Connect",
     "mac": {
+      "icon": "build/icon.icns",
       "target": "dmg",
       "category": "public.app-category.utilities",
       "hardenedRuntime": true,

@@ -398,3 +398,8 @@ app.on('before-quit', () => {
   app.isQuitting = true;
   if (nodeManager) nodeManager.stop();
 });
+
+// Handle macOS dock "Quit" menu item
+app.on('will-quit', () => {
+  app.isQuitting = true;
+});

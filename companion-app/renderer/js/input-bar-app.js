@@ -450,9 +450,14 @@ if (window.dopl.runtime && window.dopl.runtime.onStatus) {
   // Always start at input bar height — no setup card expansion
   window.dopl.windowSetSize(680, INPUT_BAR_HEIGHT, false);
 
-  if (state.token) {
+  if (state.token && state.connected) {
     exitTokenMode();
-    setConnectedIndicator(state.connected, false);
+    setConnectedIndicator(true, false);
+  } else if (state.token && !state.connected) {
+    // Token exists but not connected — show token mode so user can re-pair
+    // but also try reconnecting in the background
+    enterTokenMode();
+    setConnectedIndicator(false, true);
   } else {
     enterTokenMode();
   }
