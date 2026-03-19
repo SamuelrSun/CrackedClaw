@@ -2100,6 +2100,7 @@ User message: `
         <div className="hidden md:flex items-center gap-1">
           {[
             { href: "/chat", label: "Chat" },
+            { href: "/outreach", label: "Outreach" },
             { href: "/agents", label: "Agents" },
             { href: "/integrations", label: "Integrations" },
             { href: "/settings", label: "Settings" },
@@ -2178,6 +2179,7 @@ User message: `
             <div className="px-3 py-2 border-b border-white/[0.08] flex flex-col gap-0.5">
               {[
                 { href: "/chat", label: "Chat" },
+                { href: "/outreach", label: "Outreach" },
                 { href: "/agents", label: "Agents" },
                 { href: "/integrations", label: "Integrations" },
                 { href: "/settings", label: "Settings" },
