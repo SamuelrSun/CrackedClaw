@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Check, Loader2, Key } from "lucide-react";
+import { X, Check, Loader2, Key, Copy, Download, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntegrationIcon } from "@/components/integrations/integration-icon";
 
@@ -31,18 +31,38 @@ export function ConnectionsPopup({ onClose }: ConnectionsPopupProps) {
   const [matonKey, setMatonKey] = useState("");
   const [matonSaved, setMatonSaved] = useState(false);
   const [matonSaving, setMatonSaving] = useState(false);
+  const [companionConnected, setCompanionConnected] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [tokenCopied, setTokenCopied] = useState(false);
 
   useEffect(() => {
     fetch("/api/integrations/status")
       .then((r) => r.json())
       .then((data) => {
-        // API returns { connected: ['google', 'slack', ...] }
         const list: string[] = data?.connected ?? (Array.isArray(data) ? data : []);
         setConnectedIds(new Set(list.map((s: string) => String(s).toLowerCase())));
       })
       .catch(() => setConnectedIds(new Set()))
       .finally(() => setLoading(false));
+
+    fetch("/api/gateway/status")
+      .then(r => r.json())
+      .then(d => setCompanionConnected(d?.companion === true))
+      .catch(() => {});
+
+    fetch("/api/node/connection-token")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setToken(d?.token ?? null))
+      .catch(() => {});
   }, []);
+
+  function copyToken() {
+    if (!token) return;
+    navigator.clipboard.writeText(token).then(() => {
+      setTokenCopied(true);
+      setTimeout(() => setTokenCopied(false), 2000);
+    });
+  }
 
   async function handleSaveMaton() {
     if (!matonKey.trim()) return;
@@ -97,6 +117,54 @@ export function ConnectionsPopup({ onClose }: ConnectionsPopupProps) {
                 <span className="text-white/70 font-medium flex-1">SMS</span>
                 <a href="/settings" onClick={onClose} className="text-[10px] text-white/40 hover:text-white/60 underline transition-colors">Configure in Settings</a>
               </div>
+            </div>
+          </div>
+
+          {/* ── Desktop App ── */}
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-white/40 font-medium mb-2">Desktop App</p>
+            <div className="px-3 py-3 rounded-[4px] bg-white/[0.04] border border-white/[0.06] space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[12px] text-white/80 font-medium">Dopl Connect</p>
+                  <p className="text-[11px] text-white/40 mt-0.5">
+                    {companionConnected ? "Connected to your Mac" : "Connect your Mac for browser & app automation"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Monitor className={cn("w-3.5 h-3.5", companionConnected ? "text-emerald-400" : "text-white/20")} />
+                  <span className={cn("w-2 h-2 rounded-full flex-shrink-0", companionConnected ? "bg-emerald-400" : "bg-white/20")} />
+                </div>
+              </div>
+
+              {/* Token */}
+              <div className="space-y-1">
+                <p className="text-[10px] text-white/30 uppercase tracking-widest">Connection Token</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-[11px] text-white/60 bg-white/[0.05] border border-white/[0.08] px-2.5 py-2 truncate font-mono rounded-[3px]">
+                    {token ?? "Loading…"}
+                  </code>
+                  <button
+                    onClick={copyToken}
+                    disabled={!token}
+                    className="flex-shrink-0 p-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] rounded-[3px] transition-colors disabled:opacity-30"
+                    title="Copy token"
+                  >
+                    {tokenCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-white/60" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Download link */}
+              {!companionConnected && (
+                <a
+                  href="/downloads/dopl-connect.dmg"
+                  className="flex items-center gap-2 text-[11px] text-emerald-400/70 hover:text-emerald-400 transition-colors"
+                >
+                  <Download className="w-3 h-3" />
+                  Download Dopl Connect
+                </a>
+              )}
             </div>
           </div>
 

@@ -380,7 +380,61 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   }
 
   if (ctx.gatewayHost) {
-    parts.push(`\nDESKTOP APP CONNECTION:\nSome integrations (LinkedIn, Instagram, etc.) require the Dopl desktop companion app running on the user's computer.\n\nTo show the companion setup card, output the integration tag like normal: [[integrations:resolve:linkedin]] — the card will automatically include a download button for the desktop app, a "Copy Token" button, and a live connection status indicator.\n\nALWAYS use [[integrations:resolve:SERVICE]] for browser-only services — never describe the card in text. The tag renders the full interactive card with download link, token, and status.\n\nDo NOT tell users to go to Settings, use Terminal, or run CLI commands. Everything they need is in the integration card.\n\nReassurance: "The desktop app lets me interact with apps on your behalf when you ask. I'm not monitoring your screen or accessing anything without your permission. The connection is encrypted and secure."\n\nBROWSER RELAY CHROME EXTENSION:\nFor users who want to connect their browser tabs directly, there is a Browser Relay Chrome extension. When a user asks about connecting LinkedIn, Instagram, or other browser-based services, or asks about the Browser Relay extension, output [[browser-relay:download]] to show the setup card.\n\nThe [[browser-relay:download]] card already includes the user's personal connection key — they do NOT need to go to Settings to find it. The 3-step process is:\n1. Download & install the extension (button is in the card)\n2. Load it in Chrome as an unpacked extension\n3. Paste their connection key from the card into the extension options\n\nDo NOT tell users to go to Settings to find their connection key — it is shown right on the card. Do NOT ask users to manually enter an instance URL, port, or token — the connection key encodes all of that automatically.`);
+    parts.push(`\nDESKTOP APP CONNECTION:
+Some integrations (LinkedIn, Instagram, etc.) require the Dopl desktop companion app running on the user's computer.
+
+To show the companion setup card, output the integration tag like normal: [[integrations:resolve:linkedin]] — the card will automatically include a download button for the desktop app, a "Copy Token" button, and a live connection status indicator.
+
+ALWAYS use [[integrations:resolve:SERVICE]] for browser-only services — never describe the card in text. The tag renders the full interactive card with download link, token, and status.
+
+To show a standalone desktop app download card (e.g. when a user asks how to connect their computer, wants a desktop experience, or asks what you can do on their Mac), output: [[companion:download]]
+This renders an interactive card with the download link, connection token, live status, and setup steps.
+
+Do NOT tell users to go to Settings, use Terminal, or run CLI commands. Everything they need is in the card.
+
+DOPL CONNECT DESKTOP APP — WHAT USERS SHOULD KNOW:
+
+**What it does:**
+- Runs as a lightweight menu bar app on macOS (no dock icon)
+- Provides a floating input bar for quick AI interactions
+- Enables browser automation (LinkedIn, Instagram, etc.) via real Chromium
+- Gives the AI access to local apps, files, and system tools
+- Shows native macOS notifications when tasks complete
+- Supports inline reply from notifications — full conversation without opening the app
+
+**Permissions (optional, not required):**
+- The app works WITHOUT any macOS permissions for basic chat
+- Accessibility: Lets Dopl click and type in apps on your behalf (optional)
+- Screen Recording: Lets Dopl see what's on your screen to assist (optional)
+- Automation: Lets Dopl control apps like Safari, Mail, Finder (optional)
+- Users can grant permissions later as needed — nothing breaks without them
+
+**Privacy & Security:**
+- Connection is encrypted between the app and the user's Dopl instance
+- No screen monitoring or data collection happens without explicit user action
+- The app only acts when the user asks it to
+- All data stays between the user's Mac and their Dopl instance
+
+**How to connect:**
+- Output [[companion:download]] to show the download + setup card inline
+- The card includes the download link, connection token, and setup steps
+- Users paste their connection token into the app's input bar on first launch
+
+**When to suggest it:**
+- User asks about LinkedIn, Instagram, or browser-only integrations
+- User wants to automate local apps or files
+- User mentions wanting a desktop interface
+- User asks "what can you do on my computer?"
+
+BROWSER RELAY CHROME EXTENSION:
+For users who want to connect their browser tabs directly, there is a Browser Relay Chrome extension. When a user asks about connecting LinkedIn, Instagram, or other browser-based services, or asks about the Browser Relay extension, output [[browser-relay:download]] to show the setup card.
+
+The [[browser-relay:download]] card already includes the user's personal connection key — they do NOT need to go to Settings to find it. The 3-step process is:
+1. Download & install the extension (button is in the card)
+2. Load it in Chrome as an unpacked extension
+3. Paste their connection key from the card into the extension options
+
+Do NOT tell users to go to Settings to find their connection key — it is shown right on the card. Do NOT ask users to manually enter an instance URL, port, or token — the connection key encodes all of that automatically.`);
   }
 
   if (ctx.skillsPrompt) {

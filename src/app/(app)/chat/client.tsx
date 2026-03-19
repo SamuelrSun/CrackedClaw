@@ -51,6 +51,7 @@ import { VoiceInputButton } from "@/components/chat/voice-input-button";
 import { VoiceOutputButton } from "@/components/chat/voice-output-button";
 import { EmailComposerCard } from "@/components/chat/email-composer-card";
 import { BrowserRelayCard } from "@/components/chat/browser-relay-card";
+import { CompanionDownloadCard } from "@/components/chat/companion-download-card";
 import { ContactMethodsPopup } from "@/components/chat/contact-methods-popup";
 import type { EmailDraft } from "@/lib/email/gmail-client";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
@@ -380,6 +381,8 @@ function RichMessage({
             );
           case "browser-relay-download":
             return <BrowserRelayCard key={idx} />;
+          case "companion-download":
+            return <CompanionDownloadCard key={idx} />;
           case "scan-trigger":
             // Scan trigger UI removed — deep scan is no longer surfaced in chat
             return null;

@@ -52,13 +52,15 @@ export type ParsedSegment =
   | { type: "browser-open"; url: string; message?: string }
   | { type: "email-composer"; to: string[]; cc?: string[]; bcc?: string[]; subject: string; body: string; integration: 'google' | 'microsoft' }
   | { type: "scan-result"; scanId: string; totalMemories: number; durationSeconds: number; providers: Array<{ name: string; memories: number; error?: string }>; workflowSuggestions?: Array<{ name: string; description: string }> }
-  | { type: "browser-relay-download" };
+  | { type: "browser-relay-download" }
+  | { type: "companion-download" };
 
 const PATTERNS = {
   inlineTask: /\[\[task:([^:]+):([^:]+)(?::([^\]]+))?\]\]/g,
   browserOpen: /\[\[browser:(https?:\/\/[^\]:\s]+)(?::([^\]]+))?\]\]/g,
   integrationsResolve: /\[\[integrations:resolve:([^\]]+)\]\]/g,
   browserRelay: /\[\[browser-relay:download\]\]/g,
+  companionDownload: /\[\[companion:download\]\]/g,
   skillSuggest: /\[\[skill:suggest:([^,\]]+)(?:,([^\]]+))?\]\]/g,
   integrationConnect: /\[\[integration:([a-z][a-z0-9-]*)\]\]/g,
   scanTrigger: /\[\[scan:(google|slack|notion)\]\]/g,
@@ -373,6 +375,16 @@ export function parseMessageContent(content: string): ParsedSegment[] {
     });
   }
 
+  // Companion download card
+  PATTERNS.companionDownload.lastIndex = 0;
+  while ((match = PATTERNS.companionDownload.exec(processedContent)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      segment: { type: "companion-download" },
+    });
+  }
+
   // Skill suggest
   PATTERNS.skillSuggest.lastIndex = 0;
   while ((match = PATTERNS.skillSuggest.exec(processedContent)) !== null) {
@@ -624,6 +636,7 @@ export function hasRichContent(content: string): boolean {
     PATTERNS.inlineTask.test(content) ||
     PATTERNS.browserPreview.test(content) ||
     content.includes("[[scan-result:") ||
-    /\[\[email:\{/.test(content)
+    /\[\[email:\{/.test(content) ||
+    content.includes("[[companion:download]]")
   );
 }

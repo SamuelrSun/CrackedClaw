@@ -52,7 +52,7 @@ function StatusDot({ status }: { status: "green" | "gray" | "red" }) {
 
 const glassPanel = "bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 p-4 md:p-5";
 
-function CompanionSetupInline() {
+function CompanionTokenDisplay() {
   const [token, setToken] = useState<string | null>(null);
   const [tokenLoading, setTokenLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -73,6 +73,26 @@ function CompanionSetupInline() {
     });
   }
 
+  if (tokenLoading) return <div className="h-10 bg-white/[0.05] animate-pulse" />;
+  if (!token) return <p className="text-[12px] text-red-400">Failed to load token — refresh and try again.</p>;
+
+  return (
+    <div className="flex items-center gap-2">
+      <code className="flex-1 text-[11px] text-white/75 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate">
+        {token}
+      </code>
+      <button
+        onClick={copyToken}
+        className="flex-shrink-0 p-2.5 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 transition-colors"
+        title="Copy token"
+      >
+        {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-white/70" />}
+      </button>
+    </div>
+  );
+}
+
+function CompanionSetupInline() {
   return (
     <div className="mt-4 space-y-4">
       <p className="text-[13px] text-white/70 leading-relaxed">
@@ -92,8 +112,8 @@ function CompanionSetupInline() {
         <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Setup</p>
         {[
           { n: "1", title: "Install the app", desc: "Open the downloaded .dmg and drag Dopl Connect to Applications." },
-          { n: "2", title: "Grant permissions", desc: "Enable Accessibility, Screen Recording, and Full Disk Access in System Settings → Privacy & Security." },
-          { n: "3", title: "Paste your connection token", desc: "Open Dopl Connect and paste the token below." },
+          { n: "2", title: "Grant permissions", desc: "Accessibility, Screen Recording, and Full Disk Access are optional — grant them later for full automation." },
+          { n: "3", title: "Paste your connection token", desc: "Open Dopl Connect and paste the token below into the input bar on first launch." },
         ].map(step => (
           <div key={step.n} className="flex gap-3">
             <span className="text-[13px] text-emerald-400 font-bold w-5 flex-shrink-0 pt-0.5">{step.n}.</span>
@@ -107,24 +127,7 @@ function CompanionSetupInline() {
 
       <div className="space-y-2">
         <p className="text-[11px] uppercase tracking-widest text-white/50">Connection Token</p>
-        {tokenLoading ? (
-          <div className="h-10 bg-white/[0.05] animate-pulse" />
-        ) : token ? (
-          <div className="flex items-center gap-2">
-            <code className="flex-1 text-[11px] text-white/75 bg-white/[0.05] border border-white/10 px-3 py-2.5 truncate">
-              {token}
-            </code>
-            <button
-              onClick={copyToken}
-              className="flex-shrink-0 p-2.5 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 transition-colors"
-              title="Copy token"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-white/70" />}
-            </button>
-          </div>
-        ) : (
-          <p className="text-[12px] text-red-400">Failed to load token — refresh and try again.</p>
-        )}
+        <CompanionTokenDisplay />
       </div>
     </div>
   );
@@ -233,6 +236,15 @@ function ConnectedDevicesSection() {
           <div className="h-px w-full bg-white/[0.08] my-3" />
           <CompanionSetupInline />
         </>
+      )}
+
+      {loaded && hasConnected && (
+        <div className="mt-4 space-y-2">
+          <div className="h-px w-full bg-white/[0.08]" />
+          <p className="text-[11px] uppercase tracking-widest text-white/50">Connection Token</p>
+          <p className="text-[11px] text-white/40 leading-relaxed">Use this to re-pair or connect a second device.</p>
+          <CompanionTokenDisplay />
+        </div>
       )}
 
       {loaded && <CompanionPermissionsSection isConnected={hasConnected} />}
