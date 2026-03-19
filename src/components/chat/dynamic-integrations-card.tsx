@@ -322,7 +322,7 @@ function NodeRequiredModal({ name, onClose, gatewayHost, loginUrl, onConnected }
   );
 }
 
-const COMPANION_DOWNLOAD_URL = "https://usedopl.com/api/download/companion";
+const COMPANION_DOWNLOAD_URL = "/api/download/companion";
 
 /** Inline companion onboarding with download + copy-token button */
 function CompanionOnboardingInline({ name }: { name: string }) {
