@@ -2,7 +2,7 @@
 
 import ReactMarkdown from "react-markdown";
 import { MarkdownMessage } from "@/components/chat/markdown-message";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, Component } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Conversation, Message } from "@/lib/mock-data";
@@ -614,6 +614,24 @@ function UserMessageContent({ content }: { content: string }) {
 
 
 
+// Per-message error boundary — prevents one broken card from crashing the whole chat
+class MessageErrorBoundary extends Component<
+  { children: React.ReactNode; fallback?: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error) { console.error('[MessageRender]', error); }
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div className="text-white/40 text-xs italic">Failed to render message</div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function ChatPageClient({ 
   initialConversations, 
   initialMessages, 
@@ -622,6 +640,9 @@ export default function ChatPageClient({
   initialConversationId,
 }: ChatPageClientProps) {
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
+  // Hydration guard: skip SSR render of dynamic message content to prevent mismatch errors
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   // Only auto-select a conversation when a specific ID was provided (e.g. /chat/[id]).
   // When landing at bare /chat (no ID), start with empty string to show the landing view.
   const [activeConvo, setActiveConvo] = useState(initialConversationId || "");
