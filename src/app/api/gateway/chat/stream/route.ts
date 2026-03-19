@@ -6,7 +6,7 @@ import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
 import { processAgentResponse } from "@/lib/memory/service";
 import { addChatTurn } from "@/lib/memory/chat-memory";
 import { incrementUsage } from "@/lib/usage/tracker";
-import { checkTokenLimit } from "@/lib/usage/enforcement";
+import { checkCreditLimit } from "@/lib/usage/credits";
 import { buildSystemPromptForUser, buildDynamicContext, buildLinkedContextSummary } from "@/lib/gateway/system-prompt";
 import { getUserInstance } from "@/lib/gateway/openclaw-proxy";
 
@@ -65,11 +65,24 @@ export async function POST(request: NextRequest) {
     };
     const resolvedModel = MODEL_MAP[modelLevel as string] ?? "claude-sonnet-4";
 
-    // Token limit enforcement
-    const limitCheck = await checkTokenLimit(user.id);
+    // Credit limit enforcement
+    const limitCheck = await checkCreditLimit(user.id);
     if (!limitCheck.allowed) {
+      const status = limitCheck.status;
+      const dailyHit = status.daily.limit > 0 && status.daily.usedPercent >= 100;
+      const resetsAt = dailyHit ? status.daily.resetsAt : status.weekly.resetsAt;
+      const reason = dailyHit
+        ? 'Daily usage limit reached'
+        : 'Weekly usage limit reached';
       return NextResponse.json(
-        { error: "Token limit reached", reason: limitCheck.reason, usage: limitCheck.usage },
+        {
+          error: "usage_limit",
+          reason,
+          resetsAt,
+          nextResetLabel: status.nextResetLabel,
+          upgradeNeeded: true,
+          currentPlan: status.plan,
+        },
         { status: 429 }
       );
     }

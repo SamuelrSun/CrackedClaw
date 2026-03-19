@@ -33,6 +33,21 @@ function getNextWeekStartUTC(): string {
   return d.toISOString();
 }
 
+/** Human-readable reset label for a given ISO timestamp */
+function buildNextResetLabel(resetsAt: string, type: 'daily' | 'weekly'): string {
+  if (type === 'daily') {
+    const now = new Date();
+    const reset = new Date(resetsAt);
+    const diffMs = reset.getTime() - now.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours < 1) return 'Resets in less than an hour';
+    if (diffHours < 24) return `Resets in ${diffHours}h`;
+    return 'Resets tomorrow at midnight UTC';
+  } else {
+    return 'Resets Monday at midnight UTC';
+  }
+}
+
 export async function getCreditStatus(userId: string): Promise<CreditStatus> {
   const supabase = createAdminClient();
 
@@ -50,50 +65,7 @@ export async function getCreditStatus(userId: string): Promise<CreditStatus> {
   const today = getTodayUTC();
   const weekStart = getWeekStartUTC();
 
-  // For trial users: sum ALL-TIME usage to check against 10-credit grant
-  // For paid users: sum daily and weekly usage
-  if (isTrial) {
-    // Get total all-time usage for trial users
-    const { data: allTimeRows } = await supabase
-      .from('user_usage')
-      .select('tokens_used')
-      .eq('user_id', userId);
-    
-    const totalTokens = (allTimeRows || []).reduce((sum, row) => sum + (row.tokens_used || 0), 0);
-    const totalCreditsUsed = tokensToCredits(totalTokens);
-    const trialTotal = plan.trialGrant; // 10
-    const trialRemaining = Math.max(0, trialTotal - totalCreditsUsed);
-    const trialUsedPercent = trialTotal > 0 ? Math.min(100, (totalCreditsUsed / trialTotal) * 100) : 0;
-    const trialExhausted = trialRemaining <= 0;
-
-    return {
-      plan: planSlug,
-      isTrial: true,
-      daily: {
-        usedPercent: 0,
-        remaining: 0,
-        limit: 0,
-        resetsAt: getNextMidnightUTC(),
-      },
-      weekly: {
-        usedPercent: 0,
-        remaining: 0,
-        limit: 0,
-        resetsAt: getNextWeekStartUTC(),
-      },
-      trial: {
-        total: trialTotal,
-        remaining: Math.round(trialRemaining * 10) / 10,
-        usedPercent: Math.round(trialUsedPercent * 10) / 10,
-        exhausted: trialExhausted,
-      },
-      allowed: !trialExhausted,
-      upgradeNeeded: trialExhausted,
-      reason: trialExhausted ? 'Trial credits exhausted. Upgrade to continue using Dopl.' : undefined,
-    };
-  }
-
-  // Paid users: calculate daily and weekly usage
+  // ALL plans (including trial/free) use daily + weekly tracking
   // Get today's token usage
   const { data: todayRow } = await supabase
     .from('user_usage')
@@ -113,7 +85,7 @@ export async function getCreditStatus(userId: string): Promise<CreditStatus> {
     .gte('date', weekStart)
     .lte('date', today);
 
-  const weekTokens = (weekRows || []).reduce((sum, row) => sum + (row.tokens_used || 0), 0);
+  const weekTokens = (weekRows || []).reduce((sum: number, row: { tokens_used?: number }) => sum + (row.tokens_used || 0), 0);
   const weekCredits = tokensToCredits(weekTokens);
 
   // Calculate remaining and percentages
@@ -131,37 +103,39 @@ export async function getCreditStatus(userId: string): Promise<CreditStatus> {
   const weeklyHit = weeklyLimit > 0 && weekCredits >= weeklyLimit;
   const allowed = !dailyHit && !weeklyHit;
 
+  const nextDailyReset = getNextMidnightUTC();
+  const nextWeeklyReset = getNextWeekStartUTC();
+
   let reason: string | undefined;
+  let nextResetLabel: string | undefined;
   if (dailyHit) {
     reason = 'Daily usage limit reached. Come back tomorrow or upgrade your plan.';
+    nextResetLabel = buildNextResetLabel(nextDailyReset, 'daily');
   } else if (weeklyHit) {
     reason = 'Weekly usage limit reached. Resets Monday or upgrade your plan.';
+    nextResetLabel = buildNextResetLabel(nextWeeklyReset, 'weekly');
   }
 
   return {
     plan: planSlug,
-    isTrial: false,
+    planName: plan.name,
+    isTrial,
     daily: {
       usedPercent: Math.round(dailyUsedPercent * 10) / 10,
       remaining: Math.round(dailyRemaining * 10) / 10,
       limit: dailyCap,
-      resetsAt: getNextMidnightUTC(),
+      resetsAt: nextDailyReset,
     },
     weekly: {
       usedPercent: Math.round(weeklyUsedPercent * 10) / 10,
       remaining: Math.round(weeklyRemaining * 10) / 10,
       limit: weeklyLimit,
-      resetsAt: getNextWeekStartUTC(),
-    },
-    trial: {
-      total: 0,
-      remaining: 0,
-      usedPercent: 0,
-      exhausted: true,
+      resetsAt: nextWeeklyReset,
     },
     allowed,
     upgradeNeeded: !allowed,
     reason,
+    nextResetLabel,
   };
 }
 

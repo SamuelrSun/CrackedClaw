@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, PRICE_IDS } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
+import Stripe from 'stripe';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -26,6 +27,25 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
+
+  if (event.type === 'invoice.payment_succeeded') {
+    const invoice = event.data.object as Stripe.Invoice;
+    if (invoice.subscription && invoice.customer) {
+      const sub = await stripe.subscriptions.retrieve(invoice.subscription as string);
+      const priceId = sub.items?.data?.[0]?.price?.id;
+      const planSlug = priceId ? getPlanSlugFromPriceId(priceId) : 'free';
+
+      await supabase
+        .from('profiles')
+        .update({
+          plan: planSlug,
+          plan_status: 'active',
+          stripe_subscription_id: sub.id,
+          current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+        })
+        .eq('stripe_customer_id', invoice.customer as string);
+    }
+  }
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as {

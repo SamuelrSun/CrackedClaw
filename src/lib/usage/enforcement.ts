@@ -17,8 +17,8 @@ export async function checkTokenLimit(userId: string): Promise<TokenLimitResult>
       allowed,
       reason,
       usage: {
-        dailyUsedPercent: status.isTrial ? status.trial.usedPercent : status.daily.usedPercent,
-        weeklyUsedPercent: status.isTrial ? 0 : status.weekly.usedPercent,
+        dailyUsedPercent: status.daily.usedPercent,
+        weeklyUsedPercent: status.weekly.usedPercent,
       },
     };
   } catch (err) {

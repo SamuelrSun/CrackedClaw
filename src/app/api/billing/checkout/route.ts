@@ -49,6 +49,37 @@ export async function POST(request: NextRequest) {
     await supabase.from('profiles').update({ stripe_customer_id: customerId }).eq('id', user.id);
   }
 
+  // Check for an existing active subscription — upgrade it with pro-rating
+  // instead of creating a new checkout session.
+  const { data: existingProfile } = await supabase
+    .from('profiles')
+    .select('stripe_subscription_id')
+    .eq('id', user.id)
+    .single();
+
+  if (existingProfile?.stripe_subscription_id) {
+    try {
+      const existingSub = await stripe.subscriptions.retrieve(existingProfile.stripe_subscription_id);
+      const existingItemId = (existingSub as unknown as { items: { data: Array<{ id: string }> } }).items?.data?.[0]?.id;
+
+      if (existingItemId && existingSub.status === 'active') {
+        // Upgrade/downgrade existing subscription with proration
+        await stripe.subscriptions.update(existingProfile.stripe_subscription_id, {
+          items: [{ id: existingItemId, price: priceId }],
+          proration_behavior: 'create_prorations',
+        });
+
+        // Update plan in DB immediately (webhook will also fire but this is faster)
+        await supabase.from('profiles').update({ plan: requestedPlan }).eq('id', user.id);
+
+        return NextResponse.json({ success: true, plan: requestedPlan });
+      }
+    } catch (subErr) {
+      console.warn('[checkout] Could not upgrade existing subscription, falling back to checkout:', subErr);
+    }
+  }
+
+  // No existing subscription — create new checkout session
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: 'subscription',

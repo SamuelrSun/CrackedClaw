@@ -82,68 +82,58 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
               Current Usage &mdash; {currentPlan.toUpperCase()} Plan
             </p>
 
-            {creditStatus.isTrial ? (
-              <div className="space-y-2">
-                <div className="flex items-baseline gap-3">
-                  <span className="font-mono text-3xl font-bold text-white/90">
-                    {Number(creditStatus.trial.remaining).toFixed(1)}
-                  </span>
-                  <span className="font-mono text-[12px] text-white/50">trial credits remaining</span>
-                </div>
-                <div className="w-full h-1.5 bg-white/[0.08] overflow-hidden">
-                  <div
-                    className="h-full transition-all"
-                    style={{
-                      width: `${Math.min(creditStatus.trial.usedPercent, 100)}%`,
-                      background: creditStatus.trial.usedPercent >= 90 ? "#f87171" : creditStatus.trial.usedPercent >= 70 ? "#fbbf24" : "#34d399",
-                    }}
-                  />
-                </div>
-                {creditStatus.trial.exhausted && (
-                  <p className="font-mono text-[11px] text-white/50">Trial complete — upgrade to continue</p>
-                )}
-              </div>
-            ) : (
-              <>
-                {/* Daily */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-[10px] text-white/40 w-16">DAILY</span>
-                    <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
-                      <div
-                        className="h-full transition-all duration-500"
-                        style={{
-                          width: `${Math.min(creditStatus.daily.usedPercent, 100)}%`,
-                          background: creditStatus.daily.usedPercent >= 90 ? "#f87171" : creditStatus.daily.usedPercent >= 70 ? "#fbbf24" : "#34d399",
-                        }}
-                      />
-                    </div>
+            {/* Daily & Weekly bars — no raw credit numbers */}
+            <>
+              {/* Daily */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-[10px] text-white/40 w-16">DAILY</span>
+                  <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
+                    <div
+                      className="h-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min(creditStatus.daily.usedPercent, 100)}%`,
+                        background: creditStatus.daily.usedPercent >= 90 ? "#f87171" : creditStatus.daily.usedPercent >= 70 ? "#fbbf24" : "#34d399",
+                      }}
+                    />
                   </div>
+                </div>
+                {creditStatus.daily.usedPercent >= 100 ? (
+                  <p className="font-mono text-[10px] text-red-400 pl-[4.5rem]">
+                    Daily limit reached — {creditStatus.nextResetLabel || 'resets tomorrow'}
+                  </p>
+                ) : (
                   <p className="font-mono text-[10px] text-white/30 pl-[4.5rem]">
                     Resets at midnight UTC
                   </p>
-                </div>
+                )}
+              </div>
 
-                {/* Weekly */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-[10px] text-white/40 w-16">WEEKLY</span>
-                    <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
-                      <div
-                        className="h-full transition-all duration-500"
-                        style={{
-                          width: `${Math.min(creditStatus.weekly.usedPercent, 100)}%`,
-                          background: creditStatus.weekly.usedPercent >= 90 ? "#f87171" : creditStatus.weekly.usedPercent >= 70 ? "#fbbf24" : "#34d399",
-                        }}
-                      />
-                    </div>
+              {/* Weekly */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-[10px] text-white/40 w-16">WEEKLY</span>
+                  <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
+                    <div
+                      className="h-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min(creditStatus.weekly.usedPercent, 100)}%`,
+                        background: creditStatus.weekly.usedPercent >= 90 ? "#f87171" : creditStatus.weekly.usedPercent >= 70 ? "#fbbf24" : "#34d399",
+                      }}
+                    />
                   </div>
+                </div>
+                {creditStatus.weekly.usedPercent >= 100 ? (
+                  <p className="font-mono text-[10px] text-red-400 pl-[4.5rem]">
+                    Weekly limit reached — resets Monday
+                  </p>
+                ) : (
                   <p className="font-mono text-[10px] text-white/30 pl-[4.5rem]">
                     Resets Monday
                   </p>
-                </div>
-              </>
-            )}
+                )}
+              </div>
+            </>
           </div>
         )}
       </div>
@@ -193,50 +183,26 @@ export function BillingPageClient({ currentPlan, isSubscribed }: BillingPageClie
                   )}
                 </div>
 
-                {/* Plan description */}
+                {/* Plan description — NO raw credit numbers */}
                 <div className="border-t border-[rgba(58,58,56,0.12)] pt-4 mb-4 space-y-1.5 min-h-[80px]">
                   {slug === 'free' && (
-                    <p className="font-mono text-[12px] text-white/70">
-                      10 free messages to try Dopl
-                    </p>
-                  )}
-                  {slug === 'starter' && (
                     <>
                       <p className="font-mono text-[12px] text-white/70">
-                        Daily & weekly usage limits
+                        Try Dopl free
                       </p>
                       <p className="font-mono text-[11px] text-[rgba(58,58,56,0.5)]">
-                        Perfect for personal use
+                        Daily & weekly limits apply
                       </p>
                     </>
                   )}
-                  {slug === 'pro' && (
+                  {slug !== 'free' && plan.multiplierLabel && (
                     <>
-                      <p className="font-mono text-[12px] text-white/80 font-semibold">
-                        {plan.multiplierLabel} the usage of Starter
+                      <p className="font-mono text-2xl font-bold text-white/90 leading-none">
+                        {plan.multiplierLabel}
                       </p>
+                      <p className="font-mono text-[11px] text-white/50">the usage</p>
                       <p className="font-mono text-[11px] text-[rgba(58,58,56,0.5)]">
-                        Great for power users
-                      </p>
-                    </>
-                  )}
-                  {slug === 'power' && (
-                    <>
-                      <p className="font-mono text-[12px] text-white/80 font-semibold">
-                        {plan.multiplierLabel} the usage of Starter
-                      </p>
-                      <p className="font-mono text-[11px] text-[rgba(58,58,56,0.5)]">
-                        For heavy workflows
-                      </p>
-                    </>
-                  )}
-                  {slug === 'ultra' && (
-                    <>
-                      <p className="font-mono text-[12px] text-white/80 font-semibold">
-                        {plan.multiplierLabel} the usage of Starter
-                      </p>
-                      <p className="font-mono text-[11px] text-[rgba(58,58,56,0.5)]">
-                        For teams & heavy automation
+                        {plan.tagline}
                       </p>
                     </>
                   )}

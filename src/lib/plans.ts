@@ -10,40 +10,40 @@
 
 export const PLANS = {
   free: {
-    name: 'Free',
+    name: 'Trial',
     slug: 'free' as const,
     price: 0,
-    trialGrant: 10,        // one-time grant
-    monthlyCredits: 0,     // no recurring credits
-    weeklyLimit: 0,
-    dailyCap: 0,           // no daily cap on trial (burn all at once)
+    trialGrant: 0,          // no more one-time grant
+    monthlyCredits: 50,     // 50 credits/month recurring
+    weeklyLimit: 12.5,      // 12.5/week
+    dailyCap: 5.5,          // 5.5/day
     opusCostCredits: 5,
     tagline: 'Try Dopl free',
-    multiplierLabel: null as string | null, // no multiplier shown
+    multiplierLabel: null as string | null,
   },
   starter: {
     name: 'Starter',
     slug: 'starter' as const,
     price: 10,
     trialGrant: 0,
-    monthlyCredits: 100,
+    monthlyCredits: 100,    // 2× trial
     weeklyLimit: 25,
     dailyCap: 12,
     opusCostCredits: 5,
     tagline: 'For personal use',
-    multiplierLabel: null as string | null, // base plan, no multiplier
+    multiplierLabel: '2×' as string | null,
   },
   pro: {
     name: 'Pro',
     slug: 'pro' as const,
     price: 25,
     trialGrant: 0,
-    monthlyCredits: 400,
+    monthlyCredits: 400,    // 8× trial
     weeklyLimit: 100,
     dailyCap: 36,
     opusCostCredits: 5,
     tagline: 'For power users',
-    multiplierLabel: '4×' as string | null,
+    multiplierLabel: '8×' as string | null,
     popular: true,
   },
   power: {
@@ -51,24 +51,24 @@ export const PLANS = {
     slug: 'power' as const,
     price: 50,
     trialGrant: 0,
-    monthlyCredits: 1000,
+    monthlyCredits: 1000,   // 20× trial
     weeklyLimit: 250,
     dailyCap: 90,
     opusCostCredits: 5,
     tagline: 'For heavy workflows',
-    multiplierLabel: '10×' as string | null,
+    multiplierLabel: '20×' as string | null,
   },
   ultra: {
     name: 'Ultra',
     slug: 'ultra' as const,
     price: 100,
     trialGrant: 0,
-    monthlyCredits: 2000,
+    monthlyCredits: 2000,   // 40× trial
     weeklyLimit: 500,
     dailyCap: 150,
     opusCostCredits: 5,
     tagline: 'For teams & heavy automation',
-    multiplierLabel: '20×' as string | null,
+    multiplierLabel: '40×' as string | null,
   },
 } as const;
 

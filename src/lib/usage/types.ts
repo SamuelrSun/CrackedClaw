@@ -5,12 +5,13 @@
 
 export interface CreditStatus {
   plan: string;
+  planName: string;
   isTrial: boolean;
   daily: {
     usedPercent: number;   // 0-100
-    remaining: number;     // raw credits remaining (for internal use)
-    limit: number;         // daily cap (0 = unlimited for trial)
-    resetsAt: string;
+    remaining: number;     // raw credits remaining
+    limit: number;         // daily cap
+    resetsAt: string;      // ISO timestamp for next reset
   };
   weekly: {
     usedPercent: number;   // 0-100
@@ -18,14 +19,9 @@ export interface CreditStatus {
     limit: number;
     resetsAt: string;
   };
-  trial: {
-    total: number;         // 10
-    remaining: number;     // how many left
-    usedPercent: number;   // 0-100
-    exhausted: boolean;
-  };
   // For the UI bars — these are the main things shown
   allowed: boolean;
   upgradeNeeded: boolean;
   reason?: string;
+  nextResetLabel?: string; // human-readable: "Resets tomorrow at midnight" or "Resets Monday"
 }

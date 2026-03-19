@@ -515,7 +515,8 @@ export default function SettingsPageClient({
   initialTokenUsage,
   initialProfile,
 }: SettingsPageClientProps) {
-  const pct = Math.min(Math.round((initialTokenUsage.used / initialTokenUsage.limit) * 100), 100);
+  // pct kept for backward compat with initialTokenUsage prop (not displayed, kept for future use)
+  const _pct = Math.min(Math.round((initialTokenUsage.used / initialTokenUsage.limit) * 100), 100); void _pct;
 
   const [billingPlan, setBillingPlan] = useState<string>(initialProfile?.plan || "free");
   const [billingPeriodEnd, setBillingPeriodEnd] = useState<string | null>(
@@ -558,20 +559,10 @@ export default function SettingsPageClient({
   }
 
   async function handleUpgradePlan(planSlug: string) {
-    setBillingUpgrading(true);
-    try {
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: planSlug }),
-      });
-      const data = await res.json();
-      if (data.url) window.location.href = data.url;
-    } catch (err) {
-      console.error("Failed to open checkout:", err);
-    } finally {
-      setBillingUpgrading(false);
-    }
+    // Paid plan upgrades are now handled in-app by CheckoutModal inside PricingModal.
+    // This function is only reached for downgrades to 'free' — open the billing portal.
+    if (planSlug !== "free") return;
+    await handleManageBilling();
   }
 
   async function handleManageBilling() {
@@ -587,9 +578,7 @@ export default function SettingsPageClient({
     }
   }
 
-  const dailyPct = usageStatus
-    ? (usageStatus.isTrial ? usageStatus.trial.usedPercent : usageStatus.daily.usedPercent)
-    : pct;
+  // dailyPct is no longer used in the simplified UI (bars only, no numbers)
 
   return (
     <>
@@ -674,69 +663,45 @@ export default function SettingsPageClient({
                 <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium font-mono">Usage</span>
               </div>
 
-              {usageStatus?.isTrial ? (
-                <>
-                  <div className="flex items-baseline gap-3 mb-3">
-                    <span className="text-4xl font-bold text-white/90 tracking-tight">
-                      {Number(usageStatus.trial.remaining).toFixed(1)}
-                    </span>
-                    <span className="text-[13px] text-white/60 font-mono">
-                      trial credits left
-                    </span>
-                  </div>
-
-                  {/* Trial progress bar */}
-                  <div className="w-full h-2 bg-white/[0.08] overflow-hidden rounded-[1px]">
-                    <div
-                      className="h-full transition-all duration-700"
-                      style={{
-                        width: `${Math.min(dailyPct, 100)}%`,
-                        background: dailyPct >= 90 ? "#f87171" : dailyPct >= 70 ? "#fbbf24" : "#34d399",
-                      }}
-                    />
-                  </div>
-
-                  {usageStatus.trial.exhausted && (
-                    <p className="mt-3 text-[12px] text-white/50">Trial complete — upgrade to continue using Dopl</p>
-                  )}
-                </>
-              ) : (
-                <>
-                  <span className="text-[12px] text-white/40 font-mono">
-                    Daily & Weekly Limits
-                  </span>
-
-                  {/* Daily progress bar */}
-                  <div className="mt-3 space-y-3">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-[10px] text-white/40 w-12">DAILY</span>
-                        <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
-                          <div
-                            className="h-full transition-all duration-500"
-                            style={{
-                              width: `${Math.min(usageStatus?.daily?.usedPercent || 0, 100)}%`,
-                              background: (usageStatus?.daily?.usedPercent || 0) >= 90 ? "#f87171" : (usageStatus?.daily?.usedPercent || 0) >= 70 ? "#fbbf24" : "#34d399",
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-[10px] text-white/40 w-12">WEEKLY</span>
-                        <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
-                          <div
-                            className="h-full transition-all duration-500"
-                            style={{
-                              width: `${Math.min(usageStatus?.weekly?.usedPercent || 0, 100)}%`,
-                              background: (usageStatus?.weekly?.usedPercent || 0) >= 90 ? "#f87171" : (usageStatus?.weekly?.usedPercent || 0) >= 70 ? "#fbbf24" : "#34d399",
-                            }}
-                          />
-                        </div>
-                      </div>
+              {/* Daily & Weekly bars — shown for all plans, no raw numbers */}
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-[10px] text-white/40 w-12">DAILY</span>
+                    <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
+                      <div
+                        className="h-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(usageStatus?.daily?.usedPercent || 0, 100)}%`,
+                          background: (usageStatus?.daily?.usedPercent || 0) >= 90 ? "#f87171" : (usageStatus?.daily?.usedPercent || 0) >= 70 ? "#fbbf24" : "#34d399",
+                        }}
+                      />
                     </div>
                   </div>
-                </>
-              )}
+                  {(usageStatus?.daily?.usedPercent || 0) >= 100 && (
+                    <p className="font-mono text-[10px] text-red-400 pl-[60px]">
+                      Daily limit reached — {usageStatus?.nextResetLabel || "resets tomorrow"}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-[10px] text-white/40 w-12">WEEKLY</span>
+                    <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
+                      <div
+                        className="h-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(usageStatus?.weekly?.usedPercent || 0, 100)}%`,
+                          background: (usageStatus?.weekly?.usedPercent || 0) >= 90 ? "#f87171" : (usageStatus?.weekly?.usedPercent || 0) >= 70 ? "#fbbf24" : "#34d399",
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {(usageStatus?.weekly?.usedPercent || 0) >= 100 && (
+                    <p className="font-mono text-[10px] text-red-400 pl-[60px]">
+                      Weekly limit reached — resets Monday
+                    </p>
+                  )}
+                </div>
+              </div>
 
               <button
                 onClick={() => setShowPricingModal(true)}

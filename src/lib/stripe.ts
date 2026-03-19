@@ -17,11 +17,14 @@ export type { PlanSlug } from '@/lib/plans';
 
 // Price ID lookup (server-only, uses env vars)
 export const PRICE_IDS: Record<string, string> = {
-  starter: process.env.STRIPE_STARTER_PRICE_ID || '',
-  pro: process.env.STRIPE_PRO_PRICE_ID || '',
-  power: process.env.STRIPE_POWER_PRICE_ID || '',
-  ultra: process.env.STRIPE_ULTRA_PRICE_ID || '',
+  starter: process.env.STRIPE_STARTER_PRICE_ID || process.env.STRIPE_PRICE_STARTER || '',
+  pro: process.env.STRIPE_PRO_PRICE_ID || process.env.STRIPE_PRICE_PRO || '',
+  power: process.env.STRIPE_POWER_PRICE_ID || process.env.STRIPE_PRICE_POWER || '',
+  ultra: process.env.STRIPE_ULTRA_PRICE_ID || process.env.STRIPE_PRICE_ULTRA || '',
 };
+
+// Alias for callers that use STRIPE_PRICES naming convention
+export const STRIPE_PRICES = PRICE_IDS;
 
 export function getPriceId(planSlug: string): string | undefined {
   return PRICE_IDS[planSlug];

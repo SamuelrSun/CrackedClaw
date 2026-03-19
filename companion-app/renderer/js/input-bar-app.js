@@ -419,6 +419,17 @@ if (window.dopl.chat && window.dopl.chat.onReplyFromNotificationComplete) {
   });
 }
 
+// Handle usage limit — disable input and show reset time in placeholder
+if (window.dopl.chat && window.dopl.chat.onUsageLimitHit) {
+  window.dopl.chat.onUsageLimitHit((data) => {
+    isStreaming = false;
+    msgInput.disabled = true;
+    btnSend.disabled = true;
+    const label = data.nextResetLabel || 'Usage limit reached';
+    msgInput.placeholder = `⚡ ${label}`;
+  });
+}
+
 // ── Click-through: pass mouse events on transparent areas ──────────────────────
 
 document.addEventListener('mousemove', (e) => {

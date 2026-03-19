@@ -134,6 +134,15 @@ contextBridge.exposeInMainWorld('dopl', {
     onReplyFromNotificationComplete: (callback) => {
       ipcRenderer.on('chat:reply-from-notification-complete', (_event, data) => callback(data));
     },
+
+    /**
+     * Fires when the API returns a 429 usage_limit response.
+     * The input bar should disable itself and show a message.
+     * data: { reason, nextResetLabel, currentPlan, resetsAt }
+     */
+    onUsageLimitHit: (callback) => {
+      ipcRenderer.on('chat:usage-limit-hit', (_event, data) => callback(data));
+    },
   },
 
   // ── Notification Preferences ──────────────────────────────────────────────

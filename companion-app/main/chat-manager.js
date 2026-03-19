@@ -136,6 +136,19 @@ class ChatManager {
 
     if (!response.ok) {
       const text = await response.text().catch(() => '');
+      // Surface usage_limit errors with structured data so callers can handle them
+      if (response.status === 429) {
+        try {
+          const errData = JSON.parse(text);
+          if (errData.error === 'usage_limit') {
+            const err = new Error(`usage_limit: ${errData.reason || 'Usage limit reached'}`);
+            err.usageLimitData = errData;
+            throw err;
+          }
+        } catch (parseErr) {
+          if (parseErr.usageLimitData) throw parseErr;
+        }
+      }
       throw new Error(`Web app stream error ${response.status}: ${text}`);
     }
 

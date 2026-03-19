@@ -68,6 +68,8 @@ import { UserMenu } from "@/components/auth/user-menu";
 import { useUser } from "@/hooks/use-user";
 import { useSearchContext } from "@/contexts/search-context";
 import { Search, Command, Pencil, Trash2, Plus, ChevronLeft, ChevronRight, Menu, X } from "lucide-react";
+import { UsageLimitModal } from "@/components/chat/usage-limit-modal";
+import { PricingModal } from "@/components/settings/pricing-modal";
 import { usePathname } from "next/navigation";
 
 interface ToolCallInfo {
@@ -152,61 +154,50 @@ function getAgentTaskLabel(tool: string, input: Record<string, unknown>): string
 }
 
 function TokenUsageBar() {
-  const [credits, setCredits] = useState<{
-    daily: { used: number; limit: number; remaining: number; resetsAt: string };
-    monthly: { poolBalance: number; poolLimit: number };
-    totalAvailableToday: number;
+  const [status, setStatus] = useState<{
+    daily: { usedPercent: number; resetsAt: string };
+    weekly: { usedPercent: number };
+    allowed: boolean;
+    nextResetLabel?: string;
   } | null>(null);
 
   useEffect(() => {
     fetch('/api/usage/status')
       .then(r => r.ok ? r.json() : null)
-      .then(d => setCredits(d))
+      .then(d => setStatus(d))
       .catch(() => {});
   }, []);
 
-  if (!credits) return null;
+  if (!status) return null;
 
-  const dailyPct = credits.daily.limit > 0
-    ? Math.round((credits.daily.used / credits.daily.limit) * 100)
-    : 0;
-  const isDepleted = credits.totalAvailableToday <= 0;
-  const isLow = credits.daily.remaining <= 2 && credits.daily.remaining > 0;
+  const dailyPct = status.daily?.usedPercent || 0;
+  const isDepleted = !status.allowed;
 
-  // Only show when usage is above 40% of daily limit
-  if (dailyPct < 40 && !isDepleted) return null;
-
-  // Calculate time until reset
-  let resetLabel = '';
-  if (isDepleted) {
-    const now = new Date();
-    const resetTime = new Date(credits.daily.resetsAt);
-    const diffMs = resetTime.getTime() - now.getTime();
-    const hours = Math.floor(diffMs / 3600000);
-    const mins = Math.floor((diffMs % 3600000) / 60000);
-    resetLabel = `resets in ${hours}h ${mins}m`;
-  }
+  // Only show when usage is above 60% of daily limit or depleted
+  if (dailyPct < 60 && !isDepleted) return null;
 
   return (
     <div className={`flex-shrink-0 px-4 py-1.5 border-t border-white/[0.08] flex items-center gap-3 ${
-      isDepleted ? 'bg-red-500/10' : isLow ? 'bg-amber-500/10' : 'bg-transparent'
+      isDepleted ? 'bg-red-500/10' : dailyPct >= 80 ? 'bg-amber-500/10' : 'bg-transparent'
     }`}>
-      <span className={`font-mono text-[10px] flex-shrink-0 ${
-        isDepleted ? 'text-red-400' : isLow ? 'text-amber-400' : 'text-white/50'
-      }`}>
-        {isDepleted ? (
-          <a href="/settings" className="underline">
-            &#9889; 0 credits today &mdash; {resetLabel}
-          </a>
-        ) : (
-          <>
-            &#9889; {Number(credits.daily.remaining).toFixed(1)} credits today
-            {credits.monthly.poolLimit > 0 && (
-              <span className="text-white/30"> &middot; {Number(credits.monthly.poolBalance).toFixed(1)} monthly</span>
-            )}
-          </>
-        )}
-      </span>
+      {isDepleted ? (
+        <a href="/settings" className={`font-mono text-[10px] underline ${isDepleted ? 'text-red-400' : 'text-amber-400'}`}>
+          &#9889; Daily limit reached &mdash; {status.nextResetLabel || 'resets tomorrow'}
+        </a>
+      ) : (
+        <div className="flex items-center gap-2 flex-1">
+          <span className="font-mono text-[9px] text-white/30">DAILY</span>
+          <div className="flex-1 h-1 bg-white/[0.08] overflow-hidden rounded-[1px]">
+            <div
+              className="h-full transition-all duration-500"
+              style={{
+                width: `${Math.min(dailyPct, 100)}%`,
+                background: dailyPct >= 90 ? "#f87171" : dailyPct >= 70 ? "#fbbf24" : "#34d399",
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -691,6 +682,8 @@ export default function ChatPageClient({
   const [editingConvoTitle, setEditingConvoTitle] = useState("");
   const [editingChatTitle, setEditingChatTitle] = useState(false);
   const [editingChatTitleValue, setEditingChatTitleValue] = useState("");
+  const [usageLimitData, setUsageLimitData] = useState<{ reason: string; nextResetLabel: string; currentPlan: string } | null>(null);
+  const [showChatPricingModal, setShowChatPricingModal] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const lastFailedMessage = useRef<string | null>(null);
   const handleSendRef = useRef<(messageOverride?: string) => Promise<void>>(async () => {});
@@ -941,6 +934,15 @@ export default function ChatPageClient({
         wsFullTextRef.current = "";
       }
       setIsLoading(false);
+      // Check for usage_limit error from WS path
+      if (event.error === "usage_limit" || (event as Record<string, unknown>).usage_limit) {
+        const errData = event as Record<string, unknown>;
+        setUsageLimitData({
+          reason: (errData.reason as string) || "Usage limit reached",
+          nextResetLabel: (errData.nextResetLabel as string) || "Resets soon",
+          currentPlan: (errData.currentPlan as string) || "free",
+        });
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1387,6 +1389,22 @@ User message: `
       });
 
       if (!response.ok || !response.body) {
+        // Handle usage limit (429)
+        if (response.status === 429) {
+          setMessages((prev) => prev.filter((m) => m.id !== streamingMsgId));
+          setIsLoading(false);
+          try {
+            const errData = await response.json();
+            if (errData.error === "usage_limit") {
+              setUsageLimitData({
+                reason: errData.reason || "Usage limit reached",
+                nextResetLabel: errData.nextResetLabel || "Resets soon",
+                currentPlan: errData.currentPlan || "free",
+              });
+              return;
+            }
+          } catch { /* ignore parse errors */ }
+        }
         // Fall back to non-streaming route
         setMessages((prev) => prev.filter((m) => m.id !== streamingMsgId));
         await fallbackSend(messageToSend);
@@ -2676,8 +2694,14 @@ User message: `
                 e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
               }}
               onKeyDown={handleKeyDown}
-              placeholder={gateway ? "Message your assistant..." : "Connect gateway to chat..."}
-              disabled={!gateway || isLoading || isReconnecting}
+              placeholder={
+                usageLimitData
+                  ? `Usage limit reached — ${usageLimitData.nextResetLabel.toLowerCase()}`
+                  : gateway
+                  ? "Message your assistant..."
+                  : "Connect gateway to chat..."
+              }
+              disabled={!gateway || isLoading || isReconnecting || !!usageLimitData}
               rows={1}
               className="w-full bg-transparent px-4 pt-4 pb-2 text-base leading-[24px] text-white/90 outline-none resize-none placeholder:text-white/30 disabled:opacity-50 min-h-[48px] max-h-[200px]"
             />
@@ -2862,6 +2886,42 @@ User message: `
         <ContactMethodsPopup
           onClose={() => setContactOpen(false)}
           userEmail={user?.email ?? null}
+        />
+      )}
+
+      {/* Usage limit modal — shown when API returns 429 usage_limit */}
+      {usageLimitData && (
+        <UsageLimitModal
+          reason={usageLimitData.reason}
+          nextResetLabel={usageLimitData.nextResetLabel}
+          currentPlan={usageLimitData.currentPlan}
+          onUpgrade={() => { setUsageLimitData(null); setShowChatPricingModal(true); }}
+          onClose={() => setUsageLimitData(null)}
+        />
+      )}
+
+      {/* Pricing modal triggered from usage limit modal */}
+      {showChatPricingModal && (
+        <PricingModal
+          onClose={() => setShowChatPricingModal(false)}
+          currentPlan={usageLimitData?.currentPlan || "free"}
+          creditStatus={null}
+          onUpgrade={async (slug) => {
+            setShowChatPricingModal(false);
+            const res = await fetch("/api/billing/checkout", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ plan: slug }),
+            });
+            const data = await res.json();
+            if (data.url) window.location.href = data.url;
+          }}
+          onManageBilling={async () => {
+            setShowChatPricingModal(false);
+            const res = await fetch("/api/billing/portal", { method: "POST" });
+            const data = await res.json();
+            if (data.url) window.location.href = data.url;
+          }}
         />
       )}
   </div>

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Check, X, Zap } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { PLANS, ALL_FEATURES } from "@/lib/plans";
 import type { PlanSlug } from "@/lib/plans";
 import type { CreditStatus } from "@/lib/usage/types";
+import { CheckoutModal } from "@/components/billing/checkout-modal";
 
 interface PricingModalProps {
   onClose: () => void;
@@ -16,20 +17,28 @@ interface PricingModalProps {
 
 export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, onManageBilling }: PricingModalProps) {
   const [loading, setLoading] = useState<string | null>(null);
+  const [checkoutPlan, setCheckoutPlan] = useState<PlanSlug | null>(null);
 
   async function handleSelect(slug: PlanSlug) {
     if (slug === currentPlan) return;
-    setLoading(slug);
-    try {
-      await onUpgrade(slug);
-    } finally {
-      setLoading(null);
+    if (slug === "free") {
+      // Downgrade — handle via billing portal
+      setLoading(slug);
+      try {
+        await onUpgrade(slug);
+      } finally {
+        setLoading(null);
+      }
+      return;
     }
+    // Paid plans — open the in-app checkout modal
+    setCheckoutPlan(slug);
   }
 
   const planOrder: PlanSlug[] = ["free", "starter", "pro", "power", "ultra"];
 
   return (
+    <>
     <div
       className="fixed inset-0 z-[300] flex items-center justify-center p-4"
       onClick={onClose}
@@ -42,7 +51,7 @@ export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, on
         className="relative z-10 w-full max-w-[1000px] rounded-[3px] border border-white/10 bg-black/[0.07] backdrop-blur-[20px] shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header with credit status */}
+        {/* Header with usage bars */}
         <div className="px-6 py-5 border-b border-white/[0.08]">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[15px] font-semibold text-white">Plans & Usage</h2>
@@ -51,8 +60,8 @@ export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, on
             </button>
           </div>
 
-          {/* Usage bars — only for paid/trial users */}
-          {creditStatus && !creditStatus.isTrial && (
+          {/* Usage bars — shown for all plans (daily + weekly) */}
+          {creditStatus && (
             <div className="space-y-3">
               {/* Daily usage bar */}
               <div className="flex items-center gap-3">
@@ -66,6 +75,11 @@ export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, on
                     }}
                   />
                 </div>
+                {creditStatus.daily.usedPercent >= 100 && (
+                  <span className="font-mono text-[9px] text-red-400 whitespace-nowrap">
+                    {creditStatus.nextResetLabel || "Resets tomorrow"}
+                  </span>
+                )}
               </div>
               {/* Weekly usage bar */}
               <div className="flex items-center gap-3">
@@ -79,28 +93,12 @@ export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, on
                     }}
                   />
                 </div>
+                {creditStatus.weekly.usedPercent >= 100 && (
+                  <span className="font-mono text-[9px] text-red-400 whitespace-nowrap">
+                    Resets Monday
+                  </span>
+                )}
               </div>
-            </div>
-          )}
-
-          {/* Trial bar — only for free/trial users */}
-          {creditStatus?.isTrial && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-[10px] text-white/40 w-14">TRIAL</span>
-                <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
-                  <div
-                    className="h-full transition-all duration-500"
-                    style={{
-                      width: `${Math.min(creditStatus.trial.usedPercent, 100)}%`,
-                      background: creditStatus.trial.usedPercent >= 90 ? "#f87171" : creditStatus.trial.usedPercent >= 70 ? "#fbbf24" : "#34d399",
-                    }}
-                  />
-                </div>
-              </div>
-              {creditStatus.trial.exhausted && (
-                <p className="font-mono text-[11px] text-white/50">Trial complete — upgrade to continue</p>
-              )}
             </div>
           )}
         </div>
@@ -138,50 +136,59 @@ export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, on
                   </div>
                 </div>
 
-                {/* Plan description — no raw credit numbers */}
+                {/* Plan description — NO raw credit numbers */}
                 <div className="space-y-1 mb-4 flex-1">
                   {slug === "free" && (
-                    <span className="font-mono text-[11px] text-white/60">
-                      10 free messages to try Dopl
-                    </span>
+                    <>
+                      <span className="font-mono text-[11px] text-white/60 block">
+                        Try Dopl free
+                      </span>
+                      <span className="font-mono text-[10px] text-white/40 block">
+                        Daily & weekly limits
+                      </span>
+                    </>
                   )}
                   {slug === "starter" && (
                     <>
-                      <span className="font-mono text-[11px] text-white/60 block">
-                        Daily & weekly usage limits
-                      </span>
-                      <span className="font-mono text-[10px] text-white/50">
-                        Perfect for personal use
+                      <div className="mb-1">
+                        <span className="text-[22px] font-bold text-white/90 leading-none block">{plan.multiplierLabel}</span>
+                        <span className="font-mono text-[10px] text-white/50">the usage</span>
+                      </div>
+                      <span className="font-mono text-[10px] text-white/40">
+                        For personal use
                       </span>
                     </>
                   )}
                   {slug === "pro" && (
                     <>
-                      <span className="font-mono text-[11px] text-white/60 block font-semibold">
-                        {plan.multiplierLabel} the usage of Starter
-                      </span>
-                      <span className="font-mono text-[10px] text-white/50">
-                        Great for power users
+                      <div className="mb-1">
+                        <span className="text-[22px] font-bold text-white/90 leading-none block">{plan.multiplierLabel}</span>
+                        <span className="font-mono text-[10px] text-white/50">the usage</span>
+                      </div>
+                      <span className="font-mono text-[10px] text-white/40">
+                        For power users
                       </span>
                     </>
                   )}
                   {slug === "power" && (
                     <>
-                      <span className="font-mono text-[11px] text-white/60 block font-semibold">
-                        {plan.multiplierLabel} the usage of Starter
-                      </span>
-                      <span className="font-mono text-[10px] text-white/50">
+                      <div className="mb-1">
+                        <span className="text-[22px] font-bold text-white/90 leading-none block">{plan.multiplierLabel}</span>
+                        <span className="font-mono text-[10px] text-white/50">the usage</span>
+                      </div>
+                      <span className="font-mono text-[10px] text-white/40">
                         For heavy workflows
                       </span>
                     </>
                   )}
                   {slug === "ultra" && (
                     <>
-                      <span className="font-mono text-[11px] text-white/60 block font-semibold">
-                        {plan.multiplierLabel} the usage of Starter
-                      </span>
-                      <span className="font-mono text-[10px] text-white/50">
-                        For teams & heavy automation
+                      <div className="mb-1">
+                        <span className="text-[22px] font-bold text-white/90 leading-none block">{plan.multiplierLabel}</span>
+                        <span className="font-mono text-[10px] text-white/50">the usage</span>
+                      </div>
+                      <span className="font-mono text-[10px] text-white/40">
+                        For teams & automation
                       </span>
                     </>
                   )}
@@ -240,5 +247,18 @@ export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, on
         </div>
       </div>
     </div>
+
+    {/* Checkout Modal — z-[400] floats above the pricing modal */}
+    {checkoutPlan && (
+      <CheckoutModal
+        plan={checkoutPlan}
+        onClose={() => setCheckoutPlan(null)}
+        onSuccess={() => {
+          setCheckoutPlan(null);
+          window.location.reload();
+        }}
+      />
+    )}
+    </>
   );
 }

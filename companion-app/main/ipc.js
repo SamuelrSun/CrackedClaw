@@ -529,6 +529,14 @@ function setupIPC(deps) {
 
       return { ok: true, content: fullContent };
     } catch (err) {
+      // Handle usage limit — broadcast to all windows so the UI can disable input
+      if (err.usageLimitData) {
+        broadcastToAll('chat:usage-limit-hit', err.usageLimitData);
+        if (chatPanel && !chatPanel.isDestroyed()) {
+          chatPanel.webContents.send('chat:message-finalized', { ok: false, error: err.message, usageLimitData: err.usageLimitData });
+        }
+        return { ok: false, error: err.message, usageLimitData: err.usageLimitData };
+      }
       if (chatPanel && !chatPanel.isDestroyed()) {
         chatPanel.webContents.send('chat:message-finalized', { ok: false, error: err.message });
       }
