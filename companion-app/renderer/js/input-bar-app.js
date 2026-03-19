@@ -24,6 +24,7 @@ const settingsDropdown = document.getElementById('settings-dropdown');
 const tintSlider       = document.getElementById('tint-slider');
 const tintValueLabel   = document.getElementById('tint-value-label');
 const btnRelink        = document.getElementById('btn-relink');
+const notifToggle      = document.getElementById('notif-toggle');
 
 // ── State ──────────────────────────────────────────────────────────────────────
 
@@ -103,7 +104,19 @@ function exitTokenMode() {
 
 function autoResizeInput() {
   msgInput.style.height = 'auto';
-  msgInput.style.height = Math.min(msgInput.scrollHeight, 140) + 'px';
+  const newTextHeight = Math.min(msgInput.scrollHeight, 140);
+  msgInput.style.height = newTextHeight + 'px';
+
+  // Resize the Electron window to fit the pill content. Without this, the pill
+  // overflows the fixed 68px window when the user types multiple lines, causing
+  // the bar to appear clipped. After clearing the input (e.g. after send), the
+  // scrollHeight drops back and the window shrinks to INPUT_BAR_HEIGHT.
+  requestAnimationFrame(() => {
+    if (settingsOpen) return; // don't clobber the settings dropdown sizing
+    const bodyH = document.body.scrollHeight;
+    const targetH = Math.max(INPUT_BAR_HEIGHT, bodyH);
+    window.dopl.windowSetSize(680, targetH, false);
+  });
 }
 
 // ── Screen Management ──────────────────────────────────────────────────────────
@@ -135,10 +148,19 @@ function openSettings() {
   btnSettings.classList.add('active');
   settingsDropdown.classList.remove('hidden');
 
-  // Expand window upward to show dropdown + gap + pill
+  // Double-rAF ensures layout is fully computed before measuring offsetHeight.
+  // A single rAF can fire before the browser has laid out the newly-visible
+  // dropdown, yielding 0 or a partial height and causing the window to not
+  // expand enough (dropdown gets clipped). The guard prevents a stale rAF
+  // from re-expanding the window if closeSettings() ran in between.
   requestAnimationFrame(() => {
-    const dropdownH = settingsDropdown.offsetHeight;
-    window.dopl.windowSetSize(680, dropdownH + DROPDOWN_GAP + INPUT_BAR_HEIGHT, false);
+    requestAnimationFrame(() => {
+      if (!settingsOpen) return; // guard: settings closed before layout finished
+      const dropdownH = settingsDropdown.offsetHeight;
+      if (dropdownH > 0) {
+        window.dopl.windowSetSize(680, dropdownH + DROPDOWN_GAP + INPUT_BAR_HEIGHT, false);
+      }
+    });
   });
 }
 
@@ -289,6 +311,11 @@ tintSlider.addEventListener('change', (e) => {
   window.dopl.setGlassTint(value).catch(() => {});
 });
 
+// Notification toggle — persist preference
+notifToggle.addEventListener('change', (e) => {
+  window.dopl.notifications.setEnabled(e.target.checked).catch(() => {});
+});
+
 // Relink button — close settings and switch to token mode
 btnRelink.addEventListener('click', () => {
   closeSettings();
@@ -380,6 +407,18 @@ window.dopl.onGlassTintChanged((value) => {
   applyGlassTint(value);
 });
 
+// Reset streaming state when a notification inline-reply finishes streaming.
+// This handles the case where the user replied directly from a macOS notification
+// while the input bar still thought it was in a streaming state for that conversation.
+if (window.dopl.chat && window.dopl.chat.onReplyFromNotificationComplete) {
+  window.dopl.chat.onReplyFromNotificationComplete((data) => {
+    if (data.conversationId === currentConversationId) {
+      isStreaming = false;
+      setInputEnabled(true);
+    }
+  });
+}
+
 // ── Click-through: pass mouse events on transparent areas ──────────────────────
 
 document.addEventListener('mousemove', (e) => {
@@ -442,6 +481,14 @@ if (window.dopl.runtime && window.dopl.runtime.onStatus) {
 
 (async () => {
   await loadAndApplyGlassTint();
+
+  // Load saved notification preference
+  try {
+    const notifEnabled = await window.dopl.notifications.getEnabled();
+    notifToggle.checked = notifEnabled;
+  } catch (_) {
+    notifToggle.checked = true; // default on
+  }
 
   const state = await window.dopl.getState();
   const panelVisible = await window.dopl.getChatPanelVisible();

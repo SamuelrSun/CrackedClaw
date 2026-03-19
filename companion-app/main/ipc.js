@@ -1,5 +1,6 @@
-const { ipcMain, shell, BrowserWindow } = require('electron');
+const { ipcMain, shell, BrowserWindow, Notification } = require('electron');
 const NodeManager = require('./node-manager');
+const EventManager = require('./event-manager');
 
 /**
  * Set up all IPC handlers for the two-window architecture.
@@ -7,6 +8,95 @@ const NodeManager = require('./node-manager');
  * Window 1 (inputBarWindow): setup screen + input pill
  * Window 2 (chatPanelWindow): messages + tint + conversation list
  */
+/**
+ * Wire all EventManager event listeners.
+ * Exported so index.js can call it for the auto-reconnect path too.
+ *
+ * @param {EventManager} em - The EventManager instance to wire.
+ * @param {object} deps     - Same deps object passed to setupIPC.
+ */
+function wireEventManager(em, deps) {
+  const {
+    getChatPanelWindow,
+    getInputBarWindow,
+    getChatPanelVisible,
+    broadcastToAll,
+    showChatPanel,
+    store,
+  } = deps;
+
+  // Helper to fire a desktop notification — mirrors fireNotification but
+  // without the inline-reply chain (that lives inside setupIPC scope).
+  // For task completions we just notify and open the panel on click.
+  function _simpleNotification(conversationId, title, body) {
+    if (!Notification.isSupported()) return;
+    const notif = new Notification({
+      title,
+      body,
+      silent: store.get('notificationsSilent', false),
+    });
+    notif.on('click', () => {
+      showChatPanel();
+      broadcastToAll('conversation-selected', { id: conversationId, title: 'Chat' });
+      const ibw = getInputBarWindow();
+      if (ibw && !ibw.isDestroyed()) ibw.show();
+    });
+    notif.show();
+  }
+
+  em.on('new_message', (data) => {
+    // data: { id, conversation_id, role, content, created_at }
+
+    // Push the message into the chat panel if it's showing the right conversation
+    const chatPanel = getChatPanelWindow();
+    if (chatPanel && !chatPanel.isDestroyed()) {
+      chatPanel.webContents.send('chat:pushed-message', {
+        id: data.id,
+        conversationId: data.conversation_id,
+        role: data.role,
+        content: data.content,
+        timestamp: data.created_at,
+      });
+    }
+
+    // Fire a desktop notification when the panel isn't focused / visible
+    const notificationsEnabled = store.get('notificationsEnabled', true);
+    const appFocused = BrowserWindow.getFocusedWindow() !== null;
+    const panelVisible = getChatPanelVisible();
+    if (notificationsEnabled && (!appFocused || !panelVisible)) {
+      const plain = (data.content || '')
+        .replace(/[#*_`~\[\]()>]/g, '')
+        .replace(/\n+/g, ' ')
+        .trim();
+      const summary = plain.length > 120 ? plain.slice(0, 117) + '…' : plain;
+      _simpleNotification(data.conversation_id, 'Dopl', summary || 'New message');
+    }
+  });
+
+  em.on('task_update', (data) => {
+    // Broadcast task updates to both windows so the UI can reflect status changes
+    broadcastToAll('task-update', data);
+
+    // Fire a notification when a task completes
+    if (data.status === 'completed' && data.result) {
+      const notificationsEnabled = store.get('notificationsEnabled', true);
+      if (!notificationsEnabled) return;
+
+      const plain = (data.result || '')
+        .replace(/[#*_`~\[\]()>]/g, '')
+        .replace(/\n+/g, ' ')
+        .trim();
+      const summary = plain.length > 120 ? plain.slice(0, 117) + '…' : plain;
+      const taskLabel = data.label || data.name || 'Task';
+      _simpleNotification(
+        data.conversation_id,
+        `✅ ${taskLabel}`,
+        summary || 'Task completed'
+      );
+    }
+  });
+}
+
 function setupIPC(deps) {
   const {
     getInputBarWindow,
@@ -16,6 +106,8 @@ function setupIPC(deps) {
     setNodeManager,
     getChatManager,
     setChatManager,
+    getEventManager,
+    setEventManager,
     updateTrayMenu,
     initChatManager,
     showChatPanel,
@@ -162,6 +254,18 @@ function setupIPC(deps) {
 
       initChatManager(decoded);
 
+      // Stop any existing EventManager before creating a new one
+      const existingEm = getEventManager ? getEventManager() : null;
+      if (existingEm) existingEm.stop();
+
+      const em = new EventManager({
+        webAppUrl: webAppUrl || store.get('webAppUrl') || 'https://usedopl.com',
+        authToken,
+      });
+      if (setEventManager) setEventManager(em);
+      wireEventManager(em, deps);
+      em.start();
+
       const nodeManager = new NodeManager({ gatewayUrl, instanceId, authToken, operatorToken, provisioningUrl, webAppUrl: webAppUrl || store.get('webAppUrl') });
       if (getRuntimeManager) nodeManager.setRuntimeManager(getRuntimeManager());
       setNodeManager(nodeManager);
@@ -191,6 +295,11 @@ function setupIPC(deps) {
     if (nodeManager) {
       nodeManager.stop();
       setNodeManager(null);
+    }
+    // Stop the background event stream
+    if (getEventManager) {
+      const em = getEventManager();
+      if (em) { em.stop(); setEventManager(null); }
     }
     setChatManager(null);
     store.delete('connectionToken');
@@ -228,6 +337,98 @@ function setupIPC(deps) {
   ipcMain.on('chat:select-conversation', (_event, { id, title }) => {
     broadcastToAll('conversation-selected', { id, title });
   });
+
+  // ── Notification Helper ────────────────────────────────────────────────────
+
+  /**
+   * Create and show a rich desktop notification for a Dopl response.
+   *
+   * Features:
+   *  - Inline reply field (hasReply) so the user can reply without opening the app
+   *  - Reply handler streams the response back and fires a follow-up notification
+   *    recursively, enabling a full back-and-forth from the notification tray
+   *  - Click handler brings the chat panel into view
+   *
+   * @param {string} conversationId - The conversation to reply into.
+   * @param {string} fullContent    - The assistant's full markdown response.
+   */
+  function fireNotification(conversationId, fullContent) {
+    if (!fullContent || !Notification.isSupported()) return;
+
+    const plain = fullContent.replace(/[#*_`~\[\]()>]/g, '').replace(/\n+/g, ' ').trim();
+    const summary = plain.length > 120 ? plain.slice(0, 117) + '…' : plain;
+
+    const notif = new Notification({
+      title: 'Dopl',
+      body: summary || 'Response ready',
+      silent: store.get('notificationsSilent', false),
+      hasReply: true,
+      replyPlaceholder: 'Reply to Dopl…',
+      closeButtonText: 'Dismiss',
+    });
+
+    // Click → open chat panel on the right conversation
+    notif.on('click', () => {
+      showChatPanel();
+      broadcastToAll('conversation-selected', { id: conversationId, title: 'Chat' });
+      const ibw = getInputBarWindow();
+      if (ibw && !ibw.isDestroyed()) ibw.show();
+    });
+
+    // Inline reply → send as a new message, stream to chat panel, then recurse
+    notif.on('reply', (_event, replyText) => {
+      if (!replyText || !replyText.trim()) return;
+
+      // Bring conversation into view
+      showChatPanel();
+      broadcastToAll('conversation-selected', { id: conversationId, title: 'Chat' });
+      const ibw = getInputBarWindow();
+      if (ibw && !ibw.isDestroyed()) ibw.show();
+
+      const cm = getChatManager();
+      if (!cm) return;
+
+      const chatPanel = getChatPanelWindow();
+
+      // Echo the user's reply immediately into the chat panel
+      if (chatPanel && !chatPanel.isDestroyed()) {
+        chatPanel.webContents.send('chat:show-user-message', {
+          conversationId,
+          role: 'user',
+          content: replyText.trim(),
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Send and stream the response
+      cm.sendMessage(conversationId, replyText.trim(), (chunk) => {
+        if (chatPanel && !chatPanel.isDestroyed()) {
+          chatPanel.webContents.send('chat:stream-chunk', chunk);
+        }
+      }).then((responseContent) => {
+        if (chatPanel && !chatPanel.isDestroyed()) {
+          chatPanel.webContents.send('chat:message-finalized', { ok: true, content: responseContent });
+        }
+
+        // Tell the input bar that the notification-triggered reply is complete
+        // so it can reset isStreaming / re-enable the input if needed
+        const ib = getInputBarWindow();
+        if (ib && !ib.isDestroyed()) {
+          ib.webContents.send('chat:reply-from-notification-complete', { conversationId });
+        }
+
+        // Fire a follow-up notification so the user can keep the thread going
+        // entirely from the notification tray (recursive chain)
+        fireNotification(conversationId, responseContent);
+      }).catch((err) => {
+        if (chatPanel && !chatPanel.isDestroyed()) {
+          chatPanel.webContents.send('chat:message-finalized', { ok: false, error: err.message });
+        }
+      });
+    });
+
+    notif.show();
+  }
 
   // ── Chat IPC ───────────────────────────────────────────────────────────────
 
@@ -315,6 +516,17 @@ function setupIPC(deps) {
         chatPanel.webContents.send('chat:message-finalized', { ok: true, content: fullContent });
       }
 
+      // ── Desktop notification ─────────────────────────────────────────────
+      // Notify only when the app is not focused or the chat panel is hidden.
+      const appFocused = BrowserWindow.getFocusedWindow() !== null;
+      const panelVisible = getChatPanelVisible();
+      const notificationsEnabled = store.get('notificationsEnabled', true);
+      const shouldNotify = notificationsEnabled && (!appFocused || !panelVisible);
+
+      if (shouldNotify) {
+        fireNotification(conversationId, fullContent);
+      }
+
       return { ok: true, content: fullContent };
     } catch (err) {
       if (chatPanel && !chatPanel.isDestroyed()) {
@@ -323,6 +535,19 @@ function setupIPC(deps) {
       return { ok: false, error: err.message };
     }
   });
+
+  // ── Notification Preferences IPC ───────────────────────────────────────────
+
+  ipcMain.handle('notifications:get-enabled', () => store.get('notificationsEnabled', true));
+  ipcMain.handle('notifications:set-enabled', (_event, value) => {
+    store.set('notificationsEnabled', !!value);
+    return !!value;
+  });
+  ipcMain.handle('notifications:get-silent', () => store.get('notificationsSilent', false));
+  ipcMain.handle('notifications:set-silent', (_event, value) => {
+    store.set('notificationsSilent', !!value);
+    return !!value;
+  });
 }
 
-module.exports = { setupIPC };
+module.exports = { setupIPC, wireEventManager };

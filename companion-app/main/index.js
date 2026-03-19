@@ -4,7 +4,8 @@ const Store = require('electron-store');
 const NodeManager = require('./node-manager');
 const ChatManager = require('./chat-manager');
 const RuntimeManager = require('./runtime-manager');
-const { setupIPC } = require('./ipc');
+const EventManager = require('./event-manager');
+const { setupIPC, wireEventManager } = require('./ipc');
 
 const store = new Store();
 const runtimeManager = new RuntimeManager();
@@ -13,6 +14,7 @@ let chatPanelWindow = null;
 let tray = null;
 let nodeManager = null;
 let chatManager = null;
+let eventManager = null;
 let chatPanelVisible = false;
 
 // ── Dimensions ────────────────────────────────────────────────────────────────
@@ -276,7 +278,7 @@ if (!gotLock) {
 }
 
 app.whenReady().then(() => {
-  setupIPC({
+  const ipcDeps = {
     getInputBarWindow: () => inputBarWindow,
     getChatPanelWindow: () => chatPanelWindow,
     store,
@@ -284,6 +286,8 @@ app.whenReady().then(() => {
     setNodeManager: (nm) => { nodeManager = nm; },
     getChatManager: () => chatManager,
     setChatManager: (cm) => { chatManager = cm; },
+    getEventManager: () => eventManager,
+    setEventManager: (em) => { eventManager = em; },
     updateTrayMenu,
     initChatManager,
     showChatPanel,
@@ -295,7 +299,8 @@ app.whenReady().then(() => {
     SETUP_HEIGHT,
     INPUT_BAR_HEIGHT,
     INPUT_BAR_WIDTH,
-  });
+  };
+  setupIPC(ipcDeps);
 
   // ── Runtime IPC ───────────────────────────────────────────────────────────
   ipcMain.handle('runtime-status', () => ({
@@ -382,6 +387,14 @@ app.whenReady().then(() => {
       const decoded = JSON.parse(Buffer.from(rawToken, 'base64').toString('utf-8'));
       initChatManager(decoded);
 
+      // Start the persistent background event stream
+      eventManager = new EventManager({
+        webAppUrl: decoded.webAppUrl || store.get('webAppUrl') || 'https://usedopl.com',
+        authToken: decoded.authToken,
+      });
+      wireEventManager(eventManager, ipcDeps);
+      eventManager.start();
+
       nodeManager = new NodeManager(decoded);
       nodeManager.setRuntimeManager(runtimeManager);
       nodeManager.on('status', (status) => {
@@ -410,6 +423,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   app.isQuitting = true;
   if (nodeManager) nodeManager.stop();
+  if (eventManager) eventManager.stop();
   // Force-destroy both windows — .destroy() bypasses closable:false and close event handlers
   if (inputBarWindow && !inputBarWindow.isDestroyed()) inputBarWindow.destroy();
   if (chatPanelWindow && !chatPanelWindow.isDestroyed()) chatPanelWindow.destroy();

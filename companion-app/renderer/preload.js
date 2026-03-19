@@ -106,6 +106,41 @@ contextBridge.exposeInMainWorld('dopl', {
       ipcRenderer.removeAllListeners('chat:stream-chunk');
       ipcRenderer.removeAllListeners('chat:show-user-message');
       ipcRenderer.removeAllListeners('chat:message-finalized');
+      ipcRenderer.removeAllListeners('chat:pushed-message');
     },
+
+    /**
+     * Fires when a background assistant message arrives via the EventManager
+     * (i.e., from a task that completed while no active stream was running).
+     */
+    onPushedMessage: (callback) => {
+      ipcRenderer.on('chat:pushed-message', (_event, data) => callback(data));
+    },
+
+    /**
+     * Fires when an agent_task row changes (status updates, completions, errors).
+     * Useful for updating task progress indicators in the chat panel.
+     */
+    onTaskUpdate: (callback) => {
+      ipcRenderer.on('task-update', (_event, data) => callback(data));
+    },
+
+    /**
+     * Fires when a notification inline-reply has been fully streamed and the
+     * assistant response is complete. The input bar uses this to reset its
+     * isStreaming state if the conversation that just finished matches the one
+     * currently tracked in the input bar.
+     */
+    onReplyFromNotificationComplete: (callback) => {
+      ipcRenderer.on('chat:reply-from-notification-complete', (_event, data) => callback(data));
+    },
+  },
+
+  // ── Notification Preferences ──────────────────────────────────────────────
+  notifications: {
+    getEnabled: () => ipcRenderer.invoke('notifications:get-enabled'),
+    setEnabled: (value) => ipcRenderer.invoke('notifications:set-enabled', value),
+    getSilent: () => ipcRenderer.invoke('notifications:get-silent'),
+    setSilent: (value) => ipcRenderer.invoke('notifications:set-silent', value),
   },
 });

@@ -360,6 +360,29 @@ window.dopl.chat.onMessageFinalized((data) => {
   }
 });
 
+// Background message pushed via EventManager (task completed while no active stream)
+window.dopl.chat.onPushedMessage((data) => {
+  // Only render if the panel is showing this conversation
+  if (data.conversationId !== currentConversationId) return;
+
+  // Don't append if we're currently streaming (the stream will finalize it)
+  if (streamingBubble) return;
+
+  appendMessage(data.role, data.content, data.timestamp);
+  scrollToBottom(true);
+
+  // Update the conversation's updated_at so it floats to the top of the list
+  if (data.conversationId) {
+    const idx = conversations.findIndex((c) => c.id === data.conversationId);
+    if (idx !== -1) {
+      conversations[idx].updated_at = data.timestamp || new Date().toISOString();
+      const [updated] = conversations.splice(idx, 1);
+      conversations.unshift(updated);
+      renderConversationList(conversations);
+    }
+  }
+});
+
 // ── Click-through: pass mouse events on transparent corner areas ───────────────
 
 document.addEventListener('mousemove', (e) => {

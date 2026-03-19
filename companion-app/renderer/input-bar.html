@@ -146,6 +146,76 @@
       color: var(--text-secondary);
       background: var(--glass-bg-elevated);
     }
+
+    /* Notifications toggle row */
+    .settings-notif-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--glass-border);
+      -webkit-app-region: no-drag;
+    }
+
+    .settings-notif-row .notif-label {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+      letter-spacing: 0.3px;
+      flex-shrink: 0;
+    }
+
+    /* macOS-style toggle switch */
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 28px;
+      height: 16px;
+      flex-shrink: 0;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid var(--glass-border);
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      left: 2px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.6);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+      transition: left 0.2s, background 0.2s;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background: var(--accent, #6366f1);
+      border-color: transparent;
+    }
+
+    .toggle-switch input:checked + .toggle-slider::before {
+      left: 14px;
+      background: #fff;
+    }
   </style>
 </head>
 <body>
@@ -161,6 +231,15 @@
         <span class="tint-label">TINT</span>
         <input id="tint-slider" class="tint-slider" type="range" min="0" max="0.7" step="0.01" value="0.15">
         <span class="tint-label" id="tint-value-label">15%</span>
+      </div>
+
+      <!-- Notifications toggle row -->
+      <div class="settings-notif-row">
+        <span class="notif-label">NOTIFICATIONS</span>
+        <label class="toggle-switch" title="Toggle desktop notifications">
+          <input type="checkbox" id="notif-toggle" checked>
+          <span class="toggle-slider"></span>
+        </label>
       </div>
 
       <!-- Relink row -->
@@ -211,9 +290,9 @@
 
         <!-- Settings gear button -->
         <button id="btn-settings" class="btn-icon btn-settings-icon" title="Settings">
-          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="7.5" cy="7.5" r="2" stroke="currentColor" stroke-width="1.3"/>
-            <path d="M7.5 1.5V3M7.5 12V13.5M1.5 7.5H3M12 7.5H13.5M3.197 3.197l1.06 1.06M10.743 10.743l1.06 1.06M3.197 11.803l1.06-1.06M10.743 4.257l1.06-1.06" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
           </svg>
         </button>
 
