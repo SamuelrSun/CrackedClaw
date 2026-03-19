@@ -38,11 +38,20 @@ class NodeManager extends EventEmitter {
     // 1. Explicit provisioningUrl from token
     // 2. Derived from webAppUrl
     // 3. Environment variable
-    this.provisioningApiUrl =
+    // Resolve provisioning API base URL.
+    // Raw PROVISIONING_API_URL (e.g. http://164.92.75.153:3100) needs /api appended.
+    const rawProvUrl =
       provisioningUrl ||
       (webAppUrl ? deriveProvisioningUrl(webAppUrl) : null) ||
       process.env.PROVISIONING_API_URL ||
       null;
+    // Ensure the base URL ends with /api (deriveProvisioningUrl already adds it;
+    // raw server URLs like http://host:3100 don't).
+    if (rawProvUrl && !rawProvUrl.replace(/\/+$/, '').endsWith('/api')) {
+      this.provisioningApiUrl = rawProvUrl.replace(/\/+$/, '') + '/api';
+    } else {
+      this.provisioningApiUrl = rawProvUrl;
+    }
     this.connected = false;
     this.lastError = null;
     this.process = null;
@@ -283,8 +292,16 @@ class NodeManager extends EventEmitter {
     this.process.stdout.on('data', (data) => {
       const line = data.toString().trim();
       console.log('[openclaw node]', line);
-      if (line.toLowerCase().includes('connected') || line.toLowerCase().includes('ready')) {
+      const lower = line.toLowerCase();
+      // Detect connection from various openclaw node run output messages
+      if (lower.includes('connected') || lower.includes('ready') ||
+          lower.includes('paired') || lower.includes('listening') ||
+          lower.includes('node online') || lower.includes('authenticated')) {
         this.setConnected(true);
+      }
+      // Detect explicit disconnection
+      if (lower.includes('disconnected') || lower.includes('connection lost')) {
+        this.setConnected(false);
       }
     });
 

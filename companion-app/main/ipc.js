@@ -146,7 +146,7 @@ function setupIPC(deps) {
   ipcMain.handle('connect', async (_event, rawToken) => {
     try {
       const decoded = JSON.parse(Buffer.from(rawToken, 'base64').toString('utf-8'));
-      const { gatewayUrl, instanceId, authToken, operatorToken, webAppUrl } = decoded;
+      const { gatewayUrl, instanceId, authToken, operatorToken, webAppUrl, provisioningUrl } = decoded;
 
       if (!gatewayUrl || !instanceId || !authToken) {
         return { ok: false, error: 'Invalid token: missing required fields' };
@@ -158,10 +158,11 @@ function setupIPC(deps) {
       store.set('authToken', authToken);
       store.set('webAppUrl', webAppUrl || 'https://usedopl.com');
       if (operatorToken) store.set('operatorToken', operatorToken);
+      if (provisioningUrl) store.set('provisioningUrl', provisioningUrl);
 
       initChatManager(decoded);
 
-      const nodeManager = new NodeManager({ gatewayUrl, instanceId, authToken, operatorToken, webAppUrl: webAppUrl || store.get('webAppUrl') });
+      const nodeManager = new NodeManager({ gatewayUrl, instanceId, authToken, operatorToken, provisioningUrl, webAppUrl: webAppUrl || store.get('webAppUrl') });
       if (getRuntimeManager) nodeManager.setRuntimeManager(getRuntimeManager());
       setNodeManager(nodeManager);
 

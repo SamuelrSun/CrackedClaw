@@ -216,6 +216,8 @@ function updateTrayMenu(connected) {
       click: () => {
         app.isQuitting = true;
         if (nodeManager) nodeManager.stop();
+        if (inputBarWindow && !inputBarWindow.isDestroyed()) inputBarWindow.destroy();
+        if (chatPanelWindow && !chatPanelWindow.isDestroyed()) chatPanelWindow.destroy();
         app.quit();
       },
     },
@@ -325,35 +327,46 @@ app.whenReady().then(() => {
   createChatPanelWindow();
   createTray();
 
-  // ── First-launch permission triggers ──
-  // Attempt actions that cause macOS to show permission prompts
+  // ── Permission triggers ──
+  // Check ACTUAL permission state each launch, not a stored "already asked" flag.
   function triggerPermissionPrompts() {
-    const { systemPreferences } = require('electron');
+    const { systemPreferences, shell } = require('electron');
 
-    // Check and request Accessibility
+    // Accessibility — passing true shows the system prompt if not already granted
     const accessibilityGranted = systemPreferences.isTrustedAccessibilityClient(true);
-    // passing `true` shows the system prompt if not already granted
     console.log('[Permissions] Accessibility:', accessibilityGranted ? 'granted' : 'prompt shown');
 
-    // Screen Recording — triggered by attempting screen capture
+    // Screen Recording — desktopCapturer doesn't reliably trigger the prompt
+    // on newer macOS, so open System Preferences directly if needed
     try {
       const { desktopCapturer } = require('electron');
       desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } })
-        .then(() => console.log('[Permissions] Screen Recording: accessible'))
-        .catch(() => console.log('[Permissions] Screen Recording: prompt may have shown'));
+        .then((sources) => {
+          const hasContent = sources.some(s => s.thumbnail && s.thumbnail.getSize().width > 0);
+          if (!hasContent) {
+            console.log('[Permissions] Screen Recording: not granted, opening preferences…');
+            shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+          } else {
+            console.log('[Permissions] Screen Recording: granted');
+          }
+        })
+        .catch(() => {
+          console.log('[Permissions] Screen Recording: check failed, opening preferences…');
+          shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+        });
     } catch (e) {
       console.log('[Permissions] Screen Recording check failed:', e.message);
     }
   }
 
-  // Only trigger on first launch (check a flag in store)
-  const isFirstLaunch = !store.get('permissionsPrompted');
-  if (isFirstLaunch) {
-    // Delay slightly so the app window is visible first
-    setTimeout(() => {
-      triggerPermissionPrompts();
-      store.set('permissionsPrompted', true);
-    }, 2000);
+  // Check live permission state every launch — prompt if not yet granted
+  {
+    const { systemPreferences } = require('electron');
+    const accessibilityGranted = systemPreferences.isTrustedAccessibilityClient(false);
+    if (!accessibilityGranted) {
+      // Delay so the app window is visible first
+      setTimeout(() => triggerPermissionPrompts(), 2000);
+    }
   }
 
   // ── Kick off runtime setup (downloads Node.js + openclaw if needed) ─────────
@@ -397,6 +410,9 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   app.isQuitting = true;
   if (nodeManager) nodeManager.stop();
+  // Force-destroy both windows — .destroy() bypasses closable:false and close event handlers
+  if (inputBarWindow && !inputBarWindow.isDestroyed()) inputBarWindow.destroy();
+  if (chatPanelWindow && !chatPanelWindow.isDestroyed()) chatPanelWindow.destroy();
 });
 
 // Handle macOS dock "Quit" menu item
