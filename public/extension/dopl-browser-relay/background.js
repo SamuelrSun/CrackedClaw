@@ -6,7 +6,7 @@ import {
   reconnectDelayMs,
 } from './background-utils.js'
 
-const DEFAULT_PORT = 18120
+const DEFAULT_PORT = 18134
 
 const BADGE = {
   on: { text: 'ON', color: '#8B7355' },
