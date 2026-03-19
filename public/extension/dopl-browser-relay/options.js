@@ -1,23 +1,39 @@
 import { deriveRelayToken } from './background-utils.js'
 import { classifyRelayCheckException, classifyRelayCheckResponse } from './options-validation.js'
 
-const DEFAULT_PORT = 18120
+const DEFAULT_PORT = 18134
 
-function clampPort(value) {
-  const n = Number.parseInt(String(value || ''), 10)
-  if (!Number.isFinite(n)) return DEFAULT_PORT
-  if (n <= 0 || n > 65535) return DEFAULT_PORT
-  return n
+/**
+ * Parse a `dopl_` connection key into its component parts.
+ * @param {string} key
+ * @returns {{ remoteHost: string, port: number, token: string }|null}
+ */
+function parseConnectionKey(key) {
+  if (!key.startsWith('dopl_')) return null
+  try {
+    const b64 = key.slice(5).replace(/-/g, '+').replace(/_/g, '/')
+    const pad = b64 + '='.repeat((4 - (b64.length % 4)) % 4)
+    const payload = JSON.parse(atob(pad))
+    return {
+      remoteHost: payload.h || '',
+      port: payload.p || DEFAULT_PORT,
+      token: payload.t || '',
+    }
+  } catch {
+    return null
+  }
 }
 
-function updateRelayUrl(port, remoteHost) {
+function updateRelayUrl(remoteHost, port) {
   const el = document.getElementById('relay-url')
   if (!el) return
   const host = String(remoteHost || '').trim()
   if (host) {
     el.textContent = `wss://${host}/relay/extension`
-  } else {
+  } else if (port) {
     el.textContent = `ws://127.0.0.1:${port}/extension`
+  } else {
+    el.textContent = '—'
   }
 }
 
@@ -36,7 +52,7 @@ async function checkRelayReachable(port, token, remoteHost) {
   if (host) {
     const trimmedToken = String(token || '').trim()
     if (!trimmedToken) {
-      setStatus('error', 'Gateway token required. Save your gateway token to connect.')
+      setStatus('error', 'Gateway token required. Save your connection key to connect.')
       return
     }
     setStatus('ok', `Will connect via wss://${host}/relay/extension`)
@@ -47,7 +63,7 @@ async function checkRelayReachable(port, token, remoteHost) {
   const url = `http://127.0.0.1:${port}/json/version`
   const trimmedToken = String(token || '').trim()
   if (!trimmedToken) {
-    setStatus('error', 'Gateway token required. Save your gateway token to connect.')
+    setStatus('error', 'Gateway token required. Save your connection key to connect.')
     return
   }
   try {
@@ -69,29 +85,45 @@ async function checkRelayReachable(port, token, remoteHost) {
 }
 
 async function load() {
-  const stored = await chrome.storage.local.get(['relayPort', 'gatewayToken', 'remoteHost'])
-  const port = clampPort(stored.relayPort)
+  const stored = await chrome.storage.local.get(['connectionKey', 'relayPort', 'gatewayToken', 'remoteHost'])
+  const connectionKey = String(stored.connectionKey || '').trim()
+  const port = stored.relayPort || DEFAULT_PORT
   const token = String(stored.gatewayToken || '').trim()
   const remoteHost = String(stored.remoteHost || '').trim()
-  document.getElementById('port').value = String(port)
-  document.getElementById('token').value = token
-  document.getElementById('remote-host').value = remoteHost
-  updateRelayUrl(port, remoteHost)
-  await checkRelayReachable(port, token, remoteHost)
+
+  document.getElementById('connection-key').value = connectionKey
+  updateRelayUrl(remoteHost, port)
+
+  if (token || remoteHost) {
+    await checkRelayReachable(port, token, remoteHost)
+  }
 }
 
 async function save() {
-  const portInput = document.getElementById('port')
-  const tokenInput = document.getElementById('token')
-  const remoteHostInput = document.getElementById('remote-host')
-  const port = clampPort(portInput.value)
-  const token = String(tokenInput.value || '').trim()
-  const remoteHost = String(remoteHostInput.value || '').trim()
-  await chrome.storage.local.set({ relayPort: port, gatewayToken: token, remoteHost })
-  portInput.value = String(port)
-  tokenInput.value = token
-  remoteHostInput.value = remoteHost
-  updateRelayUrl(port, remoteHost)
+  const keyInput = document.getElementById('connection-key')
+  const rawKey = String(keyInput.value || '').trim()
+
+  if (!rawKey) {
+    setStatus('error', 'Please enter a connection key.')
+    return
+  }
+
+  const parsed = parseConnectionKey(rawKey)
+  if (!parsed) {
+    setStatus('error', 'Invalid connection key. It should start with dopl_ and be copied from your Dopl Settings page.')
+    return
+  }
+
+  const { remoteHost, port, token } = parsed
+
+  await chrome.storage.local.set({
+    connectionKey: rawKey,
+    relayPort: port,
+    gatewayToken: token,
+    remoteHost,
+  })
+
+  updateRelayUrl(remoteHost, port)
   await checkRelayReachable(port, token, remoteHost)
 }
 

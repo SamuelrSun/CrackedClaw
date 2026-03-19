@@ -230,23 +230,16 @@
       <div class="panel">
         <h2>Relay Connection</h2>
 
-        <label for="remote-host">Instance URL</label>
-        <input id="remote-host" type="text" placeholder="i-xxxxx.usedopl.com" />
-        <div class="hint">
-          Enter your Dopl instance URL (shown in your Settings page). Or leave blank for local connection.
-        </div>
-
-        <label for="port">Port</label>
-        <input id="port" inputmode="numeric" pattern="[0-9]*" style="width: 120px" />
-        <div class="hint">Default: <code>18120</code></div>
-
-        <label for="token">Gateway Token</label>
+        <label for="connection-key">Connection Key</label>
         <div class="row">
-          <input id="token" type="password" autocomplete="off" />
-          <button id="save" type="button">Save</button>
+          <input id="connection-key" type="text" placeholder="dopl_xxxxx..." autocomplete="off" spellcheck="false" />
+          <button id="save" type="button">Connect</button>
         </div>
         <div class="hint">
-          Extension connects to: <code id="relay-url">ws://127.0.0.1:&lt;port&gt;/extension</code>
+          Paste your connection key from the <a href="https://usedopl.com/settings" target="_blank" rel="noreferrer">Dopl Settings page</a>.
+        </div>
+        <div class="hint" style="margin-top: 6px;">
+          Relay URL: <code id="relay-url">—</code>
         </div>
         <div class="status" id="status"></div>
       </div>

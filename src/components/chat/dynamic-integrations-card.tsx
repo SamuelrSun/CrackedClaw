@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Check, ChevronDown, Copy, Loader2, Monitor, Plus, RefreshCw, X } from "lucide-react";
+import { Check, ChevronDown, Copy, Globe, Loader2, Monitor, Plus, RefreshCw, X } from "lucide-react";
 import type { ResolvedIntegration } from "@/lib/integrations/resolver";
 import { IntegrationIcon } from "@/components/integrations/integration-icon";
 
@@ -329,6 +329,16 @@ function CompanionOnboardingInline({ name }: { name: string }) {
   const [token, setToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [loadingToken, setLoadingToken] = useState(true);
+  const [relayKey, setRelayKey] = useState<string | null>(null);
+  const [relayCopied, setRelayCopied] = useState(false);
+  const [showRelayAlt, setShowRelayAlt] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/instance/connection-key")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.key) setRelayKey(data.key); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/node/connection-token")
@@ -347,7 +357,17 @@ function CompanionOnboardingInline({ name }: { name: string }) {
     } catch { /* ignore */ }
   };
 
+  const handleRelayCopy = async () => {
+    if (!relayKey) return;
+    try {
+      await navigator.clipboard.writeText(relayKey);
+      setRelayCopied(true);
+      setTimeout(() => setRelayCopied(false), 2000);
+    } catch { /* ignore */ }
+  };
+
   const maskedToken = token ? `${token.slice(0, 8)}…${token.slice(-4)}` : "Loading…";
+  const maskedRelayKey = relayKey ? `${relayKey.slice(0, 12)}…${relayKey.slice(-4)}` : "Loading…";
 
   return (
     <div className="mt-3 border-t border-white/[0.1] pt-3 space-y-3">
@@ -429,6 +449,54 @@ function CompanionOnboardingInline({ name }: { name: string }) {
         <p className="font-mono text-[9px] text-white/30 mt-2">
           If you missed a prompt, open System Settings → Privacy &amp; Security to grant manually.
         </p>
+      </div>
+
+      {/* Browser Relay Chrome Extension alternative */}
+      <div className="pt-2 border-t border-white/[0.06]">
+        <button
+          onClick={() => setShowRelayAlt(v => !v)}
+          className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wide text-white/30 hover:text-white/50 transition-colors"
+        >
+          <Globe className="w-3 h-3" />
+          Or use the Chrome Extension instead
+        </button>
+
+        {showRelayAlt && (
+          <div className="mt-2 space-y-2">
+            <p className="font-mono text-[10px] text-white/50 leading-relaxed">
+              Prefer a Chrome extension? Download the Browser Relay extension and paste your connection key in its options — no desktop app needed.
+            </p>
+            <div className="bg-white/[0.04] border border-white/[0.08] rounded-[3px] p-2 space-y-1.5">
+              <p className="font-mono text-[9px] uppercase tracking-wide text-white/30">Connection Key</p>
+              <div className="flex items-center gap-2">
+                <code className="font-mono text-[10px] text-white/60 truncate flex-1 select-none">
+                  {relayKey ? maskedRelayKey : "Loading…"}
+                </code>
+                <button
+                  onClick={handleRelayCopy}
+                  disabled={!relayKey}
+                  className="flex-shrink-0 flex items-center gap-1 px-2 py-1 bg-white/[0.08] hover:bg-white/[0.14] text-white/60 hover:text-white/90 disabled:opacity-30 transition-colors font-mono text-[9px]"
+                >
+                  {relayCopied ? (
+                    <><Check className="w-3 h-3 text-emerald-400" /> Copied!</>
+                  ) : (
+                    <><Copy className="w-3 h-3" /> Copy</>
+                  )}
+                </button>
+              </div>
+            </div>
+            <a
+              href="/api/download/browser-relay"
+              download
+              className="block w-full py-2 font-mono text-[10px] uppercase tracking-wide bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.1] text-white/60 hover:text-white/90 transition-colors text-center"
+            >
+              ⬇ Download Extension
+            </a>
+            <p className="font-mono text-[9px] text-white/30 leading-relaxed">
+              1. Download &amp; load in Chrome → 2. Paste your connection key in the extension options
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

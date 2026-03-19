@@ -1,4 +1,4 @@
-const PORT_GUIDANCE = 'Check your port setting and gateway token.'
+const PORT_GUIDANCE = 'Check your connection key and try saving again.'
 
 function hasCdpVersionShape(data) {
   return !!data && typeof data === 'object' && 'Browser' in data && 'Protocol-Version' in data

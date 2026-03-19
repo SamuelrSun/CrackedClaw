@@ -2420,7 +2420,7 @@ User message: `
 
         {/* Messages */}
         <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0 relative">
-          {messages.length > 0 ? (
+          {mounted && messages.length > 0 ? (
             messages.map((msg) => {
               const segments = parseMessageContent(msg.content);
               const hasRichContent = segments.some((s) => s.type !== "text");
@@ -2432,8 +2432,9 @@ User message: `
               const msgThinkingDuration = streamingMsg.thinkingDuration ?? (streamingMsg.thinkingStartTime ? Date.now() - streamingMsg.thinkingStartTime : 0);
 
               return (
+                <MessageErrorBoundary key={msg.id}>
                 <div
-                  key={msg.id}
+                  key={`inner-${msg.id}`}
                   className={cn(
                     "max-w-[90%] md:max-w-[80%]",
                     msg.role === "user" ? "ml-auto" : "mr-auto group"
@@ -2535,6 +2536,7 @@ User message: `
                     <MessageFeedback messageContent={msg.content} />
                   )}
                 </div>
+                </MessageErrorBoundary>
               );
             })
           ) : (

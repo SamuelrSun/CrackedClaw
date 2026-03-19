@@ -40,8 +40,8 @@ const PROVIDER_DOMAINS: Record<string, string> = {
 
 export function getIntegrationLogoUrl(slugOrProvider: string, size: number = 64): string {
   const domain = PROVIDER_DOMAINS[slugOrProvider.toLowerCase()] || `${slugOrProvider.toLowerCase()}.com`;
-  // Clearbit serves high-res logos (up to 256px), with Google favicon as fallback
-  return `https://logo.clearbit.com/${domain}?size=${size}`;
+  // Use Google favicon as primary (reliable, no CORS issues); Clearbit was failing with ERR_NAME_NOT_RESOLVED
+  return `https://www.google.com/s2/favicons?domain=${domain}&sz=${Math.min(size, 128)}`;
 }
 
 export function getIntegrationLogoFallbackUrl(slugOrProvider: string): string {

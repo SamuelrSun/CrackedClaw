@@ -39,6 +39,9 @@ const pending = new Map()
 /** @type {Set<number>} */
 const tabOperationLocks = new Set()
 
+// Full window mode — when ON, all tabs are attached and new tabs are auto-attached.
+let windowModeEnabled = false
+
 // Tabs currently in a detach/re-attach cycle after navigation.
 /** @type {Set<number>} */
 const reattachPending = new Set()
@@ -613,6 +616,92 @@ async function detachTab(tabId, reason) {
   await persistState()
 }
 
+// ── Window Mode ──────────────────────────────────────────────────────────────
+
+async function loadWindowModeState() {
+  try {
+    const stored = await chrome.storage.local.get(['windowModeEnabled'])
+    windowModeEnabled = stored.windowModeEnabled === true
+    if (windowModeEnabled) {
+      void chrome.action.setBadgeText({ text: 'ON' })
+      void chrome.action.setBadgeBackgroundColor({ color: '#4ade80' })
+    }
+  } catch {
+    // ignore
+  }
+}
+
+async function attachTabForWindowMode(tabId, tabUrl) {
+  const url = String(tabUrl || '')
+  if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('about:')) return
+  if (tabs.has(tabId) && tabs.get(tabId)?.state === 'connected') return
+  if (tabOperationLocks.has(tabId)) return
+  tabOperationLocks.add(tabId)
+  try {
+    tabs.set(tabId, { state: 'connecting' })
+    setBadge(tabId, 'connecting')
+    await attachTab(tabId)
+  } catch (err) {
+    tabs.delete(tabId)
+    setBadge(tabId, 'error')
+    console.warn(`Window mode: failed to attach tab ${tabId}`, err instanceof Error ? err.message : String(err))
+  } finally {
+    tabOperationLocks.delete(tabId)
+  }
+}
+
+async function enableWindowMode() {
+  windowModeEnabled = true
+  await chrome.storage.local.set({ windowModeEnabled: true })
+  void chrome.action.setBadgeText({ text: 'ON' })
+  void chrome.action.setBadgeBackgroundColor({ color: '#4ade80' })
+
+  cancelReconnect()
+
+  try {
+    await ensureRelayConnection()
+  } catch (err) {
+    console.warn('Window mode: relay connection failed', err instanceof Error ? err.message : String(err))
+    void maybeOpenHelpOnce()
+    return
+  }
+
+  const allTabs = await chrome.tabs.query({})
+  for (const tab of allTabs) {
+    if (!tab.id) continue
+    await attachTabForWindowMode(tab.id, tab.url)
+  }
+}
+
+async function disableWindowMode() {
+  windowModeEnabled = false
+  await chrome.storage.local.set({ windowModeEnabled: false })
+  void chrome.action.setBadgeText({ text: '' })
+
+  const tabIds = [...tabs.keys()]
+  for (const tabId of tabIds) {
+    if (tabOperationLocks.has(tabId)) continue
+    tabOperationLocks.add(tabId)
+    try {
+      await detachTab(tabId, 'window_mode_off')
+    } catch (err) {
+      console.warn(`Window mode: failed to detach tab ${tabId}`, err instanceof Error ? err.message : String(err))
+    } finally {
+      tabOperationLocks.delete(tabId)
+    }
+  }
+}
+
+async function toggleWindowMode() {
+  if (windowModeEnabled) {
+    await disableWindowMode()
+  } else {
+    await enableWindowMode()
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function connectOrToggleForActiveTab() {
   const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
   const tabId = active?.id
@@ -931,7 +1020,21 @@ chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => void whenReady(
 chrome.debugger.onEvent.addListener((...args) => void whenReady(() => onDebuggerEvent(...args)))
 chrome.debugger.onDetach.addListener((...args) => void whenReady(() => onDebuggerDetach(...args)))
 
-chrome.action.onClicked.addListener(() => void whenReady(() => connectOrToggleForActiveTab()))
+chrome.action.onClicked.addListener(() => void whenReady(() => toggleWindowMode()))
+
+// Auto-attach new tabs when window mode is enabled.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => void whenReady(async () => {
+  if (!windowModeEnabled) return
+  if (changeInfo.status !== 'complete') return
+  if (!relayWs || relayWs.readyState !== WebSocket.OPEN) {
+    try {
+      await ensureRelayConnection()
+    } catch {
+      return
+    }
+  }
+  await attachTabForWindowMode(tabId, tab.url)
+}))
 
 // Refresh badge after navigation completes — service worker may have restarted
 // during navigation, losing ephemeral badge state.
@@ -990,7 +1093,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 // Rehydrate state on service worker startup. Split: rehydration is the gate
 // (fast), relay reconnect runs in background (slow, non-blocking).
-const initPromise = rehydrateState()
+const initPromise = rehydrateState().then(() => loadWindowModeState())
 
 initPromise.then(() => {
   if (tabs.size > 0) {
