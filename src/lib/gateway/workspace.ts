@@ -1,7 +1,7 @@
 /**
  * workspace.ts — Dopl Workspace File Management
  *
- * Writes Dopl-specific workspace files to OpenClaw instances via the /tools/invoke API.
+ * Writes Dopl-specific workspace files to OpenClaw instances via the DO provisioning server.
  * This is the core of the "instance IS Dopl" architecture — by writing SOUL.md, AGENTS.md,
  * USER.md, INTEGRATIONS.md, and MEMORY_CONTEXT.md to the instance at provisioning time,
  * the agent natively behaves as Dopl without any per-message system prompt injection.
@@ -38,109 +38,85 @@ export interface UserInstanceInfo {
 }
 
 // ---------------------------------------------------------------------------
-// Core: Write a file to an OpenClaw workspace via /tools/invoke
+// Core: Write a file to an OpenClaw workspace via DO provisioning server
 // ---------------------------------------------------------------------------
 
 /**
+ * Extract the OpenClaw instance ID from a Dopl gateway URL.
+ * e.g. "https://i-296bdd45.usedopl.com" → "oc-296bdd45"
+ */
+function instanceIdFromGatewayUrl(gatewayUrl: string): string | null {
+  const match = gatewayUrl.match(/https?:\/\/i-([a-f0-9]+)\.usedopl\.com/);
+  return match ? `oc-${match[1]}` : null;
+}
+
+/**
  * Write a file to an OpenClaw instance's workspace.
- * Uses POST {gatewayUrl}/tools/invoke with tool="write".
+ * Routes through the DO provisioning server's workspace write endpoint.
  *
- * @param gatewayUrl  - Full gateway URL, e.g. "https://i-abc123.usedopl.com"
- * @param authToken   - Gateway bearer token
+ * @param gatewayUrl   - Full gateway URL, e.g. "https://i-abc123.usedopl.com"
  * @param relativePath - Relative path inside workspace, e.g. "SOUL.md"
- * @param content     - File contents
+ * @param content      - File contents
  * @returns true on success, false on failure
  */
 export async function writeWorkspaceFile(
   gatewayUrl: string,
-  authToken: string,
   relativePath: string,
   content: string
 ): Promise<boolean> {
-  const base = gatewayUrl.replace(/\/$/, '');
+  const provisioningUrl = process.env.PROVISIONING_API_URL;
+  const provisioningSecret = process.env.PROVISIONING_API_SECRET;
+
+  if (!provisioningUrl || !provisioningSecret) {
+    console.error(`[workspace] PROVISIONING_API_URL or PROVISIONING_API_SECRET not set — cannot write ${relativePath}`);
+    return false;
+  }
+
+  const instanceId = instanceIdFromGatewayUrl(gatewayUrl);
+  if (!instanceId) {
+    console.error(`[workspace] Cannot parse instance ID from gatewayUrl: ${gatewayUrl}`);
+    return false;
+  }
+
   try {
-    const res = await fetch(`${base}/tools/invoke`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`,
-      },
-      body: JSON.stringify({
-        tool: 'write',
-        args: {
-          file_path: relativePath,
-          content,
+    const res = await fetch(
+      `${provisioningUrl.replace(/\/$/, '')}/api/instances/${instanceId}/workspace/write`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${provisioningSecret}`,
         },
-      }),
-    });
+        body: JSON.stringify({ file_path: relativePath, content }),
+      }
+    );
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      console.error(`[workspace] Failed to write ${relativePath} (HTTP ${res.status}):`, err);
+      console.error(`[workspace] Failed to write ${relativePath} to ${instanceId} (HTTP ${res.status}):`, err);
       return false;
     }
 
     const data = await res.json().catch(() => ({}));
     if (data.ok !== true) {
-      console.error(`[workspace] Write response not ok for ${relativePath}:`, data);
+      console.error(`[workspace] Write response not ok for ${relativePath} on ${instanceId}:`, data);
       return false;
     }
 
-    console.log(`[workspace] ✓ Wrote ${relativePath}`);
+    console.log(`[workspace] ✓ Wrote ${relativePath} to ${instanceId}`);
     return true;
   } catch (err) {
-    console.error(`[workspace] Error writing ${relativePath}:`, err);
+    console.error(`[workspace] Error writing ${relativePath} to ${instanceId}:`, err);
     return false;
   }
 }
 
 // ---------------------------------------------------------------------------
-// Initialize: Write all 5 Dopl workspace files at provisioning
+// Initialize: REMOVED — the DO provisioning server writes initial workspace
+// files directly to disk during /api/provision. This Vercel-side function
+// is no longer needed. Builder functions below are kept as source-of-truth
+// references (the DO server's inline versions mirror them).
 // ---------------------------------------------------------------------------
-
-/**
- * Initialize the full Dopl workspace for a new OpenClaw instance.
- * Writes: SOUL.md, AGENTS.md, USER.md, INTEGRATIONS.md, MEMORY_CONTEXT.md
- *
- * Call this fire-and-forget after a successful provisioning.
- *
- * @param gatewayUrl   - Instance gateway URL
- * @param authToken    - Instance auth token
- * @param userId       - Supabase user ID
- * @param userName     - Display name
- * @param userTimezone - IANA timezone string, default America/Los_Angeles
- */
-export async function initializeDoplWorkspace(
-  gatewayUrl: string,
-  authToken: string,
-  userId: string,
-  userName: string,
-  userTimezone: string = 'America/Los_Angeles'
-): Promise<void> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com';
-  const bridgeSecret = process.env.TOKEN_BRIDGE_SECRET || 'dopl-token-bridge-2026';
-  const pushSecret = process.env.CHAT_PUSH_SECRET || 'dopl-push-2026';
-
-  console.log(`[workspace] Initializing Dopl workspace for user ${userId} at ${gatewayUrl}`);
-
-  const files: Array<[string, string]> = [
-    ['BOOTSTRAP.md', buildDoplBootstrap(userName)],
-    ['SOUL.md', buildDoplSoul(userId, appUrl, bridgeSecret, pushSecret)],
-    ['AGENTS.md', buildDoplAgents(userId, appUrl, bridgeSecret, pushSecret)],
-    ['USER.md', buildUserFile(userName, userId, userTimezone)],
-    ['INTEGRATIONS.md', buildInitialIntegrations()],
-    ['MEMORY_CONTEXT.md', buildInitialMemoryContext()],
-  ];
-
-  let successCount = 0;
-  for (const [path, content] of files) {
-    const ok = await writeWorkspaceFile(gatewayUrl, authToken, path, content);
-    if (ok) successCount++;
-    else console.error(`[workspace] Failed to write ${path} to instance for user ${userId}`);
-  }
-
-  console.log(`[workspace] Initialization complete: ${successCount}/${files.length} files written for user ${userId}`);
-}
 
 // ---------------------------------------------------------------------------
 // Dynamic updates: refresh workspace files when state changes
@@ -172,22 +148,19 @@ export async function getUserInstanceForWorkspace(userId: string): Promise<UserI
  *
  * @param userId     - Supabase user ID
  * @param gatewayUrl - Optional; if omitted, fetched from profiles table
- * @param authToken  - Optional; if omitted, fetched from profiles table
  */
 export async function updateIntegrations(
   userId: string,
-  gatewayUrl?: string,
-  authToken?: string
+  gatewayUrl?: string
 ): Promise<void> {
   // Resolve instance if not provided
-  if (!gatewayUrl || !authToken) {
+  if (!gatewayUrl) {
     const instance = await getUserInstanceForWorkspace(userId);
     if (!instance) {
       console.error(`[workspace] No instance found for user ${userId} — cannot update INTEGRATIONS.md`);
       return;
     }
-    gatewayUrl = gatewayUrl || instance.gatewayUrl;
-    authToken = authToken || instance.authToken;
+    gatewayUrl = instance.gatewayUrl;
   }
 
   const { data: integrations } = await supabase
@@ -199,7 +172,7 @@ export async function updateIntegrations(
     .order('is_default', { ascending: false });
 
   const content = buildIntegrationsFile(integrations || []);
-  await writeWorkspaceFile(gatewayUrl, authToken, 'INTEGRATIONS.md', content);
+  await writeWorkspaceFile(gatewayUrl, 'INTEGRATIONS.md', content);
 }
 
 /**
@@ -207,27 +180,24 @@ export async function updateIntegrations(
  *
  * @param userId     - Supabase user ID
  * @param gatewayUrl - Optional; if omitted, fetched from profiles table
- * @param authToken  - Optional; if omitted, fetched from profiles table
  */
 export async function updateMemoryContext(
   userId: string,
-  gatewayUrl?: string,
-  authToken?: string
+  gatewayUrl?: string
 ): Promise<void> {
   // Resolve instance if not provided
-  if (!gatewayUrl || !authToken) {
+  if (!gatewayUrl) {
     const instance = await getUserInstanceForWorkspace(userId);
     if (!instance) {
       console.error(`[workspace] No instance found for user ${userId} — cannot update MEMORY_CONTEXT.md`);
       return;
     }
-    gatewayUrl = gatewayUrl || instance.gatewayUrl;
-    authToken = authToken || instance.authToken;
+    gatewayUrl = instance.gatewayUrl;
   }
 
   const memories = await mem0GetCore(userId, { minImportance: 0.5, limit: 30 });
   const content = buildMemoryContextFile(memories);
-  await writeWorkspaceFile(gatewayUrl, authToken, 'MEMORY_CONTEXT.md', content);
+  await writeWorkspaceFile(gatewayUrl, 'MEMORY_CONTEXT.md', content);
 }
 
 // ---------------------------------------------------------------------------
