@@ -5,22 +5,27 @@
 
 export interface CreditStatus {
   plan: string;
+  isTrial: boolean;
   daily: {
-    used: number;
+    usedPercent: number;   // 0-100
+    remaining: number;     // raw credits remaining (for internal use)
+    limit: number;         // daily cap (0 = unlimited for trial)
+    resetsAt: string;
+  };
+  weekly: {
+    usedPercent: number;   // 0-100
+    remaining: number;
     limit: number;
-    remaining: number;
     resetsAt: string;
   };
-  monthly: {
-    poolBalance: number;
-    poolLimit: number;
-    resetsAt: string;
+  trial: {
+    total: number;         // 10
+    remaining: number;     // how many left
+    usedPercent: number;   // 0-100
+    exhausted: boolean;
   };
-  welcomeGrant: {
-    total: number;
-    used: boolean;
-    remaining: number;
-  };
-  totalAvailableToday: number;
-  totalUsedThisMonth: number;
+  // For the UI bars — these are the main things shown
+  allowed: boolean;
+  upgradeNeeded: boolean;
+  reason?: string;
 }

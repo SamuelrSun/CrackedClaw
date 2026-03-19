@@ -4,7 +4,7 @@ import { stripe, PLANS, PlanSlug, getPriceId } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 export const dynamic = 'force-dynamic';
 
-const PAID_PLANS: PlanSlug[] = ['starter', 'pro', 'power'];
+const PAID_PLANS: PlanSlug[] = ['starter', 'pro', 'power', 'ultra'];
 
 export async function POST(request: NextRequest) {
   const { user, error } = await requireApiAuth();

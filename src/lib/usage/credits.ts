@@ -15,16 +15,22 @@ function getNextMidnightUTC(): string {
   return d.toISOString();
 }
 
-function getMonthStart(): string {
+function getWeekStartUTC(): string {
   const d = new Date();
-  d.setUTCDate(1);
+  const day = d.getUTCDay();
+  const diff = day === 0 ? 6 : day - 1; // Monday = start of week
+  d.setUTCDate(d.getUTCDate() - diff);
+  d.setUTCHours(0, 0, 0, 0);
   return d.toISOString().split('T')[0];
 }
 
-function getNextMonthStart(): string {
+function getNextWeekStartUTC(): string {
   const d = new Date();
-  d.setUTCMonth(d.getUTCMonth() + 1, 1);
-  return d.toISOString().split('T')[0];
+  const day = d.getUTCDay();
+  const diff = day === 0 ? 1 : 8 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
 }
 
 export async function getCreditStatus(userId: string): Promise<CreditStatus> {
@@ -33,15 +39,62 @@ export async function getCreditStatus(userId: string): Promise<CreditStatus> {
   // Get profile
   const { data: profile } = await supabase
     .from('profiles')
-    .select('plan, welcome_grant_used, monthly_pool_credits, pool_last_reset, current_period_end')
+    .select('plan, current_period_end')
     .eq('id', userId)
     .single();
 
   const planSlug = profile?.plan || 'free';
   const plan = getPlanBySlug(planSlug);
+  const isTrial = planSlug === 'free';
 
-  // Get today's token usage
   const today = getTodayUTC();
+  const weekStart = getWeekStartUTC();
+
+  // For trial users: sum ALL-TIME usage to check against 10-credit grant
+  // For paid users: sum daily and weekly usage
+  if (isTrial) {
+    // Get total all-time usage for trial users
+    const { data: allTimeRows } = await supabase
+      .from('user_usage')
+      .select('tokens_used')
+      .eq('user_id', userId);
+    
+    const totalTokens = (allTimeRows || []).reduce((sum, row) => sum + (row.tokens_used || 0), 0);
+    const totalCreditsUsed = tokensToCredits(totalTokens);
+    const trialTotal = plan.trialGrant; // 10
+    const trialRemaining = Math.max(0, trialTotal - totalCreditsUsed);
+    const trialUsedPercent = trialTotal > 0 ? Math.min(100, (totalCreditsUsed / trialTotal) * 100) : 0;
+    const trialExhausted = trialRemaining <= 0;
+
+    return {
+      plan: planSlug,
+      isTrial: true,
+      daily: {
+        usedPercent: 0,
+        remaining: 0,
+        limit: 0,
+        resetsAt: getNextMidnightUTC(),
+      },
+      weekly: {
+        usedPercent: 0,
+        remaining: 0,
+        limit: 0,
+        resetsAt: getNextWeekStartUTC(),
+      },
+      trial: {
+        total: trialTotal,
+        remaining: Math.round(trialRemaining * 10) / 10,
+        usedPercent: Math.round(trialUsedPercent * 10) / 10,
+        exhausted: trialExhausted,
+      },
+      allowed: !trialExhausted,
+      upgradeNeeded: trialExhausted,
+      reason: trialExhausted ? 'Trial credits exhausted. Upgrade to continue using Dopl.' : undefined,
+    };
+  }
+
+  // Paid users: calculate daily and weekly usage
+  // Get today's token usage
   const { data: todayRow } = await supabase
     .from('user_usage')
     .select('tokens_used')
@@ -52,65 +105,71 @@ export async function getCreditStatus(userId: string): Promise<CreditStatus> {
   const todayTokens = todayRow?.tokens_used || 0;
   const todayCredits = tokensToCredits(todayTokens);
 
-  // Daily credits used (capped at daily limit)
-  const dailyUsed = Math.min(todayCredits, plan.dailyCredits);
-  const dailyRemaining = Math.max(0, plan.dailyCredits - todayCredits);
-
-  // Monthly pool balance (stored in profiles)
-  const poolBalance = profile?.monthly_pool_credits ?? plan.monthlyPool;
-
-  // If today's usage exceeds daily credits, the overflow came from monthly pool
-  const monthlyOverflow = Math.max(0, todayCredits - plan.dailyCredits);
-
-  // Welcome grant
-  const welcomeGrantUsed = profile?.welcome_grant_used ?? false;
-  const welcomeRemaining = welcomeGrantUsed ? 0 : plan.welcomeGrant;
-
-  // Total available today = daily remaining + monthly pool + welcome grant remaining
-  const totalAvailableToday = dailyRemaining + Math.max(0, poolBalance - monthlyOverflow) + welcomeRemaining;
-
-  // Total used this month
-  const monthStart = getMonthStart();
-  const { data: monthlyRows } = await supabase
+  // Get this week's token usage (Monday-Sunday)
+  const { data: weekRows } = await supabase
     .from('user_usage')
     .select('tokens_used')
     .eq('user_id', userId)
-    .gte('date', monthStart)
+    .gte('date', weekStart)
     .lte('date', today);
-  const monthlyTokens = (monthlyRows || []).reduce((sum, row) => sum + (row.tokens_used || 0), 0);
+
+  const weekTokens = (weekRows || []).reduce((sum, row) => sum + (row.tokens_used || 0), 0);
+  const weekCredits = tokensToCredits(weekTokens);
+
+  // Calculate remaining and percentages
+  const dailyCap = plan.dailyCap;
+  const weeklyLimit = plan.weeklyLimit;
+
+  const dailyRemaining = dailyCap > 0 ? Math.max(0, dailyCap - todayCredits) : 0;
+  const weeklyRemaining = weeklyLimit > 0 ? Math.max(0, weeklyLimit - weekCredits) : 0;
+
+  const dailyUsedPercent = dailyCap > 0 ? Math.min(100, (todayCredits / dailyCap) * 100) : 0;
+  const weeklyUsedPercent = weeklyLimit > 0 ? Math.min(100, (weekCredits / weeklyLimit) * 100) : 0;
+
+  // Check if allowed
+  const dailyHit = dailyCap > 0 && todayCredits >= dailyCap;
+  const weeklyHit = weeklyLimit > 0 && weekCredits >= weeklyLimit;
+  const allowed = !dailyHit && !weeklyHit;
+
+  let reason: string | undefined;
+  if (dailyHit) {
+    reason = 'Daily usage limit reached. Come back tomorrow or upgrade your plan.';
+  } else if (weeklyHit) {
+    reason = 'Weekly usage limit reached. Resets Monday or upgrade your plan.';
+  }
 
   return {
     plan: planSlug,
+    isTrial: false,
     daily: {
-      used: Math.round(dailyUsed * 10) / 10,
-      limit: plan.dailyCredits,
-      remaining: Math.round(Math.max(0, dailyRemaining) * 10) / 10,
+      usedPercent: Math.round(dailyUsedPercent * 10) / 10,
+      remaining: Math.round(dailyRemaining * 10) / 10,
+      limit: dailyCap,
       resetsAt: getNextMidnightUTC(),
     },
-    monthly: {
-      poolBalance: Math.round(Math.max(0, poolBalance) * 10) / 10,
-      poolLimit: plan.monthlyPool,
-      resetsAt: profile?.current_period_end?.split('T')[0] || getNextMonthStart(),
+    weekly: {
+      usedPercent: Math.round(weeklyUsedPercent * 10) / 10,
+      remaining: Math.round(weeklyRemaining * 10) / 10,
+      limit: weeklyLimit,
+      resetsAt: getNextWeekStartUTC(),
     },
-    welcomeGrant: {
-      total: plan.welcomeGrant,
-      used: welcomeGrantUsed,
-      remaining: welcomeRemaining,
+    trial: {
+      total: 0,
+      remaining: 0,
+      usedPercent: 0,
+      exhausted: true,
     },
-    totalAvailableToday: Math.round(Math.max(0, totalAvailableToday) * 10) / 10,
-    totalUsedThisMonth: Math.round(tokensToCredits(monthlyTokens) * 10) / 10,
+    allowed,
+    upgradeNeeded: !allowed,
+    reason,
   };
 }
 
 export async function checkCreditLimit(userId: string): Promise<{ allowed: boolean; reason?: string; status: CreditStatus }> {
   const status = await getCreditStatus(userId);
-
-  if (status.totalAvailableToday <= 0) {
-    const reason = status.daily.remaining <= 0 && status.monthly.poolBalance <= 0
-      ? 'You\'ve used all your credits for today. Come back tomorrow or upgrade your plan.'
-      : 'Monthly credit limit reached. Upgrade your plan for more credits.';
-    return { allowed: false, reason, status };
-  }
-
-  return { allowed: true, status };
+  return {
+    allowed: status.allowed,
+    reason: status.reason,
+    status,
+  };
 }

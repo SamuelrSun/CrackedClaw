@@ -1,6 +1,9 @@
 /**
  * Stripe SDK client — SERVER-ONLY. Never import this from "use client" components.
  * For plan definitions, import from '@/lib/plans' instead.
+ *
+ * Note: Stripe handles pro-rating automatically with `proration_behavior: 'create_prorations'`
+ * when upgrading/downgrading subscriptions mid-cycle.
  */
 import Stripe from 'stripe';
 
@@ -17,6 +20,7 @@ export const PRICE_IDS: Record<string, string> = {
   starter: process.env.STRIPE_STARTER_PRICE_ID || '',
   pro: process.env.STRIPE_PRO_PRICE_ID || '',
   power: process.env.STRIPE_POWER_PRICE_ID || '',
+  ultra: process.env.STRIPE_ULTRA_PRICE_ID || '',
 };
 
 export function getPriceId(planSlug: string): string | undefined {

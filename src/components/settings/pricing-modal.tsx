@@ -27,7 +27,7 @@ export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, on
     }
   }
 
-  const planOrder: PlanSlug[] = ["free", "starter", "pro", "power"];
+  const planOrder: PlanSlug[] = ["free", "starter", "pro", "power", "ultra"];
 
   return (
     <div
@@ -39,54 +39,74 @@ export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, on
 
       {/* Modal */}
       <div
-        className="relative z-10 w-full max-w-[900px] rounded-[3px] border border-white/10 bg-black/[0.07] backdrop-blur-[20px] shadow-2xl overflow-hidden"
+        className="relative z-10 w-full max-w-[1000px] rounded-[3px] border border-white/10 bg-black/[0.07] backdrop-blur-[20px] shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with credit status */}
         <div className="px-6 py-5 border-b border-white/[0.08]">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[15px] font-semibold text-white">Plans & Credits</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[15px] font-semibold text-white">Plans & Usage</h2>
             <button onClick={onClose} className="text-white/40 hover:text-white/80 transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {creditStatus && (
+          {/* Usage bars — only for paid/trial users */}
+          {creditStatus && !creditStatus.isTrial && (
+            <div className="space-y-3">
+              {/* Daily usage bar */}
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-[10px] text-white/40 w-14">DAILY</span>
+                <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
+                  <div
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min(creditStatus.daily.usedPercent, 100)}%`,
+                      background: creditStatus.daily.usedPercent >= 90 ? "#f87171" : creditStatus.daily.usedPercent >= 70 ? "#fbbf24" : "#34d399",
+                    }}
+                  />
+                </div>
+              </div>
+              {/* Weekly usage bar */}
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-[10px] text-white/40 w-14">WEEKLY</span>
+                <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
+                  <div
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min(creditStatus.weekly.usedPercent, 100)}%`,
+                      background: creditStatus.weekly.usedPercent >= 90 ? "#f87171" : creditStatus.weekly.usedPercent >= 70 ? "#fbbf24" : "#34d399",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Trial bar — only for free/trial users */}
+          {creditStatus?.isTrial && (
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <Zap className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="font-mono text-[12px] text-white/70">
-                  <span className="text-white font-semibold">{Number(creditStatus.daily.remaining).toFixed(1)}</span> credits remaining today
-                  {creditStatus.monthly.poolLimit > 0 && (
-                    <span className="text-white/40">
-                      {" "}&middot; <span className="text-white/60">{Number(creditStatus.monthly.poolBalance).toFixed(1)}</span> monthly pool
-                    </span>
-                  )}
-                </span>
+                <span className="font-mono text-[10px] text-white/40 w-14">TRIAL</span>
+                <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
+                  <div
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min(creditStatus.trial.usedPercent, 100)}%`,
+                      background: creditStatus.trial.usedPercent >= 90 ? "#f87171" : creditStatus.trial.usedPercent >= 70 ? "#fbbf24" : "#34d399",
+                    }}
+                  />
+                </div>
               </div>
-              {/* Daily progress bar */}
-              <div className="w-full h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
-                {(() => {
-                  const pct = creditStatus.daily.limit > 0
-                    ? Math.round((creditStatus.daily.used / creditStatus.daily.limit) * 100)
-                    : 0;
-                  return (
-                    <div
-                      className="h-full transition-all duration-500"
-                      style={{
-                        width: `${Math.min(pct, 100)}%`,
-                        background: pct >= 90 ? "#f87171" : pct >= 70 ? "#fbbf24" : "#34d399",
-                      }}
-                    />
-                  );
-                })()}
-              </div>
+              {creditStatus.trial.exhausted && (
+                <p className="font-mono text-[11px] text-white/50">Trial complete — upgrade to continue</p>
+              )}
             </div>
           )}
         </div>
 
         {/* Plans grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-[1px] bg-white/[0.06] p-[1px]">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-[1px] bg-white/[0.06] p-[1px]">
           {planOrder.map((slug) => {
             const plan = PLANS[slug];
             const isCurrent = slug === currentPlan;
@@ -96,7 +116,7 @@ export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, on
             return (
               <div
                 key={slug}
-                className={`relative flex flex-col bg-black/[0.35] backdrop-blur-sm p-5 ${isPopular ? "bg-white/[0.06]" : ""}`}
+                className={`relative flex flex-col bg-black/[0.35] backdrop-blur-sm p-4 ${isPopular ? "bg-white/[0.06]" : ""}`}
               >
                 {/* Popular badge */}
                 {isPopular && (
@@ -108,35 +128,63 @@ export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, on
                 )}
 
                 {/* Plan name & price */}
-                <div className="mb-4">
-                  <p className="text-[11px] uppercase tracking-widest text-white/40 font-medium font-mono mb-2">{plan.name}</p>
+                <div className="mb-3">
+                  <p className="text-[10px] uppercase tracking-widest text-white/40 font-medium font-mono mb-2">{plan.name}</p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-2xl font-bold text-white">
                       {plan.price === 0 ? "Free" : `$${plan.price}`}
                     </span>
-                    {plan.price > 0 && <span className="text-[11px] text-white/40">/mo</span>}
+                    {plan.price > 0 && <span className="text-[10px] text-white/40">/mo</span>}
                   </div>
                 </div>
 
-                {/* Credit details */}
-                <div className="space-y-1.5 mb-5 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <Zap className="w-3 h-3 text-emerald-400/60" />
+                {/* Plan description — no raw credit numbers */}
+                <div className="space-y-1 mb-4 flex-1">
+                  {slug === "free" && (
                     <span className="font-mono text-[11px] text-white/60">
-                      {plan.dailyCredits} daily credits
+                      10 free messages to try Dopl
                     </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 flex items-center justify-center text-[10px] text-white/30">+</span>
-                    <span className="font-mono text-[11px] text-white/50">
-                      {plan.monthlyPool > 0 ? `${plan.monthlyPool} monthly pool` : "No monthly pool"}
-                    </span>
-                  </div>
-                  <div className="pt-1 border-t border-white/[0.06]">
-                    <span className="font-mono text-[10px] text-white/35 uppercase tracking-wider">
-                      Up to {plan.maxMonthly}/mo
-                    </span>
-                  </div>
+                  )}
+                  {slug === "starter" && (
+                    <>
+                      <span className="font-mono text-[11px] text-white/60 block">
+                        Daily & weekly usage limits
+                      </span>
+                      <span className="font-mono text-[10px] text-white/50">
+                        Perfect for personal use
+                      </span>
+                    </>
+                  )}
+                  {slug === "pro" && (
+                    <>
+                      <span className="font-mono text-[11px] text-white/60 block font-semibold">
+                        {plan.multiplierLabel} the usage of Starter
+                      </span>
+                      <span className="font-mono text-[10px] text-white/50">
+                        Great for power users
+                      </span>
+                    </>
+                  )}
+                  {slug === "power" && (
+                    <>
+                      <span className="font-mono text-[11px] text-white/60 block font-semibold">
+                        {plan.multiplierLabel} the usage of Starter
+                      </span>
+                      <span className="font-mono text-[10px] text-white/50">
+                        For heavy workflows
+                      </span>
+                    </>
+                  )}
+                  {slug === "ultra" && (
+                    <>
+                      <span className="font-mono text-[11px] text-white/60 block font-semibold">
+                        {plan.multiplierLabel} the usage of Starter
+                      </span>
+                      <span className="font-mono text-[10px] text-white/50">
+                        For teams & heavy automation
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 {/* CTA */}
@@ -178,7 +226,7 @@ export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, on
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-white/[0.06]">
           <p className="text-[11px] text-white/30 font-mono">
-            Top-ups: $1 per 10 credits. Billed monthly.
+            All plans renew monthly. Cancel anytime.
           </p>
           {currentPlan !== "free" && (
             <button
@@ -186,7 +234,7 @@ export function PricingModal({ onClose, currentPlan, creditStatus, onUpgrade, on
               disabled={!!loading}
               className="font-mono text-[11px] text-white/40 hover:text-white/70 transition-colors underline underline-offset-2 disabled:opacity-50"
             >
-              {loading === "billing" ? "Opening..." : "Manage billing & invoices"}
+              {loading === "billing" ? "Opening..." : "Manage billing"}
             </button>
           )}
         </div>

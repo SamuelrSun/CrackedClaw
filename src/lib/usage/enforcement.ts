@@ -4,8 +4,8 @@ export interface TokenLimitResult {
   allowed: boolean;
   reason?: string;
   usage: {
-    monthly: number;
-    monthlyLimit: number;
+    dailyUsedPercent: number;
+    weeklyUsedPercent: number;
   };
 }
 
@@ -17,15 +17,15 @@ export async function checkTokenLimit(userId: string): Promise<TokenLimitResult>
       allowed,
       reason,
       usage: {
-        monthly: status.totalUsedThisMonth,
-        monthlyLimit: status.daily.limit * 30 + status.monthly.poolLimit,
+        dailyUsedPercent: status.isTrial ? status.trial.usedPercent : status.daily.usedPercent,
+        weeklyUsedPercent: status.isTrial ? 0 : status.weekly.usedPercent,
       },
     };
   } catch (err) {
     console.error('Token limit check failed:', err);
     return {
       allowed: true,
-      usage: { monthly: 0, monthlyLimit: 999 },
+      usage: { dailyUsedPercent: 0, weeklyUsedPercent: 0 },
     };
   }
 }
