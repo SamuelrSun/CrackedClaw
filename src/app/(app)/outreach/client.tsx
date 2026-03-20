@@ -21,7 +21,6 @@ import {
   X,
   Target,
   Trash2,
-  Send,
   Loader2,
   Sparkles,
   Upload,
@@ -1060,47 +1059,62 @@ function OutreachChat({
       </div>
 
       {/* Input */}
-      <div className="shrink-0 p-4 flex justify-center border-t border-white/[0.04]">
-        <div className="w-full max-w-2xl">
-          <div className="bg-white/[0.06] border border-white/[0.08] rounded-[10px] overflow-hidden">
-            <div className="px-4 pt-3.5 pb-2.5">
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                value={input}
-                onChange={handleTextareaChange}
-                onKeyDown={handleKeyDown}
-                placeholder="Describe what you're looking for…"
-                disabled={isStreaming}
-                className="w-full bg-transparent text-sm text-white/80 placeholder:text-white/25 outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ maxHeight: "160px" }}
-              />
-            </div>
-            <div className="flex items-center justify-end px-3 py-2 border-t border-white/[0.05]">
+      <div className="flex-shrink-0 p-2 md:p-4 flex justify-center">
+        <div className="w-[95%] md:w-3/4 min-w-0 md:min-w-[300px]">
+          <div className="relative bg-white/[0.08] border border-white/[0.1] rounded-[10px] overflow-hidden">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => {
+                handleTextareaChange(e);
+                e.target.style.height = 'auto';
+                e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Describe what you're looking for…"
+              disabled={isStreaming}
+              rows={1}
+              className="w-full bg-transparent px-4 pt-4 pb-2 text-base leading-[24px] text-white/90 outline-none resize-none placeholder:text-white/30 disabled:opacity-50 min-h-[48px] max-h-[200px]"
+            />
+            <div className="flex items-center justify-between px-3 py-2">
               <div className="flex items-center gap-1.5">
-                <VoiceInputButton
-                  onTranscript={(text) => {
-                    setInput(text);
-                  }}
-                  onInterimUpdate={(text) => {
-                    setInput(text);
-                  }}
-                  disabled={isStreaming}
-                  variant="outreach"
-                  className="w-7 h-7"
-                />
+                {/* Paperclip attach button */}
                 <button
-                  onClick={sendMessage}
-                  disabled={!input.trim() || isStreaming}
-                  className="w-7 h-7 flex items-center justify-center border border-white/[0.08] text-white/40 hover:text-white/80 hover:bg-white/[0.06] hover:border-white/[0.15] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  type="button"
+                  disabled={isStreaming}
+                  className="group/btn relative w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent"
                 >
-                  {isStreaming ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Send className="w-3.5 h-3.5" />
-                  )}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                  <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">Attach</span>
                 </button>
               </div>
+
+              {/* Voice input button */}
+              <VoiceInputButton
+                onTranscript={(text) => {
+                  setInput(text);
+                }}
+                onInterimUpdate={(text) => {
+                  setInput(text);
+                }}
+                disabled={isStreaming}
+                variant="outreach"
+              />
+
+              {/* Send button */}
+              <button
+                type="button"
+                onClick={sendMessage}
+                disabled={!input.trim() || isStreaming}
+                className="group/btn relative w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent"
+              >
+                {isStreaming ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+                )}
+                <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">Send</span>
+              </button>
             </div>
           </div>
         </div>
