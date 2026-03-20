@@ -9,7 +9,10 @@ export type MemoryDomain =
   | 'job_search'
   | 'sales'
   | 'fenna'
-  | 'general';
+  | 'general'
+  | 'user:profile'
+  | 'user:workflows'
+  | 'user:communication';
 
 export function classifyDomain(message: string): MemoryDomain {
   const lower = message.toLowerCase();
@@ -20,4 +23,26 @@ export function classifyDomain(message: string): MemoryDomain {
   if (/lead|outreach|cold email|prospect|sales|crm|pipeline/.test(lower)) return 'sales';
   if (/fenna|ar glasses|xr|wearable|rokid|startup|founders/.test(lower)) return 'fenna';
   return 'general';
+}
+
+/**
+ * Classify outreach-specific content into cross-campaign user model domains.
+ * Pass `context` to force a specific domain; omit to auto-detect.
+ */
+export function classifyOutreachDomain(
+  content: string,
+  context?: 'profile' | 'workflow' | 'communication'
+): string {
+  if (context) return `user:${context}`;
+  const lower = content.toLowerCase();
+  if (/how i write|tone|style|draft|message|subject line|follow.?up|email template/.test(lower)) {
+    return 'user:communication';
+  }
+  if (/how i find|discovery|search|google maps|linkedin search|where to look|workflow/.test(lower)) {
+    return 'user:workflows';
+  }
+  if (/i prefer|i value|i look for|i avoid|good lead|bad lead|criteria|pattern|signal/.test(lower)) {
+    return 'user:profile';
+  }
+  return 'user:profile'; // default for outreach-extracted facts
 }

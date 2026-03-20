@@ -2886,6 +2886,143 @@ function NewCampaignModal({ onClose, onCreated }: NewCampaignModalProps) {
   );
 }
 
+// ─── User Model UI ────────────────────────────────────────────────────────────
+
+interface UserMemory {
+  id: string;
+  memory: string;
+  domain?: string;
+  importance?: number;
+}
+
+interface UserModel {
+  profile: UserMemory[];
+  workflows: UserMemory[];
+  communication: UserMemory[];
+}
+
+function UserModelPanel({ campaignSelected }: { campaignSelected: boolean }) {
+  const [userModel, setUserModel] = useState<UserModel | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!campaignSelected) return;
+    setLoading(true);
+    fetch('/api/outreach/user-model')
+      .then((r) => r.json())
+      .then((d: UserModel) => setUserModel(d))
+      .catch(() => setUserModel(null))
+      .finally(() => setLoading(false));
+  }, [campaignSelected]);
+
+  const total =
+    (userModel?.profile.length ?? 0) +
+    (userModel?.workflows.length ?? 0) +
+    (userModel?.communication.length ?? 0);
+
+  const isEmpty = !loading && (!userModel || total === 0);
+
+  // Top items across all domains for expanded view (up to 3 per domain)
+  const topProfile = userModel?.profile.slice(0, 3) ?? [];
+  const topWorkflows = userModel?.workflows.slice(0, 3) ?? [];
+  const topCommunication = userModel?.communication.slice(0, 3) ?? [];
+
+  return (
+    <div className="mx-4 mb-4 bg-black/20 backdrop-blur border border-white/10 rounded-lg overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-3.5 h-3.5 text-purple-400/70" />
+          <span className="font-mono text-[10px] uppercase tracking-widest text-white/50">
+            User Model
+          </span>
+          <span className="font-mono text-[9px] text-white/25">(Cross-Campaign)</span>
+        </div>
+        {!isEmpty && !loading && (
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-[9px] text-white/30">
+              Profile: {userModel?.profile.length ?? 0} · Workflows: {userModel?.workflows.length ?? 0} · Style: {userModel?.communication.length ?? 0}
+            </span>
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="font-mono text-[9px] text-white/40 hover:text-white/60 transition-colors flex items-center gap-1"
+            >
+              {expanded ? 'Collapse ▲' : 'View details ▼'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="px-4 py-3">
+        {loading && (
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-3 h-3 animate-spin text-white/20" />
+            <span className="font-mono text-[10px] text-white/20">Loading user model…</span>
+          </div>
+        )}
+
+        {isEmpty && (
+          <p className="text-xs text-white/30 leading-relaxed">
+            Your preferences will be remembered across campaigns as you use the agent.
+          </p>
+        )}
+
+        {!loading && !isEmpty && !expanded && (
+          <p className="font-mono text-[10px] text-white/40">
+            {total} pattern{total !== 1 ? 's' : ''} stored. Click &quot;View details&quot; to expand.
+          </p>
+        )}
+
+        {!loading && !isEmpty && expanded && (
+          <div className="space-y-3">
+            {topProfile.length > 0 && (
+              <div>
+                <p className="font-mono text-[9px] uppercase tracking-widest text-white/25 mb-1.5">Evaluation patterns</p>
+                <ul className="space-y-1">
+                  {topProfile.map((m) => (
+                    <li key={m.id} className="text-xs text-white/50 flex items-start gap-1.5">
+                      <span className="text-white/20 mt-0.5">•</span>
+                      {m.memory}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {topWorkflows.length > 0 && (
+              <div>
+                <p className="font-mono text-[9px] uppercase tracking-widest text-white/25 mb-1.5">Discovery methods</p>
+                <ul className="space-y-1">
+                  {topWorkflows.map((m) => (
+                    <li key={m.id} className="text-xs text-white/50 flex items-start gap-1.5">
+                      <span className="text-white/20 mt-0.5">•</span>
+                      {m.memory}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {topCommunication.length > 0 && (
+              <div>
+                <p className="font-mono text-[9px] uppercase tracking-widest text-white/25 mb-1.5">Communication style</p>
+                <ul className="space-y-1">
+                  {topCommunication.map((m) => (
+                    <li key={m.id} className="text-xs text-white/50 flex items-start gap-1.5">
+                      <span className="text-white/20 mt-0.5">•</span>
+                      {m.memory}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Workflow Tab UI ──────────────────────────────────────────────────────────
 
 type WorkflowBadgeColors = Record<string, string>;
@@ -2909,9 +3046,10 @@ interface WorkflowTabContentProps {
   workflows: Workflow[];
   loading: boolean;
   onStartBrainDump: () => void;
+  campaignSelected: boolean;
 }
 
-function WorkflowTabContent({ workflows, loading, onStartBrainDump }: WorkflowTabContentProps) {
+function WorkflowTabContent({ workflows, loading, onStartBrainDump, campaignSelected }: WorkflowTabContentProps) {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
@@ -2925,21 +3063,24 @@ function WorkflowTabContent({ workflows, loading, onStartBrainDump }: WorkflowTa
 
   if (workflows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
-        <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] rounded-lg flex items-center justify-center mx-auto mb-4">
-          <Target className="w-5 h-5 text-white/20" />
+      <div className="flex flex-col">
+        <div className="flex flex-col items-center justify-center px-8 py-12 text-center">
+          <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] rounded-lg flex items-center justify-center mx-auto mb-4">
+            <Target className="w-5 h-5 text-white/20" />
+          </div>
+          <p className="text-sm text-white/50 mb-1">No workflows extracted yet.</p>
+          <p className="font-mono text-[10px] uppercase tracking-wide text-white/20 mb-6 max-w-xs">
+            Tell the agent how you find leads — it will extract your workflow automatically.
+          </p>
+          <button
+            onClick={onStartBrainDump}
+            className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wide px-4 py-2 bg-white/[0.06] border border-white/[0.12] text-white/60 hover:bg-white/[0.10] hover:text-white/80 rounded transition-colors"
+          >
+            Start Brain Dump
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
-        <p className="text-sm text-white/50 mb-1">No workflows extracted yet.</p>
-        <p className="font-mono text-[10px] uppercase tracking-wide text-white/20 mb-6 max-w-xs">
-          Tell the agent how you find leads — it will extract your workflow automatically.
-        </p>
-        <button
-          onClick={onStartBrainDump}
-          className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wide px-4 py-2 bg-white/[0.06] border border-white/[0.12] text-white/60 hover:bg-white/[0.10] hover:text-white/80 rounded transition-colors"
-        >
-          Start Brain Dump
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+        <UserModelPanel campaignSelected={campaignSelected} />
       </div>
     );
   }
@@ -3002,6 +3143,7 @@ function WorkflowTabContent({ workflows, loading, onStartBrainDump }: WorkflowTa
           </div>
         );
       })}
+      <UserModelPanel campaignSelected={campaignSelected} />
     </div>
   );
 }
@@ -3570,6 +3712,7 @@ export default function OutreachClient({
                   <WorkflowTabContent
                     workflows={workflows}
                     loading={workflowsLoading}
+                    campaignSelected={!!selectedCampaign}
                     onStartBrainDump={() => {
                       window.dispatchEvent(
                         new CustomEvent('outreach:fill-chat', {

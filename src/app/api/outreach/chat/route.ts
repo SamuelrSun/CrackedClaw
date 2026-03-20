@@ -8,7 +8,7 @@ import { requireApiAuth } from "@/lib/api-auth";
 import { createClient } from "@/lib/supabase/server";
 import { buildDynamicContext, buildSystemPromptForUser } from "@/lib/gateway/system-prompt";
 import { getUserInstance } from "@/lib/gateway/openclaw-proxy";
-import { mem0Search } from "@/lib/memory/mem0-client";
+import { mem0Search, mem0GetAll, type Mem0Memory } from "@/lib/memory/mem0-client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 800;
@@ -19,12 +19,47 @@ function encode(chunk: StreamEvent): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(chunk)}\n\n`);
 }
 
+function buildUserModelSection(
+  profile: Mem0Memory[],
+  workflows: Mem0Memory[],
+  communication: Mem0Memory[]
+): string {
+  const lines: string[] = [];
+  lines.push('\n### User Model (Cross-Campaign)');
+
+  if (profile.length === 0 && workflows.length === 0 && communication.length === 0) {
+    lines.push(
+      'No user model built yet. As Sam shares preferences and workflows across campaigns, you\'ll build a persistent model here. Write to user:profile, user:workflows, user:communication via POST /api/outreach/user-model.'
+    );
+  } else {
+    if (profile.length > 0) {
+      lines.push('\nEvaluation Patterns (how Sam judges leads):');
+      profile.forEach((m) => lines.push(`- ${m.memory}`));
+    }
+    if (workflows.length > 0) {
+      lines.push('\nDiscovery & Enrichment Methods (how Sam finds leads):');
+      workflows.forEach((m) => lines.push(`- ${m.memory}`));
+    }
+    if (communication.length > 0) {
+      lines.push('\nCommunication Style (how Sam writes):');
+      communication.forEach((m) => lines.push(`- ${m.memory}`));
+    }
+  }
+
+  lines.push(
+    '\nTo write to the user model: POST /api/outreach/user-model\n  Body: { content, domain: "user:profile"|"user:workflows"|"user:communication", importance: 0-1, source: "outreach:{slug}" }'
+  );
+
+  return lines.join('\n');
+}
+
 function buildOutreachSystemPrompt(
   campaignName: string,
   status: string,
   criteria: string,
   scoringContext?: { scored: number; high: number; medium: number; low: number; pending: number; topCriteria: string },
-  datasetContext?: string
+  datasetContext?: string,
+  userModel?: { profile: Mem0Memory[]; workflows: Mem0Memory[]; communication: Mem0Memory[] }
 ): string {
   const phaseMap: Record<string, { description: string; instructions: string }> = {
     setup: {
@@ -54,7 +89,12 @@ function buildOutreachSystemPrompt(
 
   const phase = phaseMap[status] ?? phaseMap.setup;
 
+  const userModelSection = userModel
+    ? buildUserModelSection(userModel.profile, userModel.workflows, userModel.communication)
+    : '';
+
   return `
+${userModelSection}
 
 ## OUTREACH MODE — Campaign: ${campaignName}
 Status: ${status}
@@ -328,13 +368,35 @@ To enrich: visit the URL column for each row, extract profile data, then POST /a
       // no dataset — leave datasetContext and enrichmentContext undefined
     }
 
+    // Load user model (cross-campaign memories)
+    let userModel: { profile: Mem0Memory[]; workflows: Mem0Memory[]; communication: Mem0Memory[] } = {
+      profile: [],
+      workflows: [],
+      communication: [],
+    };
+    try {
+      const [profile, workflows, communication] = await Promise.all([
+        mem0GetAll(user!.id, 'user:profile').catch(() => [] as Mem0Memory[]),
+        mem0GetAll(user!.id, 'user:workflows').catch(() => [] as Mem0Memory[]),
+        mem0GetAll(user!.id, 'user:communication').catch(() => [] as Mem0Memory[]),
+      ]);
+      userModel = {
+        profile: profile.slice(0, 10),
+        workflows: workflows.slice(0, 10),
+        communication: communication.slice(0, 10),
+      };
+    } catch {
+      // user model is non-critical — leave empty
+    }
+
     // Inject outreach context
     const outreachContext = buildOutreachSystemPrompt(
       campaign.name,
       campaign.status,
       criteriaText,
       scoringContext,
-      datasetContext
+      datasetContext,
+      userModel
     );
     systemPrompt += outreachContext;
 
