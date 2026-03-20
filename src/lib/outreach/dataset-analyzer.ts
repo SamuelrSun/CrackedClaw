@@ -128,19 +128,24 @@ Return ONLY valid JSON in this exact schema:
 
 export async function analyzeDataset(
   dataset: ParsedDataset,
-  existingCriteria: CriteriaModel | null
+  existingCriteria: CriteriaModel | null,
+  userDescription?: string
 ): Promise<AnalysisReport> {
   // Step 1: Compute statistical summary
   const summary: DatasetSummary = summarizeDataset(dataset);
 
   // Step 2: Build the prompt
+  const descriptionSection = userDescription
+    ? `\n\nUSER'S DESCRIPTION OF WHO THEY'RE LOOKING FOR:\n${userDescription}\n\nUse this context to understand WHY these leads were selected and what patterns matter most.`
+    : '';
+
   const criteriaSection = existingCriteria && existingCriteria.criteria.length > 0
     ? `\n\nEXISTING CRITERIA (from user conversation):\n${JSON.stringify(existingCriteria.criteria, null, 2)}\n\nEXISTING ANTI-PATTERNS:\n${JSON.stringify(existingCriteria.anti_patterns, null, 2)}`
     : '\n\nNo existing criteria — discover everything from scratch.';
 
   const summaryText = formatSummaryForPrompt(summary);
 
-  const userMessage = `DATASET STATISTICAL SUMMARY:\n${summaryText}${criteriaSection}\n\nPlease run all 5 analysis passes and return the JSON report.`;
+  const userMessage = `DATASET STATISTICAL SUMMARY:\n${summaryText}${descriptionSection}${criteriaSection}\n\nPlease run all 5 analysis passes and return the JSON report.`;
 
   // Step 3: Call Claude
   const Anthropic = (await import('@anthropic-ai/sdk')).default;

@@ -1337,17 +1337,63 @@ function OutreachChat({
                     } catch { /* ignore — proceed without dataset context */ }
                   }
 
-                  // Step 2: Build a combined message with description + dataset context
-                  let combinedMessage = description;
+                  // Step 2: Run structured analysis pipelines FIRST.
+                  // BOTH the description AND dataset feed into these together.
+                  // Results populate UI cards AND get injected into the agent's
+                  // system prompt, so when the agent responds it has full analyzed context.
+
+                  // 2a: Extract criteria from description + dataset (together)
+                  try {
+                    const critRes = await fetch(`/api/outreach/campaigns/${campaign.id}/criteria`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ description }),
+                    });
+                    if (critRes.ok) {
+                      setHasCriteria(true);
+                      onCriteriaRefresh();
+                    }
+                  } catch { /* ignore */ }
+
+                  // 2b: If dataset connected, run the structured 5-pass scan
+                  // with the user's description for context
                   if (datasetInfo) {
-                    combinedMessage += `\n\nI've connected a data source with ${datasetInfo.row_count} rows (${datasetInfo.columns.join(', ')}). Analyze the dataset, enrich any URL columns by visiting them, extract criteria from both my description and the data patterns, and identify my workflows.`;
+                    setScanning(true);
+                    setScanReport(null);
+                    try {
+                      const scanRes = await fetch(`/api/outreach/campaigns/${campaign.id}/scan`, {
+                        method: 'POST',
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ description }),
+                      });
+                      const scanData = await scanRes.json();
+                      if (scanRes.ok && scanData.report) {
+                        setScanReport(scanData.report);
+                        setCriteriaRefreshKey((k) => k + 1);
+                        // Refresh campaign status
+                        const campRes = await fetch(`/api/outreach/campaigns/${campaign.id}`);
+                        if (campRes.ok) {
+                          const campData = await campRes.json();
+                          if (campData.campaign) {
+                            const updated = campaigns.map((c: Campaign) =>
+                              c.id === campaign.id ? campData.campaign : c
+                            );
+                            updateCampaigns(updated);
+                          }
+                        }
+                      }
+                    } catch { /* ignore */ } finally {
+                      setScanning(false);
+                    }
                   }
 
-                  // Step 3: Send the combined message to chat as a single unified request
+                  // Step 3: NOW send the user's description to the agent.
+                  // At this point the system prompt includes: extracted criteria,
+                  // scan results, dataset context, scored leads — the full picture.
                   const userMsg: ChatMessage = {
                     id: crypto.randomUUID(),
                     role: "user",
-                    content: combinedMessage,
+                    content: description,
                     createdAt: new Date(),
                   };
                   setMessages([userMsg]);
@@ -1369,7 +1415,7 @@ function OutreachChat({
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
-                        message: combinedMessage,
+                        message: description,
                         campaign_id: campaign.id,
                         conversation_id: conversationId,
                       }),

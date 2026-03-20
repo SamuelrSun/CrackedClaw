@@ -30,20 +30,39 @@ Return ONLY valid JSON matching this schema:
 
 export async function extractCriteriaFromConversation(
   messages: Array<{ role: string; content: string }>,
-  campaignSlug: string = 'unknown'
+  campaignSlug: string = 'unknown',
+  options?: { description?: string; datasetSummary?: string }
 ): Promise<CriteriaModel> {
   const Anthropic = (await import('@anthropic-ai/sdk')).default;
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
-  const convoText = messages
-    .map((m) => `${m.role}: ${m.content}`)
-    .join('\n\n');
+  // Build input from all available context: description, dataset, and conversation
+  const parts: string[] = [];
+
+  if (options?.description) {
+    parts.push(`USER'S DESCRIPTION OF WHO THEY'RE LOOKING FOR:\n${options.description}`);
+  }
+
+  if (options?.datasetSummary) {
+    parts.push(`CONNECTED DATASET (existing leads the user already selected — reverse-engineer patterns):\n${options.datasetSummary}`);
+  }
+
+  if (messages.length > 0) {
+    const convoText = messages
+      .map((m) => `${m.role}: ${m.content}`)
+      .join('\n\n');
+    parts.push(`CONVERSATION:\n${convoText}`);
+  }
+
+  const userContent = parts.length > 0
+    ? parts.join('\n\n---\n\n')
+    : 'No context available.';
 
   const response = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 2048,
     system: EXTRACTION_SYSTEM,
-    messages: [{ role: 'user', content: `Here is the conversation:\n\n${convoText}` }],
+    messages: [{ role: 'user', content: userContent }],
   });
 
   const text = response.content[0].type === 'text' ? response.content[0].text : '';

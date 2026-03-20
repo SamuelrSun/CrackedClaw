@@ -53,7 +53,7 @@ export async function GET(
 // ─── POST — trigger scan ──────────────────────────────────────────────────────
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -110,11 +110,18 @@ export async function POST(
       })
       .eq('id', params.id);
 
+    // Load user's description from request body if provided
+    let userDescription: string | undefined;
+    try {
+      const body = await request.json();
+      userDescription = body.description;
+    } catch { /* no body */ }
+
     // Load existing criteria
     const existingCriteria = await loadCriteria(user.id, campaign.slug);
 
-    // Run analysis
-    const report = await analyzeDataset(dataset, existingCriteria);
+    // Run analysis with user's description for context
+    const report = await analyzeDataset(dataset, existingCriteria, userDescription);
 
     // Save refined criteria
     if (report.refined_criteria.length > 0) {

@@ -46,7 +46,7 @@ export async function GET(
 }
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -70,35 +70,60 @@ export async function POST(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    // Find conversation_id from campaign config
+    // Accept description and dataset context directly from the request body
+    let description: string | undefined;
+    try {
+      const body = await request.json();
+      description = body.description;
+    } catch { /* no body — that's fine, we'll use conversation */ }
+
+    // Load conversation messages if available
     const config = (campaign.config as Record<string, unknown>) || {};
     const conversationId = config.conversation_id as string | undefined;
+    let messages: Array<{ role: string; content: string }> = [];
 
-    if (!conversationId) {
+    if (conversationId) {
+      const { data: messageRows } = await supabase
+        .from("messages")
+        .select("role, content")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: true });
+      messages = (messageRows ?? []) as Array<{ role: string; content: string }>;
+    }
+
+    // Need at least a description or conversation messages
+    if (!description && messages.length < 2) {
       return NextResponse.json(
-        { error: "No conversation found for this campaign. Start chatting first." },
+        { error: "Provide a description or start a conversation first." },
         { status: 400 }
       );
     }
 
-    // Load messages
-    const { data: messageRows } = await supabase
-      .from("messages")
-      .select("role, content")
-      .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true });
+    // Build dataset summary if dataset is connected
+    let datasetSummary: string | undefined;
+    const { data: datasetRow } = await supabase
+      .from("campaign_datasets")
+      .select("*")
+      .eq("campaign_id", params.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
 
-    const messages = (messageRows ?? []) as Array<{ role: string; content: string }>;
-
-    if (messages.length < 2) {
-      return NextResponse.json(
-        { error: "Not enough conversation to extract criteria. Keep chatting." },
-        { status: 400 }
-      );
+    if (datasetRow) {
+      const rows = (datasetRow.rows || []) as Array<Record<string, string>>;
+      const cols = (datasetRow.columns || []) as string[];
+      const sampleRows = rows.slice(0, 5).map((r, i) =>
+        `Row ${i + 1}: ${JSON.stringify(r)}`
+      ).join('\n');
+      datasetSummary = `Source: ${datasetRow.source_type} (${datasetRow.source_name || datasetRow.source_url || 'unknown'})\nColumns: ${cols.join(', ')}\nTotal rows: ${datasetRow.row_count || rows.length}\nSample rows:\n${sampleRows}`;
     }
 
-    // Extract criteria
-    const model = await extractCriteriaFromConversation(messages, campaign.slug);
+    // Extract criteria from ALL available context
+    const model = await extractCriteriaFromConversation(
+      messages,
+      campaign.slug,
+      { description, datasetSummary }
+    );
 
     // Save to memory
     await saveCriteria(user.id, campaign.slug, model);
