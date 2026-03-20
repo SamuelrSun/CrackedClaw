@@ -23,7 +23,8 @@ function buildOutreachSystemPrompt(
   campaignName: string,
   status: string,
   criteria: string,
-  scoringContext?: { scored: number; high: number; medium: number; low: number; topCriteria: string }
+  scoringContext?: { scored: number; high: number; medium: number; low: number; pending: number; topCriteria: string },
+  datasetContext?: string
 ): string {
   const phaseMap: Record<string, { description: string; instructions: string }> = {
     setup: {
@@ -65,23 +66,22 @@ ${phase.instructions}
 
 ### Current Criteria Model
 ${criteria || "(No criteria extracted yet — continue the info dump conversation)"}
-${scoringContext && scoringContext.scored > 0 ? `
-### Lead Scoring Results
-${scoringContext.scored} leads scored: ${scoringContext.high} High, ${scoringContext.medium} Medium, ${scoringContext.low} Low
-Top criteria: ${scoringContext.topCriteria}
+${scoringContext ? `
+### Lead Pipeline
+${scoringContext.scored > 0
+    ? `Scored: ${scoringContext.scored} leads — ${scoringContext.high} High / ${scoringContext.medium} Medium / ${scoringContext.low} Low`
+    : 'No leads scored yet.'}${scoringContext.pending > 0 ? `\nPending enrichment: ${scoringContext.pending} leads imported but not yet scored` : ''}${scoringContext.scored > 0 ? `\nTop criteria driving scores: ${scoringContext.topCriteria}\n\nThe user can ask you to:\n- Find more leads matching the criteria (use web search + browser tools)\n- Explain why a specific lead was ranked a certain way\n- Adjust criteria based on feedback\n- Re-score leads after criteria changes` : ''}` : ''}
 
-The user can ask you to:
-- Find more leads matching the criteria (use web search + browser tools)
-- Explain why a specific lead was ranked a certain way
-- Adjust criteria based on feedback
-- Re-score leads after criteria changes` : ''}
+### Connected Dataset
+${datasetContext ?? "No dataset connected yet."}
 
 ### Your Role
 - Listen to the user describe who they're looking for
 - Ask clarifying questions to understand nuances
 - When you have enough info, summarize the criteria and suggest extracting them
 - Present your understanding back to the user for confirmation
-- Refine based on their corrections`;
+- Refine based on their corrections
+- When the user refers to "the sheet", "the data", "the list", or similar, reference the Connected Dataset above`;
 }
 
 export async function POST(request: NextRequest) {
@@ -121,23 +121,54 @@ export async function POST(request: NextRequest) {
         limit: 20,
       });
       if (criteriaMemories.length > 0) {
-        criteriaText = criteriaMemories
-          .map((m) => {
-            const meta = (m.metadata as Record<string, unknown>) || {};
-            if (meta.type === "criterion") {
-              try {
-                const c = JSON.parse(m.memory ?? m.content ?? "");
-                return `- [${c.category?.toUpperCase() ?? "UNKNOWN"}] ${c.description} (importance: ${c.importance?.toFixed(2) ?? "?"}, source: ${c.source ?? "?"})`;
-              } catch {
-                return `- ${m.memory ?? m.content}`;
-              }
-            } else if (meta.type === "anti_pattern") {
-              return `- EXCLUDE: ${m.memory ?? m.content}`;
+        const criterionLines: string[] = [];
+        const antiPatternLines: string[] = [];
+        const interactionLines: string[] = [];
+        const otherLines: string[] = [];
+
+        for (const m of criteriaMemories) {
+          const meta = (m.metadata as Record<string, unknown>) || {};
+          const raw = m.memory ?? m.content ?? "";
+
+          if (meta.type === "criterion") {
+            try {
+              const c = JSON.parse(raw);
+              const importance = typeof c.importance === "number" ? c.importance.toFixed(2) : "?";
+              const source = c.source ?? "unknown";
+              const sourceLabel =
+                source === "user_stated" ? "stated"
+                : source === "agent_discovered" ? "discovered"
+                : source === "refined" ? "refined"
+                : source;
+              criterionLines.push(
+                `  - [${c.category?.toUpperCase() ?? "GENERAL"}] ${c.description} (weight: ${importance}, source: ${sourceLabel})`
+              );
+            } catch {
+              criterionLines.push(`  - ${raw}`);
             }
-            return "";
-          })
-          .filter(Boolean)
-          .join("\n");
+          } else if (meta.type === "anti_pattern") {
+            antiPatternLines.push(`  - ${raw}`);
+          } else if (meta.type === "interaction_effect") {
+            interactionLines.push(`  - ${raw}`);
+          } else if (raw) {
+            otherLines.push(`  - ${raw}`);
+          }
+        }
+
+        const sections: string[] = [];
+        if (criterionLines.length > 0) {
+          sections.push(`Criteria (with weights):\n${criterionLines.join("\n")}`);
+        }
+        if (antiPatternLines.length > 0) {
+          sections.push(`Exclusion patterns (auto-disqualify):\n${antiPatternLines.join("\n")}`);
+        }
+        if (interactionLines.length > 0) {
+          sections.push(`Interaction effects (combined signal boosts):\n${interactionLines.join("\n")}`);
+        }
+        if (otherLines.length > 0) {
+          sections.push(`Additional notes:\n${otherLines.join("\n")}`);
+        }
+        criteriaText = sections.join("\n\n");
       }
     } catch {
       // criteria section stays empty
@@ -210,31 +241,91 @@ export async function POST(request: NextRequest) {
       systemPrompt = await buildSystemPromptForUser(user!.id, message);
     }
 
-    // Load scoring context if campaign is active
-    let scoringContext: { scored: number; high: number; medium: number; low: number; topCriteria: string } | undefined;
-    if (campaign.status === 'active') {
-      try {
-        const { data: leadCounts } = await supabase
-          .from('campaign_leads')
-          .select('rank')
-          .eq('campaign_id', campaign_id);
-        if (leadCounts && leadCounts.length > 0) {
-          const high = leadCounts.filter((l) => l.rank === 'high').length;
-          const medium = leadCounts.filter((l) => l.rank === 'medium').length;
-          const low = leadCounts.filter((l) => l.rank === 'low').length;
-          // Build top criteria summary from criteriaText
-          const criteriaLines = criteriaText.split('\n').slice(0, 3);
-          scoringContext = {
-            scored: leadCounts.length,
-            high,
-            medium,
-            low,
-            topCriteria: criteriaLines.join('; ').slice(0, 200),
-          };
-        }
-      } catch {
-        // ignore scoring context errors
+    // Load lead pipeline context (all statuses)
+    let scoringContext: { scored: number; high: number; medium: number; low: number; pending: number; topCriteria: string } | undefined;
+    try {
+      const { data: allLeads } = await supabase
+        .from('campaign_leads')
+        .select('rank')
+        .eq('campaign_id', campaign_id);
+      if (allLeads && allLeads.length > 0) {
+        const high = allLeads.filter((l) => l.rank === 'high').length;
+        const medium = allLeads.filter((l) => l.rank === 'medium').length;
+        const low = allLeads.filter((l) => l.rank === 'low').length;
+        const pending = allLeads.filter((l) => !l.rank).length;
+        // Build top criteria summary from first criterion lines
+        const criteriaFirstSection = criteriaText.split('\n\n')[0] ?? '';
+        const criteriaLines = criteriaFirstSection.split('\n').slice(1, 4); // skip section header
+        scoringContext = {
+          scored: high + medium + low,
+          high,
+          medium,
+          low,
+          pending,
+          topCriteria: criteriaLines.join('; ').slice(0, 200),
+        };
       }
+    } catch {
+      // ignore scoring context errors
+    }
+
+    // Load dataset context + enrichment status
+    let datasetContext: string | undefined;
+    let enrichmentContext: string | undefined;
+    try {
+      const { data: dataset } = await supabase
+        .from("campaign_datasets")
+        .select("source_type, source_url, source_name, columns, rows, row_count, enriched_rows, url_columns")
+        .eq("campaign_id", campaign_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (dataset) {
+        const sourceLabel = dataset.source_type === "google_sheet"
+          ? "Google Sheet"
+          : dataset.source_type ?? "File";
+        const sourceRef = dataset.source_url
+          ? `${sourceLabel} (${dataset.source_url})`
+          : dataset.source_name
+          ? `${sourceLabel}: ${dataset.source_name}`
+          : sourceLabel;
+
+        const columns: string[] = Array.isArray(dataset.columns) ? dataset.columns : [];
+        const rows: Record<string, unknown>[] = Array.isArray(dataset.rows) ? dataset.rows : [];
+        const enrichedRows: unknown[] = Array.isArray(dataset.enriched_rows) ? dataset.enriched_rows : [];
+        const dbUrlColumns: string[] = Array.isArray(dataset.url_columns) ? dataset.url_columns : [];
+        const sampleRows = rows.slice(0, 5);
+
+        // Auto-detect url_columns if not stored
+        const urlPattern = /url|link|linkedin|website|profile|href/i;
+        const urlColumns = dbUrlColumns.length > 0
+          ? dbUrlColumns
+          : columns.filter((c) => urlPattern.test(c));
+
+        const sampleLines = sampleRows
+          .map((row, i) => `- Row ${i + 1}: ${JSON.stringify(row)}`)
+          .join("\n");
+
+        datasetContext = `Source: ${sourceRef}
+Columns: [${columns.join(", ")}]
+Rows: ${dataset.row_count ?? rows.length}
+Sample rows:
+${sampleLines || "(no rows available)"}
+
+The user connected this data source to this campaign. Reference it when they ask about "the sheet" or "the data".`;
+
+        // Build enrichment context
+        const totalRows = dataset.row_count ?? rows.length;
+        const enrichedCount = enrichedRows.length;
+        const urlColsStr = urlColumns.length > 0 ? urlColumns.join(", ") : "none detected";
+        enrichmentContext = `### Enrichment Status
+${enrichedCount} / ${totalRows} enriched
+URL columns: ${urlColsStr}
+To enrich: visit the URL column for each row, extract profile data, then POST /api/outreach/campaigns/${campaign_id}/enrich with row_index and data.`;
+      }
+    } catch {
+      // no dataset — leave datasetContext and enrichmentContext undefined
     }
 
     // Inject outreach context
@@ -242,9 +333,15 @@ export async function POST(request: NextRequest) {
       campaign.name,
       campaign.status,
       criteriaText,
-      scoringContext
+      scoringContext,
+      datasetContext
     );
     systemPrompt += outreachContext;
+
+    // Append enrichment context after the Connected Dataset section
+    if (enrichmentContext) {
+      systemPrompt += `\n\n${enrichmentContext}`;
+    }
 
     const allMessages = [
       ...previousMessages,

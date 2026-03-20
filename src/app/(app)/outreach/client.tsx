@@ -54,6 +54,9 @@ interface DatasetInfo {
   columns: string[];
   rows: Record<string, string>[];
   row_count: number;
+  enriched_count?: number;
+  url_columns?: string[];
+  enriched_rows?: Array<{ row_index: number; data: Record<string, string>; enriched_at: string }>;
 }
 
 // ─── Lead scoring types ───────────────────────────────────────────────────────
@@ -508,6 +511,87 @@ function DatasetPreview({ dataset }: { dataset: DatasetInfo }) {
   );
 }
 
+// ─── Enrichment Status Card ───────────────────────────────────────────────────
+
+interface EnrichmentStatusCardProps {
+  dataset: DatasetInfo;
+  onStartEnrichment: () => void;
+}
+
+function EnrichmentStatusCard({ dataset, onStartEnrichment }: EnrichmentStatusCardProps) {
+  const urlColumns = dataset.url_columns ?? [];
+  const total = dataset.row_count ?? 0;
+  const enriched = dataset.enriched_count ?? 0;
+  const pct = total > 0 ? Math.round((enriched / total) * 100) : 0;
+
+  // Only show when URL columns are detected
+  if (urlColumns.length === 0) return null;
+
+  return (
+    <div className="mx-4 my-3 bg-white/[0.04] border border-white/[0.08] rounded-[3px] p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Sparkles className="w-3.5 h-3.5 text-white/40" />
+        <span className="font-mono text-[10px] uppercase tracking-wide text-white/50">
+          Enrichment Status
+        </span>
+      </div>
+
+      {/* Progress */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[10px] text-white/50">
+            {enriched} / {total} enriched
+          </span>
+          <span className="font-mono text-[10px] text-white/30">{pct}%</span>
+        </div>
+        <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+          <div
+            className="h-full bg-emerald-600/60 rounded-full transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* URL columns */}
+      <div className="space-y-1">
+        <p className="font-mono text-[9px] uppercase tracking-wide text-white/30">
+          URL Columns Detected
+        </p>
+        <div className="flex flex-wrap gap-1">
+          {urlColumns.map((col) => (
+            <span
+              key={col}
+              className="font-mono text-[9px] px-1.5 py-0.5 bg-blue-900/20 border border-blue-800/30 text-blue-400/70"
+            >
+              {col}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Start enrichment button */}
+      {enriched < total && (
+        <button
+          onClick={onStartEnrichment}
+          className="w-full flex items-center justify-center gap-1.5 font-mono text-[10px] uppercase tracking-wide px-3 py-2 bg-emerald-900/20 border border-emerald-800/30 text-emerald-400/80 hover:bg-emerald-900/40 hover:text-emerald-400 transition-colors"
+        >
+          <Sparkles className="w-3 h-3" />
+          Start Enrichment
+        </button>
+      )}
+
+      {enriched >= total && total > 0 && (
+        <div className="flex items-center gap-1.5">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400/60" />
+          <span className="font-mono text-[10px] text-emerald-400/60">
+            All rows enriched
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Setup Panel ──────────────────────────────────────────────────────────────
 
 interface SetupPanelProps {
@@ -813,6 +897,19 @@ function OutreachChat({
       setInput(voiceText);
     }
   }, [voiceListening, voiceText]);
+
+  // Listen for fill-chat events (e.g., from Start Enrichment button)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { text?: string };
+      if (detail.text) {
+        setInput(detail.text);
+        textareaRef.current?.focus();
+      }
+    };
+    window.addEventListener('outreach:fill-chat', handler);
+    return () => window.removeEventListener('outreach:fill-chat', handler);
+  }, []);
 
   // No auto-scroll — user controls scroll position
 
@@ -2842,7 +2939,17 @@ export default function OutreachClient({
       const updated = [campaign, ...campaigns];
       updateCampaigns(updated);
       setSelectedId(campaign.id);
+      // Reset all stale state from previous campaign
       setMessageCount(0);
+      setDataset(null);
+      setScanReport(null);
+      setScanning(false);
+      setHasCriteria(false);
+      setScoringMsg('');
+      setLeadsRefreshKey((k) => k + 1);
+      setShowTemplateModal(false);
+      setShowRefinementModal(false);
+      setActiveTab('workflow');
     },
     [campaigns, updateCampaigns]
   );
@@ -3364,6 +3471,23 @@ export default function OutreachClient({
                           </button>
                         </div>
                       )}
+
+                    {/* Enrichment Status Card */}
+                    {dataset && (
+                      <EnrichmentStatusCard
+                        dataset={dataset}
+                        onStartEnrichment={() => {
+                          // Fire a custom event to fill the chat input
+                          window.dispatchEvent(
+                            new CustomEvent('outreach:fill-chat', {
+                              detail: { text: 'Enrich the remaining leads in the dataset' },
+                            })
+                          );
+                          // Switch to workflow tab so user can see the chat panel or prompt them
+                          setActiveTab('workflow');
+                        }}
+                      />
+                    )}
 
                     {/* Dataset preview */}
                     {dataset ? (

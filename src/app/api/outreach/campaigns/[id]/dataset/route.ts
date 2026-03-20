@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { parseCSV, toCSVExportUrl } from '@/lib/outreach/dataset-parser';
+import { parseCSV, toCSVExportUrl, detectUrlColumns } from '@/lib/outreach/dataset-parser';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -52,6 +52,12 @@ export async function GET(
       return NextResponse.json({ dataset: null });
     }
 
+    // Auto-detect url_columns if empty
+    const dbUrlColumns: string[] = Array.isArray(dataset.url_columns) ? dataset.url_columns : [];
+    const dbColumns: string[] = Array.isArray(dataset.columns) ? dataset.columns : [];
+    const urlColumns = dbUrlColumns.length > 0 ? dbUrlColumns : detectUrlColumns(dbColumns);
+    const enrichedRows = Array.isArray(dataset.enriched_rows) ? dataset.enriched_rows : [];
+
     return NextResponse.json({
       dataset: {
         id: dataset.id,
@@ -62,6 +68,9 @@ export async function GET(
         rows: dataset.rows,
         row_count: dataset.row_count,
         created_at: dataset.created_at,
+        enriched_count: enrichedRows.length,
+        url_columns: urlColumns,
+        enriched_rows: enrichedRows,
       },
     });
   } catch (err) {

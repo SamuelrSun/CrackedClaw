@@ -42,6 +42,15 @@ const ANALYSIS_SYSTEM = `You are a dataset pattern analyzer for a lead qualifica
 
 The user has a dataset of leads/contacts they've previously selected. Your job is to analyze the dataset and discover patterns that reveal the user's implicit selection criteria.
 
+IMPORTANT — URL COLUMN HANDLING:
+If a column contains URLs (especially LinkedIn URLs, Twitter/X URLs, GitHub URLs, or personal website URLs):
+- These are REFERENCES to profiles, not data to analyze statistically
+- Do NOT report "all leads lack LinkedIn data" — the URLs ARE the LinkedIn data
+- These URLs could be enriched by visiting them to extract full profile details
+- Treat URL columns as identity/reference columns and focus analysis on what other data IS available
+- If the dataset is primarily URLs with minimal other fields, flag it as a "URL-reference dataset" and recommend enrichment as the primary next step rather than trying to find statistical patterns in limited fields
+- Example correct summary: "Dataset contains 19 LinkedIn profile URLs. Recommend enrichment to extract professional details (title, company, skills) before scoring leads."
+
 You will receive:
 1. A statistical summary of the dataset (columns, value distributions, sample rows)
 2. Any existing criteria the user has already stated (may be empty)

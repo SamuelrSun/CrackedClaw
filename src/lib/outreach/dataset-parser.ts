@@ -120,6 +120,15 @@ function parseCSVRecords(text: string): string[][] {
 }
 
 /**
+ * Detect columns that likely contain URLs (LinkedIn, website, profile links, etc.).
+ * Matches column names containing: url, link, linkedin, website, profile, href (case-insensitive).
+ */
+export function detectUrlColumns(columns: string[]): string[] {
+  const urlPattern = /url|link|linkedin|website|profile|href/i;
+  return columns.filter((col) => urlPattern.test(col));
+}
+
+/**
  * Try to detect which column contains LinkedIn profile URLs.
  */
 export function detectLinkedInColumn(
