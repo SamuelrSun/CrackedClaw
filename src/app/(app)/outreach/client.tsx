@@ -352,9 +352,9 @@ interface ScanResultCardProps {
 }
 
 function ScanResultCard({ report, onAccept, onViewFull }: ScanResultCardProps) {
-  const confirmedCount = report.refined_criteria.length;
-  const newCount = report.new_criteria.length;
-  const allFindings = report.passes.flatMap((p) => p.findings);
+  const confirmedCount = (report.refined_criteria || []).length;
+  const newCount = (report.new_criteria || []).length;
+  const allFindings = (report.passes || []).flatMap((p) => p.findings || []);
   const keyFindings = allFindings.slice(0, 4);
 
   return (
@@ -388,11 +388,11 @@ function ScanResultCard({ report, onAccept, onViewFull }: ScanResultCardProps) {
             </span>
           </div>
         )}
-        {report.anti_patterns.length > 0 && (
+        {(report.anti_patterns || []).length > 0 && (
           <div className="flex items-center gap-2">
             <XCircle className="w-3.5 h-3.5 text-red-400/60 flex-shrink-0" />
             <span className="text-sm text-red-400/60">
-              {report.anti_patterns.length} exclusion {report.anti_patterns.length === 1 ? 'pattern' : 'patterns'} identified
+              {(report.anti_patterns || []).length} exclusion {(report.anti_patterns || []).length === 1 ? 'pattern' : 'patterns'} identified
             </span>
           </div>
         )}
@@ -442,8 +442,8 @@ function ScanResultCard({ report, onAccept, onViewFull }: ScanResultCardProps) {
 // ─── Dataset Preview (right panel) ───────────────────────────────────────────
 
 function DatasetPreview({ dataset }: { dataset: DatasetInfo }) {
-  const previewRows = dataset.rows.slice(0, 5);
-  const visibleCols = dataset.columns.slice(0, 6); // cap for mobile
+  const previewRows = (dataset.rows || []).slice(0, 5);
+  const visibleCols = (dataset.columns || []).slice(0, 6); // cap for mobile
 
   return (
     <div className="px-3 py-3">
@@ -460,7 +460,7 @@ function DatasetPreview({ dataset }: { dataset: DatasetInfo }) {
         )}
       </div>
       <p className="font-mono text-[9px] text-white/30 mb-3">
-        {dataset.row_count} rows · {dataset.columns.length} columns
+        {dataset.row_count} rows · {(dataset.columns || []).length} columns
       </p>
 
       {previewRows.length > 0 && (
@@ -476,9 +476,9 @@ function DatasetPreview({ dataset }: { dataset: DatasetInfo }) {
                     {col.length > 12 ? col.slice(0, 12) + '…' : col}
                   </th>
                 ))}
-                {dataset.columns.length > 6 && (
+                {(dataset.columns || []).length > 6 && (
                   <th className="font-mono text-[9px] text-white/20 pb-1.5 whitespace-nowrap">
-                    +{dataset.columns.length - 6} more
+                    +{(dataset.columns || []).length - 6} more
                   </th>
                 )}
               </tr>
@@ -1061,18 +1061,18 @@ function OutreachChat({
               '',
               `Scanned ${scanReport.scanned_rows} leads across ${scanReport.scanned_columns} columns.`,
               '',
-              scanReport.passes.map((pass) => {
-                const findings = pass.findings.map(
+              (scanReport.passes || []).map((pass) => {
+                const findings = (pass.findings || []).map(
                   (f) => `  • ${f.description}${f.evidence ? ` (${f.evidence})` : ''}`
                 );
                 return [
-                  `PASS ${pass.pass_number} — ${pass.pass_name.toUpperCase()}`,
+                  `PASS ${pass.pass_number} — ${(pass.pass_name || '').toUpperCase()}`,
                   ...findings,
                 ].join('\n');
               }).join('\n\n'),
               '',
-              scanReport.anti_patterns.length > 0
-                ? `EXCLUSIONS:\n${scanReport.anti_patterns.map((ap) => `  ✕ ${ap}`).join('\n')}`
+              (scanReport.anti_patterns || []).length > 0
+                ? `EXCLUSIONS:\n${(scanReport.anti_patterns || []).map((ap) => `  ✕ ${ap}`).join('\n')}`
                 : '',
               '',
               `SUMMARY: ${scanReport.summary}`,
