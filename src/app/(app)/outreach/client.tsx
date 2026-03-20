@@ -1159,7 +1159,7 @@ function CriterionCard({ criterion }: { criterion: Criterion }) {
         </p>
       )}
 
-      {criterion.interaction_effects && criterion.interaction_effects.length > 0 && (
+      {Array.isArray(criterion.interaction_effects) && criterion.interaction_effects.length > 0 && (
         <div className="space-y-0.5">
           {criterion.interaction_effects.map((effect, i) => (
             <p key={i} className="font-mono text-[9px] text-white/25 italic">
