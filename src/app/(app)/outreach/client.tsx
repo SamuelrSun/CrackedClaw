@@ -1041,65 +1041,60 @@ function OutreachChat({
         </div>
       )}
 
-      {/* Data source connection card — shown when criteria exist but no dataset */}
-      {hasCriteria && !dataset && !scanning && (
-        <div className="shrink-0"><DataSourceCard
-          campaignId={campaign.id}
-          onConnected={onDatasetConnected}
-        /></div>
-      )}
-
-      {/* Scan progress indicator */}
-      {scanning && (
-        <div className="shrink-0 mx-4 my-3 bg-amber-900/10 border border-amber-800/30 rounded-[3px] p-4 flex items-center gap-3">
-          <Loader2 className="w-4 h-4 text-amber-400 animate-spin flex-shrink-0" />
-          <div>
-            <p className="text-sm text-amber-400/80 font-medium">Analyzing dataset…</p>
-            <p className="font-mono text-[9px] text-amber-400/40 mt-0.5">
-              Running 5 pattern analysis passes
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Scan results card */}
-      {scanReport && !scanning && (
-        <div className="shrink-0"><ScanResultCard
-          report={scanReport}
-          onAccept={onScanReportDismissed}
-          onViewFull={() => {
-            // Show full report as formatted text in chat
-            const fullText = [
-              '📊 DATASET ANALYSIS REPORT',
-              '',
-              `Scanned ${scanReport.scanned_rows} leads across ${scanReport.scanned_columns} columns.`,
-              '',
-              (scanReport.passes || []).map((pass) => {
-                const findings = (pass.findings || []).map(
-                  (f) => `  • ${f.description}${f.evidence ? ` (${f.evidence})` : ''}`
-                );
-                return [
-                  `PASS ${pass.pass_number} — ${(pass.pass_name || '').toUpperCase()}`,
-                  ...findings,
-                ].join('\n');
-              }).join('\n\n'),
-              '',
-              (scanReport.anti_patterns || []).length > 0
-                ? `EXCLUSIONS:\n${(scanReport.anti_patterns || []).map((ap) => `  ✕ ${ap}`).join('\n')}`
-                : '',
-              '',
-              `SUMMARY: ${scanReport.summary}`,
-            ].filter(Boolean).join('\n');
-
-            // We can't add a chat message from here — the parent would need to handle this
-            // For now, alert is replaced by a console log; the report is visible in the card
-            console.log(fullText);
-          }}
-        /></div>
-      )}
-
-      {/* Messages */}
+      {/* Messages — cards are INSIDE the scroll container so they don't crush it */}
       <div style={{ flex: '1 1 0%', minHeight: 0, overflowY: 'auto' }} className="px-4 py-4 space-y-4">
+        {/* Data source connection card — shown when criteria exist but no dataset */}
+        {hasCriteria && !dataset && !scanning && (
+          <DataSourceCard
+            campaignId={campaign.id}
+            onConnected={onDatasetConnected}
+          />
+        )}
+
+        {/* Scan progress indicator */}
+        {scanning && (
+          <div className="mx-0 mb-3 bg-amber-900/10 border border-amber-800/30 rounded-[3px] p-4 flex items-center gap-3">
+            <Loader2 className="w-4 h-4 text-amber-400 animate-spin flex-shrink-0" />
+            <div>
+              <p className="text-sm text-amber-400/80 font-medium">Analyzing dataset…</p>
+              <p className="font-mono text-[9px] text-amber-400/40 mt-0.5">
+                Running 5 pattern analysis passes
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Scan results card */}
+        {scanReport && !scanning && (
+          <ScanResultCard
+            report={scanReport}
+            onAccept={onScanReportDismissed}
+            onViewFull={() => {
+              const fullText = [
+                '📊 DATASET ANALYSIS REPORT',
+                '',
+                `Scanned ${scanReport.scanned_rows} leads across ${scanReport.scanned_columns} columns.`,
+                '',
+                (scanReport.passes || []).map((pass) => {
+                  const findings = (pass.findings || []).map(
+                    (f) => `  • ${f.description}${f.evidence ? ` (${f.evidence})` : ''}`
+                  );
+                  return [
+                    `PASS ${pass.pass_number} — ${(pass.pass_name || '').toUpperCase()}`,
+                    ...findings,
+                  ].join('\n');
+                }).join('\n\n'),
+                '',
+                (scanReport.anti_patterns || []).length > 0
+                  ? `EXCLUSIONS:\n${(scanReport.anti_patterns || []).map((ap) => `  ✕ ${ap}`).join('\n')}`
+                  : '',
+                '',
+                `SUMMARY: ${scanReport.summary}`,
+              ].filter(Boolean).join('\n');
+              console.log(fullText);
+            }}
+          />
+        )}
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full py-8 px-4">
             {campaign.status === 'setup' ? (
