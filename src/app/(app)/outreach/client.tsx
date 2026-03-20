@@ -2817,6 +2817,7 @@ export default function OutreachClient({
   const [scoring, setScoring] = useState(false);
   const [scoringMsg, setScoringMsg] = useState('');
   const [leadsRefreshKey, setLeadsRefreshKey] = useState(0);
+  const [activeTab, setActiveTab] = useState<'workflow' | 'criteria' | 'dataset' | 'logs'>('workflow');
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showRefinementModal, setShowRefinementModal] = useState(false);
 
@@ -2996,6 +2997,7 @@ export default function OutreachClient({
     setLeadsRefreshKey((k) => k + 1);
     setShowTemplateModal(false);
     setShowRefinementModal(false);
+    setActiveTab('workflow');
   }, []);
 
   // Load dataset and criteria state when campaign changes
@@ -3256,59 +3258,43 @@ export default function OutreachClient({
             </div>
           )}
 
-          {/* Center panel — Criteria, Dataset & Results (main view) */}
+          {/* Center panel — Tabbed main view */}
           <div className="flex-1 flex flex-col min-h-0 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden">
-            {/* Center panel header */}
-            <div className="shrink-0 px-5 py-3 border-b border-white/[0.06] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {selectedCampaign ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-white/80 font-medium">
-                      {selectedCampaign.name}
-                    </span>
-                    <StatusBadge status={selectedCampaign.status} />
-                  </div>
-                ) : (
-                  <span className="font-mono text-[10px] uppercase tracking-wide text-white/30">
-                    Outreach
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {/* Score Leads button */}
-                {selectedCampaign &&
-                  (selectedCampaign.status === 'active' || selectedCampaign.status === 'scanning') &&
-                  dataset &&
-                  hasCriteria && (
-                    <button
-                      onClick={handleScoreLeads}
-                      disabled={scoring}
-                      className="hidden md:flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 bg-blue-900/30 border border-blue-800/40 text-blue-400 hover:bg-blue-900/50 transition-colors disabled:opacity-50"
-                    >
-                      {scoring ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <BarChart2 className="w-3 h-3" />
-                      )}
-                      {scoring ? 'Scoring…' : 'Score Leads'}
-                    </button>
-                  )}
-                <button
-                  onClick={() => setRightPanelHidden((v) => !v)}
-                  className="hidden md:flex items-center gap-1.5 text-white/30 hover:text-white/60 hover:bg-white/[0.04] px-2 py-1 transition-colors"
-                  title={rightPanelHidden ? "Show chat" : "Hide chat"}
-                >
-                  <span className="font-mono text-[9px] uppercase tracking-wide">
-                    {rightPanelHidden ? "Show Chat" : "Hide Chat"}
-                  </span>
-                  <ChevronRight
+            {/* Center panel header — tabs */}
+            <div className="shrink-0 px-5 border-b border-white/[0.06] flex items-center justify-between">
+              {/* Tab bar */}
+              <div className="flex items-end h-full gap-0">
+                {(['workflow', 'criteria', 'dataset', 'logs'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
                     className={cn(
-                      "w-3.5 h-3.5 transition-transform",
-                      rightPanelHidden && "rotate-180"
+                      "font-mono text-[10px] uppercase tracking-wide px-4 py-3 border-b-2 transition-colors",
+                      activeTab === tab
+                        ? "text-white/80 border-white/40"
+                        : "text-white/30 border-transparent hover:text-white/50"
                     )}
-                  />
-                </button>
+                  >
+                    {tab}
+                  </button>
+                ))}
               </div>
+              {/* Right controls */}
+              <button
+                onClick={() => setRightPanelHidden((v) => !v)}
+                className="hidden md:flex items-center gap-1.5 text-white/30 hover:text-white/60 hover:bg-white/[0.04] px-2 py-1 transition-colors"
+                title={rightPanelHidden ? "Show chat" : "Hide chat"}
+              >
+                <span className="font-mono text-[9px] uppercase tracking-wide">
+                  {rightPanelHidden ? "Show Chat" : "Hide Chat"}
+                </span>
+                <ChevronRight
+                  className={cn(
+                    "w-3.5 h-3.5 transition-transform",
+                    rightPanelHidden && "rotate-180"
+                  )}
+                />
+              </button>
             </div>
 
             {/* Scoring status message */}
@@ -3326,61 +3312,95 @@ export default function OutreachClient({
               </div>
             )}
 
-            {/* Center panel body — Criteria + Dataset + Results */}
+            {/* Center panel body — tab content */}
             {selectedCampaign ? (
               <div className="flex-1 overflow-y-auto" style={{ transform: 'translateZ(0)' }}>
-                {/* Criteria section */}
-                <div className="px-5 py-4">
-                  <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
-                    Criteria
-                  </span>
-                </div>
-                <div className="px-4">
-                  <CriteriaPanel
-                    campaignId={selectedId}
-                    refreshKey={criteriaRefreshKey}
-                  />
-                </div>
 
-                {/* Dataset preview section */}
-                {dataset && (
-                  <>
-                    <div className="px-5 py-4 border-t border-white/[0.08] mt-4">
-                      <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
-                        Dataset
-                      </span>
+                {/* ── Workflow tab ── */}
+                {activeTab === 'workflow' && (
+                  <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
+                    <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto mb-4">
+                      <Target className="w-5 h-5 text-white/20" />
                     </div>
-                    <div className="px-4">
-                      <DatasetPreview dataset={dataset} />
+                    <p className="font-mono text-[10px] uppercase tracking-wide text-white/20 mb-4">
+                      Workflow view coming soon
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={selectedCampaign.status} />
+                      <span className="text-sm text-white/50">{selectedCampaign.name}</span>
                     </div>
-                  </>
+                  </div>
                 )}
 
-                {/* Results section */}
-                <div className="px-5 py-4 border-t border-white/[0.08] mt-4 flex items-center justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
-                    Results
-                  </span>
-                  {(selectedCampaign.status === 'active' || selectedCampaign.status === 'scanning') &&
-                    dataset &&
-                    hasCriteria && (
-                      <button
-                        onClick={handleScoreLeads}
-                        disabled={scoring}
-                        className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wide px-2 py-1 bg-blue-900/30 border border-blue-800/40 text-blue-400 hover:bg-blue-900/50 transition-colors disabled:opacity-50"
-                      >
-                        {scoring ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <BarChart2 className="w-2.5 h-2.5" />}
-                        {scoring ? '…' : 'Score'}
-                      </button>
+                {/* ── Criteria tab ── */}
+                {activeTab === 'criteria' && (
+                  <div className="px-4 py-4">
+                    <CriteriaPanel
+                      campaignId={selectedId}
+                      refreshKey={criteriaRefreshKey}
+                    />
+                  </div>
+                )}
+
+                {/* ── Dataset tab ── */}
+                {activeTab === 'dataset' && (
+                  <div className="flex flex-col">
+                    {/* Score Leads button */}
+                    {(selectedCampaign.status === 'active' || selectedCampaign.status === 'scanning') &&
+                      dataset &&
+                      hasCriteria && (
+                        <div className="px-5 py-3 border-b border-white/[0.06] flex items-center justify-end">
+                          <button
+                            onClick={handleScoreLeads}
+                            disabled={scoring}
+                            className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 bg-blue-900/30 border border-blue-800/40 text-blue-400 hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+                          >
+                            {scoring ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <BarChart2 className="w-3 h-3" />
+                            )}
+                            {scoring ? 'Scoring…' : 'Score Leads'}
+                          </button>
+                        </div>
+                      )}
+
+                    {/* Dataset preview */}
+                    {dataset ? (
+                      <div className="px-4 py-4 border-b border-white/[0.08]">
+                        <DatasetPreview dataset={dataset} />
+                      </div>
+                    ) : (
+                      <div className="px-5 py-8 text-center">
+                        <p className="font-mono text-[10px] uppercase tracking-wide text-white/20">
+                          No dataset connected. Use the chat to connect a CSV or Google Sheet.
+                        </p>
+                      </div>
                     )}
-                </div>
-                <div className="px-4 pb-6">
-                  <LeadsPanel
-                    campaignId={selectedCampaign.id}
-                    refreshKey={leadsRefreshKey}
-                    onDraftMessages={() => setShowTemplateModal(true)}
-                  />
-                </div>
+
+                    {/* Leads panel */}
+                    <div className="px-4 pb-6 pt-4">
+                      <LeadsPanel
+                        campaignId={selectedCampaign.id}
+                        refreshKey={leadsRefreshKey}
+                        onDraftMessages={() => setShowTemplateModal(true)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Logs tab ── */}
+                {activeTab === 'logs' && (
+                  <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
+                    <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto mb-4">
+                      <MessageSquare className="w-5 h-5 text-white/20" />
+                    </div>
+                    <p className="font-mono text-[10px] uppercase tracking-wide text-white/20">
+                      Campaign logs coming soon
+                    </p>
+                  </div>
+                )}
+
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center px-8">
