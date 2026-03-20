@@ -693,133 +693,122 @@ function SetupPanel({ campaign, onRunAnalysis }: SetupPanelProps) {
 
   return (
     <div className="w-full max-w-lg space-y-4">
-      {/* Header */}
-      <div className="text-center mb-2">
-        <h2 className="text-sm text-white/70 font-medium mb-1">
-          {campaign.name}
-        </h2>
-        <p className="font-mono text-[10px] uppercase tracking-wide text-white/30">
-          Describe your ideal leads and connect your data
-        </p>
-      </div>
-
-      {/* Description input */}
-      <div className="bg-white/[0.04] border border-white/[0.08] rounded-[3px] p-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
-            Who are you looking for?
-          </span>
-          {isListening ? (
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-              <span className="font-mono text-[10px] text-red-400/70">{formatTime(elapsedSeconds)}</span>
-              <span className="font-mono text-[9px] text-white/25">{wordCount}w</span>
-            </div>
-          ) : descWordCount > 0 ? (
-            <span className="font-mono text-[9px] text-white/25">{descWordCount} words</span>
-          ) : null}
+      {/* Unified setup card */}
+      <div className="bg-white/[0.04] border border-white/[0.08] rounded-[3px] p-5 space-y-4">
+        {/* Description input */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
+              Describe your targets
+            </span>
+            {isListening ? (
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                <span className="font-mono text-[10px] text-red-400/70">{formatTime(elapsedSeconds)}</span>
+                <span className="font-mono text-[9px] text-white/25">{wordCount}w</span>
+              </div>
+            ) : descWordCount > 0 ? (
+              <span className="font-mono text-[9px] text-white/25">{descWordCount} words</span>
+            ) : null}
+          </div>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Who are you looking for? How do you find them? What do you do with them?"
+            rows={3}
+            disabled={running}
+            className="w-full bg-white/[0.03] border border-white/[0.08] rounded-[2px] text-xs text-white/80 placeholder:text-white/20 px-3 py-2.5 outline-none resize-none disabled:opacity-50 leading-relaxed focus:border-white/[0.2] transition-colors"
+          />
+          <div className="flex items-center justify-between mt-2">
+            {isSupported ? (
+              <button
+                type="button"
+                onClick={isListening ? handleStopVoice : handleStartVoice}
+                disabled={running}
+                className={cn(
+                  "flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide px-2.5 py-1.5 rounded-[2px] transition-colors disabled:opacity-40",
+                  isListening
+                    ? "bg-red-900/30 border border-red-800/40 text-red-400 hover:bg-red-900/50"
+                    : "border border-white/[0.1] text-white/40 hover:text-white/70 hover:bg-white/[0.04]"
+                )}
+              >
+                {isListening ? (
+                  <>
+                    <span className="flex items-end gap-[2px] h-3">
+                      {[1, 2, 3, 2, 1].map((h, i) => (
+                        <span
+                          key={i}
+                          className="w-[1.5px] bg-red-400 rounded-full"
+                          style={{
+                            height: `${h * 3}px`,
+                            animation: `voiceBar 0.8s ease-in-out ${i * 0.1}s infinite alternate`,
+                          }}
+                        />
+                      ))}
+                    </span>
+                    Stop
+                  </>
+                ) : (
+                  <>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="2" width="6" height="12" rx="3" />
+                      <path d="M5 10a7 7 0 0 0 14 0" />
+                      <line x1="12" y1="19" x2="12" y2="22" />
+                    </svg>
+                    Voice
+                  </>
+                )}
+              </button>
+            ) : <div />}
+          </div>
         </div>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="e.g. AR consultants at established tech companies who post regularly on LinkedIn and have 5+ years of experience..."
-          rows={4}
-          disabled={running}
-          className="w-full bg-transparent text-sm text-white/80 placeholder:text-white/20 outline-none resize-none disabled:opacity-50 leading-relaxed"
-        />
-        <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/[0.06]">
-          {isSupported && (
-            <button
-              type="button"
-              onClick={isListening ? handleStopVoice : handleStartVoice}
-              disabled={running}
-              className={cn(
-                "flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide px-2.5 py-1.5 transition-colors disabled:opacity-40",
-                isListening
-                  ? "bg-red-900/30 border border-red-800/40 text-red-400 hover:bg-red-900/50"
-                  : "border border-white/[0.1] text-white/40 hover:text-white/70 hover:bg-white/[0.04]"
-              )}
-            >
-              {isListening ? (
-                <>
-                  <span className="flex items-end gap-[2px] h-3">
-                    {[1, 2, 3, 2, 1].map((h, i) => (
-                      <span
-                        key={i}
-                        className="w-[1.5px] bg-red-400 rounded-full"
-                        style={{
-                          height: `${h * 3}px`,
-                          animation: `voiceBar 0.8s ease-in-out ${i * 0.1}s infinite alternate`,
-                        }}
-                      />
-                    ))}
-                  </span>
-                  Stop
-                </>
-              ) : (
-                <>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="9" y="2" width="6" height="12" rx="3" />
-                    <path d="M5 10a7 7 0 0 0 14 0" />
-                    <line x1="12" y1="19" x2="12" y2="22" />
-                  </svg>
-                  Voice
-                </>
-              )}
-            </button>
+
+        {/* Divider */}
+        <div className="border-t border-white/[0.06]" />
+
+        {/* Data source */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Database className="w-3 h-3 text-white/30" />
+            <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
+              Data Source
+            </span>
+            <span className="font-mono text-[9px] text-white/15">(optional)</span>
+          </div>
+          <input
+            type="url"
+            value={dataSourceUrl}
+            onChange={(e) => setDataSourceUrl(e.target.value)}
+            placeholder="Google Sheet, CSV, or search URL..."
+            disabled={running}
+            className="w-full bg-white/[0.03] border border-white/[0.08] rounded-[2px] text-xs text-white/80 placeholder:text-white/20 px-3 py-2.5 outline-none focus:border-white/[0.2] transition-colors disabled:opacity-50"
+          />
+        </div>
+
+        {/* Run button */}
+        <button
+          onClick={handleRun}
+          disabled={!description.trim() || running}
+          className={cn(
+            "w-full flex items-center justify-center gap-2 py-3 rounded-[2px] font-mono text-[10px] uppercase tracking-wide transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+            running
+              ? "bg-emerald-900/30 border border-emerald-800/40 text-emerald-400"
+              : "bg-white/[0.08] border border-white/[0.12] text-white/60 hover:bg-white/[0.12] hover:text-white/80"
           )}
-          {!isSupported && <div />}
-          <span className="font-mono text-[9px] text-white/20">
-            Speak or type — be as detailed as you want
-          </span>
-        </div>
+        >
+          {running ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Analyzing…
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-3.5 h-3.5" />
+              Run Analysis
+            </>
+          )}
+        </button>
       </div>
-
-      {/* Data source link */}
-      <div className="bg-white/[0.04] border border-white/[0.08] rounded-[3px] p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Database className="w-3.5 h-3.5 text-white/30" />
-          <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
-            Data Source
-          </span>
-          <span className="font-mono text-[9px] text-white/20">(optional)</span>
-        </div>
-        <input
-          type="url"
-          value={dataSourceUrl}
-          onChange={(e) => setDataSourceUrl(e.target.value)}
-          placeholder="Paste a Google Sheet link, CSV URL, or LinkedIn search URL..."
-          disabled={running}
-          className="w-full bg-white/[0.04] border border-white/[0.1] text-sm text-white/80 placeholder:text-white/20 px-3 py-2.5 outline-none focus:border-white/[0.25] transition-colors disabled:opacity-50"
-        />
-        <p className="font-mono text-[9px] text-white/20 mt-1.5">
-          Connect your existing leads to discover patterns in who you&apos;ve already selected
-        </p>
-      </div>
-
-      {/* Run Analysis button */}
-      <button
-        onClick={handleRun}
-        disabled={!description.trim() || running}
-        className={cn(
-          "w-full flex items-center justify-center gap-2 py-3.5 font-mono text-[11px] uppercase tracking-wide transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
-          running
-            ? "bg-emerald-900/30 border border-emerald-800/40 text-emerald-400"
-            : "bg-white/[0.08] border border-white/[0.15] text-white/70 hover:bg-white/[0.12] hover:text-white/90"
-        )}
-      >
-        {running ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Analyzing…
-          </>
-        ) : (
-          <>
-            <Sparkles className="w-4 h-4" />
-            Run Analysis
-          </>
-        )}
-      </button>
 
       <style jsx>{`
         @keyframes voiceBar {
