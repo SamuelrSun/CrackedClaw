@@ -759,9 +759,18 @@ function OutreachChat({
   const [isStreaming, setIsStreaming] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
+  const [voiceActive, setVoiceActive] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const {
+    isListening: voiceListening,
+    fullText: voiceText,
+    isSupported: voiceSupported,
+    startListening: voiceStart,
+    stopListening: voiceStop,
+    clearTranscript: voiceClear,
+  } = useSpeechRecognition();
 
   // Load existing messages if campaign has a conversation_id
   useEffect(() => {
@@ -797,6 +806,13 @@ function OutreachChat({
       // ignore
     }
   }
+
+  // Sync voice text to input while listening
+  useEffect(() => {
+    if (voiceListening && voiceText) {
+      setInput(voiceText);
+    }
+  }, [voiceListening, voiceText]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -993,7 +1009,7 @@ function OutreachChat({
     d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Extract / Scan button row */}
       {(canExtract || canScan || scanning) && (
         <div className="shrink-0 px-5 py-2 border-b border-white/[0.04] flex items-center justify-end gap-2">
@@ -1358,16 +1374,35 @@ function OutreachChat({
               </div>
 
               {/* Voice input button */}
-              <VoiceInputButton
-                onTranscript={(text) => {
-                  setInput(text);
-                }}
-                onInterimUpdate={(text) => {
-                  setInput(text);
-                }}
-                disabled={isStreaming}
-                variant="outreach"
-              />
+              {voiceSupported && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (voiceListening) {
+                      voiceStop();
+                      if (voiceText.trim()) setInput(voiceText.trim());
+                      setTimeout(() => voiceClear(), 100);
+                    } else {
+                      voiceClear();
+                      voiceStart();
+                    }
+                  }}
+                  disabled={isStreaming}
+                  className={cn(
+                    "group/btn relative w-7 h-7 flex items-center justify-center border rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent",
+                    voiceListening
+                      ? "border-red-500/50 text-red-400"
+                      : "border-white/[0.1] text-white/40 hover:text-white/80"
+                  )}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="2" width="6" height="12" rx="3" />
+                    <path d="M5 10a7 7 0 0 0 14 0" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                  </svg>
+                  <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">{voiceListening ? 'Stop' : 'Voice'}</span>
+                </button>
+              )}
 
               {/* Send button */}
               <button
@@ -3234,7 +3269,6 @@ export default function OutreachClient({
             {/* Center panel header */}
             <div className="shrink-0 px-5 py-3 border-b border-white/[0.06] flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Target className="w-4 h-4 text-white/30 flex-shrink-0" />
                 {selectedCampaign ? (
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-white/80 font-medium">
