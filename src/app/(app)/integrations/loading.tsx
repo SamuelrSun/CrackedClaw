@@ -3,7 +3,7 @@ export default function IntegrationsLoading() {
     <div
       className="fixed inset-0 z-[100] flex flex-col p-[7px] gap-[7px]"
       style={{
-        backgroundImage: "url('/img/landing_background.jpg')",
+        backgroundImage: "linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url('/img/landing_background.jpg')",
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}

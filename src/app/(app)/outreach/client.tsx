@@ -1076,10 +1076,7 @@ function OutreachChat({
                 style={{ maxHeight: "160px" }}
               />
             </div>
-            <div className="flex items-center justify-between px-3 py-2 border-t border-white/[0.05]">
-              <span className="font-mono text-[9px] uppercase tracking-wide text-white/25">
-                {campaign.name}
-              </span>
+            <div className="flex items-center justify-end px-3 py-2 border-t border-white/[0.05]">
               <div className="flex items-center gap-1.5">
                 <VoiceInputButton
                   onTranscript={(text) => {

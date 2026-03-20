@@ -116,7 +116,7 @@ export function AgentCanvas({
     <div
       className="fixed inset-0 flex flex-col"
       style={{
-        backgroundImage: "url('/img/landing_background.jpg')",
+        backgroundImage: "linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url('/img/landing_background.jpg')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         paddingTop: "64px", // navbar height
