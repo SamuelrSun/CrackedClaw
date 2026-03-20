@@ -3229,7 +3229,7 @@ export default function OutreachClient({
             </div>
           )}
 
-          {/* Center panel */}
+          {/* Center panel — Criteria, Dataset & Results (main view) */}
           <div className="flex-1 flex flex-col min-h-0 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden">
             {/* Center panel header */}
             <div className="shrink-0 px-5 py-3 border-b border-white/[0.06] flex items-center justify-between">
@@ -3249,7 +3249,7 @@ export default function OutreachClient({
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {/* Score Leads button — shown when campaign is active with dataset + criteria */}
+                {/* Score Leads button */}
                 {selectedCampaign &&
                   (selectedCampaign.status === 'active' || selectedCampaign.status === 'scanning') &&
                   dataset &&
@@ -3270,10 +3270,10 @@ export default function OutreachClient({
                 <button
                   onClick={() => setRightPanelHidden((v) => !v)}
                   className="hidden md:flex items-center gap-1.5 text-white/30 hover:text-white/60 hover:bg-white/[0.04] px-2 py-1 transition-colors"
-                  title={rightPanelHidden ? "Show criteria panel" : "Hide criteria panel"}
+                  title={rightPanelHidden ? "Show chat" : "Hide chat"}
                 >
                   <span className="font-mono text-[9px] uppercase tracking-wide">
-                    {rightPanelHidden ? "Show Criteria" : "Hide Criteria"}
+                    {rightPanelHidden ? "Show Chat" : "Hide Chat"}
                   </span>
                   <ChevronRight
                     className={cn(
@@ -3300,87 +3300,42 @@ export default function OutreachClient({
               </div>
             )}
 
-            {/* Center panel body */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              {selectedCampaign ? (
-                <OutreachChat
-                  key={selectedCampaign.id}
-                  campaign={selectedCampaign}
-                  onConversationCreated={handleConversationCreated}
-                  onMessagesChange={setMessageCount}
-                  onCriteriaRefresh={handleCriteriaRefresh}
-                  hasCriteria={hasCriteria}
-                  dataset={dataset}
-                  scanning={scanning}
-                  scanReport={scanReport}
-                  onDatasetConnected={handleDatasetConnected}
-                  onScanTriggered={handleScanTriggered}
-                  onScanReportDismissed={() => setScanReport(null)}
-                />
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center px-8">
-                  <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto mb-4">
-                    <Target className="w-5 h-5 text-white/20" />
-                  </div>
-                  <p className="text-sm text-white/40 mb-1">
-                    Select or create a campaign to start
-                  </p>
-                  <p className="font-mono text-[10px] uppercase tracking-wide text-white/20 mt-1">
-                    Campaigns help you find and reach your ideal leads
-                  </p>
-                  <button
-                    onClick={() => setShowNewModal(true)}
-                    className="mt-5 flex items-center gap-1.5 px-4 py-2 border border-white/[0.1] text-white/40 hover:text-white/70 hover:bg-white/[0.04] hover:border-white/[0.2] transition-colors mx-auto font-mono text-[10px] uppercase tracking-wide"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    New Campaign
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right panel */}
-          {!rightPanelHidden && (
-            <aside className="hidden md:flex shrink-0 w-80 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 flex-col overflow-hidden">
-              <div className="shrink-0 px-4 py-3 border-b border-white/[0.08] flex items-center justify-between">
-                <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
-                  Criteria
-                </span>
-                <button
-                  onClick={() => setRightPanelHidden(true)}
-                  className="w-6 h-6 flex items-center justify-center text-white/20 hover:text-white/60 transition-colors"
-                  title="Hide panel"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
+            {/* Center panel body — Criteria + Dataset + Results */}
+            {selectedCampaign ? (
               <div className="flex-1 overflow-y-auto" style={{ transform: 'translateZ(0)' }}>
-                <CriteriaPanel
-                  campaignId={selectedId}
-                  refreshKey={criteriaRefreshKey}
-                />
+                {/* Criteria section */}
+                <div className="px-5 py-4">
+                  <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
+                    Criteria
+                  </span>
+                </div>
+                <div className="px-4">
+                  <CriteriaPanel
+                    campaignId={selectedId}
+                    refreshKey={criteriaRefreshKey}
+                  />
+                </div>
 
                 {/* Dataset preview section */}
                 {dataset && (
                   <>
-                    <div className="px-4 py-3 border-t border-white/[0.08] mt-2">
+                    <div className="px-5 py-4 border-t border-white/[0.08] mt-4">
                       <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
                         Dataset
                       </span>
                     </div>
-                    <DatasetPreview dataset={dataset} />
+                    <div className="px-4">
+                      <DatasetPreview dataset={dataset} />
+                    </div>
                   </>
                 )}
 
                 {/* Results section */}
-                <div className="px-4 py-3 border-t border-white/[0.08] mt-2 flex items-center justify-between">
+                <div className="px-5 py-4 border-t border-white/[0.08] mt-4 flex items-center justify-between">
                   <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
                     Results
                   </span>
-                  {selectedCampaign &&
-                    (selectedCampaign.status === 'active' || selectedCampaign.status === 'scanning') &&
+                  {(selectedCampaign.status === 'active' || selectedCampaign.status === 'scanning') &&
                     dataset &&
                     hasCriteria && (
                       <button
@@ -3393,19 +3348,75 @@ export default function OutreachClient({
                       </button>
                     )}
                 </div>
-                <div className="px-3 pb-4">
-                  {selectedCampaign ? (
-                    <LeadsPanel
-                      campaignId={selectedCampaign.id}
-                      refreshKey={leadsRefreshKey}
-                      onDraftMessages={() => setShowTemplateModal(true)}
-                    />
-                  ) : (
-                    <p className="text-xs text-white/25 leading-relaxed px-1">
-                      Select or create a campaign to see results here.
-                    </p>
-                  )}
+                <div className="px-4 pb-6">
+                  <LeadsPanel
+                    campaignId={selectedCampaign.id}
+                    refreshKey={leadsRefreshKey}
+                    onDraftMessages={() => setShowTemplateModal(true)}
+                  />
                 </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center px-8">
+                <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto mb-4">
+                  <Target className="w-5 h-5 text-white/20" />
+                </div>
+                <p className="text-sm text-white/40 mb-1">
+                  Select or create a campaign to start
+                </p>
+                <p className="font-mono text-[10px] uppercase tracking-wide text-white/20 mt-1">
+                  Campaigns help you find and reach your ideal leads
+                </p>
+                <button
+                  onClick={() => setShowNewModal(true)}
+                  className="mt-5 flex items-center gap-1.5 px-4 py-2 border border-white/[0.1] text-white/40 hover:text-white/70 hover:bg-white/[0.04] hover:border-white/[0.2] transition-colors mx-auto font-mono text-[10px] uppercase tracking-wide"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  New Campaign
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Right panel — Chat */}
+          {!rightPanelHidden && (
+            <aside className="hidden md:flex shrink-0 w-96 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 flex-col overflow-hidden">
+              <div className="shrink-0 px-4 py-3 border-b border-white/[0.08] flex items-center justify-between">
+                <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
+                  Chat
+                </span>
+                <button
+                  onClick={() => setRightPanelHidden(true)}
+                  className="w-6 h-6 flex items-center justify-center text-white/20 hover:text-white/60 transition-colors"
+                  title="Hide chat"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                {selectedCampaign ? (
+                  <OutreachChat
+                    key={selectedCampaign.id}
+                    campaign={selectedCampaign}
+                    onConversationCreated={handleConversationCreated}
+                    onMessagesChange={setMessageCount}
+                    onCriteriaRefresh={handleCriteriaRefresh}
+                    hasCriteria={hasCriteria}
+                    dataset={dataset}
+                    scanning={scanning}
+                    scanReport={scanReport}
+                    onDatasetConnected={handleDatasetConnected}
+                    onScanTriggered={handleScanTriggered}
+                    onScanReportDismissed={() => setScanReport(null)}
+                  />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center px-4">
+                    <p className="text-xs text-white/25 text-center leading-relaxed">
+                      Select a campaign to chat with your outreach agent.
+                    </p>
+                  </div>
+                )}
               </div>
             </aside>
           )}
