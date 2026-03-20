@@ -1006,7 +1006,7 @@ function OutreachChat({
     d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}>
       {/* Extract / Scan button row */}
       {(canExtract || canScan || scanning) && (
         <div className="shrink-0 px-5 py-2 border-b border-white/[0.04] flex items-center justify-end gap-2">
@@ -1099,7 +1099,7 @@ function OutreachChat({
       )}
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4">
+      <div style={{ flex: '1 1 0%', minHeight: 0, overflowY: 'auto' }} className="px-4 py-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full py-8 px-4">
             {campaign.status === 'setup' ? (
@@ -3411,7 +3411,7 @@ export default function OutreachClient({
 
           {/* Right panel — Chat */}
           {!rightPanelHidden && (
-            <aside className="hidden md:flex shrink-0 w-96 min-h-0 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 flex-col overflow-hidden">
+            <aside className="hidden md:flex shrink-0 w-96 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 flex-col" style={{ maxHeight: '100%', overflow: 'hidden' }}>
               <div className="shrink-0 px-4 py-3 border-b border-white/[0.08] flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
                   Chat
@@ -3425,7 +3425,7 @@ export default function OutreachClient({
                 </button>
               </div>
 
-              <div className="flex-1 flex flex-col min-h-0">
+              <div style={{ flex: '1 1 0%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                 {selectedCampaign ? (
                   <OutreachChat
                     key={selectedCampaign.id}
