@@ -1006,7 +1006,7 @@ function OutreachChat({
     d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0%', minHeight: 0 }}>
       {/* Extract / Scan button row */}
       {(canExtract || canScan || scanning) && (
         <div className="shrink-0 px-5 py-2 border-b border-white/[0.04] flex items-center justify-end gap-2">
@@ -3411,7 +3411,7 @@ export default function OutreachClient({
 
           {/* Right panel — Chat */}
           {!rightPanelHidden && (
-            <aside className="hidden md:flex shrink-0 w-96 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 flex-col" style={{ maxHeight: '100%', overflow: 'hidden' }}>
+            <aside className="hidden md:flex shrink-0 w-96 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 flex-col overflow-hidden">
               <div className="shrink-0 px-4 py-3 border-b border-white/[0.08] flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
                   Chat
