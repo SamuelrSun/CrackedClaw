@@ -3414,7 +3414,7 @@ export default function OutreachClient({
 
           {/* Right panel — Chat */}
           {!rightPanelHidden && (
-            <aside className="hidden md:flex shrink-0 w-96 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 flex-col overflow-hidden">
+            <aside className="hidden md:flex shrink-0 w-96 min-h-0 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 flex-col overflow-hidden">
               <div className="shrink-0 px-4 py-3 border-b border-white/[0.08] flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
                   Chat
@@ -3428,7 +3428,7 @@ export default function OutreachClient({
                 </button>
               </div>
 
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <div className="flex-1 flex flex-col min-h-0">
                 {selectedCampaign ? (
                   <OutreachChat
                     key={selectedCampaign.id}
