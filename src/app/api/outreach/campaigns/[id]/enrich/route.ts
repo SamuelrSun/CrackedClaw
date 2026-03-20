@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { detectUrlColumns } from '@/lib/outreach/dataset-parser';
+import { logAction } from '@/lib/outreach/log-action';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -203,6 +204,13 @@ export async function POST(
         })
         .eq('id', params.id);
     }
+
+    // Log enrichment action
+    const detectedUrlColumn = urlColumns[0] ?? incomingUrlColumns?.[0] ?? 'unknown';
+    await logAction(params.id, user.id, 'enrichment', {
+      count: incomingRows.length,
+      url_column: detectedUrlColumn,
+    });
 
     return NextResponse.json({
       total: ds.row_count ?? 0,

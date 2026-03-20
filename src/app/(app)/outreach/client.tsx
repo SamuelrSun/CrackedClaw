@@ -3307,6 +3307,170 @@ function WorkflowTabContent({ workflows, loading, onStartBrainDump, campaignSele
   );
 }
 
+// ─── Campaign Logs Panel ──────────────────────────────────────────────────────
+
+interface CampaignLog {
+  id: string;
+  action: string;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+function relativeTime(isoDate: string): string {
+  const diff = Date.now() - new Date(isoDate).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function formatLogEntry(log: CampaignLog): { icon: string; label: string; detail?: string } {
+  const d = log.details;
+  switch (log.action) {
+    case 'lead_discovered':
+      return {
+        icon: '🤖',
+        label: `Discovered ${d.count ?? '?'} leads via ${d.method ?? 'agent'}`,
+        detail: d.high_count != null ? `${d.high_count} High` : undefined,
+      };
+    case 'scoring':
+      return {
+        icon: '📊',
+        label: `Scored ${d.count ?? '?'} leads`,
+        detail: d.high != null ? `${d.high} High, ${d.medium} Med, ${d.low} Low` : undefined,
+      };
+    case 'enrichment':
+      return {
+        icon: '🔍',
+        label: `Enriched ${d.count ?? '?'} profiles${d.url_column ? ` from ${d.url_column} column` : ''}`,
+      };
+    case 'criteria_updated':
+      return {
+        icon: '✏️',
+        label: `Criteria updated${d.criterion ? ` — ${d.criterion}` : ''}`,
+        detail: d.old != null && d.new != null ? `${d.old} → ${d.new}` : undefined,
+      };
+    case 'dataset_connected':
+      return {
+        icon: '📋',
+        label: `Dataset connected${d.source_name ? ` — ${d.source_name}` : ''}`,
+        detail: d.row_count != null ? `${d.row_count} rows` : undefined,
+      };
+    case 'workflow_saved':
+      return {
+        icon: '🔄',
+        label: `Workflow saved${d.name ? `: ${d.name}` : ''}`,
+      };
+    case 'style_extracted':
+      return {
+        icon: '🎨',
+        label: `Style extracted${d.sample_count != null ? ` from ${d.sample_count} examples` : ''}`,
+      };
+    case 'draft_generated':
+      return {
+        icon: '✉️',
+        label: `Draft generated${d.lead_name ? ` for ${d.lead_name}` : ''}`,
+      };
+    case 'feedback_processed':
+      return {
+        icon: '🔧',
+        label: `Feedback processed${d.adjustment_count != null ? ` — ${d.adjustment_count} criteria adjusted` : ''}`,
+      };
+    default:
+      return { icon: '📝', label: log.action };
+  }
+}
+
+interface CampaignLogsPanelProps {
+  campaignId: string;
+  isActive: boolean;
+}
+
+function CampaignLogsPanel({ campaignId, isActive }: CampaignLogsPanelProps) {
+  const [logs, setLogs] = useState<CampaignLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/outreach/campaigns/${campaignId}/logs?limit=50`);
+      if (res.ok) {
+        const data = await res.json();
+        setLogs(data.logs ?? []);
+        setTotal(data.total ?? 0);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, [campaignId]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    setLoading(true);
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 30000);
+    return () => clearInterval(interval);
+  }, [isActive, campaignId, fetchLogs]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-5 h-5 text-white/30 animate-spin" />
+      </div>
+    );
+  }
+
+  if (logs.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
+        <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto mb-4">
+          <MessageSquare className="w-5 h-5 text-white/20" />
+        </div>
+        <p className="text-sm text-white/40 mb-1">No activity yet.</p>
+        <p className="font-mono text-[10px] uppercase tracking-wide text-white/20">
+          Actions like enrichment, scoring, and discovery will appear here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col">
+      <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+        <p className="font-mono text-[10px] uppercase tracking-wide text-white/30">
+          Activity Log
+        </p>
+        {total > logs.length && (
+          <p className="font-mono text-[10px] text-white/20">{total} total</p>
+        )}
+      </div>
+      <div className="divide-y divide-white/[0.04]">
+        {logs.map((log) => {
+          const { icon, label, detail } = formatLogEntry(log);
+          return (
+            <div key={log.id} className="flex items-start gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors">
+              <span className="text-base leading-none mt-0.5 shrink-0">{icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] text-white/70 leading-snug">{label}</p>
+                {detail && (
+                  <p className="text-[11px] text-white/30 mt-0.5">{detail}</p>
+                )}
+              </div>
+              <span className="text-[11px] text-white/25 shrink-0 mt-0.5 tabular-nums">
+                {relativeTime(log.created_at)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main client ──────────────────────────────────────────────────────────────
 
 interface OutreachClientProps {
@@ -3963,15 +4127,8 @@ export default function OutreachClient({
                 )}
 
                 {/* ── Logs tab ── */}
-                {activeTab === 'logs' && (
-                  <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
-                    <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto mb-4">
-                      <MessageSquare className="w-5 h-5 text-white/20" />
-                    </div>
-                    <p className="font-mono text-[10px] uppercase tracking-wide text-white/20">
-                      Campaign logs coming soon
-                    </p>
-                  </div>
+                {activeTab === 'logs' && selectedCampaign && (
+                  <CampaignLogsPanel campaignId={selectedCampaign.id} isActive={activeTab === 'logs'} />
                 )}
 
               </div>

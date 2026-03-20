@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { parseCSV, toCSVExportUrl, detectUrlColumns } from '@/lib/outreach/dataset-parser';
+import { logAction } from '@/lib/outreach/log-action';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -258,6 +259,13 @@ export async function POST(
       .eq('id', params.id);
 
     const sampleRows = parsed.rows.slice(0, 5);
+
+    // Log dataset connection
+    await logAction(params.id, user.id, 'dataset_connected', {
+      source_name: sourceName,
+      row_count: parsed.row_count,
+      source_type: sourceType,
+    });
 
     return NextResponse.json({
       success: true,

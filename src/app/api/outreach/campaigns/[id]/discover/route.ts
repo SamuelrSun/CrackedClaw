@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireApiAuth } from '@/lib/api-auth';
+import { logAction } from '@/lib/outreach/log-action';
 
 export const dynamic = 'force-dynamic';
 
@@ -165,8 +166,19 @@ export async function POST(
     );
   }
 
+  const insertedCount = inserted?.length ?? 0;
+
+  // Log lead discovery
+  const highCount = (inserted ?? []).filter((l: { rank: string }) => l.rank === 'high').length;
+  const discoveryMethod = toInsert[0]?.discovery_method as string | undefined ?? 'agent';
+  await logAction(campaignId, user!.id, 'lead_discovered', {
+    count: insertedCount,
+    method: discoveryMethod,
+    high_count: highCount,
+  });
+
   return NextResponse.json({
-    inserted: inserted?.length ?? 0,
+    inserted: insertedCount,
     skipped,
     leads: inserted ?? [],
   });

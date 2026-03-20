@@ -9,6 +9,7 @@ import { scoreLeads } from '@/lib/outreach/scoring-engine';
 import { loadCriteria } from '@/lib/outreach/criteria-store';
 import { parseCSV } from '@/lib/outreach/dataset-parser';
 import type { DatasetRow } from '@/lib/outreach/dataset-parser';
+import { logAction } from '@/lib/outreach/log-action';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -132,6 +133,14 @@ export async function POST(
       .update({ status: 'active', updated_at: new Date().toISOString() })
       .eq('id', campaignId);
   }
+
+  // Log scoring action
+  await logAction(campaignId, user!.id, 'scoring', {
+    count: result.leads.length,
+    high,
+    medium,
+    low,
+  });
 
   return NextResponse.json({
     scored: result.leads.length,

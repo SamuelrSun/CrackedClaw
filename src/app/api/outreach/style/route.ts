@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiAuth } from '@/lib/api-auth';
 import { mem0Write, mem0GetAll } from '@/lib/memory/mem0-client';
+import { logAction } from '@/lib/outreach/log-action';
 import {
   extractStyleFromSamples,
   draftWithStyle,
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
       // Default: check body for discriminant
       if ('samples' in body) return handleExtract(user!.id, body);
       if ('lead' in body) return handleDraft(user!.id, body);
+
       return NextResponse.json(
         { error: 'Unknown action. Use ?action=extract or ?action=draft' },
         { status: 400 }
@@ -95,9 +97,9 @@ export async function POST(request: NextRequest) {
 
 async function handleExtract(
   userId: string,
-  body: { samples?: string[]; context?: string }
+  body: { samples?: string[]; context?: string; campaign_id?: string }
 ): Promise<NextResponse> {
-  const { samples, context } = body;
+  const { samples, context, campaign_id } = body;
 
   if (!samples || !Array.isArray(samples) || samples.length === 0) {
     return NextResponse.json(
@@ -140,6 +142,11 @@ async function handleExtract(
     domain: 'user:communication',
     importance: 0.8,
     source: 'style_extraction',
+  });
+
+  // Log style extraction (non-critical)
+  await logAction(campaign_id ?? 'global', userId, 'style_extracted', {
+    sample_count: style.sample_count,
   });
 
   return NextResponse.json({ style, memory_id: memoryId });

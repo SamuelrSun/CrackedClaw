@@ -177,6 +177,18 @@ ${scoringContext.scored > 0
 To add agent-discovered leads: POST /api/outreach/campaigns/${campaignId ?? '{campaign_id}'}/discover
   Body: { leads: [{name, profile_url, profile_data, score, rank, reasoning, criterion_scores, source: "agent_discovery", discovery_method}] }` : ''}
 
+### Feedback Routing
+When Sam says a lead is wrong, ranked incorrectly, or gives a correction:
+1. Note the correction (lead name, AI rank, Sam's rank, reason if given)
+2. After 3+ corrections accumulate, call: POST /api/outreach/campaigns/${campaignId ?? '{campaign_id}'}/refine
+   Body: { feedback: [{lead_name, ai_rank, user_rank, user_feedback, profile_data}] }
+3. Determine if the adjustment is campaign-specific or general:
+   - "for this campaign" → stays in outreach:{slug} criteria (refine handles this)
+   - "I always/never..." → also write to user:profile via POST /api/outreach/user-model
+4. After refining, confirm: "Adjusted [criterion] from [X] to [Y] based on your corrections."
+5. Log the refinement: POST /api/outreach/campaigns/${campaignId ?? '{campaign_id}'}/logs
+   Body: { action: "feedback_processed", details: { adjustment_count: N } }
+
 ### Connected Dataset
 ${datasetContext ?? "No dataset connected yet."}
 
