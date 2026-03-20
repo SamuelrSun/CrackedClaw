@@ -814,14 +814,7 @@ function OutreachChat({
     }
   }, [voiceListening, voiceText]);
 
-  // Auto-scroll to bottom only when new messages are added or streaming
-  const prevMessageCountRef = useRef(0);
-  useEffect(() => {
-    if (messages.length > prevMessageCountRef.current || isStreaming) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-    prevMessageCountRef.current = messages.length;
-  }, [messages, isStreaming]);
+  // No auto-scroll — user controls scroll position
 
   useEffect(() => {
     onMessagesChange(messages.length);
