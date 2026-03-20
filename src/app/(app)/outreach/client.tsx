@@ -13,6 +13,7 @@ import { useGateway } from "@/hooks/use-gateway";
 import { usePathname } from "next/navigation";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { UserMenu } from "@/components/auth/user-menu";
+import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import {
   Plus,
   ChevronLeft,
@@ -41,7 +42,7 @@ import type { CriteriaModel, Criterion } from "@/lib/outreach/criteria-engine";
 import type { AnalysisReport } from "@/lib/outreach/dataset-analyzer";
 import type { OutreachTemplate, PersonalizedMessage } from "@/lib/outreach/template-engine";
 import type { FeedbackAnalysis, CriterionAdjustment } from "@/lib/outreach/feedback-analyzer";
-import { VoiceInputButton, VoiceInfoDumpCard } from "@/components/chat/voice-input-button";
+import { VoiceInputButton } from "@/components/chat/voice-input-button";
 
 // ─── Dataset types ─────────────────────────────────────────────────────────────
 
@@ -507,6 +508,223 @@ function DatasetPreview({ dataset }: { dataset: DatasetInfo }) {
   );
 }
 
+// ─── Setup Panel ──────────────────────────────────────────────────────────────
+
+interface SetupPanelProps {
+  campaign: Campaign;
+  onRunAnalysis: (description: string, dataSourceUrl: string | null) => Promise<void>;
+}
+
+function SetupPanel({ campaign, onRunAnalysis }: SetupPanelProps) {
+  const [description, setDescription] = useState("");
+  const [dataSourceUrl, setDataSourceUrl] = useState("");
+  const [running, setRunning] = useState(false);
+  const {
+    isListening,
+    fullText,
+    wordCount,
+    isSupported,
+    startListening,
+    stopListening,
+    clearTranscript,
+  } = useSpeechRecognition();
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const startTimeRef = useRef<number | null>(null);
+
+  // Timer for recording duration
+  useEffect(() => {
+    if (isListening) {
+      startTimeRef.current = Date.now();
+      const interval = setInterval(() => {
+        if (startTimeRef.current) {
+          setElapsedSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setElapsedSeconds(0);
+    }
+  }, [isListening]);
+
+  // Sync voice transcript into description
+  useEffect(() => {
+    if (isListening && fullText) {
+      setDescription(fullText);
+    }
+  }, [isListening, fullText]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleStartVoice = () => {
+    clearTranscript();
+    setDescription("");
+    startListening();
+  };
+
+  const handleStopVoice = () => {
+    stopListening();
+    if (fullText.trim()) {
+      setDescription(fullText.trim());
+    }
+  };
+
+  const handleRun = async () => {
+    if (!description.trim() || running) return;
+    if (isListening) handleStopVoice();
+    setRunning(true);
+    try {
+      await onRunAnalysis(description.trim(), dataSourceUrl.trim() || null);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const descWordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
+
+  return (
+    <div className="w-full max-w-lg space-y-4">
+      {/* Header */}
+      <div className="text-center mb-2">
+        <h2 className="text-sm text-white/70 font-medium mb-1">
+          {campaign.name}
+        </h2>
+        <p className="font-mono text-[10px] uppercase tracking-wide text-white/30">
+          Describe your ideal leads and connect your data
+        </p>
+      </div>
+
+      {/* Description input */}
+      <div className="bg-white/[0.04] border border-white/[0.08] rounded-[3px] p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
+            Who are you looking for?
+          </span>
+          {isListening ? (
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              <span className="font-mono text-[10px] text-red-400/70">{formatTime(elapsedSeconds)}</span>
+              <span className="font-mono text-[9px] text-white/25">{wordCount}w</span>
+            </div>
+          ) : descWordCount > 0 ? (
+            <span className="font-mono text-[9px] text-white/25">{descWordCount} words</span>
+          ) : null}
+        </div>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="e.g. AR consultants at established tech companies who post regularly on LinkedIn and have 5+ years of experience..."
+          rows={4}
+          disabled={running}
+          className="w-full bg-transparent text-sm text-white/80 placeholder:text-white/20 outline-none resize-none disabled:opacity-50 leading-relaxed"
+        />
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/[0.06]">
+          {isSupported && (
+            <button
+              type="button"
+              onClick={isListening ? handleStopVoice : handleStartVoice}
+              disabled={running}
+              className={cn(
+                "flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide px-2.5 py-1.5 transition-colors disabled:opacity-40",
+                isListening
+                  ? "bg-red-900/30 border border-red-800/40 text-red-400 hover:bg-red-900/50"
+                  : "border border-white/[0.1] text-white/40 hover:text-white/70 hover:bg-white/[0.04]"
+              )}
+            >
+              {isListening ? (
+                <>
+                  <span className="flex items-end gap-[2px] h-3">
+                    {[1, 2, 3, 2, 1].map((h, i) => (
+                      <span
+                        key={i}
+                        className="w-[1.5px] bg-red-400 rounded-full"
+                        style={{
+                          height: `${h * 3}px`,
+                          animation: `voiceBar 0.8s ease-in-out ${i * 0.1}s infinite alternate`,
+                        }}
+                      />
+                    ))}
+                  </span>
+                  Stop
+                </>
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="2" width="6" height="12" rx="3" />
+                    <path d="M5 10a7 7 0 0 0 14 0" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                  </svg>
+                  Voice
+                </>
+              )}
+            </button>
+          )}
+          {!isSupported && <div />}
+          <span className="font-mono text-[9px] text-white/20">
+            Speak or type — be as detailed as you want
+          </span>
+        </div>
+      </div>
+
+      {/* Data source link */}
+      <div className="bg-white/[0.04] border border-white/[0.08] rounded-[3px] p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Database className="w-3.5 h-3.5 text-white/30" />
+          <span className="font-mono text-[10px] uppercase tracking-wide text-white/40">
+            Data Source
+          </span>
+          <span className="font-mono text-[9px] text-white/20">(optional)</span>
+        </div>
+        <input
+          type="url"
+          value={dataSourceUrl}
+          onChange={(e) => setDataSourceUrl(e.target.value)}
+          placeholder="Paste a Google Sheet link, CSV URL, or LinkedIn search URL..."
+          disabled={running}
+          className="w-full bg-white/[0.04] border border-white/[0.1] text-sm text-white/80 placeholder:text-white/20 px-3 py-2.5 outline-none focus:border-white/[0.25] transition-colors disabled:opacity-50"
+        />
+        <p className="font-mono text-[9px] text-white/20 mt-1.5">
+          Connect your existing leads to discover patterns in who you&apos;ve already selected
+        </p>
+      </div>
+
+      {/* Run Analysis button */}
+      <button
+        onClick={handleRun}
+        disabled={!description.trim() || running}
+        className={cn(
+          "w-full flex items-center justify-center gap-2 py-3.5 font-mono text-[11px] uppercase tracking-wide transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+          running
+            ? "bg-emerald-900/30 border border-emerald-800/40 text-emerald-400"
+            : "bg-white/[0.08] border border-white/[0.15] text-white/70 hover:bg-white/[0.12] hover:text-white/90"
+        )}
+      >
+        {running ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Analyzing…
+          </>
+        ) : (
+          <>
+            <Sparkles className="w-4 h-4" />
+            Run Analysis
+          </>
+        )}
+      </button>
+
+      <style jsx>{`
+        @keyframes voiceBar {
+          from { transform: scaleY(0.5); }
+          to   { transform: scaleY(1.5); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 // ─── Outreach Chat ────────────────────────────────────────────────────────────
 
 interface OutreachChatProps {
@@ -870,145 +1088,154 @@ function OutreachChat({
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4" style={{ transform: 'translateZ(0)' }}>
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12 px-4">
-            {/* Voice Info Dump Card — prominent for setup phase */}
-            {campaign.status === 'setup' && (
-              <div className="w-full max-w-md mb-8">
-                <VoiceInfoDumpCard
-                  onComplete={(text) => {
-                    // Set the text as input and auto-send
-                    setInput(text);
-                    // Use a small timeout to ensure state is set before sending
-                    setTimeout(() => {
-                      const userMsg: ChatMessage = {
-                        id: crypto.randomUUID(),
-                        role: "user",
-                        content: text,
-                        createdAt: new Date(),
-                      };
-                      setMessages([userMsg]);
-                      setInput("");
-                      // Trigger the send flow
-                      const sendVoiceMessage = async () => {
-                        setIsStreaming(true);
-                        const abortController = new AbortController();
-                        abortRef.current = abortController;
-                        const assistantId = crypto.randomUUID();
-                        let assistantContent = "";
+          <div className="flex flex-col items-center justify-center h-full py-8 px-4">
+            {campaign.status === 'setup' ? (
+              <SetupPanel
+                campaign={campaign}
+                onRunAnalysis={async (description, dataSourceUrl) => {
+                  // 1. Send the description as a chat message
+                  const userMsg: ChatMessage = {
+                    id: crypto.randomUUID(),
+                    role: "user",
+                    content: description,
+                    createdAt: new Date(),
+                  };
+                  setMessages([userMsg]);
+                  setInput("");
+                  setIsStreaming(true);
 
-                        setMessages((prev) => [
-                          ...prev,
-                          {
-                            id: assistantId,
-                            role: "assistant",
-                            content: "",
-                            createdAt: new Date(),
-                          },
-                        ]);
+                  const abortController = new AbortController();
+                  abortRef.current = abortController;
+                  const assistantId = crypto.randomUUID();
+                  let assistantContent = "";
+
+                  setMessages((prev) => [
+                    ...prev,
+                    { id: assistantId, role: "assistant", content: "", createdAt: new Date() },
+                  ]);
+
+                  try {
+                    // Send to chat to establish conversation
+                    const res = await fetch("/api/outreach/chat", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        message: description,
+                        campaign_id: campaign.id,
+                        conversation_id: conversationId,
+                      }),
+                      signal: abortController.signal,
+                    });
+
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                    const headerConvoId = res.headers.get("X-Conversation-Id");
+                    if (headerConvoId && !conversationId) {
+                      setConversationId(headerConvoId);
+                      onConversationCreated(headerConvoId);
+                    }
+
+                    const reader = res.body?.getReader();
+                    if (!reader) throw new Error("No response body");
+
+                    const decoder = new TextDecoder();
+                    let buffer = "";
+
+                    while (true) {
+                      const { done, value } = await reader.read();
+                      if (done) break;
+
+                      buffer += decoder.decode(value, { stream: true });
+                      const lines = buffer.split("\n");
+                      buffer = lines.pop() || "";
+
+                      for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (!trimmed.startsWith("data: ")) continue;
+                        const data = trimmed.slice(6);
+                        if (data === "[DONE]") break;
 
                         try {
-                          const res = await fetch("/api/outreach/chat", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              message: text,
-                              campaign_id: campaign.id,
-                              conversation_id: conversationId,
-                            }),
-                            signal: abortController.signal,
-                          });
-
-                          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-                          const headerConvoId = res.headers.get("X-Conversation-Id");
-                          if (headerConvoId && !conversationId) {
-                            setConversationId(headerConvoId);
-                            onConversationCreated(headerConvoId);
+                          const event = JSON.parse(data);
+                          if (event.type === "status" && event.conversation_id && !conversationId) {
+                            setConversationId(event.conversation_id);
+                            onConversationCreated(event.conversation_id);
                           }
-
-                          const reader = res.body?.getReader();
-                          if (!reader) throw new Error("No response body");
-
-                          const decoder = new TextDecoder();
-                          let buffer = "";
-
-                          while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) break;
-
-                            buffer += decoder.decode(value, { stream: true });
-                            const lines = buffer.split("\n");
-                            buffer = lines.pop() || "";
-
-                            for (const line of lines) {
-                              const trimmed = line.trim();
-                              if (!trimmed.startsWith("data: ")) continue;
-                              const data = trimmed.slice(6);
-                              if (data === "[DONE]") break;
-
-                              try {
-                                const event = JSON.parse(data);
-                                if (event.type === "status" && event.conversation_id && !conversationId) {
-                                  setConversationId(event.conversation_id);
-                                  onConversationCreated(event.conversation_id);
-                                }
-                                if (event.type === "token" && event.text) {
-                                  assistantContent += event.text;
-                                  setMessages((prev) =>
-                                    prev.map((m) =>
-                                      m.id === assistantId
-                                        ? { ...m, content: assistantContent }
-                                        : m
-                                    )
-                                  );
-                                }
-                                if (event.type === "done") {
-                                  if (event.conversation_id && !conversationId) {
-                                    setConversationId(event.conversation_id);
-                                    onConversationCreated(event.conversation_id);
-                                  }
-                                  break;
-                                }
-                              } catch {
-                                // skip parse errors
-                              }
-                            }
-                          }
-                          reader.releaseLock();
-                        } catch (err) {
-                          if ((err as Error).name !== "AbortError") {
+                          if (event.type === "token" && event.text) {
+                            assistantContent += event.text;
                             setMessages((prev) =>
                               prev.map((m) =>
-                                m.id === assistantId
-                                  ? { ...m, content: assistantContent || "Sorry, something went wrong." }
-                                  : m
+                                m.id === assistantId ? { ...m, content: assistantContent } : m
                               )
                             );
                           }
-                        } finally {
-                          setIsStreaming(false);
-                          abortRef.current = null;
-                        }
-                      };
-                      sendVoiceMessage();
-                    }, 50);
-                  }}
-                />
-              </div>
-            )}
-            
-            {/* Default empty state for non-setup or as fallback */}
-            {campaign.status !== 'setup' && (
-              <>
+                          if (event.type === "done") {
+                            if (event.conversation_id && !conversationId) {
+                              setConversationId(event.conversation_id);
+                              onConversationCreated(event.conversation_id);
+                            }
+                            break;
+                          }
+                        } catch { /* skip */ }
+                      }
+                    }
+                    reader.releaseLock();
+                  } catch (err) {
+                    if ((err as Error).name !== "AbortError") {
+                      setMessages((prev) =>
+                        prev.map((m) =>
+                          m.id === assistantId
+                            ? { ...m, content: assistantContent || "Sorry, something went wrong." }
+                            : m
+                        )
+                      );
+                    }
+                  } finally {
+                    setIsStreaming(false);
+                    abortRef.current = null;
+                  }
+
+                  // 2. Extract criteria from the conversation
+                  try {
+                    const critRes = await fetch(`/api/outreach/campaigns/${campaign.id}/criteria`, {
+                      method: "POST",
+                    });
+                    if (critRes.ok) onCriteriaRefresh();
+                  } catch { /* ignore */ }
+
+                  // 3. If a data source URL was provided, connect it and scan
+                  if (dataSourceUrl) {
+                    try {
+                      const dsRes = await fetch(`/api/outreach/campaigns/${campaign.id}/dataset`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ sheet_url: dataSourceUrl }),
+                      });
+                      if (dsRes.ok) {
+                        const dsData = await dsRes.json();
+                        onDatasetConnected({
+                          source_type: dsData.source_type || 'google_sheet',
+                          row_count: dsData.row_count || 0,
+                          columns: dsData.columns || [],
+                        });
+
+                        // Trigger scan
+                        onScanTriggered();
+                      }
+                    } catch { /* ignore */ }
+                  }
+                }}
+              />
+            ) : (
+              <div className="text-center">
                 <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto mb-4">
                   <Target className="w-5 h-5 text-white/20" />
                 </div>
                 <p className="text-sm text-white/40 mb-1">{campaign.name}</p>
                 <p className="font-mono text-[10px] uppercase tracking-wide text-white/20 mt-1 max-w-xs mx-auto">
-                  Describe what you&apos;re looking for. Who is your ideal lead?
-                  Their industry, seniority, company size, signals, location…
+                  Use the chat below to continue refining your search.
                 </p>
-              </>
+              </div>
             )}
           </div>
         )}
