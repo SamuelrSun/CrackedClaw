@@ -1006,7 +1006,7 @@ function OutreachChat({
     d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       {/* Extract / Scan button row */}
       {(canExtract || canScan || scanning) && (
         <div className="shrink-0 px-5 py-2 border-b border-white/[0.04] flex items-center justify-end gap-2">
