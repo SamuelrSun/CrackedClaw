@@ -107,6 +107,23 @@ interface ScoringStats {
   criteria_used?: number;
 }
 
+interface DiscoveryStats {
+  total_leads: number;
+  by_source: {
+    dataset: number;
+    agent_discovery: number;
+    [key: string]: number;
+  };
+  by_rank: LeadsByRank;
+  recent_discoveries: Array<{
+    id: string;
+    name: string;
+    rank: string;
+    source: string;
+    created_at: string;
+  }>;
+}
+
 // ─── Status badge ────────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<Campaign["status"], string> = {
@@ -2042,6 +2059,11 @@ function LeadCard({ lead, campaignId, onUpdated }: LeadCardProps) {
                   OVERRIDE
                 </span>
               )}
+              {lead.source === 'agent_discovery' && (
+                <span className="font-mono text-[8px] uppercase tracking-wide px-1 py-0.5 bg-purple-900/20 border border-purple-800/30 text-purple-400/80">
+                  🤖 Discovered
+                </span>
+              )}
               {lead.draft_body && (
                 <span className="font-mono text-[8px] uppercase tracking-wide px-1 py-0.5 bg-purple-900/30 border border-purple-800/40 text-purple-400 flex items-center gap-0.5">
                   <Mail className="w-2 h-2" />
@@ -2113,6 +2135,52 @@ function LeadCard({ lead, campaignId, onUpdated }: LeadCardProps) {
 }
 
 // ─── Leads Panel (right panel results section) ────────────────────────────────
+
+// ─── Discovery Stats Bar ──────────────────────────────────────────────────────
+
+interface DiscoveryStatsBarProps {
+  campaignId: string;
+  refreshKey: number;
+}
+
+function DiscoveryStatsBar({ campaignId, refreshKey }: DiscoveryStatsBarProps) {
+  const [stats, setStats] = useState<DiscoveryStats | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/outreach/campaigns/${campaignId}/discover`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: DiscoveryStats | null) => {
+        if (!cancelled) setStats(data);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [campaignId, refreshKey]);
+
+  // Only show when there are agent-discovered leads
+  if (!stats || stats.by_source.agent_discovery === 0) return null;
+
+  return (
+    <div className="mx-4 mt-3 mb-0 px-3 py-2 bg-white/[0.03] border border-white/[0.07] rounded-[2px] flex items-center gap-3 flex-wrap">
+      <span className="font-mono text-[9px] uppercase tracking-wide text-white/30">Lead Sources</span>
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="font-mono text-[9px] text-white/50">
+          Total: <span className="text-white/70">{stats.total_leads}</span>
+        </span>
+        <span className="text-white/15">|</span>
+        <span className="font-mono text-[9px] text-white/50">
+          📋 <span className="text-white/70">{stats.by_source.dataset}</span> from dataset
+        </span>
+        <span className="text-white/15">|</span>
+        <span className="font-mono text-[9px] text-purple-400/80">
+          🤖 <span className="text-purple-300">{stats.by_source.agent_discovery}</span> agent-discovered
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Leads Panel ─────────────────────────────────────────────────────────────
 
 interface LeadsPanelProps {
   campaignId: string;
@@ -3785,6 +3853,12 @@ export default function OutreachClient({
                         </p>
                       </div>
                     )}
+
+                    {/* Discovery stats bar — shown when agent-discovered leads exist */}
+                    <DiscoveryStatsBar
+                      campaignId={selectedCampaign.id}
+                      refreshKey={leadsRefreshKey}
+                    />
 
                     {/* Leads panel */}
                     <div className="px-4 pb-6 pt-4">

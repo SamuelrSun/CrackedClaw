@@ -57,9 +57,10 @@ function buildOutreachSystemPrompt(
   campaignName: string,
   status: string,
   criteria: string,
-  scoringContext?: { scored: number; high: number; medium: number; low: number; pending: number; topCriteria: string },
+  scoringContext?: { scored: number; high: number; medium: number; low: number; pending: number; topCriteria: string; datasetCount: number; discoveryCount: number },
   datasetContext?: string,
-  userModel?: { profile: Mem0Memory[]; workflows: Mem0Memory[]; communication: Mem0Memory[] }
+  userModel?: { profile: Mem0Memory[]; workflows: Mem0Memory[]; communication: Mem0Memory[] },
+  campaignId?: string
 ): string {
   const phaseMap: Record<string, { description: string; instructions: string }> = {
     setup: {
@@ -108,9 +109,13 @@ ${phase.instructions}
 ${criteria || "(No criteria extracted yet — continue the info dump conversation)"}
 ${scoringContext ? `
 ### Lead Pipeline
+Total: ${scoringContext.scored + scoringContext.pending} leads (${scoringContext.datasetCount} from dataset, ${scoringContext.discoveryCount} agent-discovered)
 ${scoringContext.scored > 0
-    ? `Scored: ${scoringContext.scored} leads — ${scoringContext.high} High / ${scoringContext.medium} Medium / ${scoringContext.low} Low`
-    : 'No leads scored yet.'}${scoringContext.pending > 0 ? `\nPending enrichment: ${scoringContext.pending} leads imported but not yet scored` : ''}${scoringContext.scored > 0 ? `\nTop criteria driving scores: ${scoringContext.topCriteria}\n\nThe user can ask you to:\n- Find more leads matching the criteria (use web search + browser tools)\n- Explain why a specific lead was ranked a certain way\n- Adjust criteria based on feedback\n- Re-score leads after criteria changes` : ''}` : ''}
+    ? `Scored: ${scoringContext.high} High / ${scoringContext.medium} Medium / ${scoringContext.low} Low`
+    : 'No leads scored yet.'}${scoringContext.pending > 0 ? `\nPending scoring: ${scoringContext.pending} leads imported but not yet scored` : ''}${scoringContext.scored > 0 ? `\nTop criteria driving scores: ${scoringContext.topCriteria}\n\nThe user can ask you to:\n- Find more leads matching the criteria (use web search + browser tools)\n- Explain why a specific lead was ranked a certain way\n- Adjust criteria based on feedback\n- Re-score leads after criteria changes` : ''}
+
+To add agent-discovered leads: POST /api/outreach/campaigns/${campaignId ?? '{campaign_id}'}/discover
+  Body: { leads: [{name, profile_url, profile_data, score, rank, reasoning, criterion_scores, source: "agent_discovery", discovery_method}] }` : ''}
 
 ### Connected Dataset
 ${datasetContext ?? "No dataset connected yet."}
@@ -281,18 +286,20 @@ export async function POST(request: NextRequest) {
       systemPrompt = await buildSystemPromptForUser(user!.id, message);
     }
 
-    // Load lead pipeline context (all statuses)
-    let scoringContext: { scored: number; high: number; medium: number; low: number; pending: number; topCriteria: string } | undefined;
+    // Load lead pipeline context (all statuses + discovery stats)
+    let scoringContext: { scored: number; high: number; medium: number; low: number; pending: number; topCriteria: string; datasetCount: number; discoveryCount: number } | undefined;
     try {
       const { data: allLeads } = await supabase
         .from('campaign_leads')
-        .select('rank')
+        .select('rank, source')
         .eq('campaign_id', campaign_id);
       if (allLeads && allLeads.length > 0) {
         const high = allLeads.filter((l) => l.rank === 'high').length;
         const medium = allLeads.filter((l) => l.rank === 'medium').length;
         const low = allLeads.filter((l) => l.rank === 'low').length;
         const pending = allLeads.filter((l) => !l.rank).length;
+        const datasetCount = allLeads.filter((l) => (l.source ?? 'dataset') === 'dataset').length;
+        const discoveryCount = allLeads.filter((l) => l.source === 'agent_discovery').length;
         // Build top criteria summary from first criterion lines
         const criteriaFirstSection = criteriaText.split('\n\n')[0] ?? '';
         const criteriaLines = criteriaFirstSection.split('\n').slice(1, 4); // skip section header
@@ -302,6 +309,8 @@ export async function POST(request: NextRequest) {
           medium,
           low,
           pending,
+          datasetCount,
+          discoveryCount,
           topCriteria: criteriaLines.join('; ').slice(0, 200),
         };
       }
@@ -396,7 +405,8 @@ To enrich: visit the URL column for each row, extract profile data, then POST /a
       criteriaText,
       scoringContext,
       datasetContext,
-      userModel
+      userModel,
+      campaign_id
     );
     systemPrompt += outreachContext;
 
