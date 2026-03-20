@@ -2760,7 +2760,19 @@ User message: `
               </button>
               </div>
 
-              {/* Mic / Send button (mic when empty, arrow when typing) — stays on the right */}
+              {/* Voice input button */}
+              <VoiceInputButton
+                onTranscript={(text) => {
+                  setInput(text);
+                }}
+                onInterimUpdate={(text) => {
+                  setInput(text);
+                }}
+                disabled={!gateway || isLoading || isReconnecting}
+                variant="outreach"
+              />
+
+              {/* Send button — always visible when there's input */}
               <button
                 type="button"
                 onClick={() => {
@@ -2772,15 +2784,11 @@ User message: `
                     }
                   }
                 }}
-                disabled={!gateway || isLoading || isReconnecting}
+                disabled={!gateway || isLoading || isReconnecting || (!input.trim() && attachedFiles.length === 0)}
                 className="group/btn relative w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent"
               >
-                {input.trim() || attachedFiles.length > 0 ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-                )}
-                <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">{input.trim() ? 'Send' : 'Voice'}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+                <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">Send</span>
               </button>
 
 

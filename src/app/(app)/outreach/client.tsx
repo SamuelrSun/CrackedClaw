@@ -42,6 +42,7 @@ import type { CriteriaModel, Criterion } from "@/lib/outreach/criteria-engine";
 import type { AnalysisReport } from "@/lib/outreach/dataset-analyzer";
 import type { OutreachTemplate, PersonalizedMessage } from "@/lib/outreach/template-engine";
 import type { FeedbackAnalysis, CriterionAdjustment } from "@/lib/outreach/feedback-analyzer";
+import { VoiceInputButton, VoiceInfoDumpCard } from "@/components/chat/voice-input-button";
 
 // ─── Dataset types ─────────────────────────────────────────────────────────────
 
@@ -870,15 +871,146 @@ function OutreachChat({
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12">
-            <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto mb-4">
-              <Target className="w-5 h-5 text-white/20" />
-            </div>
-            <p className="text-sm text-white/40 mb-1">{campaign.name}</p>
-            <p className="font-mono text-[10px] uppercase tracking-wide text-white/20 mt-1 max-w-xs mx-auto">
-              Describe what you&apos;re looking for. Who is your ideal lead?
-              Their industry, seniority, company size, signals, location…
-            </p>
+          <div className="flex flex-col items-center justify-center h-full text-center py-12 px-4">
+            {/* Voice Info Dump Card — prominent for setup phase */}
+            {campaign.status === 'setup' && (
+              <div className="w-full max-w-md mb-8">
+                <VoiceInfoDumpCard
+                  onComplete={(text) => {
+                    // Set the text as input and auto-send
+                    setInput(text);
+                    // Use a small timeout to ensure state is set before sending
+                    setTimeout(() => {
+                      const userMsg: ChatMessage = {
+                        id: crypto.randomUUID(),
+                        role: "user",
+                        content: text,
+                        createdAt: new Date(),
+                      };
+                      setMessages([userMsg]);
+                      setInput("");
+                      // Trigger the send flow
+                      const sendVoiceMessage = async () => {
+                        setIsStreaming(true);
+                        const abortController = new AbortController();
+                        abortRef.current = abortController;
+                        const assistantId = crypto.randomUUID();
+                        let assistantContent = "";
+
+                        setMessages((prev) => [
+                          ...prev,
+                          {
+                            id: assistantId,
+                            role: "assistant",
+                            content: "",
+                            createdAt: new Date(),
+                          },
+                        ]);
+
+                        try {
+                          const res = await fetch("/api/outreach/chat", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              message: text,
+                              campaign_id: campaign.id,
+                              conversation_id: conversationId,
+                            }),
+                            signal: abortController.signal,
+                          });
+
+                          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                          const headerConvoId = res.headers.get("X-Conversation-Id");
+                          if (headerConvoId && !conversationId) {
+                            setConversationId(headerConvoId);
+                            onConversationCreated(headerConvoId);
+                          }
+
+                          const reader = res.body?.getReader();
+                          if (!reader) throw new Error("No response body");
+
+                          const decoder = new TextDecoder();
+                          let buffer = "";
+
+                          while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+
+                            buffer += decoder.decode(value, { stream: true });
+                            const lines = buffer.split("\n");
+                            buffer = lines.pop() || "";
+
+                            for (const line of lines) {
+                              const trimmed = line.trim();
+                              if (!trimmed.startsWith("data: ")) continue;
+                              const data = trimmed.slice(6);
+                              if (data === "[DONE]") break;
+
+                              try {
+                                const event = JSON.parse(data);
+                                if (event.type === "status" && event.conversation_id && !conversationId) {
+                                  setConversationId(event.conversation_id);
+                                  onConversationCreated(event.conversation_id);
+                                }
+                                if (event.type === "token" && event.text) {
+                                  assistantContent += event.text;
+                                  setMessages((prev) =>
+                                    prev.map((m) =>
+                                      m.id === assistantId
+                                        ? { ...m, content: assistantContent }
+                                        : m
+                                    )
+                                  );
+                                }
+                                if (event.type === "done") {
+                                  if (event.conversation_id && !conversationId) {
+                                    setConversationId(event.conversation_id);
+                                    onConversationCreated(event.conversation_id);
+                                  }
+                                  break;
+                                }
+                              } catch {
+                                // skip parse errors
+                              }
+                            }
+                          }
+                          reader.releaseLock();
+                        } catch (err) {
+                          if ((err as Error).name !== "AbortError") {
+                            setMessages((prev) =>
+                              prev.map((m) =>
+                                m.id === assistantId
+                                  ? { ...m, content: assistantContent || "Sorry, something went wrong." }
+                                  : m
+                              )
+                            );
+                          }
+                        } finally {
+                          setIsStreaming(false);
+                          abortRef.current = null;
+                        }
+                      };
+                      sendVoiceMessage();
+                    }, 50);
+                  }}
+                />
+              </div>
+            )}
+            
+            {/* Default empty state for non-setup or as fallback */}
+            {campaign.status !== 'setup' && (
+              <>
+                <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto mb-4">
+                  <Target className="w-5 h-5 text-white/20" />
+                </div>
+                <p className="text-sm text-white/40 mb-1">{campaign.name}</p>
+                <p className="font-mono text-[10px] uppercase tracking-wide text-white/20 mt-1 max-w-xs mx-auto">
+                  Describe what you&apos;re looking for. Who is your ideal lead?
+                  Their industry, seniority, company size, signals, location…
+                </p>
+              </>
+            )}
           </div>
         )}
 
@@ -948,17 +1080,30 @@ function OutreachChat({
               <span className="font-mono text-[9px] uppercase tracking-wide text-white/25">
                 {campaign.name}
               </span>
-              <button
-                onClick={sendMessage}
-                disabled={!input.trim() || isStreaming}
-                className="w-7 h-7 flex items-center justify-center border border-white/[0.08] text-white/40 hover:text-white/80 hover:bg-white/[0.06] hover:border-white/[0.15] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                {isStreaming ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Send className="w-3.5 h-3.5" />
-                )}
-              </button>
+              <div className="flex items-center gap-1.5">
+                <VoiceInputButton
+                  onTranscript={(text) => {
+                    setInput(text);
+                  }}
+                  onInterimUpdate={(text) => {
+                    setInput(text);
+                  }}
+                  disabled={isStreaming}
+                  variant="outreach"
+                  className="w-7 h-7"
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={!input.trim() || isStreaming}
+                  className="w-7 h-7 flex items-center justify-center border border-white/[0.08] text-white/40 hover:text-white/80 hover:bg-white/[0.06] hover:border-white/[0.15] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {isStreaming ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
