@@ -140,6 +140,7 @@ export async function POST(
       reasoning: lead.reasoning ?? null,
       source: lead.source ?? 'agent_discovery',
       scored_at: new Date().toISOString(),
+      approval_status: 'pending',
     };
 
     if (hasDiscoveryMethod) {
@@ -187,7 +188,7 @@ export async function POST(
 // ── GET — discovery status ────────────────────────────────────────────────────
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const { user, error } = await requireApiAuth();
@@ -195,6 +196,8 @@ export async function GET(
 
   const supabase = await createClient();
   const campaignId = params.id;
+  const { searchParams } = new URL(request.url);
+  const statusFilter = searchParams.get('status'); // e.g. 'pending'
 
   // Verify ownership
   const { data: campaign } = await supabase
@@ -206,6 +209,23 @@ export async function GET(
 
   if (!campaign) {
     return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+  }
+
+  // If status=pending, return pending leads with full data
+  if (statusFilter === 'pending') {
+    const { data: pendingLeads, error: pendingErr } = await supabase
+      .from('campaign_leads')
+      .select('*')
+      .eq('campaign_id', campaignId)
+      .eq('source', 'agent_discovery')
+      .eq('approval_status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (pendingErr) {
+      return NextResponse.json({ error: pendingErr.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ leads: pendingLeads ?? [], total: pendingLeads?.length ?? 0 });
   }
 
   // Fetch all leads for stats

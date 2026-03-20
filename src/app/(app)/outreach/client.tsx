@@ -466,57 +466,77 @@ function ScanResultCard({ report, onAccept, onViewFull }: ScanResultCardProps) {
 
 // ─── Dataset Preview (right panel) ───────────────────────────────────────────
 
-function DatasetPreview({ dataset }: { dataset: DatasetInfo }) {
-  const previewRows = (dataset.rows || []).slice(0, 5);
-  const visibleCols = (dataset.columns || []).slice(0, 6); // cap for mobile
+function DatasetFullModal({ dataset, onClose }: { dataset: DatasetInfo; onClose: () => void }) {
+  const allCols = dataset.columns || [];
+  const allRows = dataset.rows || [];
+
+  // Close on Escape key
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
 
   return (
-    <div className="px-3 py-3">
-      <div className="flex items-center gap-1.5 mb-2">
-        <Database className="w-3 h-3 text-white/30" />
-        <span className="font-mono text-[9px] uppercase tracking-wide text-white/40">Dataset</span>
-      </div>
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+      style={{ backdropFilter: 'blur(8px)', backgroundColor: 'rgba(0,0,0,0.7)' }}
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-6xl max-h-[85vh] bg-black/90 backdrop-blur border border-white/10 rounded-[3px] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Modal header */}
+        <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/[0.08]">
+          <div className="flex items-center gap-2">
+            <Database className="w-3 h-3 text-white/30" />
+            <span className="font-mono text-[10px] uppercase tracking-wide text-white/50">
+              Full Dataset
+            </span>
+            <span className="font-mono text-[9px] text-white/30">
+              {allRows.length} rows · {allCols.length} columns
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-6 h-6 flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/[0.06] transition-colors rounded-[2px]"
+            title="Close"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
-      <div className="text-xs text-white/50 mb-1">
-        {dataset.source_name ? (
-          <span className="text-white/60">{dataset.source_name}</span>
-        ) : (
-          <span className="text-white/40">{dataset.source_type === 'google_sheet' ? 'Google Sheet' : 'CSV File'}</span>
-        )}
-      </div>
-      <p className="font-mono text-[9px] text-white/30 mb-3">
-        {dataset.row_count} rows · {(dataset.columns || []).length} columns
-      </p>
-
-      {previewRows.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-max">
-            <thead>
+        {/* Scrollable table area */}
+        <div className="flex-1 overflow-auto">
+          <table className="text-left border-collapse" style={{ minWidth: 'max-content', width: '100%' }}>
+            <thead className="sticky top-0 bg-black/95 z-10">
               <tr>
-                {visibleCols.map((col) => (
+                <th className="font-mono text-[9px] uppercase tracking-wide text-white/30 pb-2 pt-2 pl-4 pr-3 border-b border-white/[0.08] whitespace-nowrap">
+                  #
+                </th>
+                {allCols.map((col) => (
                   <th
                     key={col}
-                    className="font-mono text-[9px] uppercase tracking-wide text-white/35 pb-1.5 pr-3 border-b border-white/[0.06] whitespace-nowrap"
+                    className="font-mono text-[9px] uppercase tracking-wide text-white/35 pb-2 pt-2 pr-4 border-b border-white/[0.08] whitespace-nowrap"
                   >
-                    {col.length > 12 ? col.slice(0, 12) + '…' : col}
+                    {col}
                   </th>
                 ))}
-                {(dataset.columns || []).length > 6 && (
-                  <th className="font-mono text-[9px] text-white/20 pb-1.5 whitespace-nowrap">
-                    +{(dataset.columns || []).length - 6} more
-                  </th>
-                )}
               </tr>
             </thead>
             <tbody>
-              {previewRows.map((row, i) => (
-                <tr key={i} className="border-b border-white/[0.04]">
-                  {visibleCols.map((col) => {
+              {allRows.map((row, i) => (
+                <tr key={i} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                  <td className="font-mono text-[10px] text-white/20 py-1.5 pl-4 pr-3 whitespace-nowrap">
+                    {i + 1}
+                  </td>
+                  {allCols.map((col) => {
                     const val = row[col] ?? '';
                     return (
                       <td
                         key={col}
-                        className="text-[11px] text-white/40 py-1 pr-3 max-w-[80px] truncate whitespace-nowrap"
+                        className="text-[11px] text-white/50 py-1.5 pr-4 max-w-[200px] truncate whitespace-nowrap"
                         title={val}
                       >
                         {val || <span className="text-white/20">—</span>}
@@ -528,8 +548,92 @@ function DatasetPreview({ dataset }: { dataset: DatasetInfo }) {
             </tbody>
           </table>
         </div>
-      )}
+      </div>
     </div>
+  );
+}
+
+function DatasetPreview({ dataset }: { dataset: DatasetInfo }) {
+  const [showFullModal, setShowFullModal] = useState(false);
+  const previewRows = (dataset.rows || []).slice(0, 5);
+  const visibleCols = (dataset.columns || []).slice(0, 6); // cap for mobile
+
+  return (
+    <>
+      {showFullModal && (
+        <DatasetFullModal dataset={dataset} onClose={() => setShowFullModal(false)} />
+      )}
+      <div className="px-3 py-3">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Database className="w-3 h-3 text-white/30" />
+          <span className="font-mono text-[9px] uppercase tracking-wide text-white/40">Dataset</span>
+        </div>
+
+        <div className="text-xs text-white/50 mb-1">
+          {dataset.source_name ? (
+            <span className="text-white/60">{dataset.source_name}</span>
+          ) : (
+            <span className="text-white/40">{dataset.source_type === 'google_sheet' ? 'Google Sheet' : 'CSV File'}</span>
+          )}
+        </div>
+        <p className="font-mono text-[9px] text-white/30 mb-3">
+          {dataset.row_count} rows · {(dataset.columns || []).length} columns
+        </p>
+
+        {previewRows.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-max">
+              <thead>
+                <tr>
+                  {visibleCols.map((col) => (
+                    <th
+                      key={col}
+                      className="font-mono text-[9px] uppercase tracking-wide text-white/35 pb-1.5 pr-3 border-b border-white/[0.06] whitespace-nowrap"
+                    >
+                      {col.length > 12 ? col.slice(0, 12) + '…' : col}
+                    </th>
+                  ))}
+                  {(dataset.columns || []).length > 6 && (
+                    <th className="font-mono text-[9px] text-white/20 pb-1.5 whitespace-nowrap">
+                      +{(dataset.columns || []).length - 6} more
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {previewRows.map((row, i) => (
+                  <tr key={i} className="border-b border-white/[0.04]">
+                    {visibleCols.map((col) => {
+                      const val = row[col] ?? '';
+                      return (
+                        <td
+                          key={col}
+                          className="text-[11px] text-white/40 py-1 pr-3 max-w-[80px] truncate whitespace-nowrap"
+                          title={val}
+                        >
+                          {val || <span className="text-white/20">—</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* View Full Dataset button */}
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            onClick={() => setShowFullModal(true)}
+            className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide text-white/40 hover:text-white/70 px-2.5 py-1.5 border border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.04] rounded-[3px] transition-colors"
+          >
+            <ArrowRight className="w-3 h-3" />
+            View Full Dataset
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -2250,6 +2354,308 @@ function DiscoveryStatsBar({ campaignId, refreshKey }: DiscoveryStatsBarProps) {
   );
 }
 
+// ─── New Leads Panel (Discovery Approval) ────────────────────────────────────
+
+interface NewLeadsPanelProps {
+  campaignId: string;
+  refreshKey: number;
+  onApproved?: () => void;
+}
+
+function NewLeadsPanel({ campaignId, refreshKey, onApproved }: NewLeadsPanelProps) {
+  const [leads, setLeads] = useState<ScoredLead[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [actioningIds, setActioningIds] = useState<Set<string>>(new Set());
+  const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set());
+  const [rejectedIds, setRejectedIds] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
+  const [bulkActioning, setBulkActioning] = useState(false);
+
+  const loadLeads = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/outreach/campaigns/${campaignId}/discover?status=pending`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setLeads(data.leads ?? []);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, [campaignId]);
+
+  useEffect(() => {
+    loadLeads();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId, refreshKey]);
+
+  const patchLead = async (leadId: string, status: 'approved' | 'rejected') => {
+    const res = await fetch(`/api/outreach/campaigns/${campaignId}/leads/${leadId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approval_status: status }),
+    });
+    return res.ok;
+  };
+
+  const handleApprove = async (leadId: string) => {
+    setActioningIds((s) => new Set(s).add(leadId));
+    try {
+      await patchLead(leadId, 'approved');
+      setApprovedIds((s) => new Set(s).add(leadId));
+      setTimeout(() => {
+        setLeads((prev) => prev.filter((l) => l.id !== leadId));
+        setApprovedIds((s) => { const n = new Set(s); n.delete(leadId); return n; });
+        onApproved?.();
+      }, 800);
+    } finally {
+      setActioningIds((s) => { const n = new Set(s); n.delete(leadId); return n; });
+    }
+  };
+
+  const handleReject = async (leadId: string) => {
+    setActioningIds((s) => new Set(s).add(leadId));
+    try {
+      await patchLead(leadId, 'rejected');
+      setRejectedIds((s) => new Set(s).add(leadId));
+      setTimeout(() => {
+        setLeads((prev) => prev.filter((l) => l.id !== leadId));
+        setRejectedIds((s) => { const n = new Set(s); n.delete(leadId); return n; });
+      }, 600);
+    } finally {
+      setActioningIds((s) => { const n = new Set(s); n.delete(leadId); return n; });
+    }
+  };
+
+  const handleApproveAll = async () => {
+    setBulkActioning(true);
+    try {
+      const ids = leads.map((l) => l.id);
+      await Promise.all(ids.map((id) => patchLead(id, 'approved')));
+      setLeads([]);
+      onApproved?.();
+    } finally {
+      setBulkActioning(false);
+    }
+  };
+
+  const handleRejectAll = async () => {
+    setBulkActioning(true);
+    try {
+      const ids = leads.map((l) => l.id);
+      await Promise.all(ids.map((id) => patchLead(id, 'rejected')));
+      setLeads([]);
+    } finally {
+      setBulkActioning(false);
+    }
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  };
+
+  const getRankColor = (score: number) => {
+    if (score >= 70) return 'text-emerald-400 bg-emerald-900/20 border-emerald-800/30';
+    if (score >= 40) return 'text-amber-400 bg-amber-900/20 border-amber-800/30';
+    return 'text-red-400 bg-red-900/20 border-red-800/30';
+  };
+
+  const getRankLabel = (score: number) => {
+    if (score >= 70) return 'HIGH';
+    if (score >= 40) return 'MED';
+    return 'LOW';
+  };
+
+  if (loading && leads.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-4 h-4 animate-spin text-white/20" />
+      </div>
+    );
+  }
+
+  // Empty state
+  if (!loading && leads.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-6 text-center gap-4">
+        <div className="w-10 h-10 rounded-full bg-white/[0.04] border border-white/[0.08] flex items-center justify-center">
+          <Search className="w-4 h-4 text-white/20" />
+        </div>
+        <div className="space-y-1">
+          <p className="font-mono text-[11px] text-white/40 uppercase tracking-wide">No new leads to review</p>
+          <p className="text-[11px] text-white/25">Tell your agent to find more leads via the chat.</p>
+        </div>
+        <button
+          onClick={() => {
+            window.dispatchEvent(
+              new CustomEvent('outreach:fill-chat', {
+                detail: { text: 'Find 10 more leads matching my criteria' },
+              })
+            );
+          }}
+          className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 bg-white/[0.04] border border-white/[0.08] text-white/50 hover:text-white/80 hover:bg-white/[0.08] hover:border-white/[0.15] rounded-[3px] transition-colors"
+        >
+          Find New Leads
+          <ArrowRight className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3 px-4 py-4">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-wide text-white/50">
+          {leads.length} new {leads.length === 1 ? 'lead' : 'leads'} to review
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleApproveAll}
+            disabled={bulkActioning}
+            className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wide px-2.5 py-1 bg-emerald-900/20 border border-emerald-800/30 text-emerald-400 hover:bg-emerald-900/40 transition-colors disabled:opacity-50 rounded-[3px]"
+          >
+            <CheckCircle2 className="w-3 h-3" />
+            Approve All
+          </button>
+          <button
+            onClick={handleRejectAll}
+            disabled={bulkActioning}
+            className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wide px-2.5 py-1 bg-red-900/20 border border-red-800/30 text-red-400 hover:bg-red-900/40 transition-colors disabled:opacity-50 rounded-[3px]"
+          >
+            <XCircle className="w-3 h-3" />
+            Reject All
+          </button>
+        </div>
+      </div>
+
+      {/* Lead cards */}
+      {leads.map((lead) => {
+        const isApproved = approvedIds.has(lead.id);
+        const isRejected = rejectedIds.has(lead.id);
+        const isActioning = actioningIds.has(lead.id);
+        const isExpanded = expandedIds.has(lead.id);
+        const name = lead.name || lead.profile_data?.['Name'] || lead.profile_data?.['name'] || 'Unknown';
+        const company = lead.profile_data?.['Company'] ?? lead.profile_data?.['company'] ?? lead.profile_data?.['Organization'] ?? '';
+        const role = lead.profile_data?.['Title'] ?? lead.profile_data?.['title'] ?? lead.profile_data?.['Role'] ?? '';
+        const discoveryMethod = (lead as ScoredLead & { discovery_method?: string }).discovery_method;
+        const criterionScores = lead.criterion_scores ?? [];
+
+        return (
+          <div
+            key={lead.id}
+            className={cn(
+              'bg-white/[0.04] border border-white/[0.08] rounded-[3px] p-3 transition-all duration-300',
+              isApproved && 'bg-emerald-900/10 border-emerald-800/30',
+              isRejected && 'bg-red-900/10 border-red-800/20 opacity-60'
+            )}
+          >
+            {/* Card header */}
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[12px] text-white/80 font-medium truncate">{name}</span>
+                  {/* Score badge */}
+                  <span className={cn(
+                    'font-mono text-[9px] px-1.5 py-0.5 border rounded-[2px]',
+                    getRankColor(lead.score ?? 0)
+                  )}>
+                    {lead.score ?? 0}/100 {getRankLabel(lead.score ?? 0)}
+                  </span>
+                  {isApproved && (
+                    <span className="font-mono text-[9px] text-emerald-400">✓ Approved</span>
+                  )}
+                  {isRejected && (
+                    <span className="font-mono text-[9px] text-red-400">✗ Rejected</span>
+                  )}
+                </div>
+                {(role || company) && (
+                  <p className="font-mono text-[9px] text-white/35 mt-0.5 truncate">
+                    {[role, company].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </div>
+              {/* Discovery method badge */}
+              {discoveryMethod && (
+                <span className="shrink-0 font-mono text-[8px] uppercase tracking-wide text-white/30 px-1.5 py-0.5 border border-white/[0.07] rounded-[2px] whitespace-nowrap">
+                  🔍 {discoveryMethod}
+                </span>
+              )}
+            </div>
+
+            {/* Criteria breakdown toggle */}
+            {criterionScores.length > 0 && (
+              <div className="mb-2">
+                <button
+                  onClick={() => toggleExpanded(lead.id)}
+                  className="font-mono text-[9px] uppercase tracking-wide text-white/30 hover:text-white/60 transition-colors flex items-center gap-1"
+                >
+                  <ChevronRight className={cn('w-2.5 h-2.5 transition-transform', isExpanded && 'rotate-90')} />
+                  Criteria ({criterionScores.length})
+                </button>
+                {isExpanded && (
+                  <div className="mt-1.5 space-y-1 pl-3 border-l border-white/[0.06]">
+                    {criterionScores.map((cs, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-[9px] text-white/35 truncate">{cs.category}</span>
+                        <span className={cn('font-mono text-[9px]', cs.score >= 70 ? 'text-emerald-400' : cs.score >= 40 ? 'text-amber-400' : 'text-red-400')}>
+                          {cs.score}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Rejection reason input */}
+            {!isApproved && !isRejected && (
+              <div className="mb-2">
+                <input
+                  type="text"
+                  placeholder="Rejection reason (optional)"
+                  value={rejectionReasons[lead.id] ?? ''}
+                  onChange={(e) => setRejectionReasons((r) => ({ ...r, [lead.id]: e.target.value }))}
+                  className="w-full bg-transparent border border-white/[0.06] rounded-[2px] px-2 py-1 font-mono text-[10px] text-white/50 placeholder-white/20 focus:outline-none focus:border-white/[0.15]"
+                />
+              </div>
+            )}
+
+            {/* Action buttons */}
+            {!isApproved && !isRejected && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleApprove(lead.id)}
+                  disabled={isActioning}
+                  className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wide px-2.5 py-1 bg-emerald-900/20 border border-emerald-800/30 text-emerald-400 hover:bg-emerald-900/40 transition-colors disabled:opacity-50 rounded-[3px]"
+                >
+                  {isActioning ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <CheckCircle2 className="w-2.5 h-2.5" />}
+                  Approve
+                </button>
+                <button
+                  onClick={() => handleReject(lead.id)}
+                  disabled={isActioning}
+                  className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wide px-2.5 py-1 bg-red-900/20 border border-red-800/30 text-red-400 hover:bg-red-900/40 transition-colors disabled:opacity-50 rounded-[3px]"
+                >
+                  {isActioning ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <XCircle className="w-2.5 h-2.5" />}
+                  Reject
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Leads Panel ─────────────────────────────────────────────────────────────
 
 interface LeadsPanelProps {
@@ -3492,7 +3898,8 @@ export default function OutreachClient({
   const [scoring, setScoring] = useState(false);
   const [scoringMsg, setScoringMsg] = useState('');
   const [leadsRefreshKey, setLeadsRefreshKey] = useState(0);
-  const [activeTab, setActiveTab] = useState<'workflow' | 'criteria' | 'dataset' | 'logs'>('workflow');
+  const [activeTab, setActiveTab] = useState<'workflow' | 'criteria' | 'dataset' | 'new' | 'logs'>('workflow');
+  const [pendingLeadsCount, setPendingLeadsCount] = useState(0);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showRefinementModal, setShowRefinementModal] = useState(false);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -3727,6 +4134,19 @@ export default function OutreachClient({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
+
+  // Load pending leads count for the "New" tab badge
+  useEffect(() => {
+    if (!selectedId) { setPendingLeadsCount(0); return; }
+    const load = () => {
+      fetch(`/api/outreach/campaigns/${selectedId}/discover?status=pending`)
+        .then((r) => r.json())
+        .then((d) => setPendingLeadsCount(d.total ?? d.leads?.length ?? 0))
+        .catch(() => {});
+    };
+    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, leadsRefreshKey]);
 
   // Load workflows when campaign changes or when user switches to workflow tab
   useEffect(() => {
@@ -3966,18 +4386,30 @@ export default function OutreachClient({
             <div className="shrink-0 px-5 border-b border-white/[0.06] flex items-center justify-between">
               {/* Tab bar */}
               <div className="flex items-end h-full gap-0">
-                {(['workflow', 'criteria', 'dataset', 'logs'] as const).map((tab) => (
+                {(['workflow', 'criteria', 'dataset', 'new', 'logs'] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
                     className={cn(
-                      "font-mono text-[10px] uppercase tracking-wide px-4 py-3 border-b-2 transition-colors",
+                      "font-mono text-[10px] uppercase tracking-wide px-4 py-3 border-b-2 transition-colors flex items-center gap-1.5",
                       activeTab === tab
                         ? "text-white/80 border-white/40"
                         : "text-white/30 border-transparent hover:text-white/50"
                     )}
                   >
-                    {tab}
+                    {tab === 'new' && pendingLeadsCount > 0 ? (
+                      <>
+                        New
+                        <span className={cn(
+                          "font-mono text-[8px] px-1 py-0.5 rounded-[2px] border",
+                          activeTab === 'new'
+                            ? "bg-amber-900/40 border-amber-700/50 text-amber-300"
+                            : "bg-amber-900/20 border-amber-800/30 text-amber-400"
+                        )}>
+                          {pendingLeadsCount}
+                        </span>
+                      </>
+                    ) : tab}
                   </button>
                 ))}
               </div>
@@ -4112,6 +4544,17 @@ export default function OutreachClient({
                       />
                     </div>
                   </div>
+                )}
+
+                {/* ── New tab (Discovery Approval) ── */}
+                {activeTab === 'new' && selectedCampaign && (
+                  <NewLeadsPanel
+                    campaignId={selectedCampaign.id}
+                    refreshKey={leadsRefreshKey}
+                    onApproved={() => {
+                      setLeadsRefreshKey((k) => k + 1);
+                    }}
+                  />
                 )}
 
                 {/* ── Logs tab ── */}

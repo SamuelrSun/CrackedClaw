@@ -95,6 +95,16 @@ export async function PATCH(
     updates.outreach_status = body.outreach_status;
   }
 
+  if (body.approval_status !== undefined) {
+    if (!['pending', 'approved', 'rejected'].includes(body.approval_status)) {
+      return NextResponse.json(
+        { error: 'Invalid approval_status. Must be pending, approved, or rejected.' },
+        { status: 400 }
+      );
+    }
+    updates.approval_status = body.approval_status;
+  }
+
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update.' }, { status: 400 });
   }
