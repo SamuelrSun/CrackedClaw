@@ -1968,11 +1968,14 @@ interface LeadCardProps {
   lead: ScoredLead;
   campaignId: string;
   onUpdated: (lead: ScoredLead) => void;
+  onDraftWithStyle?: (leadId: string) => void;
+  hasStyleModel?: boolean;
 }
 
-function LeadCard({ lead, campaignId, onUpdated }: LeadCardProps) {
+function LeadCard({ lead, campaignId, onUpdated, onDraftWithStyle, hasStyleModel }: LeadCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [overriding, setOverriding] = useState(false);
+  const [drafting, setDrafting] = useState(false);
 
   const effectiveRank = lead.user_override_rank ?? lead.rank;
   const outreachStatus = lead.outreach_status ?? 'pending';
@@ -2033,6 +2036,59 @@ function LeadCard({ lead, campaignId, onUpdated }: LeadCardProps) {
       }
     } catch {
       // ignore
+    }
+  };
+
+  const handleDraftWithStyleClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (drafting) return;
+    setDrafting(true);
+    try {
+      if (onDraftWithStyle) {
+        onDraftWithStyle(lead.id);
+      } else {
+        // Inline draft — call style/draft and save to lead
+        const title =
+          lead.profile_data['Title'] ?? lead.profile_data['title'] ?? '';
+        const company =
+          lead.profile_data['Company'] ?? lead.profile_data['company'] ?? '';
+        const res = await fetch('/api/outreach/style/draft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lead: {
+              name: lead.name,
+              title,
+              company,
+              profile_data: lead.profile_data,
+            },
+            purpose: 'introduce and connect',
+            campaign_id: campaignId,
+          }),
+        });
+        if (res.ok) {
+          const draft = await res.json() as { subject: string; body: string };
+          const patchRes = await fetch(
+            `/api/outreach/campaigns/${campaignId}/leads/${lead.id}`,
+            {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                draft_subject: draft.subject || null,
+                draft_body: draft.body || null,
+              }),
+            }
+          );
+          if (patchRes.ok) {
+            const data = await patchRes.json();
+            onUpdated(data.lead as ScoredLead);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    } finally {
+      setDrafting(false);
     }
   };
 
@@ -2119,6 +2175,32 @@ function LeadCard({ lead, campaignId, onUpdated }: LeadCardProps) {
         </p>
       )}
 
+      {/* Draft with My Style row */}
+      <div className="flex items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={handleDraftWithStyleClick}
+          disabled={drafting}
+          className={cn(
+            'font-mono text-[8px] uppercase tracking-wide px-2 py-0.5 border transition-colors flex items-center gap-1',
+            lead.draft_body
+              ? 'border-indigo-800/40 text-indigo-400/70 hover:text-indigo-300 hover:border-indigo-700/60 bg-indigo-900/10'
+              : 'border-white/[0.10] text-white/35 hover:text-white/60 hover:border-white/[0.20]'
+          )}
+        >
+          {drafting ? (
+            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+          ) : (
+            <Sparkles className="w-2.5 h-2.5" />
+          )}
+          {drafting ? 'Drafting…' : lead.draft_body ? 'Re-draft' : 'Draft with My Style'}
+        </button>
+        {hasStyleModel ? (
+          <span className="font-mono text-[8px] text-indigo-400/50">✨ styled</span>
+        ) : (
+          <span className="font-mono text-[8px] text-white/20">💡 Add style examples in chat</span>
+        )}
+      </div>
+
       {expanded && (
         <div onClick={(e) => e.stopPropagation()}>
           <ExpandedLeadView
@@ -2195,6 +2277,7 @@ function LeadsPanel({ campaignId, refreshKey, onDraftMessages }: LeadsPanelProps
   const [rankFilter, setRankFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const [overrideSummary, setOverrideSummary] = useState<{ total_overrides: number; has_enough_for_refinement: boolean } | null>(null);
   const [refineBannerDismissed, setRefineBannerDismissed] = useState(false);
+  const [hasStyleModel, setHasStyleModel] = useState(false);
 
   const loadLeads = useCallback(async (filter: typeof rankFilter) => {
     setLoading(true);
@@ -2230,6 +2313,13 @@ function LeadsPanel({ campaignId, refreshKey, onDraftMessages }: LeadsPanelProps
   useEffect(() => {
     loadLeads(rankFilter);
     loadOverrideSummary();
+    // Check if user has a style model
+    fetch('/api/outreach/style')
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: { has_style_model?: boolean } | null) => {
+        if (data) setHasStyleModel(!!data.has_style_model);
+      })
+      .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId, refreshKey, rankFilter]);
 
@@ -2409,6 +2499,7 @@ function LeadsPanel({ campaignId, refreshKey, onDraftMessages }: LeadsPanelProps
             lead={lead}
             campaignId={campaignId}
             onUpdated={handleLeadUpdated}
+            hasStyleModel={hasStyleModel}
           />
         ))}
         {leads.length === 0 && !loading && rankFilter !== 'all' && (

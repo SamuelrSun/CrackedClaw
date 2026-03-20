@@ -19,6 +19,68 @@ function encode(chunk: StreamEvent): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(chunk)}\n\n`);
 }
 
+function buildCommunicationStyleSection(
+  communication: Mem0Memory[]
+): string {
+  const lines: string[] = [];
+  lines.push('\n### Communication Style');
+
+  // Look for the style_model blob entry
+  const styleEntry = communication.find((m) => {
+    const content = m.memory ?? m.content ?? '';
+    return content.startsWith('style_model:');
+  });
+
+  if (styleEntry) {
+    try {
+      const jsonPart = (styleEntry.memory ?? styleEntry.content ?? '').slice('style_model:'.length);
+      const style = JSON.parse(jsonPart) as {
+        tone: string;
+        avg_length: string;
+        structure: string;
+        personalization_depth: string;
+        opener_patterns: string[];
+        avoided_phrases: string[];
+        cta_style: string;
+        signature: string;
+        sample_count: number;
+      };
+      lines.push(`Tone: ${style.tone} | Length: ${style.avg_length} | Structure: ${style.structure}`);
+      lines.push(`Personalization depth: ${style.personalization_depth}`);
+      if (style.opener_patterns?.length > 0) {
+        lines.push(`Opener patterns: ${style.opener_patterns.join(' | ')}`);
+      }
+      if (style.avoided_phrases?.length > 0) {
+        lines.push(`Avoid: ${style.avoided_phrases.join(', ')}`);
+      }
+      lines.push(`CTA style: ${style.cta_style}`);
+      if (style.signature) lines.push(`Signature: ${style.signature}`);
+      lines.push(`(Based on ${style.sample_count} sample message${style.sample_count !== 1 ? 's' : ''})`);
+      lines.push('\nTo draft in Sam\'s voice: POST /api/outreach/style/draft  { lead: {...}, purpose: "..." }');
+    } catch {
+      // Fallback: show raw memories
+      communication.forEach((m) => lines.push(`- ${m.memory}`));
+    }
+  } else if (communication.length > 0) {
+    // No structured model yet, show raw memories
+    communication.forEach((m) => {
+      const content = m.memory ?? m.content ?? '';
+      if (!content.startsWith('style_model:')) {
+        lines.push(`- ${content}`);
+      }
+    });
+    lines.push('\nNo structured style model yet — share message examples to extract one:');
+    lines.push('POST /api/outreach/style/extract  { samples: [...], context: "..." }');
+  } else {
+    lines.push('No style model extracted yet. When Sam shares message examples, extract his style via:');
+    lines.push('POST /api/outreach/style/extract  { samples: ["message 1 text", "message 2 text"], context: "cold LinkedIn DMs to SaaS founders" }');
+    lines.push('Then draft messages with:');
+    lines.push('POST /api/outreach/style/draft  { lead: {...}, purpose: "..." }');
+  }
+
+  return lines.join('\n');
+}
+
 function buildUserModelSection(
   profile: Mem0Memory[],
   workflows: Mem0Memory[],
@@ -31,6 +93,7 @@ function buildUserModelSection(
     lines.push(
       'No user model built yet. As Sam shares preferences and workflows across campaigns, you\'ll build a persistent model here. Write to user:profile, user:workflows, user:communication via POST /api/outreach/user-model.'
     );
+    lines.push('\n' + buildCommunicationStyleSection([]));
   } else {
     if (profile.length > 0) {
       lines.push('\nEvaluation Patterns (how Sam judges leads):');
@@ -40,10 +103,7 @@ function buildUserModelSection(
       lines.push('\nDiscovery & Enrichment Methods (how Sam finds leads):');
       workflows.forEach((m) => lines.push(`- ${m.memory}`));
     }
-    if (communication.length > 0) {
-      lines.push('\nCommunication Style (how Sam writes):');
-      communication.forEach((m) => lines.push(`- ${m.memory}`));
-    }
+    lines.push(buildCommunicationStyleSection(communication));
   }
 
   lines.push(
