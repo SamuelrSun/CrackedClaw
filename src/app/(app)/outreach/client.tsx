@@ -868,7 +868,7 @@ function OutreachChat({
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4" style={{ transform: 'translateZ(0)' }}>
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center py-12 px-4">
             {/* Voice Info Dump Card — prominent for setup phase */}
@@ -2806,11 +2806,13 @@ export default function OutreachClient({
   return (
     <>
       <div
-        className="fixed inset-0 z-[100] flex flex-col p-1 gap-1 md:p-[7px] md:gap-[7px]"
+        className="fixed inset-0 z-[100] flex flex-col p-1 gap-1 md:p-[7px] md:gap-[7px] overflow-hidden"
         style={{
           backgroundImage: "linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url('/img/landing_background.jpg')",
           backgroundSize: "cover",
           backgroundPosition: "center",
+          backgroundAttachment: "fixed",
+          willChange: "transform",
         }}
       >
         {/* ── Navbar ── */}
@@ -3127,7 +3129,7 @@ export default function OutreachClient({
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto" style={{ transform: 'translateZ(0)' }}>
                 <CriteriaPanel
                   campaignId={selectedId}
                   refreshKey={criteriaRefreshKey}
@@ -3251,7 +3253,7 @@ function CampaignList({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto py-1">
+    <div className="flex-1 overflow-y-auto py-1" style={{ transform: 'translateZ(0)' }}>
       {campaigns.map((campaign) => {
         const isActive = campaign.id === selectedId;
         return (
