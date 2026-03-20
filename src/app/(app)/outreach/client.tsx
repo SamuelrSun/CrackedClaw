@@ -1209,11 +1209,41 @@ function OutreachChat({
               <SetupPanel
                 campaign={campaign}
                 onRunAnalysis={async (description, dataSourceUrl) => {
-                  // 1. Send the description as a chat message
+                  // Step 1: If a data source URL was provided, connect it FIRST (silently)
+                  // so the system prompt includes dataset context when the agent responds.
+                  let datasetInfo: { source_type: string; row_count: number; columns: string[] } | null = null;
+
+                  if (dataSourceUrl) {
+                    try {
+                      const dsRes = await fetch(`/api/outreach/campaigns/${campaign.id}/dataset`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ sheet_url: dataSourceUrl }),
+                      });
+                      if (dsRes.ok) {
+                        const dsData = await dsRes.json();
+                        datasetInfo = {
+                          source_type: dsData.source_type || 'google_sheet',
+                          row_count: dsData.row_count || 0,
+                          columns: dsData.columns || [],
+                        };
+                        // Update dataset state so chat system prompt includes it
+                        onDatasetConnected(datasetInfo);
+                      }
+                    } catch { /* ignore — proceed without dataset context */ }
+                  }
+
+                  // Step 2: Build a combined message with description + dataset context
+                  let combinedMessage = description;
+                  if (datasetInfo) {
+                    combinedMessage += `\n\nI've connected a data source with ${datasetInfo.row_count} rows (${datasetInfo.columns.join(', ')}). Analyze the dataset, enrich any URL columns by visiting them, extract criteria from both my description and the data patterns, and identify my workflows.`;
+                  }
+
+                  // Step 3: Send the combined message to chat as a single unified request
                   const userMsg: ChatMessage = {
                     id: crypto.randomUUID(),
                     role: "user",
-                    content: description,
+                    content: combinedMessage,
                     createdAt: new Date(),
                   };
                   setMessages([userMsg]);
@@ -1231,12 +1261,11 @@ function OutreachChat({
                   ]);
 
                   try {
-                    // Send to chat to establish conversation
                     const res = await fetch("/api/outreach/chat", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
-                        message: description,
+                        message: combinedMessage,
                         campaign_id: campaign.id,
                         conversation_id: conversationId,
                       }),
@@ -1309,36 +1338,6 @@ function OutreachChat({
                   } finally {
                     setIsStreaming(false);
                     abortRef.current = null;
-                  }
-
-                  // 2. Extract criteria from the conversation
-                  try {
-                    const critRes = await fetch(`/api/outreach/campaigns/${campaign.id}/criteria`, {
-                      method: "POST",
-                    });
-                    if (critRes.ok) onCriteriaRefresh();
-                  } catch { /* ignore */ }
-
-                  // 3. If a data source URL was provided, connect it and scan
-                  if (dataSourceUrl) {
-                    try {
-                      const dsRes = await fetch(`/api/outreach/campaigns/${campaign.id}/dataset`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ sheet_url: dataSourceUrl }),
-                      });
-                      if (dsRes.ok) {
-                        const dsData = await dsRes.json();
-                        onDatasetConnected({
-                          source_type: dsData.source_type || 'google_sheet',
-                          row_count: dsData.row_count || 0,
-                          columns: dsData.columns || [],
-                        });
-
-                        // Trigger scan
-                        onScanTriggered();
-                      }
-                    } catch { /* ignore */ }
                   }
                 }}
               />
