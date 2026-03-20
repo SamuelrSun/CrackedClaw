@@ -343,6 +343,44 @@ To enrich: visit the URL column for each row, extract profile data, then POST /a
       systemPrompt += `\n\n${enrichmentContext}`;
     }
 
+    // Append workflow context
+    try {
+      const { data: workflowRows } = await supabase
+        .from('campaign_workflows')
+        .select('*')
+        .eq('campaign_id', campaign_id)
+        .order('created_at', { ascending: true });
+
+      const wfLines: string[] = [];
+      if (workflowRows && workflowRows.length > 0) {
+        wfLines.push(`\n\n### Workflows`);
+        wfLines.push(`${workflowRows.length} workflow(s) extracted for this campaign:`);
+        for (const wf of workflowRows) {
+          const steps = Array.isArray(wf.steps) ? wf.steps : [];
+          const stepStr = steps
+            .map((s: { order: number; description: string; tool: string }) => `${s.order}. ${s.description} (${s.tool})`)
+            .join(' → ');
+          const criteria = Array.isArray(wf.linked_criteria) && wf.linked_criteria.length > 0
+            ? wf.linked_criteria.join(', ')
+            : 'none';
+          wfLines.push(
+            `\n  [${wf.type}] ${wf.name} (${wf.source === 'user_stated' ? 'stated by user' : 'agent inferred'})\n  Steps: ${stepStr || '(none)'}\n  Linked criteria: ${criteria}`
+          );
+        }
+      } else {
+        wfLines.push(`\n\n### Workflows`);
+        wfLines.push(
+          `No workflows extracted yet. When the user describes how they find leads, extract the workflow and write it via:\nPOST /api/outreach/campaigns/${campaign_id}/workflows`
+        );
+      }
+      wfLines.push(
+        `\n\nTo save a workflow: POST /api/outreach/campaigns/${campaign_id}/workflows\nBody: { name, type (discovery/enrichment/outreach/custom), steps: [{order, description, tool, parameters}], linked_criteria, source }`
+      );
+      systemPrompt += wfLines.join('\n');
+    } catch {
+      // ignore workflow context errors — non-critical
+    }
+
     const allMessages = [
       ...previousMessages,
       { role: "user" as const, content: message },

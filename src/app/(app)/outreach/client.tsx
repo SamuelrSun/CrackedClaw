@@ -36,8 +36,13 @@ import {
   Check,
   RefreshCw,
   MessageSquare,
+  Search,
+  User,
+  ArrowRight,
+  CircleDot,
 } from "lucide-react";
 import type { Campaign } from "./page-content";
+import type { Workflow, WorkflowType } from "@/lib/outreach/workflow-types";
 import type { CriteriaModel, Criterion } from "@/lib/outreach/criteria-engine";
 import type { AnalysisReport } from "@/lib/outreach/dataset-analyzer";
 import type { OutreachTemplate, PersonalizedMessage } from "@/lib/outreach/template-engine";
@@ -2881,6 +2886,126 @@ function NewCampaignModal({ onClose, onCreated }: NewCampaignModalProps) {
   );
 }
 
+// ─── Workflow Tab UI ──────────────────────────────────────────────────────────
+
+type WorkflowBadgeColors = Record<string, string>;
+
+const WORKFLOW_BADGE_COLORS: WorkflowBadgeColors = {
+  discovery: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  enrichment: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  outreach: 'bg-green-500/20 text-green-300 border-green-500/30',
+  custom: 'bg-white/10 text-white/60 border-white/20',
+};
+
+function WorkflowToolIcon({ tool }: { tool: string }) {
+  const cls = 'w-3.5 h-3.5 text-white/40 flex-shrink-0';
+  if (tool === 'google_maps' || tool === 'web_search') return <Search className={cls} />;
+  if (tool === 'linkedin') return <User className={cls} />;
+  if (tool === 'email') return <Mail className={cls} />;
+  return <CircleDot className={cls} />;
+}
+
+interface WorkflowTabContentProps {
+  workflows: Workflow[];
+  loading: boolean;
+  onStartBrainDump: () => void;
+}
+
+function WorkflowTabContent({ workflows, loading, onStartBrainDump }: WorkflowTabContentProps) {
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
+        <Loader2 className="w-5 h-5 text-white/20 animate-spin mb-3" />
+        <p className="font-mono text-[10px] uppercase tracking-wide text-white/20">
+          Loading workflows…
+        </p>
+      </div>
+    );
+  }
+
+  if (workflows.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
+        <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] rounded-lg flex items-center justify-center mx-auto mb-4">
+          <Target className="w-5 h-5 text-white/20" />
+        </div>
+        <p className="text-sm text-white/50 mb-1">No workflows extracted yet.</p>
+        <p className="font-mono text-[10px] uppercase tracking-wide text-white/20 mb-6 max-w-xs">
+          Tell the agent how you find leads — it will extract your workflow automatically.
+        </p>
+        <button
+          onClick={onStartBrainDump}
+          className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wide px-4 py-2 bg-white/[0.06] border border-white/[0.12] text-white/60 hover:bg-white/[0.10] hover:text-white/80 rounded transition-colors"
+        >
+          Start Brain Dump
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 py-4 space-y-3">
+      {workflows.map((wf) => {
+        const badgeClass = WORKFLOW_BADGE_COLORS[wf.type] ?? WORKFLOW_BADGE_COLORS.custom;
+        return (
+          <div
+            key={wf.id}
+            className="bg-black/20 backdrop-blur border border-white/10 rounded-lg p-4"
+          >
+            {/* Header */}
+            <div className="flex items-center gap-2 mb-3">
+              <span
+                className={cn(
+                  'font-mono text-[9px] uppercase tracking-widest px-2 py-0.5 rounded border',
+                  badgeClass
+                )}
+              >
+                {wf.type}
+              </span>
+              <span className="text-sm font-medium text-white/80">{wf.name}</span>
+              <span className="ml-auto font-mono text-[9px] text-white/30">
+                {wf.source === 'user_stated' ? 'stated by you' : 'agent inferred'}
+              </span>
+            </div>
+
+            {/* Steps */}
+            {wf.steps.length > 0 && (
+              <ol className="space-y-1.5 mb-3">
+                {wf.steps.map((step) => (
+                  <li key={step.order} className="flex items-start gap-2">
+                    <span className="font-mono text-[9px] text-white/30 w-4 flex-shrink-0 mt-0.5">
+                      {step.order}.
+                    </span>
+                    <WorkflowToolIcon tool={step.tool} />
+                    <span className="text-xs text-white/60 leading-relaxed">
+                      {step.description}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            {/* Linked criteria chips */}
+            {wf.linked_criteria.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {wf.linked_criteria.map((c) => (
+                  <span
+                    key={c}
+                    className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/[0.06] border border-white/[0.08] text-white/40"
+                  >
+                    {c}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Main client ──────────────────────────────────────────────────────────────
 
 interface OutreachClientProps {
@@ -2917,6 +3042,8 @@ export default function OutreachClient({
   const [activeTab, setActiveTab] = useState<'workflow' | 'criteria' | 'dataset' | 'logs'>('workflow');
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showRefinementModal, setShowRefinementModal] = useState(false);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [workflowsLoading, setWorkflowsLoading] = useState(false);
 
   const isConnected = gatewayStatus === "connected";
   const isReconnecting =
@@ -3105,6 +3232,7 @@ export default function OutreachClient({
     setShowTemplateModal(false);
     setShowRefinementModal(false);
     setActiveTab('workflow');
+    setWorkflows([]);
   }, []);
 
   // Load dataset and criteria state when campaign changes
@@ -3146,6 +3274,20 @@ export default function OutreachClient({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
+
+  // Load workflows when campaign changes or when user switches to workflow tab
+  useEffect(() => {
+    if (!selectedId || activeTab !== 'workflow') return;
+    setWorkflowsLoading(true);
+    fetch(`/api/outreach/campaigns/${selectedId}/workflows`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.workflows)) setWorkflows(d.workflows as Workflow[]);
+      })
+      .catch(() => {})
+      .finally(() => setWorkflowsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, activeTab]);
 
   function formatDate(iso: string): string {
     try {
@@ -3425,18 +3567,17 @@ export default function OutreachClient({
 
                 {/* ── Workflow tab ── */}
                 {activeTab === 'workflow' && (
-                  <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
-                    <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto mb-4">
-                      <Target className="w-5 h-5 text-white/20" />
-                    </div>
-                    <p className="font-mono text-[10px] uppercase tracking-wide text-white/20 mb-4">
-                      Workflow view coming soon
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <StatusBadge status={selectedCampaign.status} />
-                      <span className="text-sm text-white/50">{selectedCampaign.name}</span>
-                    </div>
-                  </div>
+                  <WorkflowTabContent
+                    workflows={workflows}
+                    loading={workflowsLoading}
+                    onStartBrainDump={() => {
+                      window.dispatchEvent(
+                        new CustomEvent('outreach:fill-chat', {
+                          detail: { text: 'Let me tell you how I find leads for this campaign' },
+                        })
+                      );
+                    }}
+                  />
                 )}
 
                 {/* ── Criteria tab ── */}
