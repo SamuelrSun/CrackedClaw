@@ -12,6 +12,10 @@ import { logActivity, incrementTokenUsage } from '@/lib/supabase/data';
 import { processAgentResponse } from '@/lib/memory/service';
 import { incrementUsage } from '@/lib/usage/tracker';
 import { checkTokenLimit } from '@/lib/usage/enforcement';
+import { collectBrainSignals } from '@/lib/brain/signals/collector';
+import { checkAndTriggerAggregation } from '@/lib/brain/aggregator/auto-trigger';
+import { retrieveBrainContext } from '@/lib/brain/retriever/brain-retriever';
+import { formatBrainContext } from '@/lib/brain/retriever/context-formatter';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -102,7 +106,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Build system prompt (includes user context, memory, integrations)
-    const systemPrompt = await buildSystemPromptForUser(user!.id, message, activeConversationId || undefined);
+    let systemPrompt = await buildSystemPromptForUser(user!.id, message, activeConversationId || undefined);
+
+    // Brain context injection — semantic retrieval of user preferences
+    try {
+      const brainCriteria = await retrieveBrainContext(
+        user!.id,
+        previousMessages.filter(m => m.role === 'user').slice(-4).concat([{ role: 'user', content: message }])
+      );
+      const brainPrompt = formatBrainContext(brainCriteria);
+      if (brainPrompt) {
+        systemPrompt = systemPrompt + '\n\n' + brainPrompt;
+      }
+    } catch {
+      // Brain failure should never break chat
+    }
 
     // All messages for the gateway
     const allMessages = [
@@ -118,6 +136,7 @@ export async function POST(request: NextRequest) {
 
     (async () => {
       let fullContent = '';
+      const aiResponseStartTimestamp = Date.now();
 
       try {
         const stream = streamThroughGateway({
@@ -227,6 +246,33 @@ export async function POST(request: NextRequest) {
               console.error('[v2/chat] Failed to process task tag:', taskErr);
             }
           }
+        }
+
+        // Brain signal collection (fire-and-forget)
+        if (cleanedContent) {
+          const brainEnabled = await (async () => {
+            try {
+              const supa = await createClient();
+              const { data } = await supa
+                .from('profiles')
+                .select('instance_settings')
+                .eq('id', user!.id)
+                .single();
+              const settings = (data?.instance_settings as Record<string, unknown>) || {};
+              return (settings.brain_enabled as boolean) ?? false;
+            } catch { return false; }
+          })();
+
+          void collectBrainSignals({
+            userId: user!.id,
+            userMessage: message,
+            aiMessage: cleanedContent,
+            previousAIMessage: previousMessages.filter(m => m.role === 'assistant').pop()?.content,
+            previousAITimestamp: aiResponseStartTimestamp,
+            sessionId: capturedConvoId || undefined,
+            brainEnabled,
+          }).catch(() => {});
+          if (brainEnabled) void checkAndTriggerAggregation(user!.id).catch(() => {});
         }
 
         await logActivity('Chat message sent', message.length > 50 ? message.substring(0, 50) + '...' : message, { conversation_id: capturedConvoId })

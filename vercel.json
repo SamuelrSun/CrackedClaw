@@ -8,6 +8,15 @@
     },
     "src/app/api/gateway/status/route.ts": {
       "maxDuration": 15
+    },
+    "src/app/api/brain/aggregate/cron/route.ts": {
+      "maxDuration": 120
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/brain/aggregate/cron",
+      "schedule": "0 */6 * * *"
+    }
+  ]
 }

@@ -9,6 +9,10 @@ import { incrementUsage } from "@/lib/usage/tracker";
 import { checkTokenLimit } from "@/lib/usage/enforcement";
 import { buildSystemPromptForUser, buildLinkedContextSummary } from "@/lib/gateway/system-prompt";
 import { getUserInstance } from "@/lib/gateway/openclaw-proxy";
+import { collectBrainSignals } from "@/lib/brain/signals/collector";
+import { checkAndTriggerAggregation } from "@/lib/brain/aggregator/auto-trigger";
+import { retrieveBrainContext } from "@/lib/brain/retriever/brain-retriever";
+import { formatBrainContext } from "@/lib/brain/retriever/context-formatter";
 
 export const dynamic = 'force-dynamic';
 
@@ -110,6 +114,20 @@ export async function POST(request: NextRequest) {
     }
     if (workflowContext) systemPrompt += "\n\n" + workflowContext;
 
+    // Brain context injection — semantic retrieval of user preferences
+    try {
+      const brainCriteria = await retrieveBrainContext(
+        user.id,
+        previousMessages.filter(m => m.role === 'user').slice(-4).concat([{ role: 'user', content: message }])
+      );
+      const brainPrompt = formatBrainContext(brainCriteria);
+      if (brainPrompt) {
+        systemPrompt = systemPrompt + '\n\n' + brainPrompt;
+      }
+    } catch {
+      // Brain failure should never break chat
+    }
+
     // Route through OpenClaw gateway
     const gatewayBase = instance.port === 443
       ? `https://${instance.host}`
@@ -122,6 +140,7 @@ export async function POST(request: NextRequest) {
       { role: "user", content: message },
     ];
 
+    const aiResponseStartTimestamp = Date.now();
     const res = await fetch(gatewayUrl, {
       method: 'POST',
       headers: {
@@ -168,6 +187,37 @@ export async function POST(request: NextRequest) {
     // Batched chat memory extraction (fire-and-forget)
     if (cleanedContent) {
       addChatTurn(user.id, message, cleanedContent, activeConversationId || undefined).catch(() => {});
+    }
+
+    // Brain signal collection (fire-and-forget)
+    if (cleanedContent) {
+      // Check brain_enabled from profile instance_settings
+      const brainCheck = await supabase
+        .from("profiles")
+        .select("instance_settings")
+        .eq("id", user.id)
+        .single()
+        .then(({ data }) => {
+          const settings = (data?.instance_settings as Record<string, unknown>) || {};
+          return (settings.brain_enabled as boolean) ?? false;
+        })
+        .catch(() => false);
+
+      // Find the previous AI message from conversation history
+      const lastAIMessage = previousMessages.length > 0
+        ? previousMessages.filter(m => m.role === 'assistant').pop()?.content
+        : undefined;
+
+      void collectBrainSignals({
+        userId: user.id,
+        userMessage: message,
+        aiMessage: cleanedContent,
+        previousAIMessage: lastAIMessage,
+        previousAITimestamp: aiResponseStartTimestamp,
+        sessionId: activeConversationId || undefined,
+        brainEnabled: brainCheck,
+      }).catch(() => {});
+      if (brainCheck) void checkAndTriggerAggregation(user.id).catch(() => {});
     }
 
     // Log activity

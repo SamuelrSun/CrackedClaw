@@ -14,6 +14,7 @@ import {
   Trash2,
   Globe,
   AlertTriangle,
+  Brain,
 } from "lucide-react";
 import { GlassNavbar } from "@/components/layout/glass-navbar";
 import { PricingModal } from "@/components/settings/pricing-modal";
@@ -361,6 +362,76 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
             ))}
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+/* ── Brain Settings Section ── */
+function BrainSettingsSection() {
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/settings/brain")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) setEnabled(d.brain_enabled ?? false);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function toggle() {
+    const next = !enabled;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/settings/brain", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brain_enabled: next }),
+      });
+      if (res.ok) setEnabled(next);
+    } catch {
+      // revert on failure
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex-1 min-w-0 pr-4">
+          <p className="text-[13px] text-white/80 font-medium">Adaptive Learning</p>
+          <p className="text-[12px] text-white/60 mt-1 leading-relaxed">
+            When enabled, Dopl learns your preferences and decision patterns from conversations to provide more personalized assistance.
+          </p>
+        </div>
+        {loading ? (
+          <div className="w-10 h-5 bg-white/[0.05] animate-pulse rounded-full flex-shrink-0" />
+        ) : (
+          <button
+            onClick={toggle}
+            disabled={saving}
+            className={`relative w-10 h-5 rounded-full flex-shrink-0 transition-colors duration-200 ${
+              enabled ? "bg-emerald-500/60" : "bg-white/[0.12]"
+            } ${saving ? "opacity-50" : ""}`}
+            aria-label={enabled ? "Disable adaptive learning" : "Enable adaptive learning"}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${
+                enabled ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        )}
+      </div>
+      {enabled && (
+        <p className="text-[11px] text-emerald-400/70">
+          ✨ Brain is active — Dopl will learn from your interactions.
+        </p>
       )}
     </div>
   );
@@ -727,6 +798,17 @@ export default function SettingsPageClient({
                 <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium">Browser Relay</span>
               </div>
               <BrowserRelaySection profile={initialProfile} />
+            </div>
+          </div>
+
+          {/* Row 3: Brain / Adaptive Learning */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-[7px]">
+            <div className={glassPanel}>
+              <div className="flex items-center gap-2 mb-4">
+                <Brain className="w-4 h-4 text-white/60" />
+                <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium">AI Brain</span>
+              </div>
+              <BrainSettingsSection />
             </div>
           </div>
 

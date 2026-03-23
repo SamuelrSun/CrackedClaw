@@ -1,0 +1,543 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import { cn } from '@/lib/utils';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface BrainCriterionView {
+  id: string;
+  domain: string;
+  subdomain: string | null;
+  context: string | null;
+  description: string;
+  weight: number;
+  source: string;
+  confidence: number;
+  correction_count: number;
+  preference_type: string;
+  examples: string[];
+  valid_from: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface BrainSignalView {
+  id: string;
+  signal_type: string;
+  domain: string;
+  subdomain: string | null;
+  context: string | null;
+  signal_data: Record<string, unknown>;
+  session_id: string | null;
+  created_at: string;
+}
+
+interface BrainPatternView {
+  id: string;
+  domain: string;
+  subdomain: string | null;
+  context: string | null;
+  pattern_type: string;
+  description: string;
+  evidence: Array<{ signal_type: string; summary: string; created_at: string }>;
+  occurrence_count: number;
+  confidence: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface DomainNode {
+  name: string;
+  count: number;
+  subdomains: Map<string, number>;
+}
+
+type PreferenceTypeKey = 'personality' | 'process' | 'style' | 'criteria' | 'knowledge' | 'general';
+
+const PREFERENCE_TYPE_LABELS: Record<PreferenceTypeKey, string> = {
+  personality: 'Personality',
+  process: 'Process',
+  style: 'Style',
+  criteria: 'Decision Criteria',
+  knowledge: 'Knowledge',
+  general: 'General',
+};
+
+const PREFERENCE_TYPE_ORDER: PreferenceTypeKey[] = ['personality', 'process', 'style', 'criteria', 'knowledge', 'general'];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function relativeTime(dateStr: string): string {
+  if (!dateStr) return '';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return min + 'm ago';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + 'h ago';
+  const d = Math.floor(hr / 24);
+  if (d === 1) return 'yesterday';
+  if (d < 30) return d + 'd ago';
+  const mo = Math.floor(d / 30);
+  return mo + 'mo ago';
+}
+
+function formatWeight(w: number): string {
+  return (w >= 0 ? '+' : '') + w.toFixed(2);
+}
+
+function getWeightBarColor(w: number): string {
+  if (w <= -0.5) return 'bg-red-500/40';
+  if (w <= -0.1) return 'bg-orange-500/30';
+  if (w < 0.1) return 'bg-yellow-500/20';
+  if (w < 0.5) return 'bg-emerald-400/30';
+  return 'bg-emerald-500/40';
+}
+
+function getWeightTextColor(w: number): string {
+  if (w <= -0.5) return 'text-red-400';
+  if (w <= -0.1) return 'text-orange-400';
+  if (w < 0.1) return 'text-yellow-400/70';
+  if (w < 0.5) return 'text-emerald-400';
+  return 'text-emerald-400';
+}
+
+function getSignalIcon(type: string): string {
+  switch (type) {
+    case 'accept': return '✓';
+    case 'reject': return '✗';
+    case 'edit_delta': return '✏️';
+    case 'correction': return '💬';
+    case 'engagement': return '📊';
+    case 'ignore': return '—';
+    default: return '•';
+  }
+}
+
+function getSignalDescription(signal: BrainSignalView): string {
+  const d = signal.signal_data;
+  switch (signal.signal_type) {
+    case 'correction':
+      return String(d.correction_text || 'Correction applied').slice(0, 80);
+    case 'edit_delta':
+      return String(d.diff_summary || 'Edit detected').slice(0, 80);
+    case 'accept':
+    case 'reject':
+      return String(d.suggestion_snippet || `${signal.signal_type} signal`).slice(0, 80);
+    case 'engagement': {
+      const len = d.message_length as number || 0;
+      const followup = d.has_followup ? ', follow-up' : '';
+      return `${len} chars${followup}`;
+    }
+    default:
+      return signal.signal_type;
+  }
+}
+
+const SOURCE_BADGE: Record<string, string> = {
+  stated: 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40',
+  revealed: 'bg-amber-900/30 text-amber-400 border-amber-800/40',
+  refined: 'bg-blue-900/30 text-blue-400 border-blue-800/40',
+};
+
+const SOURCE_LABEL: Record<string, string> = {
+  stated: 'STATED',
+  revealed: 'REVEALED',
+  refined: 'REFINED',
+};
+
+const TYPE_BADGE: Record<string, string> = {
+  personality: 'bg-purple-900/30 text-purple-400 border-purple-800/40',
+  process: 'bg-cyan-900/30 text-cyan-400 border-cyan-800/40',
+  style: 'bg-pink-900/30 text-pink-400 border-pink-800/40',
+  criteria: 'bg-indigo-900/30 text-indigo-400 border-indigo-800/40',
+  knowledge: 'bg-teal-900/30 text-teal-400 border-teal-800/40',
+  general: 'bg-gray-900/30 text-gray-400 border-gray-800/40',
+};
+
+// ─── Domain Tree ─────────────────────────────────────────────────────────────
+
+function buildDomainTree(criteria: BrainCriterionView[]): DomainNode[] {
+  const map = new Map<string, DomainNode>();
+
+  for (const c of criteria) {
+    const domain = c.domain || 'general';
+    let node = map.get(domain);
+    if (!node) {
+      node = { name: domain, count: 0, subdomains: new Map() };
+      map.set(domain, node);
+    }
+    node.count++;
+    if (c.subdomain) {
+      node.subdomains.set(c.subdomain, (node.subdomains.get(c.subdomain) || 0) + 1);
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => b.count - a.count);
+}
+
+function DomainTree({
+  domains,
+  selected,
+  total,
+  onSelect,
+}: {
+  domains: DomainNode[];
+  selected: string | null;
+  total: number;
+  onSelect: (domain: string | null) => void;
+}) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  return (
+    <div className="space-y-0.5">
+      <button
+        onClick={() => onSelect(null)}
+        className={cn(
+          'w-full text-left px-3 py-2 flex items-center justify-between transition-colors',
+          selected === null
+            ? 'bg-white/[0.08] text-white/80'
+            : 'text-white/50 hover:text-white/70 hover:bg-white/[0.03]'
+        )}
+      >
+        <span className="font-mono text-[10px] uppercase tracking-wide">All</span>
+        <span className="font-mono text-[9px] text-white/30">{total}</span>
+      </button>
+      {domains.map((d) => (
+        <div key={d.name}>
+          <button
+            onClick={() => {
+              onSelect(d.name);
+              if (d.subdomains.size > 0) {
+                setExpanded((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(d.name)) next.delete(d.name);
+                  else next.add(d.name);
+                  return next;
+                });
+              }
+            }}
+            className={cn(
+              'w-full text-left px-3 py-2 flex items-center justify-between transition-colors',
+              selected === d.name
+                ? 'bg-white/[0.08] text-white/80'
+                : 'text-white/50 hover:text-white/70 hover:bg-white/[0.03]'
+            )}
+          >
+            <span className="font-mono text-[10px] uppercase tracking-wide flex items-center gap-1.5">
+              {d.subdomains.size > 0 && (
+                <span className="text-[8px] text-white/30">{expanded.has(d.name) ? '▼' : '▶'}</span>
+              )}
+              {d.name}
+            </span>
+            <span className="font-mono text-[9px] text-white/30">{d.count}</span>
+          </button>
+          {expanded.has(d.name) && d.subdomains.size > 0 && (
+            <div className="ml-4">
+              {Array.from(d.subdomains.entries()).map(([sub, count]) => (
+                <button
+                  key={sub}
+                  onClick={() => onSelect(`${d.name}/${sub}`)}
+                  className={cn(
+                    'w-full text-left px-3 py-1.5 flex items-center justify-between transition-colors',
+                    selected === `${d.name}/${sub}`
+                      ? 'bg-white/[0.06] text-white/70'
+                      : 'text-white/40 hover:text-white/60 hover:bg-white/[0.02]'
+                  )}
+                >
+                  <span className="font-mono text-[9px] tracking-wide">{sub}</span>
+                  <span className="font-mono text-[8px] text-white/25">{count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Weight Bar ──────────────────────────────────────────────────────────────
+
+function WeightBar({ weight }: { weight: number }) {
+  // Bar is centered at 50%. Weight ranges from -1 to 1.
+  // Negative extends left from center, positive extends right.
+  const absW = Math.abs(weight);
+  const widthPct = absW * 50; // max 50% of bar width in either direction
+  const isNegative = weight < 0;
+  const barColor = getWeightBarColor(weight);
+
+  return (
+    <div className="relative h-1.5 bg-white/[0.04] rounded-full overflow-hidden">
+      {/* Center line */}
+      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/[0.12]" />
+      {/* Weight fill */}
+      <div
+        className={cn('absolute top-0 bottom-0 rounded-full', barColor)}
+        style={
+          isNegative
+            ? { right: '50%', width: `${widthPct}%` }
+            : { left: '50%', width: `${widthPct}%` }
+        }
+      />
+    </div>
+  );
+}
+
+// ─── Criterion Card ──────────────────────────────────────────────────────────
+
+function CriterionCard({
+  criterion,
+  signals,
+}: {
+  criterion: BrainCriterionView;
+  signals: BrainSignalView[];
+}) {
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Filter signals relevant to this criterion (same domain + keyword overlap)
+  const relevantSignals = useMemo(() => {
+    if (!showHistory) return [];
+    return signals
+      .filter((s) => {
+        if (s.domain !== criterion.domain) return false;
+        if (criterion.subdomain && s.subdomain && s.subdomain !== criterion.subdomain) return false;
+        return true;
+      })
+      .slice(0, 10);
+  }, [showHistory, signals, criterion.domain, criterion.subdomain]);
+
+  return (
+    <div className="bg-white/[0.03] border border-white/[0.07] rounded-[2px] p-3 space-y-2">
+      {/* Top badges */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="font-mono text-[8px] uppercase tracking-wide px-1.5 py-0.5 bg-white/[0.06] border border-white/[0.08] text-white/40">
+          {criterion.domain}
+        </span>
+        {criterion.subdomain && (
+          <span className="font-mono text-[8px] uppercase tracking-wide px-1.5 py-0.5 bg-white/[0.04] border border-white/[0.06] text-white/30">
+            {criterion.subdomain}
+          </span>
+        )}
+        {criterion.context && (
+          <span className="font-mono text-[8px] uppercase tracking-wide px-1.5 py-0.5 bg-white/[0.04] border border-white/[0.06] text-white/30">
+            {criterion.context}
+          </span>
+        )}
+      </div>
+
+      {/* Description */}
+      <p className="text-xs text-white/65 leading-relaxed">{criterion.description}</p>
+
+      {/* Weight bar */}
+      <div className="space-y-1">
+        <WeightBar weight={criterion.weight} />
+        <div className="flex items-center justify-between">
+          <span className={cn('font-mono text-[10px] font-medium', getWeightTextColor(criterion.weight))}>
+            {formatWeight(criterion.weight)}
+          </span>
+          <span className="font-mono text-[9px] text-white/25">
+            conf {criterion.confidence.toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+      {/* Bottom row: source badge, type badge, correction count */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span
+            className={cn(
+              'font-mono text-[8px] uppercase tracking-wide px-1.5 py-0.5 border',
+              SOURCE_BADGE[criterion.source] ?? SOURCE_BADGE.revealed
+            )}
+          >
+            {SOURCE_LABEL[criterion.source] ?? criterion.source}
+          </span>
+          <span
+            className={cn(
+              'font-mono text-[8px] uppercase tracking-wide px-1.5 py-0.5 border',
+              TYPE_BADGE[criterion.preference_type] ?? TYPE_BADGE.general
+            )}
+          >
+            {criterion.preference_type}
+          </span>
+          {criterion.correction_count > 0 && (
+            <span className="font-mono text-[8px] text-white/30">
+              {criterion.correction_count}× corrected
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => setShowHistory(!showHistory)}
+          className="font-mono text-[8px] uppercase tracking-wide text-white/30 hover:text-white/50 transition-colors"
+        >
+          {showHistory ? 'Hide history' : 'View history'}
+        </button>
+      </div>
+
+      {/* Signal Log (expanded) */}
+      {showHistory && (
+        <div className="border-t border-white/[0.05] pt-2 mt-1 space-y-1">
+          {relevantSignals.length === 0 ? (
+            <p className="font-mono text-[9px] text-white/20">No matching signals found.</p>
+          ) : (
+            relevantSignals.map((signal) => (
+              <div
+                key={signal.id}
+                className="flex items-start gap-2 py-1 border-b border-white/[0.03] last:border-0"
+              >
+                <span className="text-[10px] mt-0.5 w-4 text-center flex-shrink-0">
+                  {getSignalIcon(signal.signal_type)}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-mono text-[9px] text-white/50 truncate">
+                    {getSignalDescription(signal)}
+                  </p>
+                </div>
+                <span className="font-mono text-[8px] text-white/20 flex-shrink-0">
+                  {relativeTime(signal.created_at)}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
+
+export function BrainClient({
+  initialCriteria,
+  initialSignals,
+  initialPatterns,
+}: {
+  initialCriteria: BrainCriterionView[];
+  initialSignals: BrainSignalView[];
+  initialPatterns: BrainPatternView[];
+}) {
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
+
+  const domainTree = useMemo(() => buildDomainTree(initialCriteria), [initialCriteria]);
+
+  // Filter criteria by selected domain
+  const filteredCriteria = useMemo(() => {
+    if (!selectedDomain) return initialCriteria;
+    if (selectedDomain.includes('/')) {
+      const [domain, subdomain] = selectedDomain.split('/');
+      return initialCriteria.filter(
+        (c) => c.domain === domain && c.subdomain === subdomain
+      );
+    }
+    return initialCriteria.filter((c) => c.domain === selectedDomain);
+  }, [initialCriteria, selectedDomain]);
+
+  // Group by preference type
+  const groupedByType = useMemo(() => {
+    const groups = new Map<string, BrainCriterionView[]>();
+    for (const c of filteredCriteria) {
+      const type = c.preference_type || 'general';
+      const list = groups.get(type) || [];
+      list.push(c);
+      groups.set(type, list);
+    }
+    return groups;
+  }, [filteredCriteria]);
+
+  // Ordered preference types (only those with data)
+  const orderedTypes = useMemo(() => {
+    return PREFERENCE_TYPE_ORDER.filter((t) => groupedByType.has(t));
+  }, [groupedByType]);
+
+  return (
+    <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-8">
+      {/* Page header */}
+      <div className="mb-8">
+        <h1 className="text-lg font-medium text-white/90 tracking-tight">Brain</h1>
+        <p className="font-mono text-[10px] text-white/30 uppercase tracking-wide mt-1">
+          {initialCriteria.length} criteria · {initialSignals.length} recent signals · {initialPatterns.length} patterns
+        </p>
+      </div>
+
+      <div className="flex gap-6">
+        {/* Left sidebar: Domain tree */}
+        <div className="w-[220px] flex-shrink-0 hidden md:block">
+          <div className="bg-white/[0.03] border border-white/[0.07] rounded-[2px] overflow-hidden sticky top-24">
+            <div className="px-3 py-2 border-b border-white/[0.06]">
+              <span className="font-mono text-[9px] uppercase tracking-wide text-white/40">
+                Domains
+              </span>
+            </div>
+            <DomainTree
+              domains={domainTree}
+              selected={selectedDomain}
+              total={initialCriteria.length}
+              onSelect={setSelectedDomain}
+            />
+          </div>
+        </div>
+
+        {/* Center panel: Criteria by type */}
+        <div className="flex-1 min-w-0">
+          {/* Mobile domain filter */}
+          <div className="md:hidden mb-4">
+            <select
+              value={selectedDomain || ''}
+              onChange={(e) => setSelectedDomain(e.target.value || null)}
+              className="w-full bg-white/[0.05] border border-white/[0.1] text-white/70 text-xs px-3 py-2 font-mono"
+            >
+              <option value="">All domains ({initialCriteria.length})</option>
+              {domainTree.map((d) => (
+                <option key={d.name} value={d.name}>
+                  {d.name} ({d.count})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {filteredCriteria.length === 0 ? (
+            <div className="bg-white/[0.03] border border-white/[0.07] rounded-[2px] p-8 text-center">
+              <p className="text-sm text-white/40">
+                No preferences learned yet.
+              </p>
+              <p className="text-xs text-white/25 mt-2">
+                Keep chatting — the Brain learns from your interactions.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {orderedTypes.map((type) => {
+                const criteria = groupedByType.get(type) || [];
+                return (
+                  <div key={type}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <h2 className="font-mono text-[10px] uppercase tracking-wide text-white/50">
+                        {PREFERENCE_TYPE_LABELS[type]}
+                      </h2>
+                      <span className="font-mono text-[8px] text-white/20">
+                        {criteria.length}
+                      </span>
+                      <div className="flex-1 h-px bg-white/[0.05]" />
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {criteria.map((criterion) => (
+                        <CriterionCard
+                          key={criterion.id}
+                          criterion={criterion}
+                          signals={initialSignals}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
