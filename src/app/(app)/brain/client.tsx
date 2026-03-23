@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { GlassNavbar } from '@/components/layout/glass-navbar';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -310,7 +311,7 @@ function CriterionCard({
   }, [showHistory, signals, criterion.domain, criterion.subdomain]);
 
   return (
-    <div className="bg-white/[0.03] border border-white/[0.07] rounded-[2px] p-3 space-y-2">
+    <div className="bg-white/[0.05] border border-white/[0.09] rounded-[2px] p-3 space-y-2">
       {/* Top badges */}
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="font-mono text-[8px] uppercase tracking-wide px-1.5 py-0.5 bg-white/[0.06] border border-white/[0.08] text-white/40">
@@ -453,24 +454,28 @@ export function BrainClient({
   }, [groupedByType]);
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-8">
-      {/* Page header */}
-      <div className="mb-8">
-        <h1 className="text-lg font-medium text-white/90 tracking-tight">Brain</h1>
-        <p className="font-mono text-[10px] text-white/30 uppercase tracking-wide mt-1">
-          {initialCriteria.length} criteria · {initialSignals.length} recent signals · {initialPatterns.length} patterns
-        </p>
-      </div>
+    <div
+      className="fixed inset-0 z-[100] flex flex-col p-1 gap-1 md:p-[7px] md:gap-[7px] overflow-hidden"
+      style={{
+        backgroundImage: "linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url('/img/landing_background.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
+      }}
+    >
+      <GlassNavbar />
 
-      <div className="flex gap-6">
-        {/* Left sidebar: Domain tree */}
-        <div className="w-[220px] flex-shrink-0 hidden md:block">
-          <div className="bg-white/[0.03] border border-white/[0.07] rounded-[2px] overflow-hidden sticky top-24">
-            <div className="px-3 py-2 border-b border-white/[0.06]">
-              <span className="font-mono text-[9px] uppercase tracking-wide text-white/40">
-                Domains
-              </span>
-            </div>
+      {/* Main content */}
+      <div className="flex-1 min-h-0 flex gap-1 md:gap-[7px] overflow-hidden">
+
+        {/* Left sidebar: Domain tree — glass panel, desktop only */}
+        <div className="hidden md:flex flex-col w-[220px] flex-shrink-0 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden">
+          <div className="px-3 py-2 border-b border-white/[0.06] flex-shrink-0">
+            <span className="font-mono text-[9px] uppercase tracking-wide text-white/40">
+              Domains
+            </span>
+          </div>
+          <div className="overflow-y-auto flex-1">
             <DomainTree
               domains={domainTree}
               selected={selectedDomain}
@@ -480,8 +485,16 @@ export function BrainClient({
           </div>
         </div>
 
-        {/* Center panel: Criteria by type */}
-        <div className="flex-1 min-w-0">
+        {/* Center: criteria content — glass panel, scrollable */}
+        <div className="flex-1 min-w-0 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-y-auto p-4 md:p-6">
+          {/* Page header */}
+          <div className="mb-6">
+            <h1 className="text-lg font-medium text-white/90 tracking-tight">Brain</h1>
+            <p className="font-mono text-[10px] text-white/30 uppercase tracking-wide mt-1">
+              {initialCriteria.length} criteria · {initialSignals.length} recent signals · {initialPatterns.length} patterns
+            </p>
+          </div>
+
           {/* Mobile domain filter */}
           <div className="md:hidden mb-4">
             <select
@@ -499,7 +512,7 @@ export function BrainClient({
           </div>
 
           {filteredCriteria.length === 0 ? (
-            <div className="bg-white/[0.03] border border-white/[0.07] rounded-[2px] p-8 text-center">
+            <div className="bg-white/[0.05] border border-white/[0.09] rounded-[2px] p-8 text-center">
               <p className="text-sm text-white/40">
                 No preferences learned yet.
               </p>

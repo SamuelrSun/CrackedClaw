@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -12,12 +12,14 @@ import { Menu, X } from "lucide-react";
 
 const navLinks = [
   { href: "/chat", label: "Chat" },
+  { href: "/brain", label: "Brain" },
+  { href: "/outreach", label: "Outreach" },
   { href: "/agents", label: "Agents" },
   { href: "/integrations", label: "Integrations" },
   { href: "/settings", label: "Settings" },
 ];
 
-export function GlassNavbar() {
+export function GlassNavbar({ sidebarToggle }: { sidebarToggle?: ReactNode } = {}) {
   const pathname = usePathname();
   const { user } = useUser();
   const { status: gatewayStatus } = useGateway();
@@ -31,13 +33,15 @@ export function GlassNavbar() {
   return (
     <>
       <nav className="shrink-0 h-[48px] md:h-[56px] bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-visible flex items-center px-3 md:px-6 relative">
-        {/* Mobile hamburger */}
-        <button
-          onClick={() => setMobileNavOpen((v) => !v)}
-          className="md:hidden w-8 h-8 flex items-center justify-center text-white/50 hover:text-white/80 mr-2"
-        >
-          {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        {/* Sidebar toggle (provided by parent page) or default mobile hamburger */}
+        {sidebarToggle || (
+          <button
+            onClick={() => setMobileNavOpen((v) => !v)}
+            className="md:hidden w-8 h-8 flex items-center justify-center text-white/50 hover:text-white/80 mr-2"
+          >
+            {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        )}
         <div className="mr-4 md:mr-6">
           <WorkspaceSwitcher />
         </div>
@@ -106,8 +110,8 @@ export function GlassNavbar() {
           )}
         </div>
 
-        {/* Mobile dropdown */}
-        {mobileNavOpen && (
+        {/* Mobile dropdown (only when no custom sidebarToggle) */}
+        {!sidebarToggle && mobileNavOpen && (
           <div className="absolute top-full left-0 right-0 mt-1 md:hidden bg-black/[0.15] backdrop-blur-[20px] border border-white/10 rounded-[3px] py-2 z-50">
             {navLinks.map((link) => {
               const isActive = pathname === link.href || pathname.startsWith(link.href + "/");

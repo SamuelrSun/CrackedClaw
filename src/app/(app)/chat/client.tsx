@@ -10,7 +10,7 @@ import { useGateway } from "@/hooks/use-gateway";
 import { useToast } from "@/hooks/use-toast";
 import type { GatewayError } from "@/types/gateway";
 import Link from "next/link";
-
+import { GlassNavbar } from "@/components/layout/glass-navbar";
 
 import { parseMessageContent, type ParsedSegment } from "@/lib/chat/message-parser";
 import { generateConversationTitle } from "@/lib/utils/title-generator";
@@ -2086,73 +2086,16 @@ User message: `
       }}
     >
       {/* PANEL 1: Glass Navbar */}
-      <nav className="shrink-0 h-[48px] md:h-[56px] bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden flex items-center px-3 md:px-6">
-        {/* Mobile hamburger */}
-        <button
-          onClick={() => setMobileSidebarOpen(v => !v)}
-          className="md:hidden w-8 h-8 flex items-center justify-center text-white/50 hover:text-white/80 mr-2"
-        >
-          {mobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
-        <div className="mr-4 md:mr-6">
-          <WorkspaceSwitcher />
-        </div>
-        <div className="hidden md:flex items-center gap-1">
-          {[
-            { href: "/chat", label: "Chat" },
-            { href: "/outreach", label: "Outreach" },
-            { href: "/agents", label: "Agents" },
-            { href: "/integrations", label: "Integrations" },
-            { href: "/settings", label: "Settings" },
-          ].map((link) => {
-            const isActive = pathname === link.href || (link.href === "/chat" && pathname.startsWith("/chat"));
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  "text-sm px-3 py-1.5 transition-colors",
-                  isActive ? "text-white/90 font-semibold" : "font-normal text-white/50 hover:text-white/80"
-                )}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
-        </div>
-        <div className="ml-auto flex items-center gap-2 md:gap-4">
-          {user && (
-            <>
-              <Link href="/settings" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
-                {isConnected ? (
-                  <>
-                    <div className="w-2 h-2 bg-emerald-700 rounded-none block flex-shrink-0" />
-                    <span className="hidden sm:inline font-mono text-[10px] uppercase tracking-wide text-emerald-600">Online</span>
-                  </>
-                ) : isReconnecting ? (
-                  <>
-                    <div className="w-2 h-2 bg-amber-500 rounded-none block animate-pulse flex-shrink-0" />
-                    <span className="hidden sm:inline font-mono text-[10px] uppercase tracking-wide text-amber-400">Connecting</span>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-2 h-2 bg-red-600 rounded-none block flex-shrink-0" />
-                    <span className="hidden sm:inline font-mono text-[10px] uppercase tracking-wide text-red-500">Offline</span>
-                  </>
-                )}
-              </Link>
-              <div className="h-4 w-px bg-white/[0.1]" />
-            </>
-          )}
-          {user ? (
-            <UserMenu user={user} />
-          ) : (
-            <Link href="/welcome" className="font-mono text-[10px] uppercase tracking-wide px-3 py-1.5 text-white/60 hover:bg-white/[0.1] hover:text-white/90 border border-white/[0.15] transition-colors">
-              Sign in
-            </Link>
-          )}
-        </div>
-      </nav>
+      <GlassNavbar
+        sidebarToggle={
+          <button
+            onClick={() => setMobileSidebarOpen(v => !v)}
+            className="md:hidden w-8 h-8 flex items-center justify-center text-white/50 hover:text-white/80 mr-2"
+          >
+            {mobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        }
+      />
 
       {/* Mobile Sidebar Overlay */}
       {mobileSidebarOpen && (

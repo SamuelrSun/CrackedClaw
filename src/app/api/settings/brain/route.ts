@@ -25,7 +25,7 @@ export async function GET() {
     const settings = (profile?.instance_settings as Record<string, unknown>) || {};
 
     return NextResponse.json({
-      brain_enabled: (settings.brain_enabled as boolean) ?? false,
+      brain_enabled: (settings.brain_enabled as boolean) ?? true,
     });
   } catch (error) {
     console.error("Get brain settings error:", error);

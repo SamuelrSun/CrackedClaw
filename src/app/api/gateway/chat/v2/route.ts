@@ -259,7 +259,7 @@ export async function POST(request: NextRequest) {
                 .eq('id', user!.id)
                 .single();
               const settings = (data?.instance_settings as Record<string, unknown>) || {};
-              return (settings.brain_enabled as boolean) ?? false;
+              return (settings.brain_enabled as boolean) ?? true;
             } catch { return false; }
           })();
 

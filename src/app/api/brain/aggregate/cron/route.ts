@@ -2,7 +2,7 @@
  * Cron endpoint for brain aggregation.
  *
  * Called by Vercel cron or external scheduler (every 6 hours).
- * Finds users with 20+ unprocessed brain signals and runs aggregation for each.
+ * Finds users with 10+ unprocessed brain signals and runs aggregation for each.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createAdminClient();
 
-    // Find users with 20+ unprocessed brain signals
+    // Find users with 10+ unprocessed brain signals
     const { data: userRows, error } = await supabase
       .from('brain_signals')
       .select('user_id')
@@ -46,16 +46,16 @@ export async function GET(request: NextRequest) {
       userCounts.set(uid, (userCounts.get(uid) || 0) + 1);
     }
 
-    // Filter to users with 20+ signals
+    // Filter to users with 10+ signals
     const eligibleUsers = [...userCounts.entries()]
-      .filter(([, count]) => count >= 20)
+      .filter(([, count]) => count >= 10)
       .map(([userId]) => userId);
 
     if (eligibleUsers.length === 0) {
       return NextResponse.json({
         processed: 0,
         users: [],
-        message: `No users with 20+ unprocessed signals (${userCounts.size} users checked)`,
+        message: `No users with 10+ unprocessed signals (${userCounts.size} users checked)`,
       });
     }
 

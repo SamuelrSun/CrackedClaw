@@ -25,7 +25,7 @@ export async function POST() {
       .single();
 
     const settings = (profile?.instance_settings as Record<string, unknown>) || {};
-    const brainEnabled = (settings.brain_enabled as boolean) ?? false;
+    const brainEnabled = (settings.brain_enabled as boolean) ?? true;
 
     if (!brainEnabled) {
       return errorResponse('Brain feature is not enabled', 403);

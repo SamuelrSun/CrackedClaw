@@ -377,7 +377,7 @@ function BrainSettingsSection() {
     fetch("/api/settings/brain")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d) setEnabled(d.brain_enabled ?? false);
+        if (d) setEnabled(d.brain_enabled ?? true);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
