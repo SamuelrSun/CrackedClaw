@@ -2639,6 +2639,29 @@ User message: `
                 e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
               }}
               onKeyDown={handleKeyDown}
+              onPaste={(e) => {
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                const fileItems: File[] = [];
+                for (const item of Array.from(items)) {
+                  if (item.kind === 'file') {
+                    const f = item.getAsFile();
+                    if (f) fileItems.push(f);
+                  }
+                }
+                if (fileItems.length === 0) return; // let text paste through normally
+                e.preventDefault();
+                const toAdd: UploadedFile[] = fileItems.slice(0, 5 - attachedFiles.length).map(f => ({
+                  id: `file-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                  file: f,
+                  name: f.name || `pasted-${Date.now()}`,
+                  size: f.size,
+                  type: f.type || 'application/octet-stream',
+                  status: 'pending' as const,
+                  previewUrl: f.type.startsWith('image/') ? URL.createObjectURL(f) : undefined,
+                }));
+                if (toAdd.length) setAttachedFiles(prev => [...prev, ...toAdd]);
+              }}
               placeholder={
                 usageLimitData
                   ? `Usage limit reached — ${usageLimitData.nextResetLabel.toLowerCase()}`
@@ -2662,6 +2685,33 @@ User message: `
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                 <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">Attach</span>
               </button>
+
+              {/* Hidden file input for paperclip button */}
+              <input
+                type="file"
+                id="dopl-file-input"
+                multiple
+                accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt,.md,.csv,.xlsx,.xls,.js,.ts,.py,.json,.html,.css,.zip"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files) {
+                    const toAdd: UploadedFile[] = [];
+                    Array.from(e.target.files).slice(0, 5 - attachedFiles.length).forEach(f => {
+                      toAdd.push({
+                        id: `file-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                        file: f,
+                        name: f.name,
+                        size: f.size,
+                        type: f.type || 'application/octet-stream',
+                        status: 'pending' as const,
+                        previewUrl: f.type.startsWith('image/') ? URL.createObjectURL(f) : undefined,
+                      });
+                    });
+                    if (toAdd.length) setAttachedFiles(prev => [...prev, ...toAdd]);
+                    e.target.value = "";
+                  }
+                }}
+              />
 
               {/* Connections button */}
               <button

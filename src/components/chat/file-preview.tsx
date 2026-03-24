@@ -102,7 +102,7 @@ export function FilePreview({ files, onRemove }: FilePreviewProps) {
           {uf.status !== "uploading" && (
             <button
               onClick={() => onRemove(uf.id)}
-              className="absolute top-1 right-1 w-4 h-4 rounded-full bg-grid/20 hover:bg-grid/40 flex items-center justify-center text-[9px] text-grid/60 hover:text-grid/90 transition-colors"
+              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 hover:bg-red-600/80 flex items-center justify-center text-[11px] text-white font-bold transition-colors shadow-sm"
               title="Remove file"
             >
               ×
