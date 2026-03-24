@@ -51,66 +51,102 @@ interface FileMessageCardProps {
 export function FileMessageCard({ files, message, className }: FileMessageCardProps) {
   return (
     <div className={cn("space-y-2", className)}>
-      {files.map((file, idx) => (
-        <div
-          key={file.id || idx}
-          className="border border-white/[0.1] rounded bg-white overflow-hidden"
-          style={{ maxWidth: 400 }}
-        >
-          {/* Image preview */}
-          {file.mimeType.startsWith("image/") && (file.url || file.previewUrl) ? (
-            <div className="w-full" style={{ maxWidth: 400 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={file.url || file.previewUrl}
-                alt={file.name}
-                className="w-full rounded-t object-contain shadow-sm"
-                style={{ maxWidth: 400 }}
-              />
-            </div>
-          ) : null}
+      {files.map((file, idx) => {
+        const isImage = file.mimeType.startsWith("image/");
+        const hasPreview = isImage && (file.url || file.previewUrl);
 
-          {/* File metadata */}
-          <div className="px-3 py-2">
-            <div className="flex items-start gap-2">
-              <span className="text-lg mt-0.5">
-                {getFileIcon(file.mimeType, file.name)}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-forest truncate">
-                  {file.name}
+        // Image files: tall card with inline preview
+        if (hasPreview) {
+          return (
+            <div
+              key={file.id || idx}
+              className="border border-white/[0.1] rounded-lg bg-white/[0.06] backdrop-blur-sm overflow-hidden"
+              style={{ maxWidth: 300 }}
+            >
+              {/* Image preview */}
+              <div className="w-full rounded-t overflow-hidden border-b border-white/[0.08]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={file.url || file.previewUrl}
+                  alt={file.name}
+                  className="w-full object-contain"
+                  style={{ maxWidth: 300 }}
+                />
+              </div>
+
+              {/* File metadata */}
+              <div className="px-3 py-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-base mt-0.5">
+                    {getFileIcon(file.mimeType, file.name)}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-white/85 truncate">
+                      {file.name}
+                    </div>
+                    <div className="text-[10px] text-white/40 mt-0.5 font-mono">
+                      {formatBytes(file.size)} · {formatMimeType(file.mimeType)}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-[10px] text-grid/50 mt-0.5 font-mono">
-                  {formatBytes(file.size)} · {formatMimeType(file.mimeType)}
-                </div>
+
+                {/* Download action */}
+                {file.url && (
+                  <div className="flex gap-2 mt-2">
+                    <a
+                      href={file.url}
+                      download={file.name}
+                      className="flex items-center gap-1 text-[10px] font-mono text-white/70 border border-white/[0.15] rounded px-2 py-0.5 hover:bg-white/[0.08] transition-colors"
+                    >
+                      📥 Download
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
+          );
+        }
 
-            {/* Actions */}
+        // Non-image files: compact horizontal pill
+        return (
+          <div
+            key={file.id || idx}
+            className="inline-flex items-center gap-2 border border-white/[0.1] rounded-full bg-white/[0.06] backdrop-blur-sm px-3 py-1.5 max-w-full"
+          >
+            <span className="text-sm shrink-0">
+              {getFileIcon(file.mimeType, file.name)}
+            </span>
+            <span className="text-sm font-medium text-white/85 truncate max-w-[180px]">
+              {file.name}
+            </span>
+            <span className="text-[10px] text-white/40 font-mono whitespace-nowrap shrink-0">
+              {formatBytes(file.size)} · {formatMimeType(file.mimeType)}
+            </span>
             {file.url && (
-              <div className="flex gap-2 mt-2">
+              <>
+                <span className="text-white/20 text-xs shrink-0">·</span>
                 <a
                   href={file.url}
                   download={file.name}
-                  className="flex items-center gap-1 text-[10px] font-mono text-forest border border-forest/30 px-2 py-0.5 hover:bg-forest/5 transition-colors"
+                  className="text-[10px] font-mono text-white/50 hover:text-white/70 transition-colors shrink-0"
+                  title="Download"
                 >
-                  📥 Download
+                  📥
                 </a>
-                {!file.mimeType.startsWith("image/") && (
-                  <a
-                    href={file.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] font-mono text-grid/60 border border-grid/20 px-2 py-0.5 hover:bg-grid/5 transition-colors"
-                  >
-                    👁 Preview
-                  </a>
-                )}
-              </div>
+                <a
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] font-mono text-white/50 hover:text-white/70 transition-colors shrink-0"
+                  title="Preview"
+                >
+                  👁
+                </a>
+              </>
             )}
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Attached message */}
       {message && (
