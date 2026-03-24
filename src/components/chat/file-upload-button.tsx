@@ -11,6 +11,7 @@ export interface UploadedFile {
   previewUrl?: string; // for images
   uploadProgress?: number;
   uploadedUrl?: string;
+  fileId?: string; // server-assigned file ID (from upload response)
   status: "pending" | "uploading" | "uploaded" | "error";
 }
 
@@ -132,6 +133,7 @@ export async function uploadFiles(
           status: "uploaded",
           uploadProgress: 100,
           uploadedUrl: data.file.url,
+          fileId: data.file.id ?? undefined,
         });
       } else {
         results.push({ ...uf, status: "error" });

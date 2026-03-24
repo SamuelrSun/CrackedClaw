@@ -569,13 +569,24 @@ function ReconnectionBanner({
 }
 
 function parseFileAttachment(content: string): { files: Array<{name: string; size: number; mimeType: string; url?: string}>; message: string } | null {
+  const FILE_IDS_PREFIX = "[Attached file_ids:";
   const PREFIX = "[Attached files:";
   const SEP = "]\nUser message: ";
-  if (!content.startsWith(PREFIX)) return null;
-  const closeIdx = content.indexOf(SEP);
+
+  // Normalize: strip the optional [Attached file_ids:] line so the rest of the
+  // parser can find [Attached files:] as usual
+  let normalized = content;
+  if (content.startsWith(FILE_IDS_PREFIX)) {
+    const newlineIdx = content.indexOf("\n");
+    if (newlineIdx === -1) return null;
+    normalized = content.slice(newlineIdx + 1);
+  }
+
+  if (!normalized.startsWith(PREFIX)) return null;
+  const closeIdx = normalized.indexOf(SEP);
   if (closeIdx === -1) return null;
-  const filesStr = content.slice(PREFIX.length, closeIdx);
-  const message = content.slice(closeIdx + SEP.length).trim();
+  const filesStr = normalized.slice(PREFIX.length, closeIdx);
+  const message = normalized.slice(closeIdx + SEP.length).trim();
   const files = filesStr.split(",").map(s => s.trim()).filter(Boolean).map(line => {
     const parenOpen = line.lastIndexOf("(");
     const parenClose = line.lastIndexOf(")");
@@ -1305,8 +1316,9 @@ export default function ChatPageClient({
     }
 
     // Build message with file references
+    const filesWithIds = uploadedFiles.filter(f => f.fileId);
     const filePrefix = uploadedFiles.length > 0
-      ? `[Attached files: ${uploadedFiles.map(f => `${f.name} (${(f.size / (1024*1024)).toFixed(1)} MB, ${f.type}${f.uploadedUrl ? `, url:${f.uploadedUrl}` : ""})`).join(", ")}]
+      ? `${filesWithIds.length > 0 ? `[Attached file_ids: ${filesWithIds.map(f => f.fileId).join(",")}]\n` : ""}[Attached files: ${uploadedFiles.map(f => `${f.name} (${(f.size / (1024*1024)).toFixed(1)} MB, ${f.type}${f.uploadedUrl ? `, url:${f.uploadedUrl}` : ""})`).join(", ")}]
 User message: `
       : "";
     const messageToSend = filePrefix + (baseMessage || "(see attached files)");

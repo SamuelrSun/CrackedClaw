@@ -36,16 +36,25 @@ const IMAGE_CAP = 5 * 1024 * 1024; // 5MB max per image
 const MAX_IMAGES = 3;
 
 const PREFIX = '[Attached files:';
+const FILE_IDS_PREFIX = '[Attached file_ids:';
 const SEP = ']\nUser message: ';
 
 /**
- * Strip the "[Attached files: ...]\nUser message: " prefix from a stored message.
+ * Strip the "[Attached file_ids: ...]\n[Attached files: ...]\nUser message: " prefix
+ * from a stored message. Handles both old format (files only) and new format (ids + files).
  * Used when loading previous messages so stale file refs don't confuse the model.
  */
 export function stripFilePrefix(content: string): string {
-  if (!content.startsWith(PREFIX)) return content;
-  const idx = content.indexOf(SEP);
-  return idx !== -1 ? content.slice(idx + SEP.length) : content;
+  let normalized = content;
+  // Strip the optional [Attached file_ids:] line (new format)
+  if (normalized.startsWith(FILE_IDS_PREFIX)) {
+    const newlineIdx = normalized.indexOf('\n');
+    if (newlineIdx === -1) return content;
+    normalized = normalized.slice(newlineIdx + 1);
+  }
+  if (!normalized.startsWith(PREFIX)) return content;
+  const idx = normalized.indexOf(SEP);
+  return idx !== -1 ? normalized.slice(idx + SEP.length) : content;
 }
 
 /**
@@ -88,13 +97,29 @@ export async function resolveAttachments(
   };
 
   try {
-    if (!messageContent.startsWith(PREFIX)) return fallback;
+    // Normalize: strip optional [Attached file_ids:] line to find the [Attached files:] part
+    let normalized = messageContent;
+    let fileIds: string[] = [];
 
-    const closeIdx = messageContent.indexOf(SEP);
+    if (messageContent.startsWith(FILE_IDS_PREFIX)) {
+      // Extract IDs from the first line: [Attached file_ids: id1,id2,...]
+      const idsLineEnd = messageContent.indexOf(']', FILE_IDS_PREFIX.length);
+      if (idsLineEnd !== -1) {
+        const idsStr = messageContent.slice(FILE_IDS_PREFIX.length, idsLineEnd);
+        fileIds = idsStr.split(',').map(s => s.trim()).filter(Boolean);
+      }
+      const newlineIdx = messageContent.indexOf('\n');
+      if (newlineIdx === -1) return fallback;
+      normalized = messageContent.slice(newlineIdx + 1);
+    }
+
+    if (!normalized.startsWith(PREFIX)) return fallback;
+
+    const closeIdx = normalized.indexOf(SEP);
     if (closeIdx === -1) return fallback;
 
-    const userMessage = messageContent.slice(closeIdx + SEP.length).trim();
-    const filesStr = messageContent.slice(PREFIX.length, closeIdx);
+    const userMessage = normalized.slice(closeIdx + SEP.length).trim();
+    const filesStr = normalized.slice(PREFIX.length, closeIdx);
     const fileRefs = parseFileRefs(filesStr);
 
     if (fileRefs.length === 0) return fallback;
@@ -105,17 +130,36 @@ export async function resolveAttachments(
     let totalTextSize = 0;
     let imageCount = 0;
 
-    for (const ref of fileRefs) {
+    for (let i = 0; i < fileRefs.length; i++) {
+      const ref = fileRefs[i];
       try {
-        // Look up the most recently uploaded file with this name for this user
-        const { data: fileRecord } = await supabase
-          .from('files')
-          .select('id, name, type, mode, storage_path, size')
-          .eq('user_id', userId)
-          .eq('name', ref.name)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        // PRIMARY: look up by file ID if available (exact match, no ambiguity)
+        // FALLBACK: look up by name (backward compat for messages without file_ids)
+        let fileRecord: { id: string; name: string; type: string; mode: string; storage_path: string; size: number } | null = null;
+
+        const fileId = fileIds[i];
+        if (fileId) {
+          const { data } = await supabase
+            .from('files')
+            .select('id, name, type, mode, storage_path, size')
+            .eq('id', fileId)
+            .eq('user_id', userId)
+            .maybeSingle();
+          fileRecord = data;
+        }
+
+        if (!fileRecord) {
+          // Fallback: look up the most recently uploaded file with this name for this user
+          const { data } = await supabase
+            .from('files')
+            .select('id, name, type, mode, storage_path, size')
+            .eq('user_id', userId)
+            .eq('name', ref.name)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          fileRecord = data;
+        }
 
         if (!fileRecord) {
           resolvedFiles.push({ name: ref.name, mimeType: ref.mimeType, size: ref.size, warning: 'File not found in storage' });
