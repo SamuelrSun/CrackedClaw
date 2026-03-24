@@ -69,9 +69,14 @@ function getGatewayUrl(instance: InstanceInfo): string {
   return `http://${instance.host}:${instance.port}`;
 }
 
+// Content block type for multimodal messages (Claude API format)
+export type MessageContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } };
+
 export interface ProxyStreamOptions {
   userId: string;
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<{ role: string; content: string | MessageContentBlock[] }>;
   model?: string;
   systemPrompt?: string;
   onToken?: (text: string) => void;

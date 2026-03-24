@@ -16,6 +16,7 @@ import { formatBrainContext } from "@/lib/brain/retriever/context-formatter";
 import { retrieveUnifiedContext } from "@/lib/memory/unified-retriever";
 import { formatUnifiedContext } from "@/lib/memory/unified-formatter";
 import { refreshMemoryContextIfNeeded } from "@/lib/gateway/workspace";
+import { resolveAttachments, stripFilePrefix } from "@/lib/files/resolve-attachments";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 800;
@@ -67,6 +68,9 @@ export async function POST(request: NextRequest) {
     if (!message || typeof message !== "string") {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
+
+    // Resolve file attachments — extract text, base64 images for AI
+    const resolved = await resolveAttachments(user.id, message);
 
     const MODEL_MAP: Record<string, string> = {
       haiku: "claude-haiku-4",
@@ -155,7 +159,8 @@ export async function POST(request: NextRequest) {
           .order("created_at", { ascending: false })
           .limit(51);
         if (historyRows && historyRows.length > 0) {
-          previousMessages = (historyRows.slice(1).reverse() as Array<{ role: "user" | "assistant"; content: string }>);
+          previousMessages = (historyRows.slice(1).reverse() as Array<{ role: "user" | "assistant"; content: string }>)
+            .map(m => m.role === 'user' ? { ...m, content: stripFilePrefix(m.content) } : m);
         }
       } catch { /* ignore */ }
     }
@@ -226,9 +231,14 @@ export async function POST(request: NextRequest) {
     // Replace conversation ID placeholder for subagent push instructions
     systemPrompt = systemPrompt.replace(/__CONVO_ID__/g, activeConversationId || '');
 
+    // Use resolved content blocks if images are present; otherwise use extracted text
+    const userMessageContent = resolved.contentBlocks.length > 1
+      ? resolved.contentBlocks
+      : resolved.textContent;
+
     const allMessages = [
       ...previousMessages,
-      { role: "user" as const, content: message },
+      { role: "user" as const, content: userMessageContent },
     ];
 
     const capturedConvoId = activeConversationId;

@@ -16,6 +16,7 @@ import { formatBrainContext } from "@/lib/brain/retriever/context-formatter";
 import { retrieveUnifiedContext } from "@/lib/memory/unified-retriever";
 import { formatUnifiedContext } from "@/lib/memory/unified-formatter";
 import { refreshMemoryContextIfNeeded } from "@/lib/gateway/workspace";
+import { resolveAttachments, stripFilePrefix } from "@/lib/files/resolve-attachments";
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,9 @@ export async function POST(request: NextRequest) {
     if (!message || typeof message !== "string") {
       return errorResponse("Message is required", 400);
     }
+
+    // Resolve file attachments — extract text, base64 images for AI
+    const resolved = await resolveAttachments(user.id, message);
 
     const MODEL_MAP: Record<string, string> = {
       haiku: "claude-haiku-4",
@@ -105,7 +109,8 @@ export async function POST(request: NextRequest) {
           .order("created_at", { ascending: false })
           .limit(51);
         if (historyRows && historyRows.length > 0) {
-          previousMessages = (historyRows.slice(1).reverse() as Array<{ role: "user" | "assistant"; content: string }>);
+          previousMessages = (historyRows.slice(1).reverse() as Array<{ role: "user" | "assistant"; content: string }>)
+            .map(m => m.role === 'user' ? { ...m, content: stripFilePrefix(m.content) } : m);
         }
       } catch (e) {
         console.error("Failed to load conversation history:", e);
@@ -170,10 +175,15 @@ export async function POST(request: NextRequest) {
       : `http://${instance.host}:${instance.port}`;
     const gatewayUrl = `${gatewayBase}/v1/chat/completions`;
 
+    // Use resolved content blocks if images are present; otherwise use extracted text
+    const userMessageContent = resolved.contentBlocks.length > 1
+      ? resolved.contentBlocks
+      : resolved.textContent;
+
     const gatewayMessages = [
       { role: 'system', content: systemPrompt },
       ...previousMessages,
-      { role: "user", content: message },
+      { role: "user", content: userMessageContent },
     ];
 
     const aiResponseStartTimestamp = Date.now();

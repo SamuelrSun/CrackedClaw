@@ -19,6 +19,7 @@ import { formatBrainContext } from '@/lib/brain/retriever/context-formatter';
 import { retrieveUnifiedContext } from '@/lib/memory/unified-retriever';
 import { formatUnifiedContext } from '@/lib/memory/unified-formatter';
 import { refreshMemoryContextIfNeeded } from '@/lib/gateway/workspace';
+import { resolveAttachments, stripFilePrefix } from '@/lib/files/resolve-attachments';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -41,6 +42,9 @@ export async function POST(request: NextRequest) {
     if (!message || typeof message !== 'string') {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
+
+    // Resolve file attachments — extract text, base64 images for AI
+    const resolved = await resolveAttachments(user!.id, message);
 
     // Token limit enforcement
     const limitCheck = await checkTokenLimit(user!.id);
@@ -107,7 +111,8 @@ export async function POST(request: NextRequest) {
         .order('created_at', { ascending: false })
         .limit(51);
       if (historyRows && historyRows.length > 0) {
-        previousMessages = historyRows.slice(1).reverse() as Array<{ role: string; content: string }>;
+        previousMessages = (historyRows.slice(1).reverse() as Array<{ role: string; content: string }>)
+          .map(m => m.role === 'user' ? { ...m, content: stripFilePrefix(m.content) } : m);
       }
     }
 
@@ -160,9 +165,14 @@ export async function POST(request: NextRequest) {
     }
 
     // All messages for the gateway
+    // Use resolved content blocks if images are present; otherwise use extracted text
+    const userMessageContent = resolved.contentBlocks.length > 1
+      ? resolved.contentBlocks
+      : resolved.textContent;
+
     const allMessages = [
       ...previousMessages,
-      { role: 'user', content: message },
+      { role: 'user', content: userMessageContent },
     ];
 
     const capturedConvoId = activeConversationId;
