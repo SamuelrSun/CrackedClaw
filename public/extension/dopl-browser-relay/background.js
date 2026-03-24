@@ -263,6 +263,7 @@ function onRelayClosed(reason) {
   }
 
   scheduleReconnect()
+  void broadcastPanelState()
 }
 
 function scheduleReconnect() {
@@ -283,6 +284,7 @@ function scheduleReconnect() {
       reconnectAttempt = 0
       console.log('Reconnected successfully')
       await reannounceAttachedTabs()
+      void broadcastPanelState()
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       console.warn(`Reconnect attempt ${reconnectAttempt} failed: ${message}`)
@@ -440,6 +442,66 @@ function requestFromRelay(command) {
   })
 }
 
+// ── Panel state + chat forwarding ──────────────────────────────────────────
+
+let nextChatReqId = 1
+
+/**
+ * Build a snapshot of current relay + tab state for the side panel.
+ */
+async function buildPanelState() {
+  const stored = await chrome.storage.local.get(['gatewayToken', 'remoteHost', 'relayPort'])
+  const hasToken = Boolean(stored.gatewayToken || stored.remoteHost)
+  const connected = Boolean(relayWs && relayWs.readyState === WebSocket.OPEN)
+
+  const attachedTabs = []
+  for (const [tabId, tab] of tabs.entries()) {
+    if (tab.state !== 'connected') continue
+    let title = ''
+    let url = ''
+    try {
+      const info = await chrome.tabs.get(tabId)
+      title = info.title || ''
+      url = info.url || ''
+    } catch {
+      // tab may have closed
+    }
+    attachedTabs.push({ tabId, sessionId: tab.sessionId, title, url })
+  }
+
+  return {
+    hasConfig: hasToken,
+    connected,
+    windowModeEnabled,
+    remoteHost: String(stored.remoteHost || '').trim(),
+    port: stored.relayPort || DEFAULT_PORT,
+    tabs: attachedTabs,
+  }
+}
+
+/**
+ * Broadcast current state to the side panel (best-effort — panel may not be open).
+ */
+async function broadcastPanelState() {
+  try {
+    const state = await buildPanelState()
+    chrome.runtime.sendMessage({ type: 'panel.stateChanged', ...state }).catch(() => {})
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Forward a chat event to the side panel (best-effort).
+ */
+function forwardToPanel(payload) {
+  try {
+    chrome.runtime.sendMessage(payload).catch(() => {})
+  } catch {
+    // panel not open
+  }
+}
+
 async function onRelayMessage(text) {
   /** @type {any} */
   let msg
@@ -492,6 +554,46 @@ async function onRelayMessage(text) {
     if (msg.error) p.reject(new Error(String(msg.error)))
     else p.resolve(msg.result)
     return
+  }
+
+  // ── Chat streaming events → forward to side panel ────────────────────────
+  if (msg && msg.type === 'event' && msg.event === 'agent') {
+    const payload = msg.payload || {}
+    const stream = payload.stream
+    const data = payload.data || {}
+
+    if (stream === 'assistant' && data.delta) {
+      forwardToPanel({ type: 'chat.token', delta: data.delta })
+    } else if (stream === 'thinking' && data.delta) {
+      forwardToPanel({ type: 'chat.thinking', delta: data.delta })
+    } else if (stream === 'lifecycle') {
+      if (data.phase === 'start') {
+        forwardToPanel({ type: 'chat.lifecycle', phase: 'start' })
+      } else if (data.phase === 'end') {
+        forwardToPanel({ type: 'chat.lifecycle', phase: 'end' })
+      }
+    }
+    // Don't return — other handlers may also want agent events
+  }
+
+  if (msg && msg.type === 'event' && msg.event === 'chat') {
+    const payload = msg.payload || {}
+    if (payload.state === 'final') {
+      const message = payload.message || {}
+      const contentArr = Array.isArray(message.content) ? message.content : []
+      const fullText = (contentArr.find(c => c.type === 'text') || {}).text || ''
+      forwardToPanel({ type: 'chat.done', fullText })
+    }
+    // Don't return — allow other handlers
+  }
+
+  // ── Response to chat.send / chat.abort / chat.history ────────────────────
+  if (msg && msg.type === 'res' && typeof msg.id === 'string' && msg.id.startsWith('chat-')) {
+    if (!msg.ok) {
+      const errMsg = msg.error?.message || msg.error || 'Request failed'
+      forwardToPanel({ type: 'chat.error', message: String(errMsg) })
+    }
+    // Don't return — pending map may also have an entry
   }
 
   if (msg && typeof msg.id === 'number' && msg.method === 'forwardCDPCommand') {
@@ -558,6 +660,7 @@ async function attachTab(tabId, opts = {}) {
 
   setBadge(tabId, 'on')
   await persistState()
+  void broadcastPanelState()
 
   return { sessionId, targetId }
 }
@@ -614,6 +717,7 @@ async function detachTab(tabId, reason) {
   })
 
   await persistState()
+  void broadcastPanelState()
 }
 
 // ── Window Mode ──────────────────────────────────────────────────────────────
@@ -1020,7 +1124,15 @@ chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => void whenReady(
 chrome.debugger.onEvent.addListener((...args) => void whenReady(() => onDebuggerEvent(...args)))
 chrome.debugger.onDetach.addListener((...args) => void whenReady(() => onDebuggerDetach(...args)))
 
-chrome.action.onClicked.addListener(() => void whenReady(() => toggleWindowMode()))
+// Extension icon click → open side panel (falls back to window mode for older Chrome).
+chrome.action.onClicked.addListener((tab) => void whenReady(async () => {
+  try {
+    await chrome.sidePanel.open({ windowId: tab.windowId })
+  } catch (err) {
+    console.warn('sidePanel.open failed, falling back to window mode', err instanceof Error ? err.message : String(err))
+    await toggleWindowMode()
+  }
+}))
 
 // Auto-attach new tabs when window mode is enabled.
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => void whenReady(async () => {
@@ -1116,22 +1228,98 @@ async function whenReady(fn) {
 // host_permissions and bypasses CORS preflight, so the options page
 // delegates token-validation requests here.
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.type !== 'relayCheck') return false
-  const { url, token } = msg
-  const headers = token ? { 'x-openclaw-relay-token': token } : {}
-  fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(2000) })
-    .then(async (res) => {
-      const contentType = String(res.headers.get('content-type') || '')
-      let json = null
-      if (contentType.includes('application/json')) {
-        try {
-          json = await res.json()
-        } catch {
-          json = null
+  if (!msg || typeof msg !== 'object') return false
+
+  // ── Relay check (options page) ──────────────────────────────────────────
+  if (msg.type === 'relayCheck') {
+    const { url, token } = msg
+    const headers = token ? { 'x-openclaw-relay-token': token } : {}
+    fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(2000) })
+      .then(async (res) => {
+        const contentType = String(res.headers.get('content-type') || '')
+        let json = null
+        if (contentType.includes('application/json')) {
+          try { json = await res.json() } catch { json = null }
         }
+        sendResponse({ status: res.status, ok: res.ok, contentType, json })
+      })
+      .catch((err) => sendResponse({ status: 0, ok: false, error: String(err) }))
+    return true
+  }
+
+  // ── Panel state query ───────────────────────────────────────────────────
+  if (msg.type === 'panel.getState') {
+    ;(async () => {
+      try {
+        const state = await buildPanelState()
+        sendResponse(state)
+      } catch (err) {
+        sendResponse({ hasConfig: false, connected: false, tabs: [] })
       }
-      sendResponse({ status: res.status, ok: res.ok, contentType, json })
-    })
-    .catch((err) => sendResponse({ status: 0, ok: false, error: String(err) }))
-  return true
+    })()
+    return true
+  }
+
+  // ── Chat send ───────────────────────────────────────────────────────────
+  if (msg.type === 'chat.send') {
+    ;(async () => {
+      try {
+        await ensureRelayConnection()
+        const id = `chat-${nextChatReqId++}`
+        const sessionKey = msg.sessionKey || `webchat-${Date.now()}`
+        sendToRelay({
+          type: 'req',
+          id,
+          method: 'chat.send',
+          params: {
+            sessionKey,
+            idempotencyKey: `${sessionKey}-${Date.now()}`,
+            message: msg.text || '',
+          },
+        })
+        sendResponse({ ok: true })
+      } catch (err) {
+        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
+      }
+    })()
+    return true
+  }
+
+  // ── Chat abort ──────────────────────────────────────────────────────────
+  if (msg.type === 'chat.abort') {
+    try {
+      sendToRelay({
+        type: 'req',
+        id: `abort-${nextChatReqId++}`,
+        method: 'chat.abort',
+        params: msg.sessionKey ? { sessionKey: msg.sessionKey } : {},
+      })
+    } catch {
+      // relay may be down
+    }
+    sendResponse({ ok: true })
+    return false
+  }
+
+  // ── Chat history ────────────────────────────────────────────────────────
+  if (msg.type === 'chat.history') {
+    ;(async () => {
+      try {
+        await ensureRelayConnection()
+        const id = `hist-${nextChatReqId++}`
+        const result = await requestFromRelay({
+          type: 'req',
+          id: Date.now(),
+          method: 'chat.history',
+          params: msg.sessionKey ? { sessionKey: msg.sessionKey } : {},
+        })
+        sendResponse({ ok: true, messages: result })
+      } catch (err) {
+        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
+      }
+    })()
+    return true
+  }
+
+  return false
 })
