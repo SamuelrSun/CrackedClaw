@@ -183,10 +183,10 @@ export function validateFile(
   sizeBytes: number,
   mode: 'temp' | 'memory'
 ): { valid: boolean; error?: string } {
-  const maxSize = mode === 'temp' ? 10 * 1024 * 1024 : 50 * 1024 * 1024; // 10MB temp, 50MB memory
+  const maxSize = mode === 'temp' ? 10 * 1024 * 1024 : 25 * 1024 * 1024; // 10MB temp, 25MB memory
 
   if (sizeBytes > maxSize) {
-    return { valid: false, error: `File too large. Max ${mode === 'temp' ? '10MB' : '50MB'} for ${mode} files.` };
+    return { valid: false, error: `File too large. Max ${mode === 'temp' ? '10MB' : '25MB'} for ${mode} files.` };
   }
 
   const allowed = [

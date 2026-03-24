@@ -3,8 +3,8 @@
  * Handles upload/download from Supabase Storage and chunk storage in DB.
  * 
  * Storage buckets needed (create in Supabase dashboard):
- *   - temp-files   (private, 10MB limit)
- *   - memory-files (private, 50MB limit)
+ *   - temp-files   (private, 10MB limit per file, 24h expiry)
+ *   - memory-files (private, 25MB limit per file, permanent)
  */
 
 import { createClient } from '@/lib/supabase/server';
@@ -48,6 +48,36 @@ export async function uploadFile(params: {
   }
 
   const supabase = await createClient();
+
+  // Per-user storage cap check (must happen BEFORE uploading)
+  const { data: usage } = await supabase
+    .from('files')
+    .select('size')
+    .eq('user_id', userId);
+
+  const totalUsed = (usage || []).reduce((sum: number, f: { size: number }) => sum + (f.size || 0), 0);
+  const PER_USER_CAP = 100 * 1024 * 1024; // 100MB
+
+  if (totalUsed + buffer.length > PER_USER_CAP) {
+    return {
+      file: null,
+      error: `Storage limit reached (${Math.round(totalUsed / (1024 * 1024))}MB / 100MB). Delete some files to free space.`,
+    };
+  }
+
+  // Memory file count limit check
+  if (mode === 'memory') {
+    const { count } = await supabase
+      .from('files')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('mode', 'memory');
+
+    if ((count || 0) >= 50) {
+      return { file: null, error: 'Memory file limit reached (50 files). Delete some to add more.' };
+    }
+  }
+
   const bucket = mode === 'temp' ? 'temp-files' : 'memory-files';
   const storagePath = `${userId}/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
