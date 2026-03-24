@@ -52,7 +52,7 @@
           <div class="form-status" id="form-status"></div>
         </div>
 
-        <!-- Ready section (shown when connected) -->
+        <!-- Ready section (shown when connected but not yet chatting) -->
         <div class="glass card hidden" id="ready-section">
           <h2>Status</h2>
           <div class="ready-info">
@@ -71,12 +71,38 @@
           </div>
         </div>
 
-        <!-- Chat placeholder (Phase 2 will replace this) -->
-        <div class="chat-placeholder hidden" id="chat-placeholder">
-          <div class="placeholder-icon">💬</div>
-          <p>Chat coming in Phase 2.<br />Your agent is ready to go.</p>
+        <!-- Chat area (shown when connected) -->
+        <div class="chat-area hidden" id="chat-area">
+          <div class="chat-messages" id="chat-messages"></div>
+          <div class="typing-indicator hidden" id="typing-indicator">
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+          </div>
         </div>
 
+      </div>
+
+      <!-- ── Chat input bar ──────────────────────────────────────────────── -->
+      <div class="chat-input-bar hidden" id="chat-input-bar">
+        <textarea
+          id="chat-textarea"
+          placeholder="Ask Dopl anything…"
+          rows="1"
+          autocomplete="off"
+          spellcheck="true"
+        ></textarea>
+        <button id="send-btn" class="input-btn" type="button" title="Send">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+        <button id="abort-btn" class="input-btn abort-btn hidden" type="button" title="Stop">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+          </svg>
+        </button>
       </div>
 
       <!-- ── Footer / Tab status bar ────────────────────────────────────── -->
