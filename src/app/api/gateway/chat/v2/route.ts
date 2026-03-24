@@ -107,10 +107,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Build system prompt (includes user context, memory, integrations)
-    let systemPrompt = await buildSystemPromptForUser(user!.id, message, activeConversationId || undefined);
-
-    // Memory/Brain context injection
     // Check unified_memory flag — if enabled, use unified retriever instead of separate pipelines
     const unifiedMemoryEnabled = await (async () => {
       try {
@@ -121,9 +117,12 @@ export async function POST(request: NextRequest) {
           .eq('id', user!.id)
           .single();
         const settings = (data?.instance_settings as Record<string, unknown>) || {};
-        return (settings.unified_memory as boolean) ?? false;
-      } catch { return false; }
+        return (settings.unified_memory as boolean) ?? true;
+      } catch { return true; }
     })();
+
+    // Build system prompt (skip old memory injection when unified memory is active)
+    let systemPrompt = await buildSystemPromptForUser(user!.id, message, activeConversationId || undefined, { skipMemory: unifiedMemoryEnabled });
 
     if (unifiedMemoryEnabled) {
       // Unified path: single retrieval across all memory types (facts + criteria)

@@ -108,15 +108,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Build system prompt
-    let systemPrompt = await buildSystemPromptForUser(user.id, message);
-    if (activeConversationId) {
-      const linkedCtx = await buildLinkedContextSummary(user.id, activeConversationId);
-      if (linkedCtx) systemPrompt += "\n\n" + linkedCtx;
-    }
-    if (workflowContext) systemPrompt += "\n\n" + workflowContext;
-
-    // Memory/Brain context injection
     // Check unified_memory flag — if enabled, use unified retriever instead of separate pipelines
     const unifiedMemoryEnabled = await (async () => {
       try {
@@ -126,9 +117,17 @@ export async function POST(request: NextRequest) {
           .eq('id', user.id)
           .single();
         const settings = (data?.instance_settings as Record<string, unknown>) || {};
-        return (settings.unified_memory as boolean) ?? false;
-      } catch { return false; }
+        return (settings.unified_memory as boolean) ?? true;
+      } catch { return true; }
     })();
+
+    // Build system prompt (skip old memory injection when unified memory is active)
+    let systemPrompt = await buildSystemPromptForUser(user.id, message, undefined, { skipMemory: unifiedMemoryEnabled });
+    if (activeConversationId) {
+      const linkedCtx = await buildLinkedContextSummary(user.id, activeConversationId);
+      if (linkedCtx) systemPrompt += "\n\n" + linkedCtx;
+    }
+    if (workflowContext) systemPrompt += "\n\n" + workflowContext;
 
     if (unifiedMemoryEnabled) {
       // Unified path: single retrieval across all memory types (facts + criteria)

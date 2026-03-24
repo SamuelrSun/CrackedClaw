@@ -457,7 +457,7 @@ API-first: prefer API for structured operations. Browser only when API can't do 
   return parts.join('\n');
 }
 
-export async function buildSystemPromptForUser(userId: string, userMessage?: string, conversationId?: string): Promise<string> {
+export async function buildSystemPromptForUser(userId: string, userMessage?: string, conversationId?: string, options?: { skipMemory?: boolean }): Promise<string> {
   const ctx: SystemPromptContext = { userId };
 
   try {
@@ -513,43 +513,46 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
     } catch { /* ignore */ }
 
     // Get memories: semantic search + core high-importance memories
-    try {
-      const [searchResults, coreResults] = await Promise.all([
-        userMessage ? mem0Search(userMessage, userId, { limit: 15, threshold: 0.4 }) : Promise.resolve([]),
-        mem0GetCore(userId, { minImportance: 0.5, limit: 20 }),
-      ]);
-      // Merge and deduplicate by id
-      const seen = new Set<string>();
-      const merged: Mem0Memory[] = [];
-      for (const m of [...searchResults, ...coreResults]) {
-        if (!seen.has(m.id)) {
-          seen.add(m.id);
-          merged.push(m);
+    // Skip when unified_memory is active — unified retriever handles all memory context
+    if (!options?.skipMemory) {
+      try {
+        const [searchResults, coreResults] = await Promise.all([
+          userMessage ? mem0Search(userMessage, userId, { limit: 15, threshold: 0.4 }) : Promise.resolve([]),
+          mem0GetCore(userId, { minImportance: 0.5, limit: 20 }),
+        ]);
+        // Merge and deduplicate by id
+        const seen = new Set<string>();
+        const merged: Mem0Memory[] = [];
+        for (const m of [...searchResults, ...coreResults]) {
+          if (!seen.has(m.id)) {
+            seen.add(m.id);
+            merged.push(m);
+          }
         }
-      }
-      if (merged.length > 0) {
-        // Convert to MemoryEntry format for the existing prompt builder
-        ctx.memoryEntries = merged.map(m => {
-          const content = m.memory || m.content || '';
-          const colonIdx = content.indexOf(':');
-          const key = colonIdx > 0 ? content.substring(0, colonIdx).trim() : content.substring(0, 30);
-          const value = colonIdx > 0 ? content.substring(colonIdx + 1).trim() : content;
-          const meta = m.metadata as Record<string, unknown> | null;
-          return {
-            id: m.id,
-            user_id: userId,
-            key,
-            value,
-            category: (meta?.category as string) || m.domain || 'fact',
-            tags: (meta?.tags as string[]) || [],
-            importance: Math.round((m.importance || 0.5) * 5),
-            source: (meta?.source as string) || 'chat',
-            created_at: m.created_at?.toISOString() || '',
-            updated_at: m.updated_at?.toISOString() || '',
-          } as MemoryEntry;
-        });
-      }
-    } catch { /* memories table may not exist yet */ }
+        if (merged.length > 0) {
+          // Convert to MemoryEntry format for the existing prompt builder
+          ctx.memoryEntries = merged.map(m => {
+            const content = m.memory || m.content || '';
+            const colonIdx = content.indexOf(':');
+            const key = colonIdx > 0 ? content.substring(0, colonIdx).trim() : content.substring(0, 30);
+            const value = colonIdx > 0 ? content.substring(colonIdx + 1).trim() : content;
+            const meta = m.metadata as Record<string, unknown> | null;
+            return {
+              id: m.id,
+              user_id: userId,
+              key,
+              value,
+              category: (meta?.category as string) || m.domain || 'fact',
+              tags: (meta?.tags as string[]) || [],
+              importance: Math.round((m.importance || 0.5) * 5),
+              source: (meta?.source as string) || 'chat',
+              created_at: m.created_at?.toISOString() || '',
+              updated_at: m.updated_at?.toISOString() || '',
+            } as MemoryEntry;
+          });
+        }
+      } catch { /* memories table may not exist yet */ }
+    }
 
     // Get secret names only (will be empty until Phase 3)
     try {
@@ -659,14 +662,16 @@ Connected integrations: ${(ctx.integrations || []).join(', ') || 'none yet'}
 export async function buildDynamicContext(
   userId: string,
   userMessage?: string,
-  conversationId?: string
+  conversationId?: string,
+  options?: { skipMemory?: boolean }
 ): Promise<string> {
   const parts: string[] = [];
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com';
   const pushSecret = process.env.CHAT_PUSH_SECRET || 'dopl-push-2026';
 
   // 1. Per-message semantic memory search (the most valuable dynamic part)
-  if (userMessage) {
+  // Skip when unified_memory is active — unified retriever handles all memory context
+  if (userMessage && !options?.skipMemory) {
     try {
       const searchResults = await mem0Search(userMessage, userId, { limit: 10, threshold: 0.4 });
       if (searchResults.length > 0) {

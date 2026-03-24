@@ -157,25 +157,6 @@ export async function POST(request: NextRequest) {
     }
 
     // ── System prompt ──
-    // When the instance has workspace files (SOUL.md, AGENTS.md) configured,
-    // use lightweight dynamic context only — static identity lives in workspace files.
-    // Fall back to full system prompt for instances without workspace files.
-    const instanceForPrompt = await getUserInstance(user.id);
-    let systemPrompt: string;
-    if (instanceForPrompt) {
-      // New path: dynamic context only (static identity is in workspace files)
-      systemPrompt = await buildDynamicContext(user.id, message, activeConversationId || undefined);
-    } else {
-      // Legacy fallback: full system prompt
-      systemPrompt = await buildSystemPromptForUser(user.id, message);
-    }
-    if (activeConversationId) {
-      const linkedCtx = await buildLinkedContextSummary(user.id, activeConversationId);
-      if (linkedCtx) systemPrompt += "\n\n" + linkedCtx;
-    }
-    if (workflowContext) systemPrompt += "\n\n" + workflowContext;
-
-    // Memory/Brain context injection
     // Check unified_memory flag — if enabled, use unified retriever instead of separate pipelines
     const unifiedMemoryEnabled = await (async () => {
       try {
@@ -185,9 +166,27 @@ export async function POST(request: NextRequest) {
           .eq('id', user.id)
           .single();
         const settings = (data?.instance_settings as Record<string, unknown>) || {};
-        return (settings.unified_memory as boolean) ?? false;
-      } catch { return false; }
+        return (settings.unified_memory as boolean) ?? true;
+      } catch { return true; }
     })();
+
+    // When the instance has workspace files (SOUL.md, AGENTS.md) configured,
+    // use lightweight dynamic context only — static identity lives in workspace files.
+    // Fall back to full system prompt for instances without workspace files.
+    const instanceForPrompt = await getUserInstance(user.id);
+    let systemPrompt: string;
+    if (instanceForPrompt) {
+      // New path: dynamic context only (static identity is in workspace files)
+      systemPrompt = await buildDynamicContext(user.id, message, activeConversationId || undefined, { skipMemory: unifiedMemoryEnabled });
+    } else {
+      // Legacy fallback: full system prompt
+      systemPrompt = await buildSystemPromptForUser(user.id, message, undefined, { skipMemory: unifiedMemoryEnabled });
+    }
+    if (activeConversationId) {
+      const linkedCtx = await buildLinkedContextSummary(user.id, activeConversationId);
+      if (linkedCtx) systemPrompt += "\n\n" + linkedCtx;
+    }
+    if (workflowContext) systemPrompt += "\n\n" + workflowContext;
 
     if (unifiedMemoryEnabled) {
       // Unified path: single retrieval across all memory types (facts + criteria)
