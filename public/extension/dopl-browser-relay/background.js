@@ -588,7 +588,7 @@ async function onRelayMessage(text) {
   }
 
   // ── Response to chat.send / chat.abort / chat.history ────────────────────
-  if (msg && msg.type === 'res' && typeof msg.id === 'string' && msg.id.startsWith('chat-')) {
+  if (msg && msg.type === 'res' && typeof msg.id === 'string' && (msg.id.startsWith('chat-') || msg.id.startsWith('abort-') || msg.id.startsWith('hist-'))) {
     if (!msg.ok) {
       const errMsg = msg.error?.message || msg.error || 'Request failed'
       forwardToPanel({ type: 'chat.error', message: String(errMsg) })
@@ -1415,7 +1415,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     ;(async () => {
       try {
         await ensureRelayConnection()
-        const id = `hist-${nextChatReqId++}`
         const result = await requestFromRelay({
           type: 'req',
           id: Date.now(),
