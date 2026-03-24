@@ -369,66 +369,102 @@ function BrowserRelaySection({ profile }: { profile: UserProfile | null }) {
 
 /* ── Brain Settings Section ── */
 function BrainSettingsSection() {
-  const [enabled, setEnabled] = useState(false);
+  const [brainEnabled, setBrainEnabled] = useState(true);
+  const [unifiedMemory, setUnifiedMemory] = useState(true);
+  const [autoMemoryExtract, setAutoMemoryExtract] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null); // key of the toggle being saved
 
   useEffect(() => {
     fetch("/api/settings/brain")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d) setEnabled(d.brain_enabled ?? true);
+        if (d) {
+          setBrainEnabled(d.brain_enabled ?? true);
+          setUnifiedMemory(d.unified_memory ?? true);
+          setAutoMemoryExtract(d.auto_memory_extract ?? true);
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  async function toggle() {
-    const next = !enabled;
-    setSaving(true);
+  async function toggle(key: "brain_enabled" | "unified_memory" | "auto_memory_extract", current: boolean) {
+    const next = !current;
+    setSaving(key);
     try {
       const res = await fetch("/api/settings/brain", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brain_enabled: next }),
+        body: JSON.stringify({ [key]: next }),
       });
-      if (res.ok) setEnabled(next);
+      if (res.ok) {
+        if (key === "brain_enabled") setBrainEnabled(next);
+        else if (key === "unified_memory") setUnifiedMemory(next);
+        else if (key === "auto_memory_extract") setAutoMemoryExtract(next);
+      }
     } catch {
-      // revert on failure
+      // revert on failure — state stays unchanged
     } finally {
-      setSaving(false);
+      setSaving(null);
     }
   }
 
+  const toggleItems = [
+    {
+      key: "brain_enabled" as const,
+      label: "Adaptive Learning",
+      description: "When enabled, Dopl learns your preferences and decision patterns from conversations to provide more personalized assistance.",
+      value: brainEnabled,
+    },
+    {
+      key: "unified_memory" as const,
+      label: "Unified Memory",
+      description: "Combines explicit memories and learned preferences into a single context for more natural, coherent responses.",
+      value: unifiedMemory,
+    },
+    {
+      key: "auto_memory_extract" as const,
+      label: "Auto Memory Extraction",
+      description: "Automatically extracts and saves important facts from conversations. Turn off if you prefer to manage memories manually.",
+      value: autoMemoryExtract,
+    },
+  ];
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex-1 min-w-0 pr-4">
-          <p className="text-[13px] text-white/80 font-medium">Adaptive Learning</p>
-          <p className="text-[12px] text-white/60 mt-1 leading-relaxed">
-            When enabled, Dopl learns your preferences and decision patterns from conversations to provide more personalized assistance.
-          </p>
+    <div className="space-y-4">
+      {toggleItems.map((item, idx) => (
+        <div key={item.key}>
+          {idx > 0 && <div className="h-px w-full bg-white/[0.06] mb-4" />}
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0 pr-4">
+              <p className="text-[13px] text-white/80 font-medium">{item.label}</p>
+              <p className="text-[12px] text-white/60 mt-1 leading-relaxed">
+                {item.description}
+              </p>
+            </div>
+            {loading ? (
+              <div className="w-10 h-5 bg-white/[0.05] animate-pulse rounded-full flex-shrink-0" />
+            ) : (
+              <button
+                onClick={() => toggle(item.key, item.value)}
+                disabled={saving === item.key}
+                className={`relative w-10 h-5 rounded-full flex-shrink-0 transition-colors duration-200 ${
+                  item.value ? "bg-emerald-500/60" : "bg-white/[0.12]"
+                } ${saving === item.key ? "opacity-50" : ""}`}
+                aria-label={`${item.value ? "Disable" : "Enable"} ${item.label.toLowerCase()}`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${
+                    item.value ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            )}
+          </div>
         </div>
-        {loading ? (
-          <div className="w-10 h-5 bg-white/[0.05] animate-pulse rounded-full flex-shrink-0" />
-        ) : (
-          <button
-            onClick={toggle}
-            disabled={saving}
-            className={`relative w-10 h-5 rounded-full flex-shrink-0 transition-colors duration-200 ${
-              enabled ? "bg-emerald-500/60" : "bg-white/[0.12]"
-            } ${saving ? "opacity-50" : ""}`}
-            aria-label={enabled ? "Disable adaptive learning" : "Enable adaptive learning"}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${
-                enabled ? "translate-x-5" : "translate-x-0"
-              }`}
-            />
-          </button>
-        )}
-      </div>
-      {enabled && (
+      ))}
+      {brainEnabled && (
         <p className="text-[11px] text-emerald-400/70">
           ✨ Brain is active — Dopl will learn from your interactions.
         </p>

@@ -397,6 +397,11 @@ app.whenReady().then(() => {
 
       nodeManager = new NodeManager(decoded);
       nodeManager.setRuntimeManager(runtimeManager);
+      // Wire provisioning URL to RuntimeManager so it can fetch the required
+      // openclaw version dynamically on next ensure() call.
+      if (nodeManager.provisioningApiUrl) {
+        runtimeManager.setProvisioningUrl(nodeManager.provisioningApiUrl);
+      }
       nodeManager.on('status', (status) => {
         // status can be true (connected), false (disconnected), or 'connecting'
         const connected = status === true;

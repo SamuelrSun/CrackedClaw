@@ -267,7 +267,17 @@ function setupIPC(deps) {
       em.start();
 
       const nodeManager = new NodeManager({ gatewayUrl, instanceId, authToken, operatorToken, provisioningUrl, webAppUrl: webAppUrl || store.get('webAppUrl') });
-      if (getRuntimeManager) nodeManager.setRuntimeManager(getRuntimeManager());
+      const rm = getRuntimeManager ? getRuntimeManager() : null;
+      if (rm) {
+        nodeManager.setRuntimeManager(rm);
+        // Tell RuntimeManager where the provisioning API is so it can
+        // dynamically fetch the required openclaw version on next ensure().
+        // nodeManager.provisioningApiUrl is already resolved (handles both
+        // explicit provisioningUrl and derived-from-webAppUrl cases).
+        if (nodeManager.provisioningApiUrl) {
+          rm.setProvisioningUrl(nodeManager.provisioningApiUrl);
+        }
+      }
       setNodeManager(nodeManager);
 
       nodeManager.on('status', (status) => {

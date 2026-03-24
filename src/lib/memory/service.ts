@@ -333,11 +333,28 @@ export async function processAgentResponse(userId: string, responseText: string,
   }
 
   // Auto-extract facts via mem0Add in background (don't block response)
+  // Respects the auto_memory_extract setting from instance_settings
   if (userMessage) {
-    mem0Add(
-      [{ role: 'user', content: userMessage }, { role: 'assistant', content: responseText }],
-      userId,
-    ).catch(() => {});
+    (async () => {
+      try {
+        const adminClient = createAdminClient();
+        const { data: profileData } = await adminClient
+          .from('profiles')
+          .select('instance_settings')
+          .eq('id', userId)
+          .single();
+        const instanceSettings = (profileData?.instance_settings as Record<string, unknown>) || {};
+        const autoExtract = (instanceSettings.auto_memory_extract as boolean) ?? true;
+        if (autoExtract) {
+          await mem0Add(
+            [{ role: 'user', content: userMessage }, { role: 'assistant', content: responseText }],
+            userId,
+          );
+        }
+      } catch {
+        // Never crash on memory errors
+      }
+    })();
   }
 
   return stripMarkers(responseText);

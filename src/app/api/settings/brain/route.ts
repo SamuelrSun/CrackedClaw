@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/settings/brain
- * Get brain_enabled from the user's profile instance_settings.
+ * Get AI brain settings (brain_enabled, unified_memory, auto_memory_extract)
+ * from the user's profile instance_settings.
  */
 export async function GET() {
   try {
@@ -26,6 +27,8 @@ export async function GET() {
 
     return NextResponse.json({
       brain_enabled: (settings.brain_enabled as boolean) ?? true,
+      unified_memory: (settings.unified_memory as boolean) ?? true,
+      auto_memory_extract: (settings.auto_memory_extract as boolean) ?? true,
     });
   } catch (error) {
     console.error("Get brain settings error:", error);
@@ -37,7 +40,8 @@ export async function GET() {
 
 /**
  * PUT /api/settings/brain
- * Update brain_enabled in the user's profile instance_settings.
+ * Update any combination of brain_enabled, unified_memory, auto_memory_extract
+ * in the user's profile instance_settings.
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -49,13 +53,31 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { brain_enabled } = body;
+    const { brain_enabled, unified_memory, auto_memory_extract } = body;
 
-    if (typeof brain_enabled !== "boolean") {
-      return NextResponse.json(
-        { error: "brain_enabled must be a boolean" },
-        { status: 400 }
-      );
+    // Validate: at least one key must be provided, and all provided values must be booleans
+    const updates: Record<string, boolean> = {};
+    if (brain_enabled !== undefined) {
+      if (typeof brain_enabled !== "boolean") {
+        return NextResponse.json({ error: "brain_enabled must be a boolean" }, { status: 400 });
+      }
+      updates.brain_enabled = brain_enabled;
+    }
+    if (unified_memory !== undefined) {
+      if (typeof unified_memory !== "boolean") {
+        return NextResponse.json({ error: "unified_memory must be a boolean" }, { status: 400 });
+      }
+      updates.unified_memory = unified_memory;
+    }
+    if (auto_memory_extract !== undefined) {
+      if (typeof auto_memory_extract !== "boolean") {
+        return NextResponse.json({ error: "auto_memory_extract must be a boolean" }, { status: 400 });
+      }
+      updates.auto_memory_extract = auto_memory_extract;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "No valid settings provided" }, { status: 400 });
     }
 
     const { data: profile } = await supabase
@@ -69,7 +91,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const currentSettings = (profile.instance_settings as Record<string, unknown>) || {};
-    const newSettings = { ...currentSettings, brain_enabled };
+    const newSettings = { ...currentSettings, ...updates };
 
     const { error: updateError } = await supabase
       .from("profiles")
@@ -85,7 +107,7 @@ export async function PUT(request: NextRequest) {
       }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, brain_enabled });
+    return NextResponse.json({ success: true, ...updates });
   } catch (error) {
     console.error("Update brain settings error:", error);
     return NextResponse.json({

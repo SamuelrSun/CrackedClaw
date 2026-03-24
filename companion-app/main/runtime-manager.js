@@ -43,6 +43,115 @@ class RuntimeManager {
     this.status = 'checking';
     this.error = null;
     this.listeners = [];
+
+    // Provisioning API URL — set via setProvisioningUrl() once the token is decoded.
+    // Used by fetchRequiredVersion() to ask the server what openclaw version to use.
+    this.provisioningUrl = null;
+
+    // Cached required version — set by fetchRequiredVersion() on first ensure() call.
+    // Stays null until fetched; fallback to OPENCLAW_VERSION constant when null.
+    this._requiredVersion = null;
+  }
+
+  /**
+   * Tell RuntimeManager where the provisioning API lives.
+   * Called from ipc.js after the connection token is decoded.
+   * Resets the cached version so the next ensure() re-fetches from the new URL.
+   *
+   * @param {string} url - Provisioning API base URL, e.g. "https://usedopl.com/api"
+   */
+  setProvisioningUrl(url) {
+    if (url && url !== this.provisioningUrl) {
+      this.provisioningUrl = url;
+      // Reset cache so ensure() will re-fetch from the new server
+      this._requiredVersion = null;
+      console.log('[RuntimeManager] Provisioning URL set to', url);
+    }
+  }
+
+  /**
+   * Fetch the openclaw version required by the server.
+   *
+   * WHY THIS EXISTS:
+   *   The hardcoded OPENCLAW_VERSION constant means every client rebuild is
+   *   needed when the DO server upgrades. This method queries the provisioning
+   *   API for the server's current openclaw version, so the companion app can
+   *   automatically install the matching version without a rebuild.
+   *
+   * ENDPOINT (to be added to the DO server):
+   *   GET /api/version
+   *   Response: { "openclawVersion": "2026.3.8" }
+   *
+   * FALLBACK:
+   *   If the endpoint doesn't exist yet, returns a 404 → falls back to
+   *   OPENCLAW_VERSION constant. Fully graceful.
+   *
+   * CACHING:
+   *   Result is cached for the session in this._requiredVersion.
+   *   Cache is invalidated when setProvisioningUrl() is called with a new URL.
+   *
+   * @returns {Promise<string>} The required openclaw version string.
+   */
+  async fetchRequiredVersion() {
+    // Return cached result if already fetched this session
+    if (this._requiredVersion) return this._requiredVersion;
+
+    if (!this.provisioningUrl) {
+      console.log('[RuntimeManager] No provisioning URL — using pinned version', OPENCLAW_VERSION);
+      return OPENCLAW_VERSION;
+    }
+
+    try {
+      const versionUrl = `${this.provisioningUrl.replace(/\/+$/, '')}/version`;
+      console.log('[RuntimeManager] Fetching required openclaw version from', versionUrl);
+      const body = await this._httpGet(versionUrl, 8000);
+      const data = JSON.parse(body);
+      if (data && typeof data.openclawVersion === 'string' && data.openclawVersion.trim()) {
+        const serverVersion = data.openclawVersion.trim();
+        console.log(`[RuntimeManager] Server requires openclaw@${serverVersion}`);
+        this._requiredVersion = serverVersion;
+        return serverVersion;
+      }
+      console.warn('[RuntimeManager] /api/version response missing openclawVersion field — using pinned version');
+    } catch (err) {
+      // 404 = endpoint not yet deployed; network errors = offline; both are fine
+      console.warn(`[RuntimeManager] Could not fetch version from server (${err.message}) — using pinned version ${OPENCLAW_VERSION}`);
+    }
+
+    // Fallback to pinned constant
+    this._requiredVersion = OPENCLAW_VERSION;
+    return OPENCLAW_VERSION;
+  }
+
+  /**
+   * Simple HTTP/HTTPS GET helper.
+   * @param {string} url
+   * @param {number} timeoutMs
+   * @returns {Promise<string>} Response body
+   */
+  _httpGet(url, timeoutMs = 10000) {
+    return new Promise((resolve, reject) => {
+      const parsed = new URL(url);
+      const mod = parsed.protocol === 'https:' ? https : require('http');
+      const req = mod.get({
+        hostname: parsed.hostname,
+        port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+        path: parsed.pathname + (parsed.search || ''),
+        timeout: timeoutMs,
+      }, (res) => {
+        let data = '';
+        res.on('data', chunk => { data += chunk; });
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(data);
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}`));
+          }
+        });
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out')); });
+    });
   }
 
   onStatus(fn) {
@@ -72,19 +181,24 @@ class RuntimeManager {
   /**
    * Check if runtime is already set up and functional.
    * Verifies binaries exist, are executable, AND that the installed openclaw
-   * version exactly matches OPENCLAW_VERSION. A version mismatch (e.g. user
-   * has 2026.3.11 from a prior install) returns false so ensure() will
-   * delete and reinstall the pinned version.
+   * version exactly matches the required version (fetched from server or pinned).
+   * A version mismatch (e.g. user has 2026.3.11 from a prior install) returns
+   * false so ensure() will delete and reinstall the correct version.
+   *
+   * NOTE: Uses this._requiredVersion (set by fetchRequiredVersion()) when
+   * available, falling back to the OPENCLAW_VERSION constant. Since isReady()
+   * is synchronous, ensure() always calls fetchRequiredVersion() first.
    */
   isReady() {
     try {
       if (!fs.existsSync(NODE_BIN) || !fs.existsSync(OPENCLAW_BIN)) return false;
       // Quick sanity check — make sure node binary is executable
       execSync(`"${NODE_BIN}" --version`, { stdio: 'ignore', timeout: 5000 });
-      // Enforce pinned version — wrong version is treated as not-ready
+      // Use cached server version if available, else pinned constant
+      const requiredVersion = this._requiredVersion || OPENCLAW_VERSION;
       const installedVersion = this.getInstalledVersion();
-      if (installedVersion !== OPENCLAW_VERSION) {
-        console.log(`[RuntimeManager] openclaw version mismatch: installed=${installedVersion}, required=${OPENCLAW_VERSION}`);
+      if (installedVersion !== requiredVersion) {
+        console.log(`[RuntimeManager] openclaw version mismatch: installed=${installedVersion}, required=${requiredVersion}`);
         return false;
       }
       return true;
@@ -151,13 +265,25 @@ class RuntimeManager {
   /**
    * Ensure runtime is available — download if needed.
    * Idempotent: safe to call multiple times or after interrupted downloads.
+   *
+   * Step 0: Fetch the required openclaw version from the provisioning API.
+   *         This allows the companion to auto-track server upgrades without
+   *         a rebuild. Falls back to the OPENCLAW_VERSION constant if the
+   *         endpoint isn't available yet.
    */
   async ensure() {
+    // Step 0: Resolve which openclaw version the server requires.
+    // Must happen BEFORE isReady() so the version check uses the right target.
+    await this.fetchRequiredVersion();
+
     if (this.isReady()) {
       this.ready = true;
       this._emit('ready');
       return;
     }
+
+    // Use the version we just fetched (cached in this._requiredVersion)
+    const requiredVersion = this._requiredVersion || OPENCLAW_VERSION;
 
     try {
       fs.mkdirSync(RUNTIME_DIR, { recursive: true });
@@ -179,15 +305,15 @@ class RuntimeManager {
       // Step 2: Install openclaw if needed (or if existing install is broken / wrong version)
       const openclawFunctional = fs.existsSync(OPENCLAW_BIN) && (() => {
         try { execSync(`"${NODE_BIN}" "${OPENCLAW_BIN}" --version`, { stdio: 'ignore', timeout: 5000 }); return true; } catch { return false; }
-      })() && this.getInstalledVersion() === OPENCLAW_VERSION;
+      })() && this.getInstalledVersion() === requiredVersion;
 
       if (!openclawFunctional) {
         // Clean up any partial openclaw dir before reinstalling
         if (fs.existsSync(OPENCLAW_DIR)) {
           try { fs.rmSync(OPENCLAW_DIR, { recursive: true, force: true }); } catch {}
         }
-        this._emit('installing-openclaw', 'Installing OpenClaw...');
-        await this._installOpenclaw();
+        this._emit('installing-openclaw', `Installing OpenClaw v${requiredVersion}...`);
+        await this._installOpenclaw(requiredVersion);
       }
 
       this.ready = true;
@@ -231,17 +357,27 @@ class RuntimeManager {
     console.log(`[RuntimeManager] Node.js ${ver} installed at ${NODE_DIR}`);
   }
 
-  async _installOpenclaw() {
+  /**
+   * Install the openclaw CLI at the specified version.
+   *
+   * @param {string} [version] - Version to install. Defaults to OPENCLAW_VERSION
+   *   constant if not provided. Pass this._requiredVersion from ensure() so
+   *   the dynamically-fetched server version is used.
+   */
+  async _installOpenclaw(version) {
+    // Use passed version, or fall back to the pinned constant
+    const targetVersion = version || this._requiredVersion || OPENCLAW_VERSION;
+
     fs.mkdirSync(OPENCLAW_DIR, { recursive: true });
 
     // Create a minimal package.json so npm install works
     const pkg = { name: 'dopl-openclaw-runtime', version: '1.0.0', private: true };
     fs.writeFileSync(path.join(OPENCLAW_DIR, 'package.json'), JSON.stringify(pkg, null, 2));
 
-    console.log(`[RuntimeManager] Installing openclaw@${OPENCLAW_VERSION} via bundled npm...`);
-    // Use the bundled node to invoke bundled npm — install the exact pinned version
+    console.log(`[RuntimeManager] Installing openclaw@${targetVersion} via bundled npm...`);
+    // Use the bundled node to invoke bundled npm — install the exact required version
     await execAsync(
-      `"${NODE_BIN}" "${NPM_BIN}" install openclaw@${OPENCLAW_VERSION} --no-fund --no-audit`,
+      `"${NODE_BIN}" "${NPM_BIN}" install openclaw@${targetVersion} --no-fund --no-audit`,
       {
         cwd: OPENCLAW_DIR,
         timeout: 180000, // 3 minutes — npm can be slow on first install
@@ -249,11 +385,11 @@ class RuntimeManager {
       }
     );
 
-    // Verify the installed version matches the pinned version — fail fast if npm
+    // Verify the installed version matches the target — fail fast if npm
     // resolved a different version (e.g. due to a dist-tag or npm cache issue).
     const installedVersion = this.getInstalledVersion();
-    if (installedVersion !== OPENCLAW_VERSION) {
-      throw new Error(`openclaw version mismatch after install: expected ${OPENCLAW_VERSION}, got ${installedVersion}`);
+    if (installedVersion !== targetVersion) {
+      throw new Error(`openclaw version mismatch after install: expected ${targetVersion}, got ${installedVersion}`);
     }
 
     console.log(`[RuntimeManager] OpenClaw CLI v${installedVersion} installed at`, OPENCLAW_BIN);

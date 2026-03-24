@@ -122,6 +122,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'userId and messages are required' }, { status: 400 });
   }
 
+  // Check auto_memory_extract setting before doing any work
+  try {
+    const { data: profileData } = await supabaseAdmin
+      .from('profiles')
+      .select('instance_settings')
+      .eq('id', userId)
+      .single();
+    const instanceSettings = (profileData?.instance_settings as Record<string, unknown>) || {};
+    const autoExtract = (instanceSettings.auto_memory_extract as boolean) ?? true;
+    if (!autoExtract) {
+      return NextResponse.json({ memoriesCreated: 0, facts: [], skipped: true });
+    }
+  } catch {
+    // If we can't read settings, default to allowing extraction
+  }
+
   try {
     const facts = await extractFactsWithHaiku(messages);
 

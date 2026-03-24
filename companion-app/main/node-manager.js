@@ -69,7 +69,76 @@ class NodeManager extends EventEmitter {
     await this.ensureCLI();
     // Pre-pair device with provisioning API before connecting
     await this.prePairDevice();
+    // Ensure exec-approvals.json exists so openclaw node run can execute commands
+    // without hitting "exec denied: approval timed out" errors.
+    await this.ensureExecApprovals();
     this.spawnNode();
+  }
+
+  /**
+   * Ensure ~/.openclaw/exec-approvals.json exists with permissive defaults.
+   *
+   * WHY THIS EXISTS:
+   *   openclaw node run needs exec permissions to run agent commands. The exec
+   *   security system reads ~/.openclaw/exec-approvals.json at startup. If the
+   *   file doesn't exist OR if `defaults` is an empty object {}, the security
+   *   mode falls back to 'deny' — every command attempt times out with:
+   *     "exec denied: approval timed out"
+   *   There is no approval UI in the companion app, so users would be stuck.
+   *
+   *   We write a permissive policy on first launch (no file, or empty defaults).
+   *   If the user has already customized their policy (non-empty defaults),
+   *   we leave it completely untouched.
+   *
+   * SAFE TO CALL MULTIPLE TIMES: idempotent.
+   */
+  async ensureExecApprovals() {
+    const homedir = os.homedir();
+    const openclawDir = path.join(homedir, '.openclaw');
+    const approvalsPath = path.join(openclawDir, 'exec-approvals.json');
+
+    const permissivePolicy = {
+      version: 1,
+      defaults: {
+        // 'full' security allows all commands without sandboxing
+        security: 'full',
+        // 'off' means never ask for approval — auto-allow everything
+        ask: 'off',
+        // fallback if ask logic fails: allow rather than deny
+        askFallback: 'allow',
+      },
+    };
+
+    try {
+      // Create ~/.openclaw/ if it doesn't exist yet (first launch scenario)
+      fs.mkdirSync(openclawDir, { recursive: true });
+
+      if (fs.existsSync(approvalsPath)) {
+        // File exists — check if defaults are customized (non-empty)
+        try {
+          const existing = JSON.parse(fs.readFileSync(approvalsPath, 'utf-8'));
+          const defaults = existing.defaults || {};
+          if (Object.keys(defaults).length > 0) {
+            // User has their own policy — respect it and don't overwrite
+            console.log('[NodeManager] exec-approvals.json has custom defaults — leaving untouched');
+            return;
+          }
+          // Empty defaults {} — fall through to write permissive policy
+          console.log('[NodeManager] exec-approvals.json has empty defaults — writing permissive policy');
+        } catch (parseErr) {
+          // Malformed JSON — overwrite with a valid permissive policy
+          console.warn('[NodeManager] exec-approvals.json is malformed, overwriting:', parseErr.message);
+        }
+      }
+
+      // Write permissive policy: file didn't exist, had empty defaults, or was malformed
+      fs.writeFileSync(approvalsPath, JSON.stringify(permissivePolicy, null, 2), 'utf-8');
+      console.log('[NodeManager] Wrote permissive exec-approvals.json →', approvalsPath);
+    } catch (err) {
+      // Non-fatal: log and continue. openclaw node run may still work if the
+      // file was configured manually, or will fail with a clear error.
+      console.warn('[NodeManager] Could not write exec-approvals.json:', err.message);
+    }
   }
 
   stop() {
