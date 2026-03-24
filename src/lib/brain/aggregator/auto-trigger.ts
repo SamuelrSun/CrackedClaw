@@ -8,8 +8,8 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { runBrainAggregation } from './runner';
 
-const AUTO_TRIGGER_THRESHOLD = 20;
-const INITIAL_LEARNING_THRESHOLD = 10;
+const AUTO_TRIGGER_THRESHOLD = 15;       // has existing criteria
+const INITIAL_LEARNING_THRESHOLD = 8;   // new brain — first results fast
 
 /**
  * Check unprocessed signal count and trigger aggregation if >= threshold.

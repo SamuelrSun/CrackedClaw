@@ -7,7 +7,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { AggregatedPattern, SignalEvidence, SignalRow } from './types';
 
-const MIN_SIGNALS_FOR_PATTERN = 3;
+const MIN_SIGNALS_FOR_PATTERN = 3; // default; lowered to 2 for new brains (no criteria yet)
 const MAX_CONFIDENCE = 0.95;
 const BASE_CONFIDENCE = 0.5;
 const CONFIDENCE_INCREMENT = 0.1;
@@ -17,6 +17,17 @@ const CONFIDENCE_INCREMENT = 0.1;
  */
 export async function aggregatePatterns(userId: string): Promise<AggregatedPattern[]> {
   const supabase = createAdminClient();
+
+  // Check if this is a new brain (no existing criteria) to use lower thresholds
+  const { count: criteriaCount } = await supabase
+    .from('memories')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('memory_type', 'criterion')
+    .is('valid_until', null);
+
+  const isNewBrain = (criteriaCount ?? 0) === 0;
+  const minSignals = isNewBrain ? 2 : MIN_SIGNALS_FOR_PATTERN;
 
   // 1. Fetch unprocessed signals (last 500)
   const { data: signals, error } = await supabase
@@ -47,10 +58,10 @@ export async function aggregatePatterns(userId: string): Promise<AggregatedPatte
   const patterns: AggregatedPattern[] = [];
 
   for (const [key, groupSignals] of groups) {
-    if (groupSignals.length < MIN_SIGNALS_FOR_PATTERN) continue;
+    if (groupSignals.length < minSignals) continue;
 
     const [domain, signalType] = key.split('::');
-    const detected = detectPatternsFromGroup(domain, signalType, groupSignals);
+    const detected = detectPatternsFromGroup(domain, signalType, groupSignals, minSignals);
     patterns.push(...detected);
   }
 
@@ -90,19 +101,20 @@ export async function aggregatePatterns(userId: string): Promise<AggregatedPatte
 function detectPatternsFromGroup(
   domain: string,
   signalType: string,
-  signals: SignalRow[]
+  signals: SignalRow[],
+  minSignals = MIN_SIGNALS_FOR_PATTERN
 ): AggregatedPattern[] {
   switch (signalType) {
     case 'correction':
-      return detectCorrectionPatterns(domain, signals);
+      return detectCorrectionPatterns(domain, signals, minSignals);
     case 'edit_delta':
-      return detectEditDeltaPatterns(domain, signals);
+      return detectEditDeltaPatterns(domain, signals, minSignals);
     case 'accept':
     case 'reject':
     case 'ignore':
-      return detectAcceptRejectPatterns(domain, signalType, signals);
+      return detectAcceptRejectPatterns(domain, signalType, signals, minSignals);
     case 'engagement':
-      return detectEngagementPatterns(domain, signals);
+      return detectEngagementPatterns(domain, signals, minSignals);
     default:
       return [];
   }
@@ -111,7 +123,7 @@ function detectPatternsFromGroup(
 /**
  * Correction patterns: cluster corrections by word overlap and find recurring themes.
  */
-function detectCorrectionPatterns(domain: string, signals: SignalRow[]): AggregatedPattern[] {
+function detectCorrectionPatterns(domain: string, signals: SignalRow[], minSignals = MIN_SIGNALS_FOR_PATTERN): AggregatedPattern[] {
   const clusters = clusterByTextSimilarity(
     signals,
     (s) => (s.signal_data.correction_text as string) || ''
@@ -120,7 +132,7 @@ function detectCorrectionPatterns(domain: string, signals: SignalRow[]): Aggrega
   const patterns: AggregatedPattern[] = [];
 
   for (const cluster of clusters) {
-    if (cluster.length < MIN_SIGNALS_FOR_PATTERN) continue;
+    if (cluster.length < minSignals) continue;
 
     const correctionTexts = cluster.map(
       (s) => (s.signal_data.correction_text as string) || ''
@@ -150,7 +162,7 @@ function detectCorrectionPatterns(domain: string, signals: SignalRow[]): Aggrega
 /**
  * Edit delta patterns: cluster by diff_summary to find consistent editing behaviors.
  */
-function detectEditDeltaPatterns(domain: string, signals: SignalRow[]): AggregatedPattern[] {
+function detectEditDeltaPatterns(domain: string, signals: SignalRow[], minSignals = MIN_SIGNALS_FOR_PATTERN): AggregatedPattern[] {
   const clusters = clusterByTextSimilarity(
     signals,
     (s) => (s.signal_data.diff_summary as string) || ''
@@ -159,7 +171,7 @@ function detectEditDeltaPatterns(domain: string, signals: SignalRow[]): Aggregat
   const patterns: AggregatedPattern[] = [];
 
   for (const cluster of clusters) {
-    if (cluster.length < MIN_SIGNALS_FOR_PATTERN) continue;
+    if (cluster.length < minSignals) continue;
 
     const summaries = cluster.map(
       (s) => (s.signal_data.diff_summary as string) || ''
@@ -191,7 +203,8 @@ function detectEditDeltaPatterns(domain: string, signals: SignalRow[]): Aggregat
 function detectAcceptRejectPatterns(
   domain: string,
   signalType: string,
-  signals: SignalRow[]
+  signals: SignalRow[],
+  minSignals = MIN_SIGNALS_FOR_PATTERN
 ): AggregatedPattern[] {
   // Group by suggestion_type
   const byType = new Map<string, SignalRow[]>();
@@ -205,7 +218,7 @@ function detectAcceptRejectPatterns(
   const patterns: AggregatedPattern[] = [];
 
   for (const [suggestionType, group] of byType) {
-    if (group.length < MIN_SIGNALS_FOR_PATTERN) continue;
+    if (group.length < minSignals) continue;
 
     const isReject = signalType === 'reject';
     const patternType = isReject ? 'anti_pattern' : 'preference';
@@ -232,45 +245,51 @@ function detectAcceptRejectPatterns(
 
 /**
  * Engagement patterns: detect topics with consistently high or low engagement.
+ *
+ * Thresholds relaxed for better first-time detection:
+ *  - High engagement: avg length > 80 chars (was 150), topic_keywords optional
+ *  - Topic interest: same keywords across 3+ messages regardless of length
  */
-function detectEngagementPatterns(domain: string, signals: SignalRow[]): AggregatedPattern[] {
+function detectEngagementPatterns(domain: string, signals: SignalRow[], minSignals = MIN_SIGNALS_FOR_PATTERN): AggregatedPattern[] {
   const patterns: AggregatedPattern[] = [];
 
   const lengths = signals.map((s) => (s.signal_data.message_length as number) || 0);
   const avgLength = lengths.reduce((a, b) => a + b, 0) / lengths.length;
 
-  // High engagement pattern: average message length > 200
+  // High engagement pattern: average message length > 80 (relaxed from 150)
   const highEngagement = signals.filter(
-    (s) => ((s.signal_data.message_length as number) || 0) > 200
+    (s) => ((s.signal_data.message_length as number) || 0) > 80
   );
-  if (highEngagement.length >= MIN_SIGNALS_FOR_PATTERN && avgLength > 150) {
-    // Collect common keywords from high engagement topics
+  if (highEngagement.length >= minSignals && avgLength > 80) {
+    // Collect common keywords — optional, not required
     const allKeywords = highEngagement.flatMap(
       (s) => (s.signal_data.topic_keywords as string[]) || []
     );
     const topKeywords = findTopKeywords(allKeywords, 5);
 
-    if (topKeywords.length > 0) {
-      patterns.push({
-        domain,
-        pattern_type: 'behavior',
-        description: `User shows high engagement on topics: ${topKeywords.join(', ')} in ${domain} context`,
-        evidence: highEngagement.slice(0, 10).map((s) => ({
-          signal_type: 'engagement',
-          summary: `[${s.id}] High engagement: ${(s.signal_data.message_length as number) || 0} chars, keywords: ${((s.signal_data.topic_keywords as string[]) || []).join(', ')}`,
-          created_at: s.created_at,
-        })),
-        occurrence_count: highEngagement.length,
-        confidence: calcConfidence(highEngagement.length),
-      });
-    }
+    const topicClause = topKeywords.length > 0
+      ? ` on topics: ${topKeywords.join(', ')}`
+      : '';
+
+    patterns.push({
+      domain,
+      pattern_type: 'behavior',
+      description: `User shows high engagement${topicClause} in ${domain} context`,
+      evidence: highEngagement.slice(0, 10).map((s) => ({
+        signal_type: 'engagement',
+        summary: `[${s.id}] High engagement: ${(s.signal_data.message_length as number) || 0} chars${topKeywords.length > 0 ? ', keywords: ' + ((s.signal_data.topic_keywords as string[]) || []).join(', ') : ''}`,
+        created_at: s.created_at,
+      })),
+      occurrence_count: highEngagement.length,
+      confidence: calcConfidence(highEngagement.length),
+    });
   }
 
   // Low engagement pattern: average message length < 30
   const lowEngagement = signals.filter(
     (s) => ((s.signal_data.message_length as number) || 0) < 30
   );
-  if (lowEngagement.length >= MIN_SIGNALS_FOR_PATTERN && avgLength < 50) {
+  if (lowEngagement.length >= minSignals && avgLength < 50) {
     patterns.push({
       domain,
       pattern_type: 'behavior',
@@ -283,6 +302,51 @@ function detectEngagementPatterns(domain: string, signals: SignalRow[]): Aggrega
       occurrence_count: lowEngagement.length,
       confidence: calcConfidence(lowEngagement.length),
     });
+  }
+
+  // Topic interest pattern: same keywords appear across 3+ messages (regardless of length)
+  const allKeywordsList = signals.flatMap(
+    (s) => (s.signal_data.topic_keywords as string[]) || []
+  );
+  if (allKeywordsList.length > 0) {
+    // Count per-signal keyword presence (not per occurrence)
+    const keywordSignalCount = new Map<string, Set<string>>();
+    for (const s of signals) {
+      const kws = (s.signal_data.topic_keywords as string[]) || [];
+      for (const kw of kws) {
+        const lower = kw.toLowerCase();
+        if (!keywordSignalCount.has(lower)) keywordSignalCount.set(lower, new Set());
+        keywordSignalCount.get(lower)!.add(s.id);
+      }
+    }
+
+    // Keywords that appear in 3+ distinct messages
+    const TOPIC_INTEREST_MIN = Math.max(3, minSignals);
+    const recurringKeywords = [...keywordSignalCount.entries()]
+      .filter(([, signalIds]) => signalIds.size >= TOPIC_INTEREST_MIN)
+      .sort((a, b) => b[1].size - a[1].size)
+      .slice(0, 5)
+      .map(([kw]) => kw);
+
+    if (recurringKeywords.length > 0) {
+      const topicSignals = signals.filter((s) => {
+        const kws = ((s.signal_data.topic_keywords as string[]) || []).map((k) => k.toLowerCase());
+        return kws.some((k) => recurringKeywords.includes(k));
+      });
+
+      patterns.push({
+        domain,
+        pattern_type: 'behavior',
+        description: `User repeatedly discusses topics: ${recurringKeywords.join(', ')} in ${domain} context`,
+        evidence: topicSignals.slice(0, 10).map((s) => ({
+          signal_type: 'engagement',
+          summary: `[${s.id}] Topic interest: ${((s.signal_data.topic_keywords as string[]) || []).join(', ')}`,
+          created_at: s.created_at,
+        })),
+        occurrence_count: topicSignals.length,
+        confidence: calcConfidence(topicSignals.length),
+      });
+    }
   }
 
   return patterns;

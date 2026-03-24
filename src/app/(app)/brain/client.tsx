@@ -317,11 +317,19 @@ function WeightBar({ weight }: { weight: number }) {
 function CriterionCard({
   criterion,
   signals,
+  onWeightChange,
+  onDelete,
 }: {
   criterion: BrainCriterionView;
   signals: BrainSignalView[];
+  onWeightChange?: (id: string, weight: number) => void;
+  onDelete?: (id: string) => void;
 }) {
   const [showHistory, setShowHistory] = useState(false);
+  const [localWeight, setLocalWeight] = useState(criterion.weight);
+  const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const weightSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const relevantSignals = useMemo(() => {
     if (!showHistory) return [];
@@ -334,9 +342,59 @@ function CriterionCard({
       .slice(0, 10);
   }, [showHistory, signals, criterion.domain, criterion.subdomain]);
 
+  function handleWeightSlider(e: React.ChangeEvent<HTMLInputElement>) {
+    const w = parseFloat(e.target.value);
+    setLocalWeight(w);
+
+    // Debounce the API call
+    if (weightSaveTimer.current) clearTimeout(weightSaveTimer.current);
+    weightSaveTimer.current = setTimeout(async () => {
+      setSaving(true);
+      try {
+        await fetch(`/api/brain/criteria/${criterion.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ weight: w }),
+        });
+        onWeightChange?.(criterion.id, w);
+      } catch {
+        // Silently fail — UI stays updated optimistically
+      } finally {
+        setSaving(false);
+      }
+    }, 600);
+  }
+
+  function handleDelete() {
+    if (confirmDelete) {
+      fetch(`/api/brain/criteria/${criterion.id}`, { method: 'DELETE' })
+        .then(() => onDelete?.(criterion.id))
+        .catch(() => {});
+    } else {
+      setConfirmDelete(true);
+      setTimeout(() => setConfirmDelete(false), 3000);
+    }
+  }
+
   return (
-    <div className="bg-white/[0.05] border border-white/[0.09] rounded-[2px] p-3 space-y-2">
-      <div className="flex items-center gap-1.5 flex-wrap">
+    <div className="relative bg-white/[0.05] border border-white/[0.09] rounded-[2px] p-3 space-y-2 group">
+      {/* Delete button — top right, visible on hover */}
+      {onDelete && (
+        <button
+          onClick={handleDelete}
+          title={confirmDelete ? 'Click again to confirm delete' : 'Delete criterion'}
+          className={cn(
+            'absolute top-2 right-2 text-[10px] p-1 transition-colors opacity-0 group-hover:opacity-100',
+            confirmDelete
+              ? 'text-red-400 hover:text-red-300 opacity-100'
+              : 'text-white/25 hover:text-red-400'
+          )}
+        >
+          {confirmDelete ? '⚠️' : '🗑️'}
+        </button>
+      )}
+
+      <div className="flex items-center gap-1.5 flex-wrap pr-6">
         <span className="font-mono text-[8px] uppercase tracking-wide px-1.5 py-0.5 bg-white/[0.06] border border-white/[0.08] text-white/40">
           {criterion.domain}
         </span>
@@ -354,16 +412,31 @@ function CriterionCard({
 
       <p className="text-xs text-white/65 leading-relaxed">{criterion.description}</p>
 
-      <div className="space-y-1">
-        <WeightBar weight={criterion.weight} />
+      {/* Weight bar + slider */}
+      <div className="space-y-1.5">
+        <WeightBar weight={localWeight} />
         <div className="flex items-center justify-between">
-          <span className={cn('font-mono text-[10px] font-medium', getWeightTextColor(criterion.weight))}>
-            {formatWeight(criterion.weight)}
+          <span className={cn('font-mono text-[10px] font-medium', getWeightTextColor(localWeight))}>
+            {formatWeight(localWeight)}
+            {saving && <span className="ml-1 text-white/20 text-[8px]">saving…</span>}
           </span>
           <span className="font-mono text-[9px] text-white/25">
             conf {criterion.confidence.toFixed(2)}
           </span>
         </div>
+        {/* Weight adjustment slider */}
+        {onWeightChange && (
+          <input
+            type="range"
+            min="-1"
+            max="1"
+            step="0.05"
+            value={localWeight}
+            onChange={handleWeightSlider}
+            className="w-full h-1 accent-emerald-400 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Adjust weight"
+          />
+        )}
       </div>
 
       <div className="flex items-center justify-between">
@@ -1000,12 +1073,24 @@ export function BrainClient({
   const [activeTab, setActiveTab] = useState<BrainTab>('memories');
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const [criteriaSearch, setCriteriaSearch] = useState('');
+  // Mutable criteria state so deletes/weight changes reflect immediately
+  const [criteria, setCriteria] = useState<BrainCriterionView[]>(initialCriteria);
 
-  const domainTree = useMemo(() => buildDomainTree(initialCriteria), [initialCriteria]);
+  const domainTree = useMemo(() => buildDomainTree(criteria), [criteria]);
+
+  function handleCriterionWeightChange(id: string, weight: number) {
+    setCriteria((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, weight } : c))
+    );
+  }
+
+  function handleCriterionDelete(id: string) {
+    setCriteria((prev) => prev.filter((c) => c.id !== id));
+  }
 
   // Filter criteria by selected domain and search query
   const filteredCriteria = useMemo(() => {
-    let result = initialCriteria;
+    let result = criteria;
     if (selectedDomain) {
       if (selectedDomain.includes('/')) {
         const [domain, subdomain] = selectedDomain.split('/');
@@ -1027,7 +1112,7 @@ export function BrainClient({
       );
     }
     return result;
-  }, [initialCriteria, selectedDomain, criteriaSearch]);
+  }, [criteria, selectedDomain, criteriaSearch]);
 
   // Group by preference type
   const groupedByType = useMemo(() => {
@@ -1091,7 +1176,7 @@ export function BrainClient({
           <div className="mb-4">
             <h1 className="text-lg font-medium text-white/90 tracking-tight">Brain</h1>
             <p className="font-mono text-[10px] text-white/30 uppercase tracking-wide mt-1">
-              {initialMemoryCount ?? '–'} memories · {initialCriteria.length} preferences · {initialSignals.length} signals
+              {initialMemoryCount ?? '–'} memories · {criteria.length} preferences · {initialSignals.length} signals
             </p>
           </div>
 
@@ -1147,7 +1232,7 @@ export function BrainClient({
                   onChange={(e) => setSelectedDomain(e.target.value || null)}
                   className="w-full bg-white/[0.05] border border-white/[0.1] text-white/70 text-xs px-3 py-2 font-mono"
                 >
-                  <option value="">All domains ({initialCriteria.length})</option>
+                  <option value="">All domains ({criteria.length})</option>
                   {domainTree.map((d) => (
                     <option key={d.name} value={d.name}>
                       {d.name} ({d.count})
@@ -1186,6 +1271,8 @@ export function BrainClient({
                               key={criterion.id}
                               criterion={criterion}
                               signals={initialSignals}
+                              onWeightChange={handleCriterionWeightChange}
+                              onDelete={handleCriterionDelete}
                             />
                           ))}
                         </div>

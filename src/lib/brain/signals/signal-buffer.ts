@@ -1,89 +1,72 @@
 /**
- * Signal buffer — batches brain signals in memory and flushes to Supabase periodically.
+ * Signal buffer — directly inserts brain signals to Supabase.
  *
  * Fire-and-forget: never blocks the chat response path.
+ *
+ * NOTE: The previous in-memory Map buffer was removed because it doesn't
+ * survive Vercel serverless cold starts — signals were being silently dropped.
+ * All inserts are now direct to the DB.
+ *
+ * DB index recommended for scale:
+ *   CREATE INDEX IF NOT EXISTS idx_brain_signals_user_processed
+ *   ON brain_signals(user_id, processed_at, created_at);
  */
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { BrainSignal } from './types';
 
-const FLUSH_THRESHOLD = 20;
-const FLUSH_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
-
-interface BufferEntry {
-  signals: BrainSignal[];
-  lastFlush: number;
-  timer: ReturnType<typeof setTimeout> | null;
-}
-
-const buffers = new Map<string, BufferEntry>();
-
-function getBuffer(userId: string): BufferEntry {
-  let entry = buffers.get(userId);
-  if (!entry) {
-    entry = { signals: [], lastFlush: Date.now(), timer: null };
-    buffers.set(userId, entry);
-  }
-  return entry;
-}
-
 /**
- * Record a signal into the in-memory buffer.
- * Automatically triggers a flush when thresholds are met.
+ * Record a signal directly to the brain_signals table.
+ * Fire-and-forget — never throws, never blocks.
  */
 export function recordSignal(signal: BrainSignal): void {
-  const buf = getBuffer(signal.user_id);
-  buf.signals.push(signal);
+  const supabase = createAdminClient();
 
-  // Flush if threshold reached
-  if (buf.signals.length >= FLUSH_THRESHOLD) {
-    void flushSignals(signal.user_id);
-    return;
-  }
-
-  // Set a timer for time-based flush if not already set
-  if (!buf.timer) {
-    buf.timer = setTimeout(() => {
-      void flushSignals(signal.user_id);
-    }, FLUSH_INTERVAL_MS);
-  }
+  supabase
+    .from('brain_signals')
+    .insert({
+      user_id: signal.user_id,
+      signal_type: signal.signal_type,
+      domain: signal.domain ?? null,
+      subdomain: signal.subdomain ?? null,
+      context: signal.context ?? null,
+      signal_data: signal.signal_data,
+      session_id: signal.session_id ?? null,
+    })
+    .then(() => {})
+    .catch((err) => console.error('[brain-signal] Insert failed:', err));
 }
 
 /**
- * Flush all buffered signals for a user to Supabase.
- * Fire-and-forget — errors are logged but never thrown.
+ * No-op kept for backward compatibility.
+ * Previously flushed the in-memory buffer to Supabase.
+ * Now a no-op since all signals are inserted directly.
  */
-export async function flushSignals(userId: string): Promise<void> {
-  const buf = buffers.get(userId);
-  if (!buf || buf.signals.length === 0) return;
+export async function flushSignals(_userId: string): Promise<void> {
+  // No-op — direct insert in recordSignal() replaces buffering
+}
 
-  // Grab and clear the buffer atomically
-  const toFlush = buf.signals.splice(0);
-  buf.lastFlush = Date.now();
-
-  if (buf.timer) {
-    clearTimeout(buf.timer);
-    buf.timer = null;
-  }
+/**
+ * Prune processed signals older than N days for a user.
+ * Call after successful aggregation to keep the table lean.
+ *
+ * Returns the number of rows deleted (0 on error).
+ */
+export async function pruneOldSignals(userId: string, daysToKeep = 30): Promise<number> {
+  const cutoff = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000).toISOString();
 
   try {
     const supabase = createAdminClient();
+    const { count } = await supabase
+      .from('brain_signals')
+      .delete({ count: 'exact' })
+      .eq('user_id', userId)
+      .not('processed_at', 'is', null)
+      .lt('created_at', cutoff);
 
-    const rows = toFlush.map((s) => ({
-      user_id: s.user_id,
-      signal_type: s.signal_type,
-      domain: s.domain ?? null,
-      subdomain: s.subdomain ?? null,
-      context: s.context ?? null,
-      signal_data: s.signal_data,
-      session_id: s.session_id ?? null,
-    }));
-
-    const { error } = await supabase.from('brain_signals').insert(rows);
-    if (error) {
-      console.error('[brain/signal-buffer] flush failed:', error.message);
-    }
+    return count ?? 0;
   } catch (err) {
-    console.error('[brain/signal-buffer] flush error:', err);
+    console.error('[brain-signal] pruneOldSignals failed:', err);
+    return 0;
   }
 }
