@@ -9,7 +9,7 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["debugger", "tabs", "activeTab", "storage", "alarms", "webNavigation", "sidePanel"],
+  "permissions": ["debugger", "tabs", "activeTab", "storage", "alarms", "webNavigation", "sidePanel", "scripting"],
   "host_permissions": ["<all_urls>", "http://127.0.0.1/*", "http://localhost/*", "https://*.usedopl.com/*", "wss://*.usedopl.com/*"],
   "background": { "service_worker": "background.js", "type": "module" },
   "action": {

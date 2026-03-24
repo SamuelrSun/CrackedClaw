@@ -597,7 +597,27 @@ async function onRelayMessage(text) {
   }
 
   if (msg && typeof msg.id === 'number' && msg.method === 'forwardCDPCommand') {
+    // Action feed + glow: describe and broadcast to panel
+    const cdpMethod = String(msg?.params?.method || '')
+    const cdpParams = msg?.params?.params || {}
+    const actionDesc = describeAction(cdpMethod, cdpParams)
+    if (actionDesc) {
+      forwardToPanel({ type: 'action.step', description: actionDesc, method: cdpMethod })
+    }
+
     try {
+      // Trigger glow on the target tab
+      const targetTabId = (() => {
+        const sid = typeof msg?.params?.sessionId === 'string' ? msg.params.sessionId : undefined
+        const byS = sid ? getTabBySessionId(sid) : null
+        if (byS) return byS.tabId
+        const tid = typeof cdpParams?.targetId === 'string' ? cdpParams.targetId : undefined
+        if (tid) return getTabByTargetId(tid)
+        for (const [id, tab] of tabs.entries()) { if (tab.state === 'connected') return id }
+        return null
+      })()
+      if (targetTabId) startGlow(targetTabId)
+
       const result = await handleForwardCdpCommand(msg)
       sendToRelay({ id: msg.id, result })
     } catch (err) {
@@ -859,6 +879,95 @@ async function connectOrToggleForActiveTab() {
   } finally {
     tabOperationLocks.delete(tabId)
   }
+}
+
+// ── Glow border + action feed ──────────────────────────────────────────────
+
+/** @type {number|null} Tab currently glowing */
+let glowTabId = null
+/** @type {ReturnType<typeof setTimeout>|null} */
+let glowIdleTimer = null
+const GLOW_IDLE_MS = 800 // remove glow after 800ms of no CDP commands
+
+/**
+ * Inject or remove the orange glow border on a tab.
+ */
+async function setGlow(tabId, action) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (a) => {
+        const GLOW_ID = 'dopl-cowork-glow'
+        if (a === 'add') {
+          if (document.getElementById(GLOW_ID)) return
+          const el = document.createElement('div')
+          el.id = GLOW_ID
+          el.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;border:3px solid #f97316;box-shadow:inset 0 0 30px rgba(249,115,22,0.12);transition:opacity 0.3s;opacity:1;'
+          document.documentElement.appendChild(el)
+        } else {
+          const el = document.getElementById(GLOW_ID)
+          if (!el) return
+          el.style.opacity = '0'
+          setTimeout(() => el.remove(), 300)
+        }
+      },
+      args: [action],
+    })
+  } catch {
+    // Tab may not be scriptable (chrome:// pages, etc.)
+  }
+}
+
+function startGlow(tabId) {
+  if (glowIdleTimer) { clearTimeout(glowIdleTimer); glowIdleTimer = null }
+  if (glowTabId !== tabId) {
+    if (glowTabId !== null) void setGlow(glowTabId, 'remove')
+    glowTabId = tabId
+    void setGlow(tabId, 'add')
+  }
+  // Reset idle timer
+  glowIdleTimer = setTimeout(() => {
+    if (glowTabId !== null) {
+      void setGlow(glowTabId, 'remove')
+      glowTabId = null
+    }
+    glowIdleTimer = null
+    forwardToPanel({ type: 'action.done' })
+  }, GLOW_IDLE_MS)
+}
+
+/**
+ * Generate a human-readable description of a CDP method for the action feed.
+ */
+function describeAction(method, params) {
+  if (method === 'Page.navigate') return `Navigating to ${params?.url || 'page'}…`
+  if (method === 'Page.captureScreenshot') return 'Taking screenshot…'
+  if (method === 'Page.reload') return 'Reloading page…'
+  if (method === 'Runtime.evaluate') {
+    const expr = String(params?.expression || '')
+    if (expr.includes('.click(')) return 'Clicking element…'
+    if (expr.includes('.focus(')) return 'Focusing element…'
+    if (expr.includes('.value =') || expr.includes('.value=')) return 'Filling field…'
+    if (expr.includes('scroll')) return 'Scrolling…'
+    if (expr.includes('innerText') || expr.includes('textContent')) return 'Reading page content…'
+    return 'Evaluating script…'
+  }
+  if (method === 'Input.dispatchKeyEvent') return 'Typing…'
+  if (method === 'Input.dispatchMouseEvent') {
+    const type = params?.type || ''
+    if (type === 'mousePressed' || type === 'mouseReleased') return 'Clicking…'
+    if (type === 'mouseMoved') return null // too noisy
+    return 'Mouse action…'
+  }
+  if (method === 'DOM.querySelector' || method === 'DOM.querySelectorAll') return 'Finding element…'
+  if (method === 'Target.createTarget') return `Opening new tab…`
+  if (method === 'Target.closeTarget') return 'Closing tab…'
+  if (method === 'Target.activateTarget') return 'Switching to tab…'
+  if (method === 'DOM.getDocument') return null // internal, don't show
+  if (method === 'Runtime.enable' || method === 'Runtime.disable') return null
+  if (method === 'Page.enable') return null
+  if (method === 'Target.getTargetInfo') return null
+  return null // Don't show unknown methods
 }
 
 async function handleForwardCdpCommand(msg) {
