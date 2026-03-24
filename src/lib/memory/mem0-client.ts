@@ -14,6 +14,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { getEmbedding } from './embeddings';
 import { classifyDomain } from './domain-classifier';
+import { getModelForTask } from '@/lib/ai/model-router';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -173,7 +174,7 @@ async function extractMemories(
   const convoText = messages.map(m => `${m.role}: ${m.content}`).join('\n');
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: getModelForTask('extraction'),
     max_tokens: 1024,
     system: `Extract key facts, preferences, and important information from this conversation that should be remembered for future interactions. Return a JSON array of objects with "content" (the fact) and "importance" (0-1 score). Only extract genuinely useful long-term facts, not transient details. If nothing worth remembering, return [].
 

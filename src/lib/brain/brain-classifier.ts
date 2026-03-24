@@ -6,6 +6,7 @@
  */
 
 import type { BrainContext } from './types';
+import { getModelForTask } from '@/lib/ai/model-router';
 
 const DEFAULT_CONTEXT: BrainContext = { domain: 'general' };
 
@@ -31,7 +32,7 @@ export async function classifyBrainContext(
       .join('\n');
 
     const response = await client.messages.create({
-      model: 'claude-haiku-4-20250414',
+      model: getModelForTask('classification'),
       max_tokens: 256,
       system: `Classify this conversation into a domain context. Return ONLY valid JSON with this structure:
 {

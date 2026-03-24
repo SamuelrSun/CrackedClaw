@@ -8,6 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getModelForTask } from '@/lib/ai/model-router';
 import { mem0Write } from '@/lib/memory/mem0-client';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createSupabaseServerClient } from '@/lib/supabase/server';
@@ -34,7 +35,7 @@ async function generateSummaryWithHaiku(
     .join('\n');
 
   const response = await client.messages.create({
-    model: 'claude-haiku-4-20250514',
+    model: getModelForTask('extraction'),
     max_tokens: 256,
     timeout: 10_000,
     system: `Summarize this conversation in 2-3 sentences. Focus on: what was discussed, what was decided, and any action items or next steps. If nothing meaningful happened (just greetings or small talk), return an empty string.

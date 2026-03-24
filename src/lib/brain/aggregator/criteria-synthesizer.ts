@@ -6,6 +6,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getModelForTask } from '@/lib/ai/model-router';
 import { saveBrainCriterion } from '@/lib/brain/brain-store';
 import type { BrainCriterion, PreferenceType } from '@/lib/brain/types';
 import type { AggregatedPattern } from './types';
@@ -66,7 +67,7 @@ async function synthesizeBatch(
     }));
 
     const response = await client.messages.create({
-      model: 'claude-haiku-4-20250414',
+      model: getModelForTask('synthesis'),
       max_tokens: 2048,
       system: `You are analyzing behavioral patterns detected from a user's interactions with an AI assistant.
 Convert each pattern into a clear, actionable preference criterion.
