@@ -23,9 +23,13 @@ const ACCEPTED_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+  'text/javascript', 'application/javascript',
+  'text/x-python', 'text/html', 'text/css',
+  'text/yaml', 'application/xml', 'text/xml',
+  'image/svg+xml', 'application/zip',
 ];
 
-const ACCEPTED_EXT = '.txt,.md,.csv,.json,.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.gif,.webp';
+const ACCEPTED_EXT = ".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt,.md,.csv,.xlsx,.xls,.js,.ts,.tsx,.jsx,.py,.go,.rs,.java,.c,.cpp,.h,.rb,.php,.sh,.sql,.r,.swift,.kt,.yaml,.yml,.toml,.xml,.env,.ini,.conf,.log,.jsonl,.tsv,.scss,.less,.svg,.css,.html,.zip,.json,.ndjson";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`;

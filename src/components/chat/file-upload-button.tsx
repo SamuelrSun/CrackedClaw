@@ -22,7 +22,7 @@ export interface FileUploadButtonProps {
   disabled?: boolean;
 }
 
-const ACCEPTED_EXT = ".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt,.md,.csv,.xlsx,.xls,.js,.ts,.py,.json,.html,.css,.zip";
+const ACCEPTED_EXT = ".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt,.md,.csv,.xlsx,.xls,.js,.ts,.tsx,.jsx,.py,.go,.rs,.java,.c,.cpp,.h,.rb,.php,.sh,.sql,.r,.swift,.kt,.yaml,.yml,.toml,.xml,.env,.ini,.conf,.log,.jsonl,.tsv,.scss,.less,.svg,.css,.html,.zip,.json,.ndjson";
 
 export function FileUploadButton({
   onFilesSelected,

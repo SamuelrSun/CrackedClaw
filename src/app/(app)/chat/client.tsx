@@ -568,7 +568,7 @@ function ReconnectionBanner({
   return null;
 }
 
-function parseFileAttachment(content: string): { files: Array<{name: string; size: number; mimeType: string}>; message: string } | null {
+function parseFileAttachment(content: string): { files: Array<{name: string; size: number; mimeType: string; url?: string}>; message: string } | null {
   const PREFIX = "[Attached files:";
   const SEP = "]\nUser message: ";
   if (!content.startsWith(PREFIX)) return null;
@@ -587,7 +587,14 @@ function parseFileAttachment(content: string): { files: Array<{name: string; siz
       const mimeType = parts[1] || "application/octet-stream";
       const sizeNum = parseFloat(sizeStr);
       const sizeBytes = sizeStr.includes("MB") ? sizeNum * 1024 * 1024 : sizeStr.includes("KB") ? sizeNum * 1024 : sizeNum;
-      return { name, size: sizeBytes, mimeType };
+      // Extract optional url: field (may contain commas in the URL itself, so search from part index 2+)
+      let url: string | undefined;
+      const urlPartIdx = parts.findIndex(p => p.startsWith("url:"));
+      if (urlPartIdx !== -1) {
+        // Rejoin from urlPartIdx in case URL contained commas
+        url = parts.slice(urlPartIdx).join(",").replace(/^url:/, "");
+      }
+      return { name, size: sizeBytes, mimeType, url };
     }
     return { name: line, size: 0, mimeType: "application/octet-stream" };
   });
@@ -1299,7 +1306,7 @@ export default function ChatPageClient({
 
     // Build message with file references
     const filePrefix = uploadedFiles.length > 0
-      ? `[Attached files: ${uploadedFiles.map(f => `${f.name} (${(f.size / (1024*1024)).toFixed(1)} MB, ${f.type})`).join(", ")}]
+      ? `[Attached files: ${uploadedFiles.map(f => `${f.name} (${(f.size / (1024*1024)).toFixed(1)} MB, ${f.type}${f.uploadedUrl ? `, url:${f.uploadedUrl}` : ""})`).join(", ")}]
 User message: `
       : "";
     const messageToSend = filePrefix + (baseMessage || "(see attached files)");
@@ -2691,7 +2698,7 @@ User message: `
                 type="file"
                 id="dopl-file-input"
                 multiple
-                accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt,.md,.csv,.xlsx,.xls,.js,.ts,.py,.json,.html,.css,.zip"
+                accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt,.md,.csv,.xlsx,.xls,.js,.ts,.tsx,.jsx,.py,.go,.rs,.java,.c,.cpp,.h,.rb,.php,.sh,.sql,.r,.swift,.kt,.yaml,.yml,.toml,.xml,.env,.ini,.conf,.log,.jsonl,.tsv,.scss,.less,.svg,.css,.html,.zip,.json,.ndjson"
                 className="hidden"
                 onChange={(e) => {
                   if (e.target.files) {
