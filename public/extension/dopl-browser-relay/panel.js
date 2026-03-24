@@ -700,6 +700,14 @@ chrome.runtime.onMessage.addListener((msg) => {
       handleChatError(msg.message || 'An error occurred.')
       break
 
+    case 'action.step':
+      appendActionStep(msg.description || '', msg.method || '')
+      break
+
+    case 'action.done':
+      finalizeActionFeed()
+      break
+
     default:
       break
   }
@@ -783,6 +791,69 @@ connectionKeyInput.addEventListener('keydown', (e) => {
 settingsBtn.addEventListener('click', () => {
   void chrome.runtime.openOptionsPage()
 })
+
+// ── Action feed ───────────────────────────────────────────────────────────
+
+const ACTION_ICONS = {
+  'Page.navigate': '🔍',
+  'Page.captureScreenshot': '📸',
+  'Page.reload': '🔄',
+  'Runtime.evaluate': '⚡',
+  'Input.dispatchKeyEvent': '⌨️',
+  'Input.dispatchMouseEvent': '🖱️',
+  'DOM.querySelector': '🎯',
+  'DOM.querySelectorAll': '🎯',
+  'Target.createTarget': '📑',
+  'Target.closeTarget': '❌',
+  'Target.activateTarget': '📑',
+}
+
+/** @type {HTMLDivElement|null} */
+let currentActionGroup = null
+let lastActionMethod = ''
+let actionStepCount = 0
+
+function getOrCreateActionGroup() {
+  if (currentActionGroup) return currentActionGroup
+  const group = document.createElement('div')
+  group.className = 'action-group'
+  chatMessages.appendChild(group)
+  currentActionGroup = group
+  actionStepCount = 0
+  return group
+}
+
+function appendActionStep(description, method) {
+  const group = getOrCreateActionGroup()
+
+  // Deduplicate rapid-fire same descriptions (e.g. multiple "Typing..." events)
+  if (method === lastActionMethod && (method === 'Input.dispatchKeyEvent' || method === 'Input.dispatchMouseEvent')) {
+    return
+  }
+  lastActionMethod = method
+  actionStepCount++
+
+  const icon = ACTION_ICONS[method] || '⚙️'
+  const step = document.createElement('div')
+  step.className = 'action-step'
+  step.innerHTML = `<span class="action-icon">${icon}</span><span class="action-text">${escapeHtml(description)}</span>`
+  group.appendChild(step)
+  maybeScrollBottom()
+}
+
+function finalizeActionFeed() {
+  if (!currentActionGroup) return
+  if (actionStepCount > 0) {
+    const done = document.createElement('div')
+    done.className = 'action-step action-step--done'
+    done.innerHTML = '<span class="action-icon">✅</span><span class="action-text">Done</span>'
+    currentActionGroup.appendChild(done)
+  }
+  currentActionGroup = null
+  lastActionMethod = ''
+  actionStepCount = 0
+  maybeScrollBottom()
+}
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 
