@@ -12,7 +12,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { mem0GetCore, type Mem0Memory } from '@/lib/memory/mem0-client';
+import { mem0GetCore, getRecentMemories, getSessionSummaries, type Mem0Memory } from '@/lib/memory/mem0-client';
 
 // Service-role Supabase client for server-side operations
 const supabase = createClient(
@@ -195,9 +195,25 @@ export async function updateMemoryContext(
     gatewayUrl = instance.gatewayUrl;
   }
 
-  const memories = await mem0GetCore(userId, { minImportance: 0.5, limit: 30 });
-  const content = buildMemoryContextFile(memories);
+  const [coreMemories, recentMemories, sessionSummaries] = await Promise.all([
+    mem0GetCore(userId, { minImportance: 0.6, limit: 25 }),
+    getRecentMemories(userId, { hoursBack: 48, limit: 15 }),
+    getSessionSummaries(userId, { limit: 5 }),
+  ]);
+  const content = buildMemoryContextFile(coreMemories, recentMemories, sessionSummaries);
   await writeWorkspaceFile(gatewayUrl, 'MEMORY_CONTEXT.md', content);
+}
+
+// Rate-limited memory context refresh — at most once per 5 minutes per user
+const lastRefreshMap = new Map<string, number>();
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+export async function refreshMemoryContextIfNeeded(userId: string): Promise<void> {
+  const now = Date.now();
+  const lastRefresh = lastRefreshMap.get(userId) || 0;
+  if (now - lastRefresh < REFRESH_INTERVAL_MS) return;
+  lastRefreshMap.set(userId, now);
+  await updateMemoryContext(userId);
 }
 
 // ---------------------------------------------------------------------------
@@ -650,18 +666,28 @@ Ask the user to connect services. Use [[integrations:resolve:SERVICE]] to show a
 }
 
 /**
- * Build MEMORY_CONTEXT.md from an array of mem0 memory entries.
- * Called on integration connect (after light scan) and daily refresh.
+ * Build MEMORY_CONTEXT.md from mem0 memory entries.
+ * Produces three sections: Core Knowledge, Recent Context, Recent Sessions.
+ * Total output is capped at ~8000 chars to avoid bloating the system prompt.
  *
- * @param memories - Array of Mem0Memory objects from mem0GetCore
+ * @param memories        - High-importance core memories from mem0GetCore
+ * @param recentMemories  - Recently updated memories from getRecentMemories (optional)
+ * @param sessionSummaries - Session summary memories from getSessionSummaries (optional)
  */
-export function buildMemoryContextFile(memories: Mem0Memory[]): string {
+export function buildMemoryContextFile(
+  memories: Mem0Memory[],
+  recentMemories?: Mem0Memory[],
+  sessionSummaries?: Mem0Memory[]
+): string {
   const now = new Date().toLocaleString('en-US', {
     year: 'numeric', month: 'numeric', day: 'numeric',
     hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
   });
 
-  if (memories.length === 0) {
+  const recent = recentMemories ?? [];
+  const summaries = sessionSummaries ?? [];
+
+  if (memories.length === 0 && recent.length === 0 && summaries.length === 0) {
     return `# Memory Context
 Last refreshed: ${now}
 (Auto-updated by Dopl. Do not edit manually.)
@@ -670,62 +696,107 @@ No memories yet. This file will populate as you interact with the user.
 `;
   }
 
-  // Group memories by domain/category
-  const byDomain = new Map<string, string[]>();
-  for (const m of memories) {
-    const domain = m.domain || 'general';
-    const content = m.memory || m.content || '';
-    if (!content) continue;
-    const existing = byDomain.get(domain) || [];
-    existing.push(content);
-    byDomain.set(domain, existing);
-  }
-
   const lines: string[] = [
     '# Memory Context',
     `Last refreshed: ${now}`,
     '(Auto-updated by Dopl. Do not edit manually.)',
     '',
-    `Active memories: ${memories.length}`,
+    `Core: ${memories.length} | Recent: ${recent.length} | Sessions: ${summaries.length}`,
     '',
   ];
 
-  const domainOrder = ['identity', 'preference', 'workflow', 'email', 'calendar', 'contact', 'project', 'tool', 'general'];
-  const domainLabels: Record<string, string> = {
-    identity: '## Identity & Background',
-    preference: '## Preferences',
-    workflow: '## Workflow Patterns',
-    email: '## Email Context',
-    calendar: '## Calendar & Schedule',
-    contact: '## Known Contacts',
-    project: '## Projects',
-    tool: '## Tool Patterns',
-    general: '## General',
-  };
-
-  // Write domains in order
-  for (const domain of domainOrder) {
-    const items = byDomain.get(domain);
-    if (!items || items.length === 0) continue;
-    lines.push(domainLabels[domain] || `## ${domain}`);
-    for (const item of items) {
-      lines.push(`- ${item}`);
-    }
+  // ── Section 1: Core Knowledge (grouped by domain) ──────────────────────
+  if (memories.length > 0) {
+    lines.push('## Core Knowledge');
     lines.push('');
-    byDomain.delete(domain);
+
+    const byDomain = new Map<string, string[]>();
+    for (const m of memories) {
+      const domain = m.domain || 'general';
+      const content = m.memory || m.content || '';
+      if (!content) continue;
+      const existing = byDomain.get(domain) || [];
+      existing.push(content);
+      byDomain.set(domain, existing);
+    }
+
+    const domainOrder = ['identity', 'preference', 'workflow', 'email', 'calendar', 'contact', 'project', 'tool', 'general'];
+    const domainLabels: Record<string, string> = {
+      identity: '### Identity & Background',
+      preference: '### Preferences',
+      workflow: '### Workflow Patterns',
+      email: '### Email Context',
+      calendar: '### Calendar & Schedule',
+      contact: '### Known Contacts',
+      project: '### Projects',
+      tool: '### Tool Patterns',
+      general: '### General',
+    };
+
+    for (const domain of domainOrder) {
+      const items = byDomain.get(domain);
+      if (!items || items.length === 0) continue;
+      lines.push(domainLabels[domain] || `### ${domain}`);
+      for (const item of items) {
+        lines.push(`- ${item}`);
+      }
+      lines.push('');
+      byDomain.delete(domain);
+    }
+
+    // Any remaining domains not in the ordered list
+    for (const [domain, items] of byDomain) {
+      if (items.length === 0) continue;
+      lines.push(`### ${domain}`);
+      for (const item of items) {
+        lines.push(`- ${item}`);
+      }
+      lines.push('');
+    }
   }
 
-  // Write any remaining domains not in the ordered list
-  for (const [domain, items] of byDomain) {
-    if (items.length === 0) continue;
-    lines.push(`## ${domain}`);
-    for (const item of items) {
-      lines.push(`- ${item}`);
+  // ── Section 2: Recent Context (last 48h, with timestamps) ───────────────
+  if (recent.length > 0) {
+    lines.push('## Recent Context');
+    lines.push('*(Facts from the last 48 hours)*');
+    lines.push('');
+
+    for (const m of recent) {
+      const content = m.memory || m.content || '';
+      if (!content) continue;
+      const ts = m.updated_at
+        ? m.updated_at.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+        : '';
+      const tsTag = ts ? ` _(${ts})_` : '';
+      lines.push(`- ${content}${tsTag}`);
     }
     lines.push('');
   }
 
-  return lines.join('\n');
+  // ── Section 3: Recent Sessions ──────────────────────────────────────────
+  lines.push('## Recent Sessions');
+  if (summaries.length === 0) {
+    lines.push('*(No session summaries yet — will populate after first sessions)*');
+  } else {
+    lines.push('');
+    for (const m of summaries) {
+      const content = m.memory || m.content || '';
+      if (!content) continue;
+      const date = m.created_at
+        ? m.created_at.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+        : '';
+      const dateTag = date ? `**${date}** — ` : '';
+      lines.push(`- ${dateTag}${content}`);
+    }
+  }
+  lines.push('');
+
+  // Cap output at ~8000 chars to avoid bloating the system prompt
+  const output = lines.join('\n');
+  if (output.length > 8000) {
+    return output.slice(0, 7950) + '\n\n*(truncated to stay within context budget)*\n';
+  }
+  return output;
 }
 
 // ---------------------------------------------------------------------------

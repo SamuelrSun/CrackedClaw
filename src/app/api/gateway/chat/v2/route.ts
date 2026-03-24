@@ -18,6 +18,7 @@ import { retrieveBrainContext } from '@/lib/brain/retriever/brain-retriever';
 import { formatBrainContext } from '@/lib/brain/retriever/context-formatter';
 import { retrieveUnifiedContext } from '@/lib/memory/unified-retriever';
 import { formatUnifiedContext } from '@/lib/memory/unified-formatter';
+import { refreshMemoryContextIfNeeded } from '@/lib/gateway/workspace';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -29,6 +30,9 @@ function encode(data: string): Uint8Array {
 export async function POST(request: NextRequest) {
   const { user, error } = await requireApiAuth();
   if (error) return error;
+
+  // Fire-and-forget memory context refresh (rate-limited to 1/5min per user)
+  refreshMemoryContextIfNeeded(user!.id).catch(() => {});
 
   try {
     const body = await request.json();
