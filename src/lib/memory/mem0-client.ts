@@ -331,6 +331,66 @@ export async function mem0Update(
 }
 
 /**
+ * Get memories created or updated in the last N hours.
+ * Catches recent lower-importance facts that mem0GetCore misses.
+ */
+export async function getRecentMemories(
+  userId: string,
+  options?: { hoursBack?: number; limit?: number }
+): Promise<Mem0Memory[]> {
+  try {
+    const hoursBack = options?.hoursBack ?? 48;
+    const limit = options?.limit ?? 15;
+    const since = new Date(Date.now() - hoursBack * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+      .from('memories')
+      .select('id, content, domain, metadata, importance, created_at, updated_at')
+      .eq('user_id', userId)
+      .gte('updated_at', since)
+      .order('updated_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return (data as RawMemory[] || []).map(normalizeMemory);
+  } catch (err) {
+    console.error('[memory] getRecentMemories failed:', err);
+    return [];
+  }
+}
+
+/**
+ * Get session summary memories (source = 'session_summary').
+ * Returns [] gracefully if none exist yet (Phase 2 will populate these).
+ */
+export async function getSessionSummaries(
+  userId: string,
+  options?: { limit?: number }
+): Promise<Mem0Memory[]> {
+  try {
+    const limit = options?.limit ?? 5;
+
+    const { data, error } = await supabase
+      .from('memories')
+      .select('id, content, domain, metadata, importance, created_at, updated_at')
+      .eq('user_id', userId)
+      .eq('metadata->>source', 'session_summary')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      // Don't throw — session summaries may not exist yet
+      console.warn('[memory] getSessionSummaries query failed (may be expected):', error.message);
+      return [];
+    }
+    return (data as RawMemory[] || []).map(normalizeMemory);
+  } catch (err) {
+    console.error('[memory] getSessionSummaries failed:', err);
+    return [];
+  }
+}
+
+/**
  * Retrieve all stored memories for a user, ordered by importance.
  */
 export async function mem0GetAll(userId: string, domain?: string): Promise<Mem0Memory[]> {

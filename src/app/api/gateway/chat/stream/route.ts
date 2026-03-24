@@ -15,6 +15,7 @@ import { retrieveBrainContext } from "@/lib/brain/retriever/brain-retriever";
 import { formatBrainContext } from "@/lib/brain/retriever/context-formatter";
 import { retrieveUnifiedContext } from "@/lib/memory/unified-retriever";
 import { formatUnifiedContext } from "@/lib/memory/unified-formatter";
+import { refreshMemoryContextIfNeeded } from "@/lib/gateway/workspace";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 800;
@@ -55,6 +56,9 @@ export async function POST(request: NextRequest) {
     if (error) return error;
     user = sessionUser!;
   }
+
+  // Fire-and-forget memory context refresh (rate-limited to 1/5min per user)
+  refreshMemoryContextIfNeeded(user.id).catch(() => {});
 
   try {
     const body = await request.json();
@@ -366,6 +370,27 @@ export async function POST(request: NextRequest) {
         // Batched chat memory extraction (fire-and-forget)
         if (cleanedContent) {
           addChatTurn(user.id, message, cleanedContent, capturedConvoId || undefined).catch(() => {});
+        }
+
+        // Fire-and-forget session summary extraction (min 4 msgs: 2 user + 2 assistant turns)
+        if (cleanedContent && capturedConvoId) {
+          const summaryMessages = [
+            ...previousMessages.slice(-10),
+            { role: 'user' as const, content: message },
+            { role: 'assistant' as const, content: cleanedContent },
+          ];
+          fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com'}/api/memory/session-summary`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+            },
+            body: JSON.stringify({
+              userId: user.id,
+              conversationId: capturedConvoId,
+              messages: summaryMessages,
+            }),
+          }).catch(() => {});
         }
 
         if (capturedConvoId && cleanedContent) {

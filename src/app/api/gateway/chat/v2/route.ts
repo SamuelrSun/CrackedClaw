@@ -18,6 +18,7 @@ import { retrieveBrainContext } from '@/lib/brain/retriever/brain-retriever';
 import { formatBrainContext } from '@/lib/brain/retriever/context-formatter';
 import { retrieveUnifiedContext } from '@/lib/memory/unified-retriever';
 import { formatUnifiedContext } from '@/lib/memory/unified-formatter';
+import { refreshMemoryContextIfNeeded } from '@/lib/gateway/workspace';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -29,6 +30,9 @@ function encode(data: string): Uint8Array {
 export async function POST(request: NextRequest) {
   const { user, error } = await requireApiAuth();
   if (error) return error;
+
+  // Fire-and-forget memory context refresh (rate-limited to 1/5min per user)
+  refreshMemoryContextIfNeeded(user!.id).catch(() => {});
 
   try {
     const body = await request.json();
@@ -296,6 +300,27 @@ export async function POST(request: NextRequest) {
             brainEnabled,
           }).catch(() => {});
           if (brainEnabled) void checkAndTriggerAggregation(user!.id).catch(() => {});
+        }
+
+        // Fire-and-forget session summary extraction (min 4 msgs: 2 user + 2 assistant turns)
+        if (cleanedContent && capturedConvoId) {
+          const summaryMessages = [
+            ...previousMessages.slice(-10),
+            { role: 'user' as const, content: message },
+            { role: 'assistant' as const, content: cleanedContent },
+          ];
+          fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com'}/api/memory/session-summary`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+            },
+            body: JSON.stringify({
+              userId: user!.id,
+              conversationId: capturedConvoId,
+              messages: summaryMessages,
+            }),
+          }).catch(() => {});
         }
 
         await logActivity('Chat message sent', message.length > 50 ? message.substring(0, 50) + '...' : message, { conversation_id: capturedConvoId })

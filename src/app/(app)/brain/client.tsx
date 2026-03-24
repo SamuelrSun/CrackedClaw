@@ -108,6 +108,12 @@ function relativeTime(dateStr: string): string {
   return mo + 'mo ago';
 }
 
+function formatSessionDate(dateStr: string): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
 function formatWeight(w: number): string {
   return (w >= 0 ? '+' : '') + w.toFixed(2);
 }
@@ -621,6 +627,49 @@ function AddMemoryForm({
   );
 }
 
+// ─── Recent Sessions Section ──────────────────────────────────────────────────
+
+function RecentSessionsSection({ sessions }: { sessions: MemoryItem[] }) {
+  const recent = sessions.slice(0, 7);
+
+  return (
+    <div className="bg-white/[0.04] border border-white/[0.09] rounded-[2px] p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] text-white/40">🕐</span>
+        <h3 className="font-mono text-[10px] uppercase tracking-wide text-white/50">Recent Sessions</h3>
+        <span className="font-mono text-[8px] text-white/20">{sessions.length}</span>
+        <div className="flex-1 h-px bg-white/[0.05]" />
+      </div>
+
+      {recent.length === 0 ? (
+        <p className="text-xs text-white/30 italic pl-1">No session history yet.</p>
+      ) : (
+        <div className="space-y-0 divide-y divide-white/[0.05]">
+          {recent.map((session) => (
+            <div key={session.id} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
+              {/* Timeline marker + date */}
+              <div className="flex-shrink-0 w-[90px] pt-0.5">
+                <span className="font-mono text-[9px] text-white/30 leading-tight block">
+                  {formatSessionDate(session.created_at)}
+                </span>
+              </div>
+              {/* Vertical line marker */}
+              <div className="flex-shrink-0 flex flex-col items-center mt-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-white/20 flex-shrink-0" />
+                <span className="w-px flex-1 bg-white/[0.06] min-h-[12px] mt-1" />
+              </div>
+              {/* Summary text */}
+              <p className="flex-1 text-xs text-white/55 leading-relaxed min-w-0">
+                {session.content}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── What I Know Tab ─────────────────────────────────────────────────────────
 
 function WhatIKnowTab() {
@@ -711,11 +760,22 @@ function WhatIKnowTab() {
     setMemories((prev) => prev.filter((m) => m.id !== id));
   }
 
-  // Filter and group
+  // Separate session summaries from regular memories
+  const sessionMemories = useMemo(() =>
+    memories.filter((m) => m.domain === 'session' || m.source === 'session_summary'),
+    [memories]
+  );
+
+  const nonSessionMemories = useMemo(() =>
+    memories.filter((m) => m.domain !== 'session' && m.source !== 'session_summary'),
+    [memories]
+  );
+
+  // Filter and group (regular memories only, not session summaries)
   const filteredMemories = useMemo(() => {
-    if (!filterDomain) return memories;
-    return memories.filter((m) => m.domain === filterDomain);
-  }, [memories, filterDomain]);
+    if (!filterDomain) return nonSessionMemories;
+    return nonSessionMemories.filter((m) => m.domain === filterDomain);
+  }, [nonSessionMemories, filterDomain]);
 
   const groupedMemories = useMemo(() => {
     const groups: Record<string, MemoryItem[]> = {};
@@ -737,9 +797,9 @@ function WhatIKnowTab() {
   }, [filteredMemories]);
 
   const availableDomains = useMemo(() => {
-    const domains = new Set(memories.map((m) => m.domain || 'general'));
+    const domains = new Set(nonSessionMemories.map((m) => m.domain || 'general'));
     return Array.from(domains).sort();
-  }, [memories]);
+  }, [nonSessionMemories]);
 
   if (loading) {
     return (
@@ -795,6 +855,9 @@ function WhatIKnowTab() {
       {showAdd && (
         <AddMemoryForm onAdd={handleAdd} onCancel={() => setShowAdd(false)} />
       )}
+
+      {/* Recent Sessions */}
+      <RecentSessionsSection sessions={sessionMemories} />
 
       {/* Memories list */}
       {filteredMemories.length === 0 ? (
