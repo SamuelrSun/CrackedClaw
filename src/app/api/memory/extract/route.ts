@@ -8,7 +8,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mem0Write } from '@/lib/memory/mem0-client';
 import { getEmbedding } from '@/lib/memory/embeddings';
-import { classifyDomain } from '@/lib/memory/domain-classifier';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createSupabaseServerClient } from '@/lib/supabase/server';
 
@@ -27,7 +26,7 @@ const supabaseAdmin = createClient(
  */
 async function extractFactsWithHaiku(
   messages: Array<{ role: string; content: string }>
-): Promise<Array<{ content: string; importance: number }>> {
+): Promise<Array<{ content: string; importance: number; domain: string }>> {
   try {
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
@@ -37,10 +36,17 @@ async function extractFactsWithHaiku(
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 512,
-      system: `Extract up to ${MAX_FACTS} key facts, preferences, or important information from this conversation worth remembering long-term. Return a JSON array with "content" (the fact) and "importance" (0-1). Skip transient details. If nothing worth saving, return [].
+      system: `Extract up to ${MAX_FACTS} key facts, preferences, or important information from this conversation worth remembering long-term. Return a JSON array with:
+- "content": the fact as a clear sentence
+- "importance": 0-1 (how important this is to remember)
+- "domain": a short lowercase category that best fits this fact (e.g. "identity", "work", "preferences", "projects", "contacts", "health", "hobbies", "finance", "travel", "food", "music", "family", "education", "goals", "tools", "communication", "schedule"). Use whatever domain fits naturally — do NOT force into predefined categories. Keep domains to 1-2 words, lowercase, no spaces (use underscores).
+
+Skip transient details. If nothing worth saving, return [].
 
 Example:
-[{"content": "User prefers async communication over meetings", "importance": 0.8}]`,
+[{"content": "User prefers async communication over meetings", "importance": 0.8, "domain": "communication"},
+ {"content": "User's dog is named Biscuit", "importance": 0.6, "domain": "pets"},
+ {"content": "User is building an AR glasses startup called Fenna", "importance": 0.9, "domain": "projects"}]`,
       messages: [{ role: 'user', content: convoText }],
     });
 
@@ -170,7 +176,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Insert new memory via mem0Write (handles dedup + embedding internally)
-        const domain = classifyDomain(fact.content);
+        // Domain comes from LLM classification; fall back to 'general' if missing
+        const domain = fact.domain || 'general';
         const id = await mem0Write(userId, fact.content, {
           domain,
           importance: fact.importance,
