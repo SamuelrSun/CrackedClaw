@@ -13,6 +13,8 @@ import { collectBrainSignals } from "@/lib/brain/signals/collector";
 import { checkAndTriggerAggregation } from "@/lib/brain/aggregator/auto-trigger";
 import { retrieveBrainContext } from "@/lib/brain/retriever/brain-retriever";
 import { formatBrainContext } from "@/lib/brain/retriever/context-formatter";
+import { retrieveUnifiedContext } from "@/lib/memory/unified-retriever";
+import { formatUnifiedContext } from "@/lib/memory/unified-formatter";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 800;
@@ -155,6 +157,19 @@ export async function POST(request: NextRequest) {
     }
 
     // ── System prompt ──
+    // Read instance_settings once — used for both unified_memory and brain_enabled flags
+    const instanceSettings = await (async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('instance_settings')
+          .eq('id', user.id)
+          .single();
+        return (data?.instance_settings as Record<string, unknown>) || {};
+      } catch { return {} as Record<string, unknown>; }
+    })();
+    const unifiedMemoryEnabled = (instanceSettings.unified_memory as boolean) ?? true;
+
     // When the instance has workspace files (SOUL.md, AGENTS.md) configured,
     // use lightweight dynamic context only — static identity lives in workspace files.
     // Fall back to full system prompt for instances without workspace files.
@@ -162,10 +177,10 @@ export async function POST(request: NextRequest) {
     let systemPrompt: string;
     if (instanceForPrompt) {
       // New path: dynamic context only (static identity is in workspace files)
-      systemPrompt = await buildDynamicContext(user.id, message, activeConversationId || undefined);
+      systemPrompt = await buildDynamicContext(user.id, message, activeConversationId || undefined, { skipMemory: unifiedMemoryEnabled });
     } else {
       // Legacy fallback: full system prompt
-      systemPrompt = await buildSystemPromptForUser(user.id, message);
+      systemPrompt = await buildSystemPromptForUser(user.id, message, undefined, { skipMemory: unifiedMemoryEnabled });
     }
     if (activeConversationId) {
       const linkedCtx = await buildLinkedContextSummary(user.id, activeConversationId);
@@ -173,18 +188,35 @@ export async function POST(request: NextRequest) {
     }
     if (workflowContext) systemPrompt += "\n\n" + workflowContext;
 
-    // Brain context injection — semantic retrieval of user preferences
-    try {
-      const brainCriteria = await retrieveBrainContext(
-        user.id,
-        previousMessages.filter(m => m.role === 'user').slice(-4).concat([{ role: 'user' as const, content: message }])
-      );
-      const brainPrompt = formatBrainContext(brainCriteria);
-      if (brainPrompt) {
-        systemPrompt = systemPrompt + '\n\n' + brainPrompt;
+    if (unifiedMemoryEnabled) {
+      // Unified path: single retrieval across all memory types (facts + criteria)
+      try {
+        const recentUserMsgs = previousMessages
+          .filter(m => m.role === 'user')
+          .slice(-4)
+          .concat([{ role: 'user' as const, content: message }]);
+        const unifiedItems = await retrieveUnifiedContext(user.id, recentUserMsgs);
+        const unifiedPrompt = formatUnifiedContext(unifiedItems);
+        if (unifiedPrompt) {
+          systemPrompt = systemPrompt + '\n\n' + unifiedPrompt;
+        }
+      } catch {
+        // Unified retrieval failure should never break chat
       }
-    } catch {
-      // Brain failure should never break chat
+    } else {
+      // Legacy path: brain context injection only (memory injection already in system prompt builder)
+      try {
+        const brainCriteria = await retrieveBrainContext(
+          user.id,
+          previousMessages.filter(m => m.role === 'user').slice(-4).concat([{ role: 'user' as const, content: message }])
+        );
+        const brainPrompt = formatBrainContext(brainCriteria);
+        if (brainPrompt) {
+          systemPrompt = systemPrompt + '\n\n' + brainPrompt;
+        }
+      } catch {
+        // Brain failure should never break chat
+      }
     }
 
     // Replace conversation ID placeholder for subagent push instructions
@@ -380,17 +412,8 @@ export async function POST(request: NextRequest) {
 
         // Brain signal collection (fire-and-forget)
         if (cleanedContent) {
-          const brainEnabled = await (async () => {
-            try {
-              const { data } = await supabase
-                .from('profiles')
-                .select('instance_settings')
-                .eq('id', user.id)
-                .single();
-              const settings = (data?.instance_settings as Record<string, unknown>) || {};
-              return (settings.brain_enabled as boolean) ?? true;
-            } catch { return false; }
-          })();
+          // Reuse instance_settings read from above
+          const brainEnabled = (instanceSettings.brain_enabled as boolean) ?? true;
 
           void collectBrainSignals({
             userId: user.id,

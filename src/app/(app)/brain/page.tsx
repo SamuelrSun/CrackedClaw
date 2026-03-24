@@ -36,6 +36,13 @@ export default async function BrainPage() {
     .order('created_at', { ascending: false })
     .limit(20);
 
+  // Fetch memory count (facts)
+  const { count: memoryCount } = await supabase
+    .from('memories')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('memory_type', 'fact');
+
   // Parse criteria from JSON content
   const criteria = (rawCriteria || []).map((row) => {
     try {
@@ -87,5 +94,12 @@ export default async function BrainPage() {
     updated_at: p.updated_at,
   }));
 
-  return <BrainClient initialCriteria={criteria} initialSignals={signals} initialPatterns={patterns} />;
+  return (
+    <BrainClient
+      initialCriteria={criteria}
+      initialSignals={signals}
+      initialPatterns={patterns}
+      initialMemoryCount={memoryCount ?? 0}
+    />
+  );
 }

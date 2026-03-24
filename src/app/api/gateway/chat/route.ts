@@ -13,6 +13,8 @@ import { collectBrainSignals } from "@/lib/brain/signals/collector";
 import { checkAndTriggerAggregation } from "@/lib/brain/aggregator/auto-trigger";
 import { retrieveBrainContext } from "@/lib/brain/retriever/brain-retriever";
 import { formatBrainContext } from "@/lib/brain/retriever/context-formatter";
+import { retrieveUnifiedContext } from "@/lib/memory/unified-retriever";
+import { formatUnifiedContext } from "@/lib/memory/unified-formatter";
 
 export const dynamic = 'force-dynamic';
 
@@ -106,26 +108,56 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Build system prompt
-    let systemPrompt = await buildSystemPromptForUser(user.id, message);
+    // Read instance_settings once — used for both unified_memory and brain_enabled flags
+    const instanceSettings = await (async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('instance_settings')
+          .eq('id', user.id)
+          .single();
+        return (data?.instance_settings as Record<string, unknown>) || {};
+      } catch { return {} as Record<string, unknown>; }
+    })();
+    const unifiedMemoryEnabled = (instanceSettings.unified_memory as boolean) ?? true;
+
+    // Build system prompt (skip old memory injection when unified memory is active)
+    let systemPrompt = await buildSystemPromptForUser(user.id, message, undefined, { skipMemory: unifiedMemoryEnabled });
     if (activeConversationId) {
       const linkedCtx = await buildLinkedContextSummary(user.id, activeConversationId);
       if (linkedCtx) systemPrompt += "\n\n" + linkedCtx;
     }
     if (workflowContext) systemPrompt += "\n\n" + workflowContext;
 
-    // Brain context injection — semantic retrieval of user preferences
-    try {
-      const brainCriteria = await retrieveBrainContext(
-        user.id,
-        previousMessages.filter(m => m.role === 'user').slice(-4).concat([{ role: 'user', content: message }])
-      );
-      const brainPrompt = formatBrainContext(brainCriteria);
-      if (brainPrompt) {
-        systemPrompt = systemPrompt + '\n\n' + brainPrompt;
+    if (unifiedMemoryEnabled) {
+      // Unified path: single retrieval across all memory types (facts + criteria)
+      try {
+        const recentUserMsgs = previousMessages
+          .filter(m => m.role === 'user')
+          .slice(-4)
+          .concat([{ role: 'user', content: message }]);
+        const unifiedItems = await retrieveUnifiedContext(user.id, recentUserMsgs);
+        const unifiedPrompt = formatUnifiedContext(unifiedItems);
+        if (unifiedPrompt) {
+          systemPrompt = systemPrompt + '\n\n' + unifiedPrompt;
+        }
+      } catch {
+        // Unified retrieval failure should never break chat
       }
-    } catch {
-      // Brain failure should never break chat
+    } else {
+      // Legacy path: brain context injection only (memory injection already in system prompt builder)
+      try {
+        const brainCriteria = await retrieveBrainContext(
+          user.id,
+          previousMessages.filter(m => m.role === 'user').slice(-4).concat([{ role: 'user', content: message }])
+        );
+        const brainPrompt = formatBrainContext(brainCriteria);
+        if (brainPrompt) {
+          systemPrompt = systemPrompt + '\n\n' + brainPrompt;
+        }
+      } catch {
+        // Brain failure should never break chat
+      }
     }
 
     // Route through OpenClaw gateway
@@ -191,17 +223,8 @@ export async function POST(request: NextRequest) {
 
     // Brain signal collection (fire-and-forget)
     if (cleanedContent) {
-      // Check brain_enabled from profile instance_settings
-      const brainCheck = await supabase
-        .from("profiles")
-        .select("instance_settings")
-        .eq("id", user.id)
-        .single()
-        .then(({ data }) => {
-          const settings = (data?.instance_settings as Record<string, unknown>) || {};
-          return (settings.brain_enabled as boolean) ?? true;
-        })
-        .catch(() => false);
+      // Reuse instance_settings read from above
+      const brainCheck = (instanceSettings.brain_enabled as boolean) ?? true;
 
       // Find the previous AI message from conversation history
       const lastAIMessage = previousMessages.length > 0
