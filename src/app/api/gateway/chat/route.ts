@@ -225,6 +225,27 @@ export async function POST(request: NextRequest) {
       addChatTurn(user.id, message, cleanedContent, activeConversationId || undefined).catch(() => {});
     }
 
+    // Fire-and-forget session summary extraction (min 4 msgs: 2 user + 2 assistant turns)
+    if (cleanedContent && activeConversationId) {
+      const summaryMessages = [
+        ...previousMessages.slice(-10),
+        { role: 'user' as const, content: message },
+        { role: 'assistant' as const, content: cleanedContent },
+      ];
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com'}/api/memory/session-summary`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          conversationId: activeConversationId,
+          messages: summaryMessages,
+        }),
+      }).catch(() => {});
+    }
+
     // Brain signal collection (fire-and-forget)
     if (cleanedContent) {
       // Reuse instance_settings read from above

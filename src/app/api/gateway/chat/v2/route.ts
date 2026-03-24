@@ -302,6 +302,27 @@ export async function POST(request: NextRequest) {
           if (brainEnabled) void checkAndTriggerAggregation(user!.id).catch(() => {});
         }
 
+        // Fire-and-forget session summary extraction (min 4 msgs: 2 user + 2 assistant turns)
+        if (cleanedContent && capturedConvoId) {
+          const summaryMessages = [
+            ...previousMessages.slice(-10),
+            { role: 'user' as const, content: message },
+            { role: 'assistant' as const, content: cleanedContent },
+          ];
+          fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://usedopl.com'}/api/memory/session-summary`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+            },
+            body: JSON.stringify({
+              userId: user!.id,
+              conversationId: capturedConvoId,
+              messages: summaryMessages,
+            }),
+          }).catch(() => {});
+        }
+
         await logActivity('Chat message sent', message.length > 50 ? message.substring(0, 50) + '...' : message, { conversation_id: capturedConvoId })
           .catch(e => console.error('Failed to log activity:', e));
 
