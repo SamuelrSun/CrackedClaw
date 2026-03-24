@@ -587,12 +587,12 @@ function parseFileAttachment(content: string): { files: Array<{name: string; siz
   if (closeIdx === -1) return null;
   const filesStr = normalized.slice(PREFIX.length, closeIdx);
   const message = normalized.slice(closeIdx + SEP.length).trim();
-  const files = filesStr.split(",").map(s => s.trim()).filter(Boolean).map(line => {
-    const parenOpen = line.lastIndexOf("(");
-    const parenClose = line.lastIndexOf(")");
-    if (parenOpen !== -1 && parenClose !== -1) {
-      const name = line.slice(0, parenOpen).trim();
-      const meta = line.slice(parenOpen + 1, parenClose);
+  // Split by "), " to separate file entries (each entry has commas inside its parens)
+  const files = filesStr.split(/\),\s*/).map(s => s.trim()).filter(Boolean).map(entry => {
+    const parenOpen = entry.lastIndexOf("(");
+    if (parenOpen !== -1) {
+      const name = entry.slice(0, parenOpen).trim();
+      const meta = entry.slice(parenOpen + 1).replace(/\)$/, ""); // remove trailing )
       const parts = meta.split(",").map(s => s.trim());
       const sizeStr = parts[0] || "0";
       const mimeType = parts[1] || "application/octet-stream";
@@ -607,7 +607,7 @@ function parseFileAttachment(content: string): { files: Array<{name: string; siz
       }
       return { name, size: sizeBytes, mimeType, url };
     }
-    return { name: line, size: 0, mimeType: "application/octet-stream" };
+    return { name: entry, size: 0, mimeType: "application/octet-stream" };
   });
   return { files, message };
 }
