@@ -67,8 +67,8 @@ class NodeManager extends EventEmitter {
   async start() {
     this.shouldRun = true;
     await this.ensureCLI();
-    // Auto-approve handles pairing on first connect — no pre-pair needed
-    // await this.prePairDevice();
+    // Pre-pair device with provisioning API before connecting
+    await this.prePairDevice();
     this.spawnNode();
   }
 

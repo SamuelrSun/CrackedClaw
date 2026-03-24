@@ -13,6 +13,21 @@ const os = require('os');
 const { app } = require('electron');
 
 const NODE_VERSION = '22.14.0';
+
+// ─── OPENCLAW VERSION PIN ────────────────────────────────────────────────────
+// This MUST match the openclaw version running on the Dopl DO server.
+//
+// WHY IT'S PINNED:
+//   openclaw 2026.3.11+ introduced a breaking change in the system.run.prepare
+//   response format: `cmdText` was removed and `plan.rawCommand` was renamed to
+//   `plan.commandText`. The DO server runs 2026.3.8, so installing a newer
+//   version on the user's Mac causes "invalid system.run.prepare response" errors.
+//
+// IF YOU CHANGE THIS:
+//   You must also update the openclaw version on the DO server at the same time,
+//   or the protocol mismatch will break command execution for all users.
+// ─────────────────────────────────────────────────────────────────────────────
+const OPENCLAW_VERSION = '2026.3.8';
 const RUNTIME_DIR = path.join(app.getPath('userData'), 'runtime');
 const NODE_DIR = path.join(RUNTIME_DIR, 'node');
 const NODE_BIN = path.join(NODE_DIR, 'bin', 'node');
@@ -40,14 +55,38 @@ class RuntimeManager {
   }
 
   /**
+   * Read the installed openclaw package.json and return its version string,
+   * or null if openclaw is not installed or the version can't be determined.
+   */
+  getInstalledVersion() {
+    try {
+      const pkgPath = path.join(OPENCLAW_DIR, 'node_modules', 'openclaw', 'package.json');
+      if (!fs.existsSync(pkgPath)) return null;
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      return pkg.version || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Check if runtime is already set up and functional.
-   * Verifies binaries actually exist and are executable.
+   * Verifies binaries exist, are executable, AND that the installed openclaw
+   * version exactly matches OPENCLAW_VERSION. A version mismatch (e.g. user
+   * has 2026.3.11 from a prior install) returns false so ensure() will
+   * delete and reinstall the pinned version.
    */
   isReady() {
     try {
       if (!fs.existsSync(NODE_BIN) || !fs.existsSync(OPENCLAW_BIN)) return false;
       // Quick sanity check — make sure node binary is executable
       execSync(`"${NODE_BIN}" --version`, { stdio: 'ignore', timeout: 5000 });
+      // Enforce pinned version — wrong version is treated as not-ready
+      const installedVersion = this.getInstalledVersion();
+      if (installedVersion !== OPENCLAW_VERSION) {
+        console.log(`[RuntimeManager] openclaw version mismatch: installed=${installedVersion}, required=${OPENCLAW_VERSION}`);
+        return false;
+      }
       return true;
     } catch {
       return false;
@@ -137,10 +176,10 @@ class RuntimeManager {
         await this._downloadNode();
       }
 
-      // Step 2: Install openclaw if needed (or if existing install is broken)
+      // Step 2: Install openclaw if needed (or if existing install is broken / wrong version)
       const openclawFunctional = fs.existsSync(OPENCLAW_BIN) && (() => {
         try { execSync(`"${NODE_BIN}" "${OPENCLAW_BIN}" --version`, { stdio: 'ignore', timeout: 5000 }); return true; } catch { return false; }
-      })();
+      })() && this.getInstalledVersion() === OPENCLAW_VERSION;
 
       if (!openclawFunctional) {
         // Clean up any partial openclaw dir before reinstalling
@@ -199,10 +238,10 @@ class RuntimeManager {
     const pkg = { name: 'dopl-openclaw-runtime', version: '1.0.0', private: true };
     fs.writeFileSync(path.join(OPENCLAW_DIR, 'package.json'), JSON.stringify(pkg, null, 2));
 
-    console.log('[RuntimeManager] Installing openclaw via bundled npm...');
-    // Use the bundled node to invoke bundled npm
+    console.log(`[RuntimeManager] Installing openclaw@${OPENCLAW_VERSION} via bundled npm...`);
+    // Use the bundled node to invoke bundled npm — install the exact pinned version
     await execAsync(
-      `"${NODE_BIN}" "${NPM_BIN}" install openclaw --no-fund --no-audit`,
+      `"${NODE_BIN}" "${NPM_BIN}" install openclaw@${OPENCLAW_VERSION} --no-fund --no-audit`,
       {
         cwd: OPENCLAW_DIR,
         timeout: 180000, // 3 minutes — npm can be slow on first install
@@ -210,7 +249,14 @@ class RuntimeManager {
       }
     );
 
-    console.log('[RuntimeManager] OpenClaw CLI installed at', OPENCLAW_BIN);
+    // Verify the installed version matches the pinned version — fail fast if npm
+    // resolved a different version (e.g. due to a dist-tag or npm cache issue).
+    const installedVersion = this.getInstalledVersion();
+    if (installedVersion !== OPENCLAW_VERSION) {
+      throw new Error(`openclaw version mismatch after install: expected ${OPENCLAW_VERSION}, got ${installedVersion}`);
+    }
+
+    console.log(`[RuntimeManager] OpenClaw CLI v${installedVersion} installed at`, OPENCLAW_BIN);
   }
 
   /**
