@@ -1370,9 +1370,63 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     ;(async () => {
       try {
         const state = await buildPanelState()
+        // Auto-connect relay when panel opens and config exists but relay isn't up
+        if (state.hasConfig && !state.connected && !relayConnectPromise) {
+          ensureRelayConnection()
+            .then(() => { reconnectAttempt = 0; void broadcastPanelState() })
+            .catch(() => { if (!reconnectTimer) scheduleReconnect() })
+        }
         sendResponse(state)
       } catch (err) {
         sendResponse({ hasConfig: false, connected: false, tabs: [] })
+      }
+    })()
+    return true
+  }
+
+  // ── Attach / detach active tab from panel ───────────────────────────────
+  if (msg.type === 'panel.attachTab') {
+    ;(async () => {
+      try {
+        const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
+        if (!active?.id) { sendResponse({ ok: false, error: 'No active tab' }); return }
+        if (tabs.has(active.id) && tabs.get(active.id)?.state === 'connected') {
+          sendResponse({ ok: true, already: true }); return
+        }
+        await ensureRelayConnection()
+        tabs.set(active.id, { state: 'connecting' })
+        setBadge(active.id, 'connecting')
+        await attachTab(active.id)
+        sendResponse({ ok: true })
+      } catch (err) {
+        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
+      }
+    })()
+    return true
+  }
+
+  if (msg.type === 'panel.detachTab') {
+    ;(async () => {
+      try {
+        const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
+        if (!active?.id) { sendResponse({ ok: false, error: 'No active tab' }); return }
+        if (!tabs.has(active.id)) { sendResponse({ ok: true }); return }
+        await detachTab(active.id, 'panel_detach')
+        sendResponse({ ok: true })
+      } catch (err) {
+        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
+      }
+    })()
+    return true
+  }
+
+  if (msg.type === 'panel.toggleWindowMode') {
+    ;(async () => {
+      try {
+        await toggleWindowMode()
+        sendResponse({ ok: true, windowModeEnabled })
+      } catch (err) {
+        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
       }
     })()
     return true

@@ -32,6 +32,8 @@ const tabsValue       = document.getElementById('tabs-value')
 const tabDot          = document.getElementById('tab-dot')
 const tabLabel        = document.getElementById('tab-label')
 const settingsBtn     = document.getElementById('settings-btn')
+const attachBtn       = document.getElementById('attach-btn')
+const detachBtn       = document.getElementById('detach-btn')
 const panelMain       = document.getElementById('panel-main')
 
 // ── Chat state ────────────────────────────────────────────────────────────
@@ -544,21 +546,25 @@ function clearWelcome() {
   if (w) w.remove()
 }
 
-function updateTabStatus(tabs) {
-  if (!tabs || tabs.length === 0) {
+function updateTabStatus(tabsList) {
+  if (!tabsList || tabsList.length === 0) {
     tabDot.classList.remove('attached')
     tabLabel.textContent = 'No tab attached'
     tabsValue.textContent = 'None'
     tabsValue.className = 'info-value warn'
+    attachBtn.classList.remove('hidden')
+    detachBtn.classList.add('hidden')
     return
   }
   tabDot.classList.add('attached')
-  const count = tabs.length
+  const count = tabsList.length
   tabLabel.textContent = count === 1
-    ? (tabs[0].title || tabs[0].url || 'Tab attached')
+    ? (tabsList[0].title || tabsList[0].url || 'Tab attached')
     : `${count} tabs attached`
   tabsValue.textContent = String(count)
   tabsValue.className = 'info-value ok'
+  attachBtn.classList.add('hidden')
+  detachBtn.classList.remove('hidden')
 }
 
 function updateRelayInfo(state) {
@@ -790,6 +796,32 @@ connectionKeyInput.addEventListener('keydown', (e) => {
 
 settingsBtn.addEventListener('click', () => {
   void chrome.runtime.openOptionsPage()
+})
+
+attachBtn.addEventListener('click', () => {
+  attachBtn.disabled = true
+  attachBtn.textContent = '…'
+  chrome.runtime.sendMessage({ type: 'panel.attachTab' }, (res) => {
+    attachBtn.disabled = false
+    attachBtn.textContent = 'Attach'
+    if (res?.ok) {
+      // State broadcast will update the UI
+    } else {
+      console.warn('Attach failed:', res?.error)
+    }
+  })
+})
+
+detachBtn.addEventListener('click', () => {
+  detachBtn.disabled = true
+  chrome.runtime.sendMessage({ type: 'panel.detachTab' }, (res) => {
+    detachBtn.disabled = false
+    if (res?.ok) {
+      // State broadcast will update the UI
+    } else {
+      console.warn('Detach failed:', res?.error)
+    }
+  })
 })
 
 // ── Action feed ───────────────────────────────────────────────────────────
