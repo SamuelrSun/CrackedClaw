@@ -157,18 +157,18 @@ export async function POST(request: NextRequest) {
     }
 
     // ── System prompt ──
-    // Check unified_memory flag — if enabled, use unified retriever instead of separate pipelines
-    const unifiedMemoryEnabled = await (async () => {
+    // Read instance_settings once — used for both unified_memory and brain_enabled flags
+    const instanceSettings = await (async () => {
       try {
         const { data } = await supabase
           .from('profiles')
           .select('instance_settings')
           .eq('id', user.id)
           .single();
-        const settings = (data?.instance_settings as Record<string, unknown>) || {};
-        return (settings.unified_memory as boolean) ?? true;
-      } catch { return true; }
+        return (data?.instance_settings as Record<string, unknown>) || {};
+      } catch { return {} as Record<string, unknown>; }
     })();
+    const unifiedMemoryEnabled = (instanceSettings.unified_memory as boolean) ?? true;
 
     // When the instance has workspace files (SOUL.md, AGENTS.md) configured,
     // use lightweight dynamic context only — static identity lives in workspace files.
@@ -412,17 +412,8 @@ export async function POST(request: NextRequest) {
 
         // Brain signal collection (fire-and-forget)
         if (cleanedContent) {
-          const brainEnabled = await (async () => {
-            try {
-              const { data } = await supabase
-                .from('profiles')
-                .select('instance_settings')
-                .eq('id', user.id)
-                .single();
-              const settings = (data?.instance_settings as Record<string, unknown>) || {};
-              return (settings.brain_enabled as boolean) ?? true;
-            } catch { return false; }
-          })();
+          // Reuse instance_settings read from above
+          const brainEnabled = (instanceSettings.brain_enabled as boolean) ?? true;
 
           void collectBrainSignals({
             userId: user.id,

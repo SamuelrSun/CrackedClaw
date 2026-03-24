@@ -936,20 +936,35 @@ export function BrainClient({
 }) {
   const [activeTab, setActiveTab] = useState<BrainTab>('memories');
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
+  const [criteriaSearch, setCriteriaSearch] = useState('');
 
   const domainTree = useMemo(() => buildDomainTree(initialCriteria), [initialCriteria]);
 
-  // Filter criteria by selected domain
+  // Filter criteria by selected domain and search query
   const filteredCriteria = useMemo(() => {
-    if (!selectedDomain) return initialCriteria;
-    if (selectedDomain.includes('/')) {
-      const [domain, subdomain] = selectedDomain.split('/');
-      return initialCriteria.filter(
-        (c) => c.domain === domain && c.subdomain === subdomain
+    let result = initialCriteria;
+    if (selectedDomain) {
+      if (selectedDomain.includes('/')) {
+        const [domain, subdomain] = selectedDomain.split('/');
+        result = result.filter(
+          (c) => c.domain === domain && c.subdomain === subdomain
+        );
+      } else {
+        result = result.filter((c) => c.domain === selectedDomain);
+      }
+    }
+    if (criteriaSearch.trim()) {
+      const q = criteriaSearch.toLowerCase();
+      result = result.filter(
+        (c) =>
+          c.description.toLowerCase().includes(q) ||
+          c.domain.toLowerCase().includes(q) ||
+          (c.subdomain && c.subdomain.toLowerCase().includes(q)) ||
+          c.preference_type.toLowerCase().includes(q)
       );
     }
-    return initialCriteria.filter((c) => c.domain === selectedDomain);
-  }, [initialCriteria, selectedDomain]);
+    return result;
+  }, [initialCriteria, selectedDomain, criteriaSearch]);
 
   // Group by preference type
   const groupedByType = useMemo(() => {
@@ -1040,6 +1055,28 @@ export function BrainClient({
 
           {activeTab === 'learned' && (
             <>
+              {/* Search bar for learned preferences */}
+              <div className="mb-4">
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/20 text-xs pointer-events-none">🔍</span>
+                  <input
+                    type="text"
+                    value={criteriaSearch}
+                    onChange={(e) => setCriteriaSearch(e.target.value)}
+                    placeholder="Search preferences..."
+                    className="w-full bg-white/[0.05] border border-white/[0.08] rounded-[2px] pl-8 pr-3 py-1.5 text-xs font-mono text-white/70 placeholder:text-white/20 outline-none focus:border-white/[0.15] transition-colors"
+                  />
+                  {criteriaSearch && (
+                    <button
+                      onClick={() => setCriteriaSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/50 text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* Mobile domain filter */}
               <div className="md:hidden mb-4">
                 <select
