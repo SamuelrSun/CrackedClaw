@@ -598,15 +598,14 @@ async function onChatWsMessage(text) {
         minProtocol: 3,
         maxProtocol: 3,
         client: {
-          id: 'dopl-cowork-panel',
+          id: 'webchat',
           version: '1.0.0',
-          platform: 'chrome-extension',
+          platform: 'web',
           mode: 'webchat',
         },
         role: 'operator',
         scopes: ['operator.admin'],
         auth: { token: gatewayToken },
-        nonce: nonce || undefined,
       },
     })
     return
