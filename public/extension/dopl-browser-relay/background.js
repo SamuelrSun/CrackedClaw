@@ -452,7 +452,7 @@ let nextChatReqId = 1
 async function buildPanelState() {
   const stored = await chrome.storage.local.get(['gatewayToken', 'remoteHost', 'relayPort'])
   const hasToken = Boolean(stored.gatewayToken || stored.remoteHost)
-  const connected = Boolean(relayWs && relayWs.readyState === WebSocket.OPEN)
+  const connected = Boolean(chatWsConnected && chatWs && chatWs.readyState === WebSocket.OPEN)
 
   const attachedTabs = []
   for (const [tabId, tab] of tabs.entries()) {
@@ -499,6 +499,177 @@ function forwardToPanel(payload) {
     chrome.runtime.sendMessage(payload).catch(() => {})
   } catch {
     // panel not open
+  }
+}
+
+// ── Chat WebSocket (separate from relay WS) ─────────────────────────────────
+// The relay WS at /relay/extension only handles CDP. Chat events (agent stream,
+// chat.send, etc.) need a direct gateway connection at the root WS path.
+
+/** @type {WebSocket|null} */
+let chatWs = null
+/** @type {Promise<void>|null} */
+let chatWsConnectPromise = null
+let chatWsConnected = false
+let chatWsReconnectAttempt = 0
+let chatWsReconnectTimer = null
+
+async function ensureChatWsConnection() {
+  if (chatWs && chatWs.readyState === WebSocket.OPEN) return
+  if (chatWsConnectPromise) return await chatWsConnectPromise
+
+  chatWsConnectPromise = (async () => {
+    const gatewayToken = await getGatewayToken()
+    const remoteHost = await getRemoteHost()
+    if (!gatewayToken || !remoteHost) throw new Error('No gateway config for chat WS')
+
+    // Connect to root gateway WS (NOT /relay/extension)
+    const wsUrl = `wss://${remoteHost}`
+    const ws = new WebSocket(wsUrl)
+    chatWs = ws
+
+    ws.onmessage = (event) => {
+      void onChatWsMessage(String(event.data || ''))
+    }
+
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('Chat WS connect timeout')), 8000)
+      ws.onopen = () => { clearTimeout(t); resolve() }
+      ws.onerror = () => { clearTimeout(t); reject(new Error('Chat WS connect failed')) }
+      ws.onclose = (ev) => { clearTimeout(t); reject(new Error(`Chat WS closed (${ev.code})`)) }
+    })
+
+    ws.onclose = () => {
+      chatWs = null
+      chatWsConnected = false
+      void broadcastPanelState()
+      scheduleChatWsReconnect()
+    }
+    ws.onerror = () => {
+      chatWs = null
+      chatWsConnected = false
+    }
+  })()
+
+  try {
+    await chatWsConnectPromise
+    chatWsReconnectAttempt = 0
+  } finally {
+    chatWsConnectPromise = null
+  }
+}
+
+function scheduleChatWsReconnect() {
+  if (chatWsReconnectTimer) return
+  const delay = reconnectDelayMs(chatWsReconnectAttempt)
+  chatWsReconnectAttempt++
+  chatWsReconnectTimer = setTimeout(async () => {
+    chatWsReconnectTimer = null
+    try {
+      await ensureChatWsConnection()
+    } catch {
+      scheduleChatWsReconnect()
+    }
+  }, delay)
+}
+
+function sendToChat(payload) {
+  if (!chatWs || chatWs.readyState !== WebSocket.OPEN) throw new Error('Chat WS not connected')
+  chatWs.send(JSON.stringify(payload))
+}
+
+/** Chat WS handshake state */
+let chatWsHandshakeId = null
+
+async function onChatWsMessage(text) {
+  let msg
+  try { msg = JSON.parse(text) } catch { return }
+
+  // Step 1: Connect challenge → send auth
+  if (msg?.type === 'event' && msg?.event === 'connect.challenge') {
+    const nonce = typeof msg?.payload?.nonce === 'string' ? msg.payload.nonce.trim() : ''
+    const gatewayToken = await getGatewayToken()
+    chatWsHandshakeId = `chat-connect-${Date.now()}`
+    sendToChat({
+      type: 'req',
+      id: chatWsHandshakeId,
+      method: 'connect',
+      params: {
+        minProtocol: 3,
+        maxProtocol: 3,
+        client: {
+          id: 'dopl-cowork-panel',
+          version: '1.0.0',
+          platform: 'chrome-extension',
+          mode: 'webchat',
+        },
+        role: 'operator',
+        scopes: ['operator.admin'],
+        auth: { token: gatewayToken },
+        nonce: nonce || undefined,
+      },
+    })
+    return
+  }
+
+  // Step 2: hello-ok → connected
+  if (msg?.type === 'res' && chatWsHandshakeId && msg.id === chatWsHandshakeId) {
+    chatWsHandshakeId = null
+    if (msg.ok || msg.payload?.type === 'hello-ok') {
+      chatWsConnected = true
+      void broadcastPanelState()
+    } else {
+      console.warn('Chat WS handshake rejected', msg.error)
+      chatWs?.close()
+    }
+    return
+  }
+
+  if (msg?.type === 'hello-ok' || (msg?.type === 'res' && msg?.payload?.type === 'hello-ok')) {
+    chatWsConnected = true
+    void broadcastPanelState()
+    return
+  }
+
+  // Ping/pong
+  if (msg?.method === 'ping') {
+    try { sendToChat({ method: 'pong' }) } catch {}
+    return
+  }
+
+  // Agent streaming events → forward to panel
+  if (msg?.type === 'event' && msg?.event === 'agent') {
+    const payload = msg.payload || {}
+    const stream = payload.stream
+    const data = payload.data || {}
+
+    if (stream === 'assistant' && data.delta) {
+      forwardToPanel({ type: 'chat.token', delta: data.delta })
+    } else if (stream === 'thinking' && data.delta) {
+      forwardToPanel({ type: 'chat.thinking', delta: data.delta })
+    } else if (stream === 'lifecycle') {
+      if (data.phase === 'start') forwardToPanel({ type: 'chat.lifecycle', phase: 'start' })
+      else if (data.phase === 'end') forwardToPanel({ type: 'chat.lifecycle', phase: 'end' })
+    }
+    return
+  }
+
+  // Final chat message
+  if (msg?.type === 'event' && msg?.event === 'chat') {
+    const payload = msg.payload || {}
+    if (payload.state === 'final') {
+      const message = payload.message || {}
+      const contentArr = Array.isArray(message.content) ? message.content : []
+      const fullText = (contentArr.find(c => c.type === 'text') || {}).text || ''
+      forwardToPanel({ type: 'chat.done', fullText })
+    }
+    return
+  }
+
+  // Error responses to chat requests
+  if (msg?.type === 'res' && !msg.ok && typeof msg.id === 'string' && (msg.id.startsWith('chat-') || msg.id.startsWith('abort-'))) {
+    const errMsg = msg.error?.message || msg.error || 'Request failed'
+    forwardToPanel({ type: 'chat.error', message: String(errMsg) })
   }
 }
 
@@ -556,45 +727,8 @@ async function onRelayMessage(text) {
     return
   }
 
-  // ── Chat streaming events → forward to side panel ────────────────────────
-  if (msg && msg.type === 'event' && msg.event === 'agent') {
-    const payload = msg.payload || {}
-    const stream = payload.stream
-    const data = payload.data || {}
-
-    if (stream === 'assistant' && data.delta) {
-      forwardToPanel({ type: 'chat.token', delta: data.delta })
-    } else if (stream === 'thinking' && data.delta) {
-      forwardToPanel({ type: 'chat.thinking', delta: data.delta })
-    } else if (stream === 'lifecycle') {
-      if (data.phase === 'start') {
-        forwardToPanel({ type: 'chat.lifecycle', phase: 'start' })
-      } else if (data.phase === 'end') {
-        forwardToPanel({ type: 'chat.lifecycle', phase: 'end' })
-      }
-    }
-    // Don't return — other handlers may also want agent events
-  }
-
-  if (msg && msg.type === 'event' && msg.event === 'chat') {
-    const payload = msg.payload || {}
-    if (payload.state === 'final') {
-      const message = payload.message || {}
-      const contentArr = Array.isArray(message.content) ? message.content : []
-      const fullText = (contentArr.find(c => c.type === 'text') || {}).text || ''
-      forwardToPanel({ type: 'chat.done', fullText })
-    }
-    // Don't return — allow other handlers
-  }
-
-  // ── Response to chat.send / chat.abort / chat.history ────────────────────
-  if (msg && msg.type === 'res' && typeof msg.id === 'string' && (msg.id.startsWith('chat-') || msg.id.startsWith('abort-') || msg.id.startsWith('hist-'))) {
-    if (!msg.ok) {
-      const errMsg = msg.error?.message || msg.error || 'Request failed'
-      forwardToPanel({ type: 'chat.error', message: String(errMsg) })
-    }
-    // Don't return — pending map may also have an entry
-  }
+  // Chat events are handled by the dedicated chatWs (onChatWsMessage).
+  // The relay WS only handles CDP commands.
 
   if (msg && typeof msg.id === 'number' && msg.method === 'forwardCDPCommand') {
     // Action feed + glow: describe and broadcast to panel
@@ -1370,10 +1504,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     ;(async () => {
       try {
         const state = await buildPanelState()
-        // Auto-connect relay when panel opens and config exists but relay isn't up
-        if (state.hasConfig && !state.connected && !relayConnectPromise) {
+        // Auto-connect chat WS when panel opens and config exists but not connected
+        if (state.hasConfig && !state.connected && !chatWsConnectPromise) {
+          ensureChatWsConnection()
+            .catch(() => { scheduleChatWsReconnect() })
+        }
+        // Also connect relay (for CDP/browser control) if not already up
+        if (state.hasConfig && !relayConnectPromise && (!relayWs || relayWs.readyState !== WebSocket.OPEN)) {
           ensureRelayConnection()
-            .then(() => { reconnectAttempt = 0; void broadcastPanelState() })
+            .then(() => { reconnectAttempt = 0 })
             .catch(() => { if (!reconnectTimer) scheduleReconnect() })
         }
         sendResponse(state)
@@ -1436,10 +1575,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'chat.send') {
     ;(async () => {
       try {
-        await ensureRelayConnection()
+        await ensureChatWsConnection()
         const id = `chat-${nextChatReqId++}`
         const sessionKey = msg.sessionKey || `webchat-${Date.now()}`
-        sendToRelay({
+        sendToChat({
           type: 'req',
           id,
           method: 'chat.send',
@@ -1460,14 +1599,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   // ── Chat abort ──────────────────────────────────────────────────────────
   if (msg.type === 'chat.abort') {
     try {
-      sendToRelay({
+      sendToChat({
         type: 'req',
         id: `abort-${nextChatReqId++}`,
         method: 'chat.abort',
         params: msg.sessionKey ? { sessionKey: msg.sessionKey } : {},
       })
     } catch {
-      // relay may be down
+      // chat ws may be down
     }
     sendResponse({ ok: true })
     return false
@@ -1477,14 +1616,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'chat.history') {
     ;(async () => {
       try {
-        await ensureRelayConnection()
-        const result = await requestFromRelay({
+        await ensureChatWsConnection()
+        sendToChat({
           type: 'req',
-          id: Date.now(),
+          id: `hist-${nextChatReqId++}`,
           method: 'chat.history',
           params: msg.sessionKey ? { sessionKey: msg.sessionKey } : {},
         })
-        sendResponse({ ok: true, messages: result })
+        sendResponse({ ok: true })
       } catch (err) {
         sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
       }
