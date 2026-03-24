@@ -1,8 +1,6 @@
 /**
  * Text extraction from uploaded files.
- * Handles text-based formats directly.
- * Binary formats (PDF, DOCX) are stored but not extracted server-side —
- * the AI can read them via browser tool or we note the limitation.
+ * Handles text-based formats directly, PDFs via pdf-parse, DOCX via mammoth.
  */
 
 export interface ExtractionResult {
@@ -57,7 +55,7 @@ export function chunkText(text: string): string[] {
  * Extract text from a file buffer based on its MIME type.
  * Returns extracted text + chunks. Binary formats return a placeholder.
  */
-export function extractText(buffer: Buffer, mimeType: string, fileName: string): ExtractionResult {
+export async function extractText(buffer: Buffer, mimeType: string, fileName: string): Promise<ExtractionResult> {
   // Plain text formats — read directly
   if (
     mimeType === 'text/plain' ||
@@ -78,29 +76,58 @@ export function extractText(buffer: Buffer, mimeType: string, fileName: string):
     };
   }
 
-  // PDF — not extractable server-side without native deps
+  // PDF — extract with pdf-parse
   if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
-    return {
-      text: `[PDF: ${fileName}]`,
-      chunks: [`[PDF file: ${fileName}. Content not extracted — AI can read this via browser tool if needed.]`],
-      extractable: false,
-      warning: 'PDF text extraction requires additional setup. The file is stored and accessible.',
-    };
+    try {
+      const pdfParse = (await import('pdf-parse')).default;
+      const data = await pdfParse(buffer);
+      const text = data.text?.trim() || '';
+      if (text.length > 0) {
+        return {
+          text,
+          chunks: chunkText(text),
+          extractable: true,
+        };
+      }
+      return {
+        text: '',
+        chunks: [],
+        extractable: false,
+        warning: 'PDF appears to be image-based (no extractable text).',
+      };
+    } catch (err) {
+      return {
+        text: '',
+        chunks: [],
+        extractable: false,
+        warning: `PDF extraction failed: ${(err as Error).message}`,
+      };
+    }
   }
 
-  // DOCX / Office formats
+  // DOCX / Office formats — extract with mammoth
   if (
     mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
     mimeType === 'application/msword' ||
     fileName.endsWith('.docx') ||
     fileName.endsWith('.doc')
   ) {
-    return {
-      text: `[Word Document: ${fileName}]`,
-      chunks: [`[Word document: ${fileName}. Stored for reference.]`],
-      extractable: false,
-      warning: 'Word document extraction not yet supported. File is stored and can be referenced.',
-    };
+    try {
+      const mammoth = await import('mammoth');
+      const result = await mammoth.extractRawText({ buffer });
+      const text = result.value?.trim() || '';
+      if (text.length > 0) {
+        return { text, chunks: chunkText(text), extractable: true };
+      }
+      return { text: '', chunks: [], extractable: false, warning: 'DOCX appears empty.' };
+    } catch (err) {
+      return {
+        text: '',
+        chunks: [],
+        extractable: false,
+        warning: `DOCX extraction failed: ${(err as Error).message}`,
+      };
+    }
   }
 
   // XLSX / CSV-ish
@@ -123,6 +150,19 @@ export function extractText(buffer: Buffer, mimeType: string, fileName: string):
       chunks: [`[Image file: ${fileName}. Stored — AI can view via browser tool.]`],
       extractable: false,
     };
+  }
+
+  // Code and config files — all UTF-8 text
+  const codeExts = [
+    'js', 'ts', 'tsx', 'jsx', 'py', 'go', 'rs', 'java', 'c', 'cpp', 'h',
+    'rb', 'php', 'sh', 'bash', 'sql', 'r', 'swift', 'kt', 'yaml', 'yml',
+    'toml', 'xml', 'env', 'ini', 'conf', 'dockerfile', 'gitignore',
+    'scss', 'less', 'svg', 'log', 'jsonl', 'ndjson', 'tsv', 'css',
+  ];
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  if (codeExts.includes(ext)) {
+    const text = buffer.toString('utf-8').trim();
+    return { text, chunks: chunkText(text), extractable: true };
   }
 
   // Unknown
@@ -156,11 +196,28 @@ export function validateFile(
     'application/msword',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+    // Code / script MIME types
+    'text/javascript', 'application/javascript', 'text/typescript',
+    'text/x-python', 'application/x-python',
+    'text/x-java', 'text/x-c', 'text/x-go', 'text/x-rust', 'text/x-ruby',
+    'text/x-shellscript', 'text/x-sh', 'text/x-sql',
+    'text/yaml', 'application/x-yaml',
+    'text/xml', 'application/xml',
+    'text/css', 'text/x-scss', 'text/x-less',
+    'image/svg+xml',
+    'application/zip', 'application/x-zip-compressed',
+  ];
+
+  const allowedExt = [
+    'txt', 'md', 'csv', 'json', 'pdf', 'docx', 'doc', 'xlsx',
+    'png', 'jpg', 'jpeg', 'gif', 'webp', 'html',
+    'js', 'ts', 'tsx', 'jsx', 'py', 'go', 'rs', 'java', 'c', 'cpp', 'h',
+    'rb', 'php', 'sh', 'bash', 'sql', 'r', 'swift', 'kt',
+    'yaml', 'yml', 'toml', 'xml', 'env', 'ini', 'conf',
+    'log', 'jsonl', 'ndjson', 'tsv', 'scss', 'less', 'svg', 'css', 'zip',
   ];
 
   const ext = fileName.split('.').pop()?.toLowerCase();
-  const allowedExt = ['txt', 'md', 'csv', 'json', 'pdf', 'docx', 'doc', 'xlsx', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'html'];
-
   if (!allowed.includes(mimeType) && !allowedExt.includes(ext || '')) {
     return { valid: false, error: `File type not supported: ${mimeType}` };
   }

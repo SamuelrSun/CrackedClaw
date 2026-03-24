@@ -74,7 +74,7 @@ export async function uploadFile(params: {
   }
 
   // Extract text for chunking
-  const extraction = extractText(buffer, mimeType, fileName);
+  const extraction = await extractText(buffer, mimeType, fileName);
 
   // Insert file record
   const { data: fileRow, error: dbError } = await supabase
