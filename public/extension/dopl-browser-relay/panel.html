@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dopl</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <!-- Background image -->
+    <div class="bg"></div>
+
+    <!-- Panel layout -->
+    <div class="panel-layout">
+
+      <!-- ── Header ──────────────────────────────────────────────────────── -->
+      <div class="panel-header">
+        <div class="header-left">
+          <div class="logo" aria-hidden="true">
+            <img src="icons/icon128.png" alt="" />
+          </div>
+          <span class="header-title">Dopl</span>
+        </div>
+        <div class="header-right">
+          <span class="status-label" id="status-label">Disconnected</span>
+          <div class="status-dot" id="status-dot" data-state="disconnected" aria-label="Connection status"></div>
+        </div>
+      </div>
+
+      <!-- ── Main scrollable area ────────────────────────────────────────── -->
+      <div class="panel-main" id="panel-main">
+
+        <!-- Setup section (shown when no connection key) -->
+        <div class="glass card" id="setup-section">
+          <h2>Connect to Dopl</h2>
+          <p>Paste your connection key to link this browser to your Dopl agent.</p>
+
+          <label for="connection-key">Connection Key</label>
+          <div class="row">
+            <input
+              id="connection-key"
+              type="text"
+              placeholder="dopl_xxxxx…"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button id="save-btn" type="button">Connect</button>
+          </div>
+          <div class="hint">
+            Copy your key from <a href="https://usedopl.com/settings" target="_blank" rel="noreferrer">usedopl.com/settings</a>
+          </div>
+          <div class="form-status" id="form-status"></div>
+        </div>
+
+        <!-- Ready section (shown when connected) -->
+        <div class="glass card hidden" id="ready-section">
+          <h2>Status</h2>
+          <div class="ready-info">
+            <div class="info-row">
+              <span class="info-label">Relay</span>
+              <span class="info-value" id="relay-value">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Host</span>
+              <span class="info-value" id="host-value">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Attached Tabs</span>
+              <span class="info-value" id="tabs-value">None</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat placeholder (Phase 2 will replace this) -->
+        <div class="chat-placeholder hidden" id="chat-placeholder">
+          <div class="placeholder-icon">💬</div>
+          <p>Chat coming in Phase 2.<br />Your agent is ready to go.</p>
+        </div>
+
+      </div>
+
+      <!-- ── Footer / Tab status bar ────────────────────────────────────── -->
+      <div class="panel-footer">
+        <div class="tab-status">
+          <div class="tab-dot" id="tab-dot"></div>
+          <span class="tab-label" id="tab-label">No tab attached</span>
+        </div>
+        <div class="footer-actions">
+          <button class="btn-sm" id="settings-btn" type="button" title="Open settings">⚙</button>
+        </div>
+      </div>
+
+    </div>
+
+    <script src="panel.js"></script>
+  </body>
+</html>

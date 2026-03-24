@@ -262,6 +262,7 @@ function onRelayClosed(reason) {
     }
   }
 
+  void broadcastPanelState()
   scheduleReconnect()
 }
 
@@ -283,6 +284,7 @@ function scheduleReconnect() {
       reconnectAttempt = 0
       console.log('Reconnected successfully')
       await reannounceAttachedTabs()
+      void broadcastPanelState()
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       console.warn(`Reconnect attempt ${reconnectAttempt} failed: ${message}`)
@@ -558,6 +560,7 @@ async function attachTab(tabId, opts = {}) {
 
   setBadge(tabId, 'on')
   await persistState()
+  void broadcastPanelState()
 
   return { sessionId, targetId }
 }
@@ -614,6 +617,7 @@ async function detachTab(tabId, reason) {
   })
 
   await persistState()
+  void broadcastPanelState()
 }
 
 // ── Window Mode ──────────────────────────────────────────────────────────────
@@ -1020,7 +1024,66 @@ chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => void whenReady(
 chrome.debugger.onEvent.addListener((...args) => void whenReady(() => onDebuggerEvent(...args)))
 chrome.debugger.onDetach.addListener((...args) => void whenReady(() => onDebuggerDetach(...args)))
 
-chrome.action.onClicked.addListener(() => void whenReady(() => toggleWindowMode()))
+// ── Panel support ─────────────────────────────────────────────────────────
+
+/**
+ * Build a snapshot of current relay + tab state for the side panel.
+ * @returns {Promise<object>}
+ */
+async function buildPanelState() {
+  const stored = await chrome.storage.local.get(['gatewayToken', 'remoteHost', 'relayPort'])
+  const hasToken = Boolean(stored.gatewayToken || stored.remoteHost)
+  const connected = Boolean(relayWs && relayWs.readyState === WebSocket.OPEN)
+
+  const attachedTabs = []
+  for (const [tabId, tab] of tabs.entries()) {
+    if (tab.state !== 'connected') continue
+    let title = ''
+    let url = ''
+    try {
+      const info = await chrome.tabs.get(tabId)
+      title = info.title || ''
+      url = info.url || ''
+    } catch {
+      // tab may have closed
+    }
+    attachedTabs.push({ tabId, sessionId: tab.sessionId, title, url })
+  }
+
+  return {
+    hasConfig: hasToken,
+    connected,
+    windowModeEnabled,
+    remoteHost: String(stored.remoteHost || '').trim(),
+    port: stored.relayPort || DEFAULT_PORT,
+    tabs: attachedTabs,
+  }
+}
+
+/**
+ * Broadcast current state to the side panel (best-effort — panel may not be open).
+ */
+async function broadcastPanelState() {
+  try {
+    const state = await buildPanelState()
+    chrome.runtime.sendMessage({ type: 'panel.stateChanged', ...state }).catch(() => {
+      // Panel is not open — that's fine.
+    })
+  } catch {
+    // ignore
+  }
+}
+
+// Extension icon click → open side panel (replaces old window-mode toggle).
+chrome.action.onClicked.addListener((tab) => void whenReady(async () => {
+  try {
+    await chrome.sidePanel.open({ windowId: tab.windowId })
+  } catch (err) {
+    // sidePanel API not available (older Chrome) — fall back to window mode toggle
+    console.warn('sidePanel.open failed, falling back to window mode toggle', err instanceof Error ? err.message : String(err))
+    await toggleWindowMode()
+  }
+}))
 
 // Auto-attach new tabs when window mode is enabled.
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => void whenReady(async () => {
@@ -1116,22 +1179,38 @@ async function whenReady(fn) {
 // host_permissions and bypasses CORS preflight, so the options page
 // delegates token-validation requests here.
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.type !== 'relayCheck') return false
-  const { url, token } = msg
-  const headers = token ? { 'x-openclaw-relay-token': token } : {}
-  fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(2000) })
-    .then(async (res) => {
-      const contentType = String(res.headers.get('content-type') || '')
-      let json = null
-      if (contentType.includes('application/json')) {
-        try {
-          json = await res.json()
-        } catch {
-          json = null
+  if (msg?.type === 'relayCheck') {
+    const { url, token } = msg
+    const headers = token ? { 'x-openclaw-relay-token': token } : {}
+    fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(2000) })
+      .then(async (res) => {
+        const contentType = String(res.headers.get('content-type') || '')
+        let json = null
+        if (contentType.includes('application/json')) {
+          try {
+            json = await res.json()
+          } catch {
+            json = null
+          }
         }
+        sendResponse({ status: res.status, ok: res.ok, contentType, json })
+      })
+      .catch((err) => sendResponse({ status: 0, ok: false, error: String(err) }))
+    return true
+  }
+
+  // Side panel state query.
+  if (msg?.type === 'panel.getState') {
+    void whenReady(async () => {
+      try {
+        const state = await buildPanelState()
+        sendResponse(state)
+      } catch (err) {
+        sendResponse({ error: err instanceof Error ? err.message : String(err) })
       }
-      sendResponse({ status: res.status, ok: res.ok, contentType, json })
     })
-    .catch((err) => sendResponse({ status: 0, ok: false, error: String(err) }))
-  return true
+    return true // keep channel open for async response
+  }
+
+  return false
 })
