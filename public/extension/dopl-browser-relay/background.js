@@ -1276,6 +1276,10 @@ chrome.tabs.onActivated.addListener(({ tabId }) => void whenReady(() => {
 }))
 
 chrome.runtime.onInstalled.addListener(() => {
+  // Enable side panel on action click (required by Chrome sidePanel API)
+  if (chrome.sidePanel?.setPanelBehavior) {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {})
+  }
   void chrome.runtime.openOptionsPage()
 })
 
@@ -1314,6 +1318,11 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 // Rehydrate state on service worker startup. Split: rehydration is the gate
 // (fast), relay reconnect runs in background (slow, non-blocking).
+// Ensure side panel opens on action click — must be set on every SW startup.
+if (chrome.sidePanel?.setPanelBehavior) {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {})
+}
+
 const initPromise = rehydrateState().then(() => loadWindowModeState())
 
 initPromise.then(() => {
