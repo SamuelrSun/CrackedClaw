@@ -16,6 +16,8 @@ import { collectBrainSignals } from '@/lib/brain/signals/collector';
 import { checkAndTriggerAggregation } from '@/lib/brain/aggregator/auto-trigger';
 import { retrieveBrainContext } from '@/lib/brain/retriever/brain-retriever';
 import { formatBrainContext } from '@/lib/brain/retriever/context-formatter';
+import { retrieveUnifiedContext } from '@/lib/memory/unified-retriever';
+import { formatUnifiedContext } from '@/lib/memory/unified-formatter';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -108,18 +110,50 @@ export async function POST(request: NextRequest) {
     // Build system prompt (includes user context, memory, integrations)
     let systemPrompt = await buildSystemPromptForUser(user!.id, message, activeConversationId || undefined);
 
-    // Brain context injection — semantic retrieval of user preferences
-    try {
-      const brainCriteria = await retrieveBrainContext(
-        user!.id,
-        previousMessages.filter(m => m.role === 'user').slice(-4).concat([{ role: 'user', content: message }])
-      );
-      const brainPrompt = formatBrainContext(brainCriteria);
-      if (brainPrompt) {
-        systemPrompt = systemPrompt + '\n\n' + brainPrompt;
+    // Memory/Brain context injection
+    // Check unified_memory flag — if enabled, use unified retriever instead of separate pipelines
+    const unifiedMemoryEnabled = await (async () => {
+      try {
+        const supa = await createClient();
+        const { data } = await supa
+          .from('profiles')
+          .select('instance_settings')
+          .eq('id', user!.id)
+          .single();
+        const settings = (data?.instance_settings as Record<string, unknown>) || {};
+        return (settings.unified_memory as boolean) ?? false;
+      } catch { return false; }
+    })();
+
+    if (unifiedMemoryEnabled) {
+      // Unified path: single retrieval across all memory types (facts + criteria)
+      try {
+        const recentUserMsgs = previousMessages
+          .filter(m => m.role === 'user')
+          .slice(-4)
+          .concat([{ role: 'user', content: message }]);
+        const unifiedItems = await retrieveUnifiedContext(user!.id, recentUserMsgs);
+        const unifiedPrompt = formatUnifiedContext(unifiedItems);
+        if (unifiedPrompt) {
+          systemPrompt = systemPrompt + '\n\n' + unifiedPrompt;
+        }
+      } catch {
+        // Unified retrieval failure should never break chat
       }
-    } catch {
-      // Brain failure should never break chat
+    } else {
+      // Legacy path: brain context injection only (memory injection already in system prompt builder)
+      try {
+        const brainCriteria = await retrieveBrainContext(
+          user!.id,
+          previousMessages.filter(m => m.role === 'user').slice(-4).concat([{ role: 'user', content: message }])
+        );
+        const brainPrompt = formatBrainContext(brainCriteria);
+        if (brainPrompt) {
+          systemPrompt = systemPrompt + '\n\n' + brainPrompt;
+        }
+      } catch {
+        // Brain failure should never break chat
+      }
     }
 
     // All messages for the gateway
