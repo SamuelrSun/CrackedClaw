@@ -25,15 +25,13 @@ const supabaseAdmin = createClient(
  * Extract key facts from a conversation using Claude Haiku (cost-efficient).
  */
 async function extractFactsWithHaiku(
-  messages: Array<{ role: string; content: string }>
+  messages: Array<{ role: string; content: string }>,
+  userId?: string
 ): Promise<Array<{ content: string; importance: number; domain: string }>> {
   try {
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-
     const convoText = messages.map(m => `${m.role}: ${m.content}`).join('\n');
 
-    const response = await client.messages.create({
+    const params = {
       model: 'claude-sonnet-4-20250514',
       max_tokens: 512,
       system: `Extract up to ${MAX_FACTS} key facts, preferences, or important information from this conversation worth remembering long-term. Return a JSON array with:
@@ -47,8 +45,18 @@ Example:
 [{"content": "User prefers async communication over meetings", "importance": 0.8, "domain": "communication"},
  {"content": "User's dog is named Biscuit", "importance": 0.6, "domain": "pets"},
  {"content": "User is building an AR glasses startup called Fenna", "importance": 0.9, "domain": "projects"}]`,
-      messages: [{ role: 'user', content: convoText }],
-    });
+      messages: [{ role: 'user' as const, content: convoText }],
+    };
+
+    let response;
+    if (userId) {
+      const { meteredBackground } = await import('@/lib/ai/metered-client');
+      response = await meteredBackground(params, { userId, source: 'memory_extraction' });
+    } else {
+      const Anthropic = (await import('@anthropic-ai/sdk')).default;
+      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+      response = await client.messages.create(params);
+    }
 
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
     const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -139,7 +147,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const facts = await extractFactsWithHaiku(messages);
+    const facts = await extractFactsWithHaiku(messages, userId);
 
     if (facts.length === 0) {
       return NextResponse.json({ memoriesCreated: 0, facts: [] });

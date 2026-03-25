@@ -25,24 +25,31 @@ const supabaseAdmin = createClient(
  * Returns empty string if nothing meaningful happened.
  */
 async function generateSummaryWithHaiku(
-  messages: Array<{ role: string; content: string }>
+  messages: Array<{ role: string; content: string }>,
+  userId?: string
 ): Promise<string> {
-  const Anthropic = (await import('@anthropic-ai/sdk')).default;
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-
   const convoText = messages
     .map(m => `${m.role}: ${m.content}`)
     .join('\n');
 
-  const response = await client.messages.create({
+  const params = {
     model: getModelForTask('extraction'),
     max_tokens: 256,
-    timeout: 10_000,
     system: `Summarize this conversation in 2-3 sentences. Focus on: what was discussed, what was decided, and any action items or next steps. If nothing meaningful happened (just greetings or small talk), return an empty string.
 
 Format: Just the summary text, no JSON wrapping.`,
-    messages: [{ role: 'user', content: convoText }],
-  });
+    messages: [{ role: 'user' as const, content: convoText }],
+  };
+
+  let response;
+  if (userId) {
+    const { meteredBackground } = await import('@/lib/ai/metered-client');
+    response = await meteredBackground(params, { userId, source: 'session_summary' });
+  } else {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+    response = await client.messages.create(params);
+  }
 
   const text = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
   return text;
@@ -122,7 +129,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // ── Generate summary ──
-    const summary = await generateSummaryWithHaiku(messages);
+    const summary = await generateSummaryWithHaiku(messages, userId);
 
     if (!summary) {
       return NextResponse.json({ ok: true, summary: '', skipped: true, reason: 'nothing_meaningful' });

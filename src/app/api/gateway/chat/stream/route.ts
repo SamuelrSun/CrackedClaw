@@ -6,7 +6,11 @@ import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
 import { processAgentResponse } from "@/lib/memory/service";
 import { addChatTurn } from "@/lib/memory/chat-memory";
 import { incrementUsage } from "@/lib/usage/tracker";
-import { checkCreditLimit } from "@/lib/usage/credits";
+// Legacy credit system — kept for reference, replaced by wallet
+// import { checkCreditLimit } from "@/lib/usage/credits";
+import { logChatUsage } from "@/lib/ai/metered-client";
+import { checkWalletBalance, deductFromWallet } from "@/lib/usage/wallet";
+import { calculateUserCost } from "@/lib/usage/pricing";
 import { buildSystemPromptForUser, buildDynamicContext, buildLinkedContextSummary } from "@/lib/gateway/system-prompt";
 import { getUserInstance } from "@/lib/gateway/openclaw-proxy";
 import { collectBrainSignals } from "@/lib/brain/signals/collector";
@@ -79,25 +83,17 @@ export async function POST(request: NextRequest) {
     };
     const resolvedModel = MODEL_MAP[modelLevel as string] ?? "claude-sonnet-4";
 
-    // Credit limit enforcement
-    const limitCheck = await checkCreditLimit(user.id);
-    if (!limitCheck.allowed) {
-      const status = limitCheck.status;
-      const dailyHit = status.daily.limit > 0 && status.daily.usedPercent >= 100;
-      const resetsAt = dailyHit ? status.daily.resetsAt : status.weekly.resetsAt;
-      const reason = dailyHit
-        ? 'Daily usage limit reached'
-        : 'Weekly usage limit reached';
+    // Wallet balance enforcement (pay-as-you-go)
+    const walletCheck = await checkWalletBalance(user.id);
+    if (!walletCheck.allowed) {
       return NextResponse.json(
         {
-          error: "usage_limit",
-          reason,
-          resetsAt,
-          nextResetLabel: status.nextResetLabel,
-          upgradeNeeded: true,
-          currentPlan: status.plan,
+          error: "insufficient_balance",
+          reason: walletCheck.reason || 'Your balance is $0.00. Add funds to continue.',
+          balance: walletCheck.balance,
+          addFundsNeeded: true,
         },
-        { status: 429 }
+        { status: 402 }
       );
     }
 
@@ -260,6 +256,8 @@ export async function POST(request: NextRequest) {
     (async () => {
       let fullContent = '';
       let actualUsageTokens = 0;
+      let actualInputTokens = 0;
+      let actualOutputTokens = 0;
       const aiResponseStartTimestamp = Date.now();
 
       try {
@@ -349,9 +347,12 @@ export async function POST(request: NextRequest) {
 
                 // Capture usage data from gateway response
                 if (chunk.usage) {
-                  const total = chunk.usage.total_tokens
-                    || ((chunk.usage.prompt_tokens || 0) + (chunk.usage.completion_tokens || 0));
+                  const promptToks = chunk.usage.prompt_tokens || 0;
+                  const completionToks = chunk.usage.completion_tokens || 0;
+                  const total = chunk.usage.total_tokens || (promptToks + completionToks);
                   if (total > 0) actualUsageTokens = total;
+                  if (promptToks > 0) actualInputTokens = promptToks;
+                  if (completionToks > 0) actualOutputTokens = completionToks;
                 }
 
                 if (finishReason === 'stop' || finishReason === 'end_turn') {
@@ -470,6 +471,30 @@ export async function POST(request: NextRequest) {
           : Math.ceil((message.length + (fullContent?.length ?? 0)) / 4) + 4000;
         await incrementUsage(user.id, estimatedTokens, 0);
         await incrementTokenUsage(estimatedTokens).catch(() => {});
+
+        // Log to usage ledger with exact input/output token split + deduct from wallet
+        if (actualInputTokens > 0 || actualOutputTokens > 0) {
+          const chatCost = calculateUserCost(resolvedModel, actualInputTokens, actualOutputTokens);
+          logChatUsage({
+            userId: user.id,
+            model: resolvedModel,
+            inputTokens: actualInputTokens,
+            outputTokens: actualOutputTokens,
+            conversationId: capturedConvoId || undefined,
+          }).catch(() => {});
+          // Deduct from wallet and emit cost event
+          const newBalance = await deductFromWallet(user.id, chatCost).catch(() => -1);
+          try {
+            await writer.write(encode({
+              type: 'cost',
+              cost_usd: Math.round(chatCost * 10000) / 10000,
+              model: resolvedModel,
+              input_tokens: actualInputTokens,
+              output_tokens: actualOutputTokens,
+              balance_remaining: newBalance >= 0 ? Math.round(newBalance * 100) / 100 : undefined,
+            }));
+          } catch { /* writer may be closed */ }
+        }
       } catch (e) {
         console.error("Post-stream error:", e);
       }

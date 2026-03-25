@@ -119,7 +119,7 @@ export async function mem0Add(
   metadata?: Record<string, unknown>
 ): Promise<void> {
   try {
-    const facts = await extractMemories(messages);
+    const facts = await extractMemories(messages, userId);
     if (facts.length === 0) return;
 
     const userMsg = messages.find(m => m.role === 'user')?.content ?? '';
@@ -164,16 +164,18 @@ export async function mem0Add(
 
 /**
  * Extract key facts from a conversation using Claude.
+ * userId is optional — when provided, logs usage to the ledger (absorbed, not charged).
  */
 async function extractMemories(
-  messages: Array<{ role: string; content: string }>
+  messages: Array<{ role: string; content: string }>,
+  userId?: string
 ): Promise<Array<{ content: string; importance: number }>> {
+  const { meteredBackground } = await import('@/lib/ai/metered-client');
   const Anthropic = (await import('@anthropic-ai/sdk')).default;
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
   const convoText = messages.map(m => `${m.role}: ${m.content}`).join('\n');
 
-  const response = await client.messages.create({
+  const params = {
     model: getModelForTask('extraction'),
     max_tokens: 1024,
     system: `Extract key facts, preferences, and important information from this conversation that should be remembered for future interactions. Return a JSON array of objects with "content" (the fact) and "importance" (0-1 score). Only extract genuinely useful long-term facts, not transient details. If nothing worth remembering, return [].
@@ -183,8 +185,16 @@ Example output:
   {"content": "User prefers morning meetings before 10am", "importance": 0.8},
   {"content": "User is building an AR glasses startup called Fenna", "importance": 0.9}
 ]`,
-    messages: [{ role: 'user', content: convoText }],
-  });
+    messages: [{ role: 'user' as const, content: convoText }],
+  };
+
+  let response;
+  if (userId) {
+    response = await meteredBackground(params, { userId, source: 'memory_extraction' });
+  } else {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+    response = await client.messages.create(params);
+  }
 
   try {
     const text = response.content[0].type === 'text' ? response.content[0].text : '';

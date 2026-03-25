@@ -89,6 +89,12 @@ interface StreamingMessage extends Message {
   thinkingText?: string;
   thinkingStartTime?: number;
   thinkingDuration?: number;
+  // Pay-as-you-go cost data
+  cost_usd?: number;
+  model?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+  balance_remaining?: number;
 }
 
 function getToolEmoji(tool: string): string {
@@ -700,7 +706,7 @@ export default function ChatPageClient({
   const [editingConvoTitle, setEditingConvoTitle] = useState("");
   const [editingChatTitle, setEditingChatTitle] = useState(false);
   const [editingChatTitleValue, setEditingChatTitleValue] = useState("");
-  const [usageLimitData, setUsageLimitData] = useState<{ reason: string; nextResetLabel: string; currentPlan: string } | null>(null);
+  const [usageLimitData, setUsageLimitData] = useState<{ reason: string; nextResetLabel: string; currentPlan: string; balance?: number } | null>(null);
   const [showChatPricingModal, setShowChatPricingModal] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const lastFailedMessage = useRef<string | null>(null);
@@ -1521,11 +1527,12 @@ User message: `
           setIsLoading(false);
           try {
             const errData = await response.json();
-            if (errData.error === "usage_limit") {
+            if (errData.error === "usage_limit" || errData.error === "insufficient_balance") {
               setUsageLimitData({
-                reason: errData.reason || "Usage limit reached",
-                nextResetLabel: errData.nextResetLabel || "Resets soon",
+                reason: errData.reason || "Your balance is $0.00. Add funds to continue.",
+                nextResetLabel: errData.nextResetLabel || "",
                 currentPlan: errData.currentPlan || "free",
+                balance: errData.balance,
               });
               return;
             }
@@ -1708,6 +1715,16 @@ User message: `
             setActiveAgentTasks([]);
             setRetryCount(0);
             lastFailedMessage.current = null;
+          } else if (chunk.type === "cost") {
+            // Attach cost metadata to the message
+            updateMsg((m) => ({
+              ...m,
+              cost_usd: chunk.cost_usd,
+              model: chunk.model,
+              input_tokens: chunk.input_tokens,
+              output_tokens: chunk.output_tokens,
+              balance_remaining: chunk.balance_remaining,
+            }));
           } else if (chunk.type === "error") {
             // Remove placeholder and fall back
             setMessages((prev) => prev.filter((m) => m.id !== streamingMsgId));
@@ -2651,6 +2668,18 @@ User message: `
                       <span className="text-xs text-white/50">{msg.timestamp}</span>
                     </div>
                   )}
+                  {msg.role === "assistant" && streamingMsg.cost_usd !== undefined && !streamingMsg.isStreaming && (
+                    <div className="flex items-center gap-1.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="font-mono text-[10px] text-white/20">
+                        ${streamingMsg.cost_usd < 0.01 ? streamingMsg.cost_usd.toFixed(4) : streamingMsg.cost_usd.toFixed(2)}
+                      </span>
+                      {streamingMsg.input_tokens && (
+                        <span className="font-mono text-[10px] text-white/15">
+                          · {streamingMsg.input_tokens.toLocaleString()} in · {(streamingMsg.output_tokens || 0).toLocaleString()} out
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {msg.role === "assistant" && (
                     <MessageFeedback messageContent={msg.content} />
                   )}
@@ -3033,6 +3062,7 @@ User message: `
           reason={usageLimitData.reason}
           nextResetLabel={usageLimitData.nextResetLabel}
           currentPlan={usageLimitData.currentPlan}
+          balance={usageLimitData.balance}
           onUpgrade={() => { setUsageLimitData(null); setShowChatPricingModal(true); }}
           onClose={() => setUsageLimitData(null)}
         />

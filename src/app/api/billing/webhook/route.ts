@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, PRICE_IDS } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { addToWallet } from '@/lib/usage/wallet';
 import Stripe from 'stripe';
 export const dynamic = 'force-dynamic';
 
@@ -49,12 +50,25 @@ export async function POST(request: NextRequest) {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as {
-      metadata?: { user_id?: string; org_id?: string; plan?: string };
+      metadata?: { user_id?: string; org_id?: string; plan?: string; type?: string; amount?: string };
       subscription?: string;
+      payment_intent?: string;
     };
-    // Support both user_id (new) and org_id (legacy) in metadata
     const userId = session.metadata?.user_id || session.metadata?.org_id;
-    if (userId && session.subscription) {
+
+    // ── Wallet deposit (one-time payment) ──
+    if (userId && session.metadata?.type === 'wallet_deposit' && session.metadata?.amount) {
+      const depositAmount = parseFloat(session.metadata.amount);
+      if (depositAmount > 0) {
+        await addToWallet(userId, depositAmount, {
+          type: 'deposit',
+          stripePaymentId: (session.payment_intent as string) || undefined,
+          description: `Added $${depositAmount.toFixed(2)}`,
+        });
+      }
+    }
+    // ── Legacy subscription checkout (backward compat) ──
+    else if (userId && session.subscription) {
       const sub = await stripe.subscriptions.retrieve(session.subscription as string);
       const priceId = (sub as unknown as { items: { data: Array<{ price: { id: string } }> } }).items?.data?.[0]?.price?.id;
       const planSlug = priceId ? getPlanSlugFromPriceId(priceId) : (session.metadata?.plan || 'pro');

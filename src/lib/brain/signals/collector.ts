@@ -52,7 +52,7 @@ export async function collectBrainSignals(params: {
         const brainContext = await classifyBrainContext([
           { role: 'user', content: userMessage },
           { role: 'assistant', content: aiMessage },
-        ]);
+        ], userId);
         if (brainContext.domain && brainContext.domain !== 'general') {
           baseSignal.domain = brainContext.domain;
         }

@@ -17,21 +17,19 @@ const DEFAULT_CONTEXT: BrainContext = { domain: 'general' };
  * preference matching.
  */
 export async function classifyBrainContext(
-  messages: Array<{ role: string; content: string }>
+  messages: Array<{ role: string; content: string }>,
+  userId?: string
 ): Promise<BrainContext> {
   if (!messages.length) return DEFAULT_CONTEXT;
 
   try {
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-
     // Take last few messages for classification (keep it cheap)
     const recentMessages = messages.slice(-6);
     const convoText = recentMessages
       .map((m) => `${m.role}: ${m.content}`)
       .join('\n');
 
-    const response = await client.messages.create({
+    const params = {
       model: getModelForTask('classification'),
       max_tokens: 256,
       system: `Classify this conversation into a domain context. Return ONLY valid JSON with this structure:
@@ -52,8 +50,18 @@ Examples:
 - General chat → {"domain": "general"}
 
 Return ONLY the JSON object, nothing else.`,
-      messages: [{ role: 'user', content: convoText }],
-    });
+      messages: [{ role: 'user' as const, content: convoText }],
+    };
+
+    let response;
+    if (userId) {
+      const { meteredBackground } = await import('@/lib/ai/metered-client');
+      response = await meteredBackground(params, { userId, source: 'brain_classification' });
+    } else {
+      const Anthropic = (await import('@anthropic-ai/sdk')).default;
+      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+      response = await client.messages.create(params);
+    }
 
     const text =
       response.content[0].type === 'text' ? response.content[0].text : '';

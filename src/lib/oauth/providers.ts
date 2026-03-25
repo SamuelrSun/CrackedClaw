@@ -26,13 +26,15 @@ export const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
     clientSecretEnvVar: 'GOOGLE_CLIENT_SECRET',
     defaultScopes: [
       'https://www.googleapis.com/auth/gmail.modify',
-      'https://www.googleapis.com/auth/gmail.compose',
       'https://www.googleapis.com/auth/gmail.send',
       'https://www.googleapis.com/auth/calendar',
-      'https://www.googleapis.com/auth/drive',
-      'https://www.googleapis.com/auth/spreadsheets',
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/userinfo.profile',
+      // Drive & Spreadsheets removed — restricted scopes not yet approved by Google
+      // Add back after submitting for restricted scope verification:
+      // 'https://www.googleapis.com/auth/drive',
+      // 'https://www.googleapis.com/auth/spreadsheets',
+      // 'https://www.googleapis.com/auth/gmail.compose',
     ],
     additionalAuthParams: {
       access_type: 'offline',

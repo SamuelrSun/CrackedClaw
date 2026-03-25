@@ -48,8 +48,7 @@ async function synthesizeBatch(
   const supabase = createAdminClient();
 
   try {
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+    const { meteredBackground } = await import('@/lib/ai/metered-client');
 
     const patternsPayload = patterns.map((p, idx) => ({
       index: idx,
@@ -66,7 +65,7 @@ async function synthesizeBatch(
       })),
     }));
 
-    const response = await client.messages.create({
+    const response = await meteredBackground({
       model: getModelForTask('synthesis'),
       max_tokens: 2048,
       system: `You are analyzing behavioral patterns detected from a user's interactions with an AI assistant.
@@ -89,7 +88,7 @@ No markdown, no explanation — just the JSON array.`,
           content: `Patterns to synthesize:\n${JSON.stringify(patternsPayload, null, 2)}`,
         },
       ],
-    });
+    }, { userId, source: 'brain_synthesis' });
 
     const text =
       response.content[0].type === 'text' ? response.content[0].text : '';
