@@ -37,6 +37,7 @@ export const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
     additionalAuthParams: {
       access_type: 'offline',
       prompt: 'consent',
+      include_granted_scopes: 'true',
     },
   },
   slack: {
