@@ -24,17 +24,9 @@ function parseConnectionKey(key) {
   }
 }
 
-function updateRelayUrl(remoteHost, port) {
-  const el = document.getElementById('relay-url')
-  if (!el) return
-  const host = String(remoteHost || '').trim()
-  if (host) {
-    el.textContent = `wss://${host}/relay/`
-  } else if (port) {
-    el.textContent = `ws://127.0.0.1:${port}/extension`
-  } else {
-    el.textContent = '—'
-  }
+function showConnectionBadge(connected) {
+  const badge = document.getElementById('connection-status')
+  if (badge) badge.style.display = connected ? 'block' : 'none'
 }
 
 function setStatus(kind, message) {
@@ -53,9 +45,11 @@ async function checkRelayReachable(port, token, remoteHost) {
     const trimmedToken = String(token || '').trim()
     if (!trimmedToken) {
       setStatus('error', 'Gateway token required. Save your connection key to connect.')
+      showConnectionBadge(false)
       return
     }
-    setStatus('ok', `Will connect via wss://${host}/relay/`)
+    setStatus('', '')
+    showConnectionBadge(true)
     return
   }
 
@@ -92,10 +86,11 @@ async function load() {
   const remoteHost = String(stored.remoteHost || '').trim()
 
   document.getElementById('connection-key').value = connectionKey
-  updateRelayUrl(remoteHost, port)
 
   if (token || remoteHost) {
     await checkRelayReachable(port, token, remoteHost)
+  } else {
+    showConnectionBadge(false)
   }
 }
 

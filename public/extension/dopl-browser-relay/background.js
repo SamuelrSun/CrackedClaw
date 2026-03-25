@@ -562,6 +562,7 @@ async function sendChatViaHttp(text, conversationId, tabId) {
         message: text,
         conversation_id: conversationId || undefined,
         model: 'sonnet',
+        source: 'extension',
       }),
       signal: controller.signal,
     })

@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { message, conversation_id, model: modelLevel } = body;
+    const { message, conversation_id, model: modelLevel, source } = body;
 
     if (!message || typeof message !== "string") {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -222,6 +222,15 @@ export async function POST(request: NextRequest) {
       } catch {
         // Brain failure should never break chat
       }
+    }
+
+    // If the message came from the browser extension, inject context so the AI
+    // uses the attached Chrome tab (via relay) instead of its headless browser.
+    if (source === 'extension') {
+      systemPrompt += `\n\n## Browser Extension Context
+This message was sent from the Dopl Browser Relay extension in the user's Chrome browser. A Chrome tab is attached and available via the browser relay.
+When the user asks you to browse, navigate, or interact with websites, use the browser tool with profile="chrome" to control their actual browser tab — do NOT use the headless "openclaw" browser profile.
+The user can see the tab being controlled in real time.`;
     }
 
     // Replace conversation ID placeholder for subagent push instructions
