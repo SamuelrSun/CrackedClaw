@@ -32,11 +32,11 @@ import {
 import { createClientFromEnv } from './brain-api.js';
 
 // Tools
-import { RECALL_TOOL_DEFINITION, handleRecall, RecallInput } from './tools/recall.js';
-import { REMEMBER_TOOL_DEFINITION, handleRemember, RememberInput } from './tools/remember.js';
-import { UPDATE_TOOL_DEFINITION, handleUpdate, UpdateInput } from './tools/update.js';
-import { FORGET_TOOL_DEFINITION, handleForget, ForgetInput } from './tools/forget.js';
-import { IMPORT_TOOL_DEFINITION, handleImport, ImportInput } from './tools/import.js';
+import { RECALL_TOOL_DEFINITION, handleRecall } from './tools/recall.js';
+import { REMEMBER_TOOL_DEFINITION, handleRemember } from './tools/remember.js';
+import { UPDATE_TOOL_DEFINITION, handleUpdate } from './tools/update.js';
+import { FORGET_TOOL_DEFINITION, handleForget } from './tools/forget.js';
+import { IMPORT_TOOL_DEFINITION, handleImport } from './tools/import.js';
 
 // Resources
 import { handleProfileResource } from './resources/profile.js';
@@ -44,18 +44,66 @@ import { handleRecentResource } from './resources/recent.js';
 import { handleDomainsResource } from './resources/domains.js';
 
 // Prompts
-import {
-  handleImportMemoriesPrompt,
-  type ImportMemoriesArgs,
-} from './prompts/import-memories.js';
+import { handleImportMemoriesPrompt } from './prompts/import-memories.js';
 import { handleRecallContextPrompt } from './prompts/recall-context.js';
 
 // ---------------------------------------------------------------------------
-// Package metadata (read at runtime from package.json)
+// Package metadata
 // ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pkg = require('../package.json') as { version: string };
+
+// ---------------------------------------------------------------------------
+// Resource definitions (static metadata for ListResources)
+// ---------------------------------------------------------------------------
+
+const RESOURCES = [
+  {
+    uri: 'brain://profile',
+    name: 'Brain Profile',
+    description: "Summary of the user's Dopl Brain: name, fact count, domains, and last update.",
+    mimeType: 'text/plain',
+  },
+  {
+    uri: 'brain://recent',
+    name: 'Recent Memories',
+    description: 'Memories added or updated recently (last 20 by relevance).',
+    mimeType: 'text/plain',
+  },
+  {
+    uri: 'brain://domains',
+    name: 'Brain Domains',
+    description: 'Knowledge domains in the Dopl Brain with their fact counts.',
+    mimeType: 'text/plain',
+  },
+] as const;
+
+// Prompt definitions (static metadata for ListPrompts)
+const PROMPTS = [
+  {
+    name: 'import-memories',
+    description:
+      'Import existing memories from OpenClaw workspace files into Dopl Brain. ' +
+      'Reads MEMORY.md and the memory/ directory from the specified workspace path.',
+    arguments: [
+      {
+        name: 'workspace_path',
+        description:
+          'Path to the OpenClaw workspace directory (defaults to current directory). ' +
+          'Example: /Users/me/.openclaw/workspace',
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'recall-context',
+    description:
+      'Add a system instruction to check Dopl Brain before answering personal questions. ' +
+      'Makes brain_recall automatic for context-sensitive responses.',
+    arguments: [],
+  },
+] as const;
 
 // ---------------------------------------------------------------------------
 // Startup validation
@@ -129,31 +177,37 @@ async function main(): Promise<void> {
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
+    const inputArgs = (args ?? {}) as Record<string, unknown>;
+
+    // Helper: send progress logs to the client via MCP logging notification
+    const log = (message: string): void => {
+      server.sendLoggingMessage({ level: 'info', data: message }).catch(() => {
+        // Logging is best-effort — ignore if the client doesn't support it
+      });
+    };
 
     switch (name) {
       case 'brain_recall':
-        return handleRecall(client, args as unknown as RecallInput);
+        return handleRecall(client, inputArgs as unknown as Parameters<typeof handleRecall>[1]);
 
       case 'brain_remember':
-        return handleRemember(client, args as unknown as RememberInput);
+        return handleRemember(client, inputArgs as unknown as Parameters<typeof handleRemember>[1]);
 
       case 'brain_update':
-        return handleUpdate(client, args as unknown as UpdateInput);
+        return handleUpdate(client, inputArgs as unknown as Parameters<typeof handleUpdate>[1]);
 
       case 'brain_forget':
-        return handleForget(client, args as unknown as ForgetInput);
+        return handleForget(client, inputArgs as unknown as Parameters<typeof handleForget>[1]);
 
       case 'brain_import_memories':
-        return handleImport(client, args as unknown as ImportInput);
+        return handleImport(
+          client,
+          inputArgs as unknown as Parameters<typeof handleImport>[1],
+        );
 
       default:
         return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Unknown tool: ${name}`,
-            },
-          ],
+          content: [{ type: 'text' as const, text: `Unknown tool: ${name}` }],
           isError: true,
         };
     }
@@ -164,41 +218,22 @@ async function main(): Promise<void> {
   // -------------------------------------------------------------------------
 
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-    resources: [
-      {
-        uri: 'brain://profile',
-        name: 'Dopl Brain Profile',
-        description: 'Your identity, preferences, and memory statistics from Dopl Brain.',
-        mimeType: 'text/plain',
-      },
-      {
-        uri: 'brain://recent',
-        name: 'Recent Memories',
-        description: 'Memories added to your Dopl Brain in the last 48 hours.',
-        mimeType: 'text/plain',
-      },
-      {
-        uri: 'brain://domains',
-        name: 'Knowledge Domains',
-        description: 'List of knowledge domains and fact counts in your Dopl Brain.',
-        mimeType: 'text/plain',
-      },
-    ],
+    resources: RESOURCES,
   }));
 
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { uri } = request.params;
-    const parsedUri = new URL(uri);
+    const uriObject = new URL(uri);
 
     switch (uri) {
       case 'brain://profile':
-        return handleProfileResource(client, parsedUri);
+        return handleProfileResource(client, uriObject);
 
       case 'brain://recent':
-        return handleRecentResource(client, parsedUri);
+        return handleRecentResource(client, uriObject);
 
       case 'brain://domains':
-        return handleDomainsResource(client, parsedUri);
+        return handleDomainsResource(client, uriObject);
 
       default:
         return {
@@ -218,31 +253,18 @@ async function main(): Promise<void> {
   // -------------------------------------------------------------------------
 
   server.setRequestHandler(ListPromptsRequestSchema, async () => ({
-    prompts: [
-      {
-        name: 'import-memories',
-        description: 'Import existing memories from OpenClaw workspace files into Dopl Brain.',
-        arguments: [
-          {
-            name: 'workspace_path',
-            description: 'Path to the OpenClaw workspace (defaults to current directory)',
-            required: false,
-          },
-        ],
-      },
-      {
-        name: 'recall-context',
-        description: 'Add a system instruction to check Dopl Brain before answering personal questions.',
-      },
-    ],
+    prompts: PROMPTS,
   }));
 
   server.setRequestHandler(GetPromptRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
+    const promptArgs = (args ?? {}) as Record<string, string>;
 
     switch (name) {
       case 'import-memories':
-        return handleImportMemoriesPrompt((args ?? {}) as ImportMemoriesArgs);
+        return handleImportMemoriesPrompt({
+          workspace_path: promptArgs.workspace_path,
+        });
 
       case 'recall-context':
         return handleRecallContextPrompt();
@@ -259,13 +281,13 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  // Log startup to stderr (stdout is reserved for MCP protocol messages)
-  process.stderr.write(
-    `✅ Dopl Brain MCP server v${pkg.version} running (stdio)\n`,
-  );
+  // Startup log to stderr (stdout is reserved for the MCP protocol)
+  process.stderr.write(`✅ Dopl Brain MCP server v${pkg.version} running (stdio)\n`);
 }
 
 main().catch((err) => {
-  process.stderr.write(`Fatal error: ${err instanceof Error ? err.message : String(err)}\n`);
+  process.stderr.write(
+    `Fatal error starting Dopl Brain MCP server: ${err instanceof Error ? err.message : String(err)}\n`,
+  );
   process.exit(1);
 });
