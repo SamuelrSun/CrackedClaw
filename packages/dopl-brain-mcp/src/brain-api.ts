@@ -19,11 +19,11 @@
 export interface RecallResult {
   id: string;
   content: string;
-  domain?: string;
+  domain: string;
+  similarity: number;
+  importance: number;
   source?: string;
-  score?: number;
-  created_at?: string;
-  updated_at?: string;
+  created_at: string;
 }
 
 export interface RecallResponse {
@@ -45,12 +45,13 @@ export interface ForgetResponse {
 }
 
 export interface ProfileDomain {
-  name: string;
+  domain: string;
   fact_count: number;
+  last_updated?: string;
 }
 
 export interface ProfileResponse {
-  name: string;
+  user_id: string;
   domains: ProfileDomain[];
   fact_count: number;
   last_updated: string | null;

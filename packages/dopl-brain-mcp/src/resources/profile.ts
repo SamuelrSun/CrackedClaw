@@ -19,7 +19,6 @@ export async function handleProfileResource(
     const lines: string[] = [
       `# Dopl Brain Profile`,
       ``,
-      `**Name:** ${profile.name || '(not set)'}`,
       `**Total Memories:** ${profile.fact_count ?? 0}`,
       `**Last Updated:** ${profile.last_updated ?? 'never'}`,
       ``,
@@ -29,7 +28,7 @@ export async function handleProfileResource(
       lines.push(`## Domains`);
       lines.push('');
       for (const domain of profile.domains) {
-        lines.push(`- **${domain.name}**: ${domain.fact_count} fact${domain.fact_count === 1 ? '' : 's'}`);
+        lines.push(`- **${domain.domain}**: ${domain.fact_count} fact${domain.fact_count === 1 ? '' : 's'}`);
       }
     } else {
       lines.push('_No domains yet. Start adding memories with brain_remember!_');

@@ -82,7 +82,7 @@ export async function handleRecall(
       const r = results[i];
       const meta: string[] = [];
       if (r.domain) meta.push(`domain: ${r.domain}`);
-      if (r.score !== undefined) meta.push(`relevance: ${(r.score * 100).toFixed(0)}%`);
+      if (r.similarity !== undefined) meta.push(`relevance: ${(r.similarity * 100).toFixed(0)}%`);
       if (r.source) meta.push(`source: ${r.source}`);
 
       lines.push(`${i + 1}. [ID: ${r.id}] ${r.content}`);

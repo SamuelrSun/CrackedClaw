@@ -40,7 +40,8 @@ export async function handleDomainsResource(
     // Sort by fact count descending
     const sorted = [...domains].sort((a, b) => b.fact_count - a.fact_count);
     for (const domain of sorted) {
-      lines.push(`- **${domain.name}** (${domain.fact_count} fact${domain.fact_count === 1 ? '' : 's'})`);
+      lines.push(`- **${domain.domain}** (${domain.fact_count} fact${domain.fact_count === 1 ? '' : 's'})`);
+
     }
 
     const totalFacts = domains.reduce((sum, d) => sum + d.fact_count, 0);
