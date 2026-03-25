@@ -1200,6 +1200,113 @@ export default function ChatPageClient({
     setMemoryPanelOpen(true);
   }, []);
 
+  // ── Browser Relay / Companion auto-notification ──────────────────────────
+  // Poll /api/gateway/status every 20s to detect when the Browser Relay
+  // Chrome extension or the Companion app connects for the first time.
+  // On a false→true transition, inject a local system notice and trigger
+  // a brief AI acknowledgment via the chat WS.
+  useEffect(() => {
+    // Only run when the gateway is configured and the WS is connected
+    if (!gateway) return;
+
+    let cancelled = false;
+
+    // Track previous states (refs so we can read them in the interval without stale closures)
+    const prevStateRef = { browserRelay: false, companion: false, initialized: false };
+    // Timestamps of last notification — avoid re-firing within 5 minutes
+    const lastNotifiedRef: { browserRelay: number; companion: number } = { browserRelay: 0, companion: 0 };
+    // Last user activity time — stop polling if idle >5 min
+    let lastActivityTime = Date.now();
+    const activityHandler = () => { lastActivityTime = Date.now(); };
+    window.addEventListener('mousemove', activityHandler, { passive: true });
+    window.addEventListener('keydown', activityHandler, { passive: true });
+
+    const triggerRelayNotification = (type: 'browserRelay' | 'companion') => {
+      const now = Date.now();
+      const cooldown = 5 * 60 * 1000; // 5 minutes
+      if (now - lastNotifiedRef[type] < cooldown) return;
+      lastNotifiedRef[type] = now;
+
+      const isBrowserRelay = type === 'browserRelay';
+      const systemText = isBrowserRelay
+        ? '🟢 Browser Relay connected — I can now see and interact with your browser tabs.'
+        : '🟢 Desktop Companion connected — I can now control your Mac and browser apps.';
+      const aiPrompt = isBrowserRelay
+        ? '[SYSTEM] The user just connected their Browser Relay Chrome extension. Acknowledge this briefly — let them know you can see their browser now and offer to help with whatever they\'re working on. Keep it to 1-2 sentences, warm and natural.'
+        : '[SYSTEM] The user just connected their Desktop Companion app. Acknowledge this briefly — let them know you now have desktop access and offer to help. Keep it to 1-2 sentences, warm and natural.';
+
+      // Inject a local status message (distinct from user/assistant messages)
+      const statusMsgId = `relay-status-${Date.now()}`;
+      const statusMsg: StreamingMessage = {
+        id: statusMsgId,
+        role: 'assistant' as const,
+        content: systemText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isStreaming: false,
+        toolCalls: [],
+      };
+      setMessages(prev => [...prev, statusMsg]);
+
+      // After a brief pause, trigger the AI acknowledgment
+      setTimeout(() => {
+        if (!cancelled) handleSendRef.current(aiPrompt);
+      }, 800);
+    };
+
+    const poll = async () => {
+      if (cancelled) return;
+      // Don't poll if page is hidden (Page Visibility API)
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      // Don't poll if user has been idle for >5 minutes
+      if (Date.now() - lastActivityTime > 5 * 60 * 1000) return;
+
+      try {
+        const res = await fetch('/api/gateway/status');
+        if (!res.ok || cancelled) return;
+        const data = await res.json() as { companion?: boolean; browserRelay?: boolean };
+
+        const currentRelay = data.browserRelay === true;
+        const currentCompanion = data.companion === true;
+
+        if (!prevStateRef.initialized) {
+          // First poll — just record baseline, don't trigger
+          prevStateRef.browserRelay = currentRelay;
+          prevStateRef.companion = currentCompanion;
+          prevStateRef.initialized = true;
+          return;
+        }
+
+        // Detect false → true transitions
+        if (!prevStateRef.browserRelay && currentRelay) {
+          triggerRelayNotification('browserRelay');
+        }
+        if (!prevStateRef.companion && currentCompanion) {
+          triggerRelayNotification('companion');
+        }
+
+        prevStateRef.browserRelay = currentRelay;
+        prevStateRef.companion = currentCompanion;
+      } catch { /* ignore polling errors */ }
+    };
+
+    // Start polling after 5s (let page settle), then every 20s
+    const initTimer = setTimeout(() => {
+      if (!cancelled) poll();
+    }, 5000);
+    const interval = setInterval(() => {
+      if (!cancelled) poll();
+    }, 20000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(initTimer);
+      clearInterval(interval);
+      window.removeEventListener('mousemove', activityHandler);
+      window.removeEventListener('keydown', activityHandler);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gateway]);
+
   // Integration polling: detect when user connects integration in another tab
   useEffect(() => {
     let prevConnected: Set<string> = new Set();
@@ -2437,6 +2544,14 @@ User message: `
 
               return (
                 <MessageErrorBoundary key={msg.id}>
+                {/* Relay/Companion connection status notice — distinct centered style */}
+                {msg.id.startsWith('relay-status-') ? (
+                  <div key={`inner-${msg.id}`} className="flex justify-center my-1">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+                      {msg.content}
+                    </div>
+                  </div>
+                ) : (
                 <div
                   key={`inner-${msg.id}`}
                   className={cn(
@@ -2540,6 +2655,7 @@ User message: `
                     <MessageFeedback messageContent={msg.content} />
                   )}
                 </div>
+                )}
                 </MessageErrorBoundary>
               );
             })

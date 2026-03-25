@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
   let gatewayConnected = false;
   let gatewayHealth: Record<string, unknown> | null = null;
   let runtimeMode = "serverless";
+  let browserRelayConnected = false;
 
   const instance = await getUserInstance(user.id);
   if (instance) {
@@ -40,8 +41,42 @@ export async function GET(request: NextRequest) {
       if (healthRes.ok) {
         gatewayHealth = await healthRes.json();
         gatewayConnected = true;
+
+        // Check if health response includes relay info
+        if (gatewayHealth && typeof gatewayHealth === "object") {
+          const h = gatewayHealth as Record<string, unknown>;
+          if (typeof h.browserRelay === "boolean") {
+            browserRelayConnected = h.browserRelay;
+          } else if (typeof h.relay === "object" && h.relay !== null) {
+            const relay = h.relay as Record<string, unknown>;
+            browserRelayConnected = !!(relay.connected || (typeof relay.clients === "number" && relay.clients > 0));
+          } else if (typeof h.cowork === "object" && h.cowork !== null) {
+            const cowork = h.cowork as Record<string, unknown>;
+            browserRelayConnected = !!(cowork.relay || cowork.browserRelay);
+          }
+        }
       }
     } catch { /* gateway unreachable */ }
+
+    // Try dedicated relay status endpoint if health didn't include relay info
+    if (gatewayConnected && !browserRelayConnected) {
+      try {
+        const relayRes = await fetch(`${gatewayBaseUrl}/relay/status`, {
+          signal: AbortSignal.timeout(2000),
+        });
+        if (relayRes.ok) {
+          const relayData = await relayRes.json() as Record<string, unknown>;
+          // Accept various shapes: {connected: true}, {clients: 1}, {active: true}
+          if (relayData.connected === true || relayData.active === true) {
+            browserRelayConnected = true;
+          } else if (typeof relayData.clients === "number" && relayData.clients > 0) {
+            browserRelayConnected = true;
+          } else if (typeof relayData.extensionClients === "number" && relayData.extensionClients > 0) {
+            browserRelayConnected = true;
+          }
+        }
+      } catch { /* relay status endpoint not available — that's fine */ }
+    }
   }
 
   // Fetch token usage from user_usage table
@@ -100,6 +135,7 @@ export async function GET(request: NextRequest) {
       health: gatewayHealth,
     } : null,
     companion: companionConnected,
+    browserRelay: browserRelayConnected,
     tools: AVAILABLE_TOOLS,
   };
 
