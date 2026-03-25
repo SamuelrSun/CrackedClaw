@@ -29,7 +29,7 @@ function updateRelayUrl(remoteHost, port) {
   if (!el) return
   const host = String(remoteHost || '').trim()
   if (host) {
-    el.textContent = `wss://${host}/relay/extension`
+    el.textContent = `wss://${host}/relay/`
   } else if (port) {
     el.textContent = `ws://127.0.0.1:${port}/extension`
   } else {
@@ -55,7 +55,7 @@ async function checkRelayReachable(port, token, remoteHost) {
       setStatus('error', 'Gateway token required. Save your connection key to connect.')
       return
     }
-    setStatus('ok', `Will connect via wss://${host}/relay/extension`)
+    setStatus('ok', `Will connect via wss://${host}/relay/`)
     return
   }
 

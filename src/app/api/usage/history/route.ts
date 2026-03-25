@@ -1,10 +1,12 @@
 /**
- * GET /api/usage/history?period=day|week|month
+ * GET /api/usage/history?period=day|week|month&tz=America/Los_Angeles
  *
  * Returns usage data bucketed by time period for histogram display.
  * - day:   24 hourly buckets (last 24h)
  * - week:  7 daily buckets (last 7 days)
  * - month: 30 daily buckets (last 30 days)
+ *
+ * Labels are generated using the client's timezone (via `tz` param).
  */
 
 export const dynamic = 'force-dynamic';
@@ -17,82 +19,82 @@ type Period = 'day' | 'week' | 'month';
 
 interface Bucket {
   label: string;
-  timestamp: string; // ISO string — client formats in local timezone
   cost: number;
   count: number;
 }
+
+const VALID_PERIODS: Period[] = ['day', 'week', 'month'];
+const MAX_ROWS = 5000;
 
 export async function GET(request: NextRequest) {
   const { user, error } = await requireApiAuth();
   if (error) return error;
 
-  const period = (request.nextUrl.searchParams.get('period') || 'day') as Period;
-  if (!['day', 'week', 'month'].includes(period)) {
+  const periodParam = request.nextUrl.searchParams.get('period') || 'day';
+  if (!VALID_PERIODS.includes(periodParam as Period)) {
     return NextResponse.json({ error: 'period must be day, week, or month' }, { status: 400 });
   }
+  const period = periodParam as Period;
+  const tz = request.nextUrl.searchParams.get('tz') || 'UTC';
 
   try {
     const supabase = createAdminClient();
     const now = new Date();
+
+    // Compute time range
+    const msPerHour = 60 * 60 * 1000;
+    const msPerDay = 24 * msPerHour;
     let since: Date;
     let bucketCount: number;
+    let bucketMs: number;
 
-    switch (period) {
-      case 'day':
-        since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        bucketCount = 24;
-        break;
-      case 'week':
-        since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        bucketCount = 7;
-        break;
-      case 'month':
-        since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        bucketCount = 30;
-        break;
+    if (period === 'day') {
+      since = new Date(now.getTime() - 24 * msPerHour);
+      bucketCount = 24;
+      bucketMs = msPerHour;
+    } else if (period === 'week') {
+      since = new Date(now.getTime() - 7 * msPerDay);
+      bucketCount = 7;
+      bucketMs = msPerDay;
+    } else {
+      since = new Date(now.getTime() - 30 * msPerDay);
+      bucketCount = 30;
+      bucketMs = msPerDay;
     }
 
-    // Fetch all ledger entries in the time range (limit 10k to avoid runaway queries)
+    // Fetch ledger entries (capped)
     const { data: entries } = await supabase
       .from('usage_ledger')
-      .select('cost_usd, source, created_at')
+      .select('cost_usd, created_at')
       .eq('user_id', user!.id)
       .eq('charged', true)
       .gte('created_at', since.toISOString())
       .order('created_at', { ascending: true })
-      .limit(10000);
+      .limit(MAX_ROWS);
 
-    // Build empty buckets
+    // Build bucket labels using the user's timezone
     const buckets: Bucket[] = [];
+    const formatter = createLabelFormatter(period, tz);
 
-    // Build buckets with ISO timestamps — client formats labels in local timezone
-    const msPerBucket = period === 'day' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
     for (let i = 0; i < bucketCount; i++) {
-      const bucketTime = new Date(since.getTime() + i * msPerBucket);
-      buckets.push({
-        label: '', // Client will generate from timestamp
-        timestamp: bucketTime.toISOString(),
-        cost: 0,
-        count: 0,
-      });
+      const bucketTime = new Date(since.getTime() + i * bucketMs);
+      buckets.push({ label: formatter(bucketTime), cost: 0, count: 0 });
     }
 
     // Distribute entries into buckets
     if (entries) {
       for (const entry of entries) {
-        const entryTime = new Date(entry.created_at).getTime();
-        const elapsed = entryTime - since.getTime();
-
-        let bucketIndex = Math.floor(elapsed / msPerBucket);
-
-        // Clamp to valid range
-        bucketIndex = Math.max(0, Math.min(bucketIndex, bucketCount - 1));
+        const elapsed = new Date(entry.created_at).getTime() - since.getTime();
+        const bucketIndex = Math.max(0, Math.min(
+          Math.floor(elapsed / bucketMs),
+          bucketCount - 1,
+        ));
         buckets[bucketIndex].cost += Number(entry.cost_usd);
         buckets[bucketIndex].count += 1;
       }
     }
 
-    // Round costs
+    // Round costs to avoid floating point noise
     for (const b of buckets) {
       b.cost = Math.round(b.cost * 10000) / 10000;
     }
@@ -110,4 +112,43 @@ export async function GET(request: NextRequest) {
     console.error('[api/usage/history] error:', err);
     return NextResponse.json({ error: 'Failed to fetch usage history' }, { status: 500 });
   }
+}
+
+/**
+ * Create a label formatter for the given period and timezone.
+ * Uses Intl.DateTimeFormat to respect the user's timezone.
+ */
+function createLabelFormatter(period: Period, tz: string): (date: Date) => string {
+  // Validate timezone — fall back to UTC if invalid
+  let validTz = 'UTC';
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    validTz = tz;
+  } catch {
+    // Invalid timezone string — use UTC
+  }
+
+  if (period === 'day') {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      timeZone: validTz,
+    });
+    return (date: Date) => fmt.format(date); // "9 AM", "10 PM", etc.
+  }
+
+  if (period === 'week') {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      timeZone: validTz,
+    });
+    return (date: Date) => fmt.format(date); // "Mon", "Tue", etc.
+  }
+
+  // month
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    month: 'numeric',
+    day: 'numeric',
+    timeZone: validTz,
+  });
+  return (date: Date) => fmt.format(date); // "3/25", "3/26", etc.
 }
