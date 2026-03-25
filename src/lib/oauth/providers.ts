@@ -29,7 +29,7 @@ export const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
       'https://www.googleapis.com/auth/gmail.compose',
       'https://www.googleapis.com/auth/gmail.send',
       'https://www.googleapis.com/auth/calendar',
-      'https://www.googleapis.com/auth/drive',
+      'https://www.googleapis.com/auth/drive.file',
       'https://www.googleapis.com/auth/spreadsheets',
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/userinfo.profile',
