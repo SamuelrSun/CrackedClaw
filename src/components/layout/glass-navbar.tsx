@@ -13,9 +13,9 @@ import { Menu, X } from "lucide-react";
 const navLinks = [
   { href: "/chat", label: "Chat" },
   { href: "/brain", label: "Brain" },
-  { href: "/outreach", label: "Outreach" },
   { href: "/agents", label: "Agents" },
   { href: "/integrations", label: "Integrations" },
+  { href: "/docs", label: "Docs" },
   { href: "/settings", label: "Settings" },
 ];
 

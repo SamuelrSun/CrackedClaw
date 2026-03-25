@@ -530,7 +530,7 @@ async function getChatBaseUrl() {
  * Parses SSE events and forwards them to the side panel.
  * tabId is forwarded in panel events so the panel routes to the correct per-tab chat.
  */
-async function sendChatViaHttp(text, conversationId, tabId) {
+async function sendChatViaHttp(text, conversationId, tabId, history) {
   const gatewayToken = await getGatewayToken()
   if (!gatewayToken) throw new Error('No gateway token configured')
 
@@ -563,6 +563,7 @@ async function sendChatViaHttp(text, conversationId, tabId) {
         conversation_id: conversationId || undefined,
         model: 'sonnet',
         source: 'extension',
+        history: Array.isArray(history) ? history : [],
       }),
       signal: controller.signal,
     })
@@ -1644,7 +1645,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           }
         }
 
-        await sendChatViaHttp(msg.text || '', msg.conversationId, tabId)
+        await sendChatViaHttp(msg.text || '', msg.conversationId, tabId, msg.history)
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err)
         forwardToPanel({ type: 'chat.error', message: errMsg, tabId })

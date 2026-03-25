@@ -67,7 +67,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { message, conversation_id, model: modelLevel, source } = body;
+    const { message, conversation_id, model: modelLevel, source, history: extensionHistory } = body;
+    const isExtension = source === 'extension';
 
     if (!message || typeof message !== "string") {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -100,35 +101,39 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     let activeConversationId = conversation_id;
 
-    // ── Create conversation if needed, or rename if it's a fresh "New conversation" ──
-    if (!activeConversationId) {
-      const { data: newConvo } = await supabase
-        .from("conversations")
-        .insert({
-          user_id: user.id,
-          title: message.length > 50 ? message.substring(0, 47) + "..." : message,
-        })
-        .select()
-        .single();
-      if (newConvo) activeConversationId = newConvo.id;
-    } else {
-      // Rename "New conversation" to the first message content
-      const { data: existingConvo } = await supabase
-        .from("conversations")
-        .select("title")
-        .eq("id", activeConversationId)
-        .single();
-      if (existingConvo?.title === "New conversation") {
-        await supabase
+    // Extension chats are ephemeral — no Supabase storage.
+    // History is sent in the request body from chrome.storage.local.
+    if (!isExtension) {
+      // ── Create conversation if needed, or rename if it's a fresh "New conversation" ──
+      if (!activeConversationId) {
+        const { data: newConvo } = await supabase
           .from("conversations")
-          .update({ title: message.length > 50 ? message.substring(0, 47) + "..." : message })
-          .eq("id", activeConversationId);
+          .insert({
+            user_id: user.id,
+            title: message.length > 50 ? message.substring(0, 47) + "..." : message,
+          })
+          .select()
+          .single();
+        if (newConvo) activeConversationId = newConvo.id;
+      } else {
+        // Rename "New conversation" to the first message content
+        const { data: existingConvo } = await supabase
+          .from("conversations")
+          .select("title")
+          .eq("id", activeConversationId)
+          .single();
+        if (existingConvo?.title === "New conversation") {
+          await supabase
+            .from("conversations")
+            .update({ title: message.length > 50 ? message.substring(0, 47) + "..." : message })
+            .eq("id", activeConversationId);
+        }
       }
-    }
 
-    // ── Save user message ──
-    if (activeConversationId) {
-      try { await supabase.from("messages").insert({ conversation_id: activeConversationId, role: "user", content: message }); } catch(e) { console.error("Failed to save user message:", e); }
+      // ── Save user message ──
+      if (activeConversationId) {
+        try { await supabase.from("messages").insert({ conversation_id: activeConversationId, role: "user", content: message }); } catch(e) { console.error("Failed to save user message:", e); }
+      }
     }
 
     // ── Workflow matching ──
@@ -146,7 +151,13 @@ export async function POST(request: NextRequest) {
 
     // ── History ──
     let previousMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
-    if (activeConversationId) {
+    if (isExtension && Array.isArray(extensionHistory)) {
+      // Extension sends chat history from chrome.storage.local (ephemeral, per-tab)
+      previousMessages = extensionHistory
+        .filter((m: { role?: string; content?: string }) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+        .slice(-50) // cap at 50 messages for safety
+        .map((m: { role: string; content: string }) => ({ role: m.role as 'user' | 'assistant', content: m.role === 'user' ? stripFilePrefix(m.content) : m.content }));
+    } else if (activeConversationId) {
       try {
         const { data: historyRows } = await supabase
           .from("messages")
@@ -393,7 +404,7 @@ The user can see the tab being controlled in real time.`;
         }
 
         // Fire-and-forget session summary extraction (min 4 msgs: 2 user + 2 assistant turns)
-        if (cleanedContent && capturedConvoId) {
+        if (!isExtension && cleanedContent && capturedConvoId) {
           const summaryMessages = [
             ...previousMessages.slice(-10),
             { role: 'user' as const, content: message },
@@ -413,7 +424,7 @@ The user can see the tab being controlled in real time.`;
           }).catch(() => {});
         }
 
-        if (capturedConvoId && cleanedContent) {
+        if (!isExtension && capturedConvoId && cleanedContent) {
           try { await supabase.from("messages").insert({ conversation_id: capturedConvoId, role: "assistant", content: cleanedContent }); } catch(e) { console.error("Failed to save assistant message:", e); }
           try { await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", capturedConvoId); } catch { }
         }

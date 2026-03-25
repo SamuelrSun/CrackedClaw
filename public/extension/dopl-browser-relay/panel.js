@@ -416,12 +416,18 @@ async function sendMessage() {
 
   const messageWithContext = pageContext + text
 
+  // Build history from completed messages (skip the just-added user msg + assistant placeholder)
+  const history = chat.messages
+    .slice(0, -2)
+    .filter(m => m.status === 'done' && (m.role === 'user' || m.role === 'assistant'))
+    .map(m => ({ role: m.role, content: m.content }))
+
   // Send to background — include tabId so background knows which tab's chat
   try {
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('Send timeout')), 30000)
       chrome.runtime.sendMessage(
-        { type: 'chat.send', text: messageWithContext, tabId: activeTabId },
+        { type: 'chat.send', text: messageWithContext, tabId: activeTabId, history },
         (response) => {
           clearTimeout(timer)
           if (chrome.runtime.lastError) { reject(new Error(chrome.runtime.lastError.message)); return }

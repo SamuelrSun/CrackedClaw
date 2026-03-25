@@ -38,9 +38,10 @@ export async function buildRelayWsUrl(port, gatewayToken, remoteHost) {
   const relayToken = await deriveRelayToken(token, port);
 
   // If remoteHost is set (e.g. "i-abc123.usedopl.com"), connect via wss.
-  // Nginx proxies /relay/ → the relay port root, so the path after /relay/ must be empty.
+  // Nginx proxies /relay/ → port 18143, stripping the /relay/ prefix.
+  // The relay server's WebSocket endpoint is /extension, so the full path is /relay/extension.
   if (remoteHost) {
-    return `wss://${remoteHost}/relay/?token=${encodeURIComponent(relayToken)}`;
+    return `wss://${remoteHost}/relay/extension?token=${encodeURIComponent(relayToken)}`;
   }
   // Local fallback — connect directly to the relay port root
   return `ws://127.0.0.1:${port}/?token=${encodeURIComponent(relayToken)}`;
