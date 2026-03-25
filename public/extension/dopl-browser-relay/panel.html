@@ -7,13 +7,11 @@
     <link rel="stylesheet" href="panel.css" />
   </head>
   <body>
-    <!-- Background image -->
     <div class="bg"></div>
 
-    <!-- Panel layout -->
     <div class="panel-layout">
 
-      <!-- ── Header ──────────────────────────────────────────────────────── -->
+      <!-- Header -->
       <div class="panel-header">
         <div class="header-left">
           <div class="logo" aria-hidden="true">
@@ -27,48 +25,22 @@
         </div>
       </div>
 
-      <!-- ── Main scrollable area ────────────────────────────────────────── -->
+      <!-- Main scrollable area -->
       <div class="panel-main" id="panel-main">
 
-        <!-- Setup section (shown when no connection key) -->
+        <!-- Setup section (shown only when no connection key) -->
         <div class="glass card" id="setup-section">
           <h2>Connect to Dopl</h2>
-          <p>Paste your connection key to link this browser to your Dopl agent.</p>
-
+          <p>Paste your connection key to get started.</p>
           <label for="connection-key">Connection Key</label>
           <div class="row">
-            <input
-              id="connection-key"
-              type="text"
-              placeholder="dopl_xxxxx…"
-              autocomplete="off"
-              spellcheck="false"
-            />
+            <input id="connection-key" type="text" placeholder="dopl_xxxxx…" autocomplete="off" spellcheck="false" />
             <button id="save-btn" type="button">Connect</button>
           </div>
           <div class="hint">
-            Copy your key from <a href="https://usedopl.com/settings" target="_blank" rel="noreferrer">usedopl.com/settings</a>
+            Copy from <a href="https://usedopl.com/settings" target="_blank" rel="noreferrer">usedopl.com/settings</a>
           </div>
           <div class="form-status" id="form-status"></div>
-        </div>
-
-        <!-- Ready section (shown when connected but not yet chatting) -->
-        <div class="glass card hidden" id="ready-section">
-          <h2>Status</h2>
-          <div class="ready-info">
-            <div class="info-row">
-              <span class="info-label">Relay</span>
-              <span class="info-value" id="relay-value">—</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Host</span>
-              <span class="info-value" id="host-value">—</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Attached Tabs</span>
-              <span class="info-value" id="tabs-value">None</span>
-            </div>
-          </div>
         </div>
 
         <!-- Chat area (shown when connected) -->
@@ -83,15 +55,9 @@
 
       </div>
 
-      <!-- ── Chat input bar ──────────────────────────────────────────────── -->
+      <!-- Chat input bar -->
       <div class="chat-input-bar hidden" id="chat-input-bar">
-        <textarea
-          id="chat-textarea"
-          placeholder="Ask Dopl anything…"
-          rows="1"
-          autocomplete="off"
-          spellcheck="true"
-        ></textarea>
+        <textarea id="chat-textarea" placeholder="Ask Dopl anything…" rows="1" autocomplete="off" spellcheck="true"></textarea>
         <button id="send-btn" class="input-btn" type="button" title="Send">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -103,19 +69,6 @@
             <rect x="6" y="6" width="12" height="12" rx="2"></rect>
           </svg>
         </button>
-      </div>
-
-      <!-- ── Footer / Tab status bar ────────────────────────────────────── -->
-      <div class="panel-footer">
-        <div class="tab-status">
-          <div class="tab-dot" id="tab-dot"></div>
-          <span class="tab-label" id="tab-label">No tab attached</span>
-        </div>
-        <div class="footer-actions">
-          <button class="btn-sm btn-attach" id="attach-btn" type="button" title="Attach this tab">Attach</button>
-          <button class="btn-sm btn-detach hidden" id="detach-btn" type="button" title="Detach tab">Detach</button>
-          <button class="btn-sm" id="settings-btn" type="button" title="Open settings">⚙</button>
-        </div>
       </div>
 
     </div>

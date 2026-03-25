@@ -457,6 +457,26 @@ code {
   color: rgba(248, 113, 113, 0.85);
 }
 
+.msg-retry-btn {
+  margin-top: 8px;
+  padding: 5px 14px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(248, 113, 113, 0.8);
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.msg-retry-btn:hover {
+  background: rgba(248, 113, 113, 0.15);
+  color: rgba(248, 113, 113, 1);
+}
+
 /* ── Markdown content styles ─────────────────────────────────────────────── */
 
 .msg-content {
@@ -593,6 +613,106 @@ code {
   overflow-y: auto;
 }
 
+/* ── Card tags (rich UI cards from [[...]] patterns) ─────────────────────── */
+
+.card-tag {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.card-tag strong {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+}
+
+.card-tag-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  margin-top: 1px;
+}
+
+.card-tag-hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 2px;
+}
+
+.card-tag-hint a {
+  color: rgba(74, 222, 128, 0.7);
+}
+
+.card-tag-hint a:hover {
+  color: rgba(74, 222, 128, 1);
+}
+
+.card-tag ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  list-style: none;
+}
+
+.card-tag li {
+  margin: 2px 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.card-tag--integration {
+  border-color: rgba(99, 102, 241, 0.2);
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.card-tag--status {
+  border-color: rgba(74, 222, 128, 0.15);
+  background: rgba(74, 222, 128, 0.04);
+}
+
+.card-tag--task {
+  border-color: rgba(245, 158, 11, 0.15);
+  background: rgba(245, 158, 11, 0.04);
+}
+
+.card-tag--browser {
+  border-color: rgba(59, 130, 246, 0.2);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.card-tag--email {
+  border-color: rgba(236, 72, 153, 0.15);
+  background: rgba(236, 72, 153, 0.04);
+}
+
+.card-tag--workflow {
+  border-color: rgba(168, 85, 247, 0.15);
+  background: rgba(168, 85, 247, 0.04);
+}
+
+.card-tag--welcome {
+  border-color: rgba(74, 222, 128, 0.2);
+  background: rgba(74, 222, 128, 0.06);
+  text-align: center;
+  justify-content: center;
+}
+
+/* ── Cost label ──────────────────────────────────────────────────────────── */
+
+.msg-cost {
+  margin-top: 6px;
+  font-size: 10px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
+  color: rgba(255, 255, 255, 0.2);
+  letter-spacing: 0.02em;
+}
+
 /* ── Streaming cursor ────────────────────────────────────────────────────── */
 
 .cursor-blink {
@@ -717,63 +837,15 @@ code {
   color: rgba(248, 113, 113, 1);
 }
 
-/* ── Tab status bar ──────────────────────────────────────────────────────── */
-
-.panel-footer {
-  flex-shrink: 0;
-  padding: 10px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.tab-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow: hidden;
-  min-width: 0;
-}
-
-.tab-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.tab-dot.attached {
-  background: #4ade80;
-}
-
-.tab-label {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
+/* Footer removed — attach/detach is automatic now */
 
 /* ── Action feed ─────────────────────────────────────────────────────────── */
 
 .action-group {
   margin: 4px 0;
   padding: 8px 12px;
-  background: rgba(249, 115, 22, 0.04);
-  border-left: 2px solid rgba(249, 115, 22, 0.3);
+  background: rgba(167, 139, 250, 0.04);
+  border-left: 2px solid rgba(167, 139, 250, 0.3);
   border-radius: 0 4px 4px 0;
   display: flex;
   flex-direction: column;

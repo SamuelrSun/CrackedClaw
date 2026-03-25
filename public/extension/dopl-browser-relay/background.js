@@ -444,15 +444,14 @@ function requestFromRelay(command) {
 
 // ── Panel state + chat forwarding ──────────────────────────────────────────
 
-let nextChatReqId = 1
-
 /**
  * Build a snapshot of current relay + tab state for the side panel.
  */
 async function buildPanelState() {
   const stored = await chrome.storage.local.get(['gatewayToken', 'remoteHost', 'relayPort'])
   const hasToken = Boolean(stored.gatewayToken || stored.remoteHost)
-  const connected = Boolean(chatWsConnected && chatWs && chatWs.readyState === WebSocket.OPEN)
+  // Chat now goes via HTTP — "connected" means we have config to reach the API
+  const connected = Boolean(hasToken && stored.remoteHost)
 
   const attachedTabs = []
   for (const [tabId, tab] of tabs.entries()) {
@@ -502,173 +501,157 @@ function forwardToPanel(payload) {
   }
 }
 
-// ── Chat WebSocket (separate from relay WS) ─────────────────────────────────
-// The relay WS at /relay/extension only handles CDP. Chat events (agent stream,
-// chat.send, etc.) need a direct gateway connection at the root WS path.
+// ── Chat via HTTP SSE (same pipeline as web app) ─────────────────────────────
+// Chat goes through the Next.js /api/gateway/chat/stream endpoint, which handles
+// billing, usage tracking, memory, and brain signals. This replaces the direct
+// gateway WebSocket approach to ensure consistent billing + feature parity.
 
-/** @type {WebSocket|null} */
-let chatWs = null
-/** @type {Promise<void>|null} */
-let chatWsConnectPromise = null
-let chatWsConnected = false
-let chatWsReconnectAttempt = 0
-let chatWsReconnectTimer = null
+/** Per-tab AbortControllers for concurrent chat streams */
+/** @type {Map<number, AbortController>} */
+const chatAbortControllers = new Map()
+let chatConnected = false
 
-async function ensureChatWsConnection() {
-  if (chatWs && chatWs.readyState === WebSocket.OPEN) return
-  if (chatWsConnectPromise) return await chatWsConnectPromise
+/**
+ * Get the base URL for the Next.js API (usedopl.com).
+ * The remoteHost is an instance subdomain (i-abc123.usedopl.com) but the
+ * Next.js API lives at the root domain (usedopl.com).
+ */
+async function getChatBaseUrl() {
+  const remoteHost = await getRemoteHost()
+  if (!remoteHost) throw new Error('No remote host configured')
+  // Extract root domain: i-abc123.usedopl.com → usedopl.com
+  const parts = remoteHost.split('.')
+  const rootDomain = parts.length >= 3 ? parts.slice(-2).join('.') : remoteHost
+  return `https://${rootDomain}`
+}
 
-  chatWsConnectPromise = (async () => {
-    const gatewayToken = await getGatewayToken()
-    const remoteHost = await getRemoteHost()
-    if (!gatewayToken || !remoteHost) throw new Error('No gateway config for chat WS')
+/**
+ * Send a chat message via HTTP SSE stream to /api/gateway/chat/stream.
+ * Parses SSE events and forwards them to the side panel.
+ * tabId is forwarded in panel events so the panel routes to the correct per-tab chat.
+ */
+async function sendChatViaHttp(text, conversationId, tabId) {
+  const gatewayToken = await getGatewayToken()
+  if (!gatewayToken) throw new Error('No gateway token configured')
 
-    // Connect to root gateway WS (NOT /relay/extension)
-    const wsUrl = `wss://${remoteHost}`
-    const ws = new WebSocket(wsUrl)
-    chatWs = ws
+  const baseUrl = await getChatBaseUrl()
+  const url = `${baseUrl}/api/gateway/chat/stream`
 
-    ws.onmessage = (event) => {
-      void onChatWsMessage(String(event.data || ''))
-    }
+  // Abort any previous stream for this tab
+  const existingController = tabId ? chatAbortControllers.get(tabId) : null
+  if (existingController) {
+    existingController.abort()
+    chatAbortControllers.delete(tabId)
+  }
 
-    await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error('Chat WS connect timeout')), 8000)
-      ws.onopen = () => { clearTimeout(t); resolve() }
-      ws.onerror = () => { clearTimeout(t); reject(new Error('Chat WS connect failed')) }
-      ws.onclose = (ev) => { clearTimeout(t); reject(new Error(`Chat WS closed (${ev.code})`)) }
-    })
+  const controller = new AbortController()
+  if (tabId) chatAbortControllers.set(tabId, controller)
+  chatConnected = true
+  void broadcastPanelState()
 
-    ws.onclose = () => {
-      chatWs = null
-      chatWsConnected = false
-      void broadcastPanelState()
-      scheduleChatWsReconnect()
-    }
-    ws.onerror = () => {
-      chatWs = null
-      chatWsConnected = false
-    }
-  })()
+  forwardToPanel({ type: 'chat.lifecycle', phase: 'start', tabId })
 
   try {
-    await chatWsConnectPromise
-    chatWsReconnectAttempt = 0
-  } finally {
-    chatWsConnectPromise = null
-  }
-}
-
-function scheduleChatWsReconnect() {
-  if (chatWsReconnectTimer) return
-  const delay = reconnectDelayMs(chatWsReconnectAttempt)
-  chatWsReconnectAttempt++
-  chatWsReconnectTimer = setTimeout(async () => {
-    chatWsReconnectTimer = null
-    try {
-      await ensureChatWsConnection()
-    } catch {
-      scheduleChatWsReconnect()
-    }
-  }, delay)
-}
-
-function sendToChat(payload) {
-  if (!chatWs || chatWs.readyState !== WebSocket.OPEN) throw new Error('Chat WS not connected')
-  chatWs.send(JSON.stringify(payload))
-}
-
-/** Chat WS handshake state */
-let chatWsHandshakeId = null
-
-async function onChatWsMessage(text) {
-  let msg
-  try { msg = JSON.parse(text) } catch { return }
-
-  // Step 1: Connect challenge → send auth
-  if (msg?.type === 'event' && msg?.event === 'connect.challenge') {
-    const nonce = typeof msg?.payload?.nonce === 'string' ? msg.payload.nonce.trim() : ''
-    const gatewayToken = await getGatewayToken()
-    chatWsHandshakeId = `chat-connect-${Date.now()}`
-    sendToChat({
-      type: 'req',
-      id: chatWsHandshakeId,
-      method: 'connect',
-      params: {
-        minProtocol: 3,
-        maxProtocol: 3,
-        client: {
-          id: 'webchat',
-          version: '1.0.0',
-          platform: 'web',
-          mode: 'webchat',
-        },
-        role: 'operator',
-        scopes: ['operator.admin'],
-        auth: { token: gatewayToken },
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Companion-Token': gatewayToken,
       },
+      body: JSON.stringify({
+        message: text,
+        conversation_id: conversationId || undefined,
+        model: 'sonnet',
+      }),
+      signal: controller.signal,
     })
-    return
-  }
 
-  // Step 2: hello-ok → connected
-  if (msg?.type === 'res' && chatWsHandshakeId && msg.id === chatWsHandshakeId) {
-    chatWsHandshakeId = null
-    if (msg.ok || msg.payload?.type === 'hello-ok') {
-      chatWsConnected = true
-      void broadcastPanelState()
-    } else {
-      console.warn('Chat WS handshake rejected', msg.error)
-      chatWs?.close()
+    if (!response.ok) {
+      let errMsg = `HTTP ${response.status}`
+      try {
+        const errData = await response.json()
+        if (errData.error === 'insufficient_balance') {
+          errMsg = errData.reason || 'Your balance is $0.00. Add funds at usedopl.com/settings/billing'
+        } else {
+          errMsg = errData.error || errData.reason || errMsg
+        }
+      } catch { /* ignore parse errors */ }
+      throw new Error(errMsg)
     }
-    return
-  }
 
-  if (msg?.type === 'hello-ok' || (msg?.type === 'res' && msg?.payload?.type === 'hello-ok')) {
-    chatWsConnected = true
-    void broadcastPanelState()
-    return
-  }
-
-  // Ping/pong
-  if (msg?.method === 'ping') {
-    try { sendToChat({ method: 'pong' }) } catch {}
-    return
-  }
-
-  // Agent streaming events → forward to panel
-  if (msg?.type === 'event' && msg?.event === 'agent') {
-    const payload = msg.payload || {}
-    const stream = payload.stream
-    const data = payload.data || {}
-
-    if (stream === 'assistant' && data.delta) {
-      forwardToPanel({ type: 'chat.token', delta: data.delta })
-    } else if (stream === 'thinking' && data.delta) {
-      forwardToPanel({ type: 'chat.thinking', delta: data.delta })
-    } else if (stream === 'lifecycle') {
-      if (data.phase === 'start') forwardToPanel({ type: 'chat.lifecycle', phase: 'start' })
-      else if (data.phase === 'end') forwardToPanel({ type: 'chat.lifecycle', phase: 'end' })
+    const contentType = response.headers.get('content-type') || ''
+    if (!contentType.includes('text/event-stream')) {
+      try {
+        const data = await response.json()
+        const content = data.content || data.message || JSON.stringify(data)
+        forwardToPanel({ type: 'chat.done', fullText: content, tabId })
+      } catch {
+        throw new Error('Unexpected response format')
+      }
+      return
     }
-    return
-  }
 
-  // Final chat message
-  if (msg?.type === 'event' && msg?.event === 'chat') {
-    const payload = msg.payload || {}
-    if (payload.state === 'final') {
-      const message = payload.message || {}
-      const contentArr = Array.isArray(message.content) ? message.content : []
-      const fullText = (contentArr.find(c => c.type === 'text') || {}).text || ''
-      forwardToPanel({ type: 'chat.done', fullText })
+    const reader = response.body?.getReader()
+    if (!reader) throw new Error('No response body')
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let fullContent = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const jsonStr = line.slice(6).trim()
+        if (!jsonStr || jsonStr === '[DONE]') continue
+
+        let chunk
+        try { chunk = JSON.parse(jsonStr) } catch { continue }
+
+        if (chunk.type === 'token' && chunk.text) {
+          fullContent += chunk.text
+          forwardToPanel({ type: 'chat.token', delta: chunk.text, tabId })
+        } else if (chunk.type === 'thinking' && chunk.text) {
+          forwardToPanel({ type: 'chat.thinking', delta: chunk.text, tabId })
+        } else if (chunk.type === 'tool_start') {
+          forwardToPanel({ type: 'chat.lifecycle', phase: 'start', tabId })
+        } else if (chunk.type === 'done') {
+          forwardToPanel({ type: 'chat.done', fullText: fullContent, conversationId: chunk.conversation_id, tabId })
+        } else if (chunk.type === 'cost') {
+          forwardToPanel({ type: 'chat.cost', cost_usd: chunk.cost_usd, balance_remaining: chunk.balance_remaining, tabId })
+        } else if (chunk.type === 'error') {
+          forwardToPanel({ type: 'chat.error', message: chunk.message || 'Stream error', tabId })
+        }
+      }
     }
-    return
-  }
 
-  // Error responses to chat requests
-  if (msg?.type === 'res' && !msg.ok && typeof msg.id === 'string' && (msg.id.startsWith('chat-') || msg.id.startsWith('abort-'))) {
-    const errMsg = msg.error?.message || msg.error || 'Request failed'
-    forwardToPanel({ type: 'chat.error', message: String(errMsg) })
+    if (fullContent) {
+      forwardToPanel({ type: 'chat.done', fullText: fullContent, tabId })
+    }
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') return
+    throw err
+  } finally {
+    if (tabId) chatAbortControllers.delete(tabId)
+    forwardToPanel({ type: 'chat.lifecycle', phase: 'end', tabId })
+  }
+}
+
+function abortChat(tabId) {
+  if (tabId && chatAbortControllers.has(tabId)) {
+    chatAbortControllers.get(tabId).abort()
+    chatAbortControllers.delete(tabId)
+  } else {
+    // Abort all if no specific tab
+    for (const [, ctrl] of chatAbortControllers) ctrl.abort()
+    chatAbortControllers.clear()
   }
 }
 
@@ -726,7 +709,7 @@ async function onRelayMessage(text) {
     return
   }
 
-  // Chat events are handled by the dedicated chatWs (onChatWsMessage).
+  // Chat is handled via HTTP SSE (sendChatViaHttp).
   // The relay WS only handles CDP commands.
 
   if (msg && typeof msg.id === 'number' && msg.method === 'forwardCDPCommand') {
@@ -1023,7 +1006,7 @@ let glowIdleTimer = null
 const GLOW_IDLE_MS = 800 // remove glow after 800ms of no CDP commands
 
 /**
- * Inject or remove the orange glow border on a tab.
+ * Inject or remove the glow border on a tab (pinkish-blue).
  */
 async function setGlow(tabId, action) {
   try {
@@ -1035,7 +1018,7 @@ async function setGlow(tabId, action) {
           if (document.getElementById(GLOW_ID)) return
           const el = document.createElement('div')
           el.id = GLOW_ID
-          el.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;border:3px solid #f97316;box-shadow:inset 0 0 30px rgba(249,115,22,0.12);transition:opacity 0.3s;opacity:1;'
+          el.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;border:3px solid #a78bfa;box-shadow:inset 0 0 30px rgba(167,139,250,0.12),inset 0 0 60px rgba(139,92,246,0.06);transition:opacity 0.3s;opacity:1;'
           document.documentElement.appendChild(el)
         } else {
           const el = document.getElementById(GLOW_ID)
@@ -1124,6 +1107,63 @@ async function handleForwardCdpCommand(msg) {
 
   /** @type {chrome.debugger.DebuggerSession} */
   const debuggee = { tabId }
+
+  // ── Synthetic commands: Browser.listTabs / Browser.attachTab ──────────
+  // These allow the AI to discover and attach tabs without user intervention.
+  if (method === 'Browser.listTabs') {
+    const allTabs = await chrome.tabs.query({})
+    return {
+      tabs: allTabs
+        .filter(t => t.id && !t.url?.startsWith('chrome://') && !t.url?.startsWith('chrome-extension://'))
+        .map(t => ({
+          tabId: t.id,
+          title: t.title || '',
+          url: t.url || '',
+          active: t.active,
+          attached: tabs.has(t.id) && tabs.get(t.id)?.state === 'connected',
+          targetId: tabs.get(t.id)?.targetId || null,
+        })),
+    }
+  }
+
+  if (method === 'Browser.attachTab') {
+    const targetTabId = params?.tabId
+    const urlPattern = params?.urlPattern
+
+    let toAttach = null
+
+    if (targetTabId) {
+      toAttach = targetTabId
+    } else if (urlPattern) {
+      // Find tab by URL pattern (case-insensitive substring match)
+      const allTabs = await chrome.tabs.query({})
+      const pattern = String(urlPattern).toLowerCase()
+      const match = allTabs.find(t => {
+        const url = (t.url || '').toLowerCase()
+        const title = (t.title || '').toLowerCase()
+        return url.includes(pattern) || title.includes(pattern)
+      })
+      if (match?.id) toAttach = match.id
+    }
+
+    if (!toAttach) return { success: false, error: 'Tab not found' }
+
+    // Already attached?
+    if (tabs.has(toAttach) && tabs.get(toAttach)?.state === 'connected') {
+      const tab = tabs.get(toAttach)
+      return { success: true, already: true, targetId: tab.targetId, sessionId: tab.sessionId }
+    }
+
+    try {
+      tabs.set(toAttach, { state: 'connecting' })
+      setBadge(toAttach, 'connecting')
+      const result = await attachTab(toAttach)
+      return { success: true, targetId: result.targetId, sessionId: result.sessionId }
+    } catch (err) {
+      tabs.delete(toAttach)
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
 
   if (method === 'Runtime.enable') {
     try {
@@ -1458,11 +1498,15 @@ if (chrome.sidePanel?.setPanelBehavior) {
 
 const initPromise = rehydrateState().then(() => loadWindowModeState())
 
-initPromise.then(() => {
-  if (tabs.size > 0) {
+// Always-on: connect relay on startup if config exists (not just when tabs are attached).
+initPromise.then(async () => {
+  const stored = await chrome.storage.local.get(['gatewayToken', 'remoteHost'])
+  const hasConfig = Boolean(stored.gatewayToken || stored.remoteHost)
+
+  if (hasConfig) {
     ensureRelayConnection().then(() => {
       reconnectAttempt = 0
-      return reannounceAttachedTabs()
+      if (tabs.size > 0) return reannounceAttachedTabs()
     }).catch(() => {
       scheduleReconnect()
     })
@@ -1503,12 +1547,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     ;(async () => {
       try {
         const state = await buildPanelState()
-        // Auto-connect chat WS when panel opens and config exists but not connected
-        if (state.hasConfig && !state.connected && !chatWsConnectPromise) {
-          ensureChatWsConnection()
-            .catch(() => { scheduleChatWsReconnect() })
-        }
-        // Also connect relay (for CDP/browser control) if not already up
+        // Connect relay (for CDP/browser control) if not already up
         if (state.hasConfig && !relayConnectPromise && (!relayWs || relayWs.readyState !== WebSocket.OPEN)) {
           ensureRelayConnection()
             .then(() => { reconnectAttempt = 0 })
@@ -1522,74 +1561,63 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true
   }
 
-  // ── Attach / detach active tab from panel ───────────────────────────────
-  if (msg.type === 'panel.attachTab') {
+  // ── Auto-attach tab from panel (per-tab chat) ───────────────────────────
+  if (msg.type === 'panel.autoAttach') {
+    const tabId = msg.tabId
+    if (!tabId) { sendResponse({ ok: false }); return false }
     ;(async () => {
       try {
-        const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
-        if (!active?.id) { sendResponse({ ok: false, error: 'No active tab' }); return }
-        if (tabs.has(active.id) && tabs.get(active.id)?.state === 'connected') {
+        // Skip if already attached
+        if (tabs.has(tabId) && tabs.get(tabId)?.state === 'connected') {
           sendResponse({ ok: true, already: true }); return
         }
+        // Skip chrome:// and extension pages
+        try {
+          const tabInfo = await chrome.tabs.get(tabId)
+          const url = tabInfo?.url || ''
+          if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('about:')) {
+            sendResponse({ ok: false, error: 'Cannot attach to this page' }); return
+          }
+        } catch { sendResponse({ ok: false }); return }
+
         await ensureRelayConnection()
-        tabs.set(active.id, { state: 'connecting' })
-        setBadge(active.id, 'connecting')
-        await attachTab(active.id)
+        tabs.set(tabId, { state: 'connecting' })
+        setBadge(tabId, 'connecting')
+        await attachTab(tabId)
         sendResponse({ ok: true })
       } catch (err) {
+        // Non-fatal — tab may not be attachable (PDF, etc.)
+        tabs.delete(tabId)
         sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
       }
     })()
     return true
   }
 
-  if (msg.type === 'panel.detachTab') {
-    ;(async () => {
-      try {
-        const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
-        if (!active?.id) { sendResponse({ ok: false, error: 'No active tab' }); return }
-        if (!tabs.has(active.id)) { sendResponse({ ok: true }); return }
-        await detachTab(active.id, 'panel_detach')
-        sendResponse({ ok: true })
-      } catch (err) {
-        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
-      }
-    })()
-    return true
-  }
-
-  if (msg.type === 'panel.toggleWindowMode') {
-    ;(async () => {
-      try {
-        await toggleWindowMode()
-        sendResponse({ ok: true, windowModeEnabled })
-      } catch (err) {
-        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
-      }
-    })()
-    return true
-  }
-
-  // ── Chat send ───────────────────────────────────────────────────────────
+  // ── Chat send (via HTTP SSE — same pipeline as web app) ──────────────────
   if (msg.type === 'chat.send') {
     ;(async () => {
+      const tabId = msg.tabId
       try {
-        await ensureChatWsConnection()
-        const id = `chat-${nextChatReqId++}`
-        const sessionKey = msg.sessionKey || `webchat-${Date.now()}`
-        sendToChat({
-          type: 'req',
-          id,
-          method: 'chat.send',
-          params: {
-            sessionKey,
-            idempotencyKey: `${sessionKey}-${Date.now()}`,
-            message: msg.text || '',
-          },
-        })
+        // Auto-attach the tab if not already attached
+        if (tabId && (!tabs.has(tabId) || tabs.get(tabId)?.state !== 'connected')) {
+          try {
+            const tabInfo = await chrome.tabs.get(tabId)
+            const url = tabInfo?.url || ''
+            if (!url.startsWith('chrome://') && !url.startsWith('chrome-extension://')) {
+              await ensureRelayConnection()
+              tabs.set(tabId, { state: 'connecting' })
+              await attachTab(tabId)
+            }
+          } catch { /* non-fatal */ }
+        }
+
+        await sendChatViaHttp(msg.text || '', msg.conversationId, tabId)
         sendResponse({ ok: true })
       } catch (err) {
-        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
+        const errMsg = err instanceof Error ? err.message : String(err)
+        forwardToPanel({ type: 'chat.error', message: errMsg, tabId })
+        sendResponse({ ok: false, error: errMsg })
       }
     })()
     return true
@@ -1597,37 +1625,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   // ── Chat abort ──────────────────────────────────────────────────────────
   if (msg.type === 'chat.abort') {
-    try {
-      sendToChat({
-        type: 'req',
-        id: `abort-${nextChatReqId++}`,
-        method: 'chat.abort',
-        params: msg.sessionKey ? { sessionKey: msg.sessionKey } : {},
-      })
-    } catch {
-      // chat ws may be down
-    }
+    abortChat(msg.tabId)
     sendResponse({ ok: true })
     return false
-  }
-
-  // ── Chat history ────────────────────────────────────────────────────────
-  if (msg.type === 'chat.history') {
-    ;(async () => {
-      try {
-        await ensureChatWsConnection()
-        sendToChat({
-          type: 'req',
-          id: `hist-${nextChatReqId++}`,
-          method: 'chat.history',
-          params: msg.sessionKey ? { sessionKey: msg.sessionKey } : {},
-        })
-        sendResponse({ ok: true })
-      } catch (err) {
-        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
-      }
-    })()
-    return true
   }
 
   return false
