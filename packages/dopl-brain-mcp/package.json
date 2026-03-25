@@ -1,0 +1,26 @@
+{
+  "name": "dopl-brain-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Dopl Brain — portable AI memory across tools",
+  "main": "dist/index.js",
+  "bin": {
+    "dopl-brain-mcp": "./bin/dopl-brain-mcp.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "keywords": ["mcp", "dopl", "brain", "ai", "memory"],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.28.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
