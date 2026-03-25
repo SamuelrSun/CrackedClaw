@@ -15,6 +15,10 @@ import {
   Globe,
   AlertTriangle,
   Brain,
+  Link2,
+  Eye,
+  EyeOff,
+  FileDown,
 } from "lucide-react";
 import { GlassNavbar } from "@/components/layout/glass-navbar";
 import { PricingModal } from "@/components/settings/pricing-modal";
@@ -473,6 +477,277 @@ function BrainSettingsSection() {
   );
 }
 
+/* ── Connect AI Tools Section ── */
+function ConnectAIToolsSection() {
+  const [apiKey, setApiKey] = useState<{ prefix: string; created_at: string } | null>(null);
+  const [fullKey, setFullKey] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [revoking, setRevoking] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [showKey, setShowKey] = useState(false);
+  const [platform, setPlatform] = useState<"openclaw" | "claude">("openclaw");
+
+  useEffect(() => {
+    fetchKeyStatus();
+  }, []);
+
+  async function fetchKeyStatus() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/brain/keys", { method: "GET" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.keys && data.keys.length > 0) {
+          setApiKey({ prefix: data.keys[0].prefix, created_at: data.keys[0].created_at });
+        } else {
+          setApiKey(null);
+        }
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createKey() {
+    setCreating(true);
+    try {
+      const res = await fetch("/api/brain/keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "MCP Server" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFullKey(data.key);
+        setShowKey(true);
+        setApiKey({ prefix: data.prefix, created_at: new Date().toISOString() });
+      }
+    } catch {
+      // ignore
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function revokeKey() {
+    if (!confirm("Revoke this API key? Any connected AI tools will lose access.")) return;
+    setRevoking(true);
+    try {
+      const keys = await fetch("/api/brain/keys").then(r => r.json());
+      if (keys.keys?.[0]?.id) {
+        await fetch(`/api/brain/keys/${keys.keys[0].id}`, { method: "DELETE" });
+        setApiKey(null);
+        setFullKey(null);
+        setShowKey(false);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setRevoking(false);
+    }
+  }
+
+  function copyToClipboard(text: string, label: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(label);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  }
+
+  function generateSetupConfig(plat: "openclaw" | "claude"): string {
+    const token = fullKey || `dpb_sk_${"•".repeat(32)}`;
+    const config = {
+      mcpServers: {
+        "dopl-brain": {
+          command: "npx",
+          args: ["-y", "dopl-brain-mcp"],
+          env: { DOPL_BRAIN_TOKEN: token },
+        },
+      },
+    };
+
+    if (plat === "claude") {
+      return `Edit ~/Library/Application Support/Claude/claude_desktop_config.json:\n\n${JSON.stringify(config, null, 2)}`;
+    }
+    return `Add to your openclaw.json:\n\n${JSON.stringify(config, null, 2)}`;
+  }
+
+  function downloadSetupFile() {
+    const token = fullKey || `dpb_sk_YOUR_TOKEN_HERE`;
+    const content = `# Dopl Brain — Setup Instructions
+
+> Your AI can read this file and follow the steps automatically.
+> After setup is complete, you can delete this file.
+
+## Credentials
+
+- **Brain API Token:** ${token}
+- **API Endpoint:** https://usedopl.com/api/brain
+
+## Setup Steps
+
+### Step 1: Install the MCP server
+\`\`\`
+npm install -g dopl-brain-mcp
+\`\`\`
+
+### Step 2: Configure your AI tool
+
+${platform === "claude" ? `Edit \`~/Library/Application Support/Claude/claude_desktop_config.json\`:` : `Add to your \`openclaw.json\`:`}
+
+\`\`\`json
+${JSON.stringify({
+  mcpServers: {
+    "dopl-brain": {
+      command: "npx",
+      args: ["-y", "dopl-brain-mcp"],
+      env: { DOPL_BRAIN_TOKEN: token },
+    },
+  },
+}, null, 2)}
+\`\`\`
+
+### Step 3: Restart your AI tool
+Restart ${platform === "claude" ? "Claude Desktop" : "OpenClaw"} to pick up the new MCP server.
+
+### Step 4: Import existing memories (optional)
+Tell your AI: "Import my memories from MEMORY.md into Dopl Brain"
+
+### Step 5: Verify
+Tell your AI: "Search my brain for test"
+
+## What This Does
+
+- Your AI gains access to your Dopl Brain — persistent memory across AI tools.
+- Your existing files are NOT modified. Brain is additive.
+- Facts stored from any connected tool are available everywhere.
+`;
+
+    const blob = new Blob([content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dopl-brain-setup-${platform}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* API Key Status */}
+      {loading ? (
+        <div className="h-16 bg-white/[0.05] animate-pulse rounded-[2px]" />
+      ) : !apiKey ? (
+        <div className="space-y-3">
+          <p className="text-[12px] text-white/60 leading-relaxed">
+            Generate an API key to connect your Brain to Claude Desktop, OpenClaw, or any MCP-compatible AI tool.
+          </p>
+          <button
+            onClick={createKey}
+            disabled={creating}
+            className="flex items-center gap-2 py-2 px-3 bg-emerald-500/[0.12] hover:bg-emerald-500/[0.2] border border-emerald-500/[0.2] text-emerald-400 text-[12px] font-mono transition-colors disabled:opacity-50"
+          >
+            <Zap className="w-3 h-3" />
+            {creating ? "Generating…" : "Generate API Key"}
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {/* Key display */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-widest text-white/50">API Key</p>
+              <p className="text-[13px] font-mono text-white/70 mt-1">
+                {fullKey && showKey ? fullKey : `${apiKey.prefix}${"•".repeat(24)}`}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {fullKey && (
+                <button
+                  onClick={() => setShowKey(!showKey)}
+                  className="p-1.5 hover:bg-white/[0.06] transition-colors"
+                  title={showKey ? "Hide" : "Reveal"}
+                >
+                  {showKey ? <EyeOff className="w-3.5 h-3.5 text-white/40" /> : <Eye className="w-3.5 h-3.5 text-white/40" />}
+                </button>
+              )}
+              <button
+                onClick={() => copyToClipboard(fullKey || apiKey.prefix, "key")}
+                className="p-1.5 hover:bg-white/[0.06] transition-colors"
+                title="Copy"
+              >
+                {copied === "key" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-white/40" />}
+              </button>
+              <button
+                onClick={revokeKey}
+                disabled={revoking}
+                className="p-1.5 hover:bg-red-500/[0.1] transition-colors"
+                title="Revoke"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-400/60" />
+              </button>
+            </div>
+          </div>
+
+          {fullKey && (
+            <p className="text-[11px] text-amber-400/80 leading-relaxed">
+              ⚠️ Copy this key now — it won't be shown again.
+            </p>
+          )}
+
+          {/* Divider */}
+          <div className="h-px w-full bg-white/[0.06]" />
+
+          {/* Platform tabs */}
+          <div className="flex gap-1">
+            {(["openclaw", "claude"] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPlatform(p)}
+                className={`py-1 px-2.5 text-[11px] font-mono transition-colors ${
+                  platform === p
+                    ? "bg-white/[0.1] text-white/80"
+                    : "text-white/40 hover:text-white/60"
+                }`}
+              >
+                {p === "openclaw" ? "OpenClaw" : "Claude"}
+              </button>
+            ))}
+          </div>
+
+          {/* Config snippet */}
+          <div className="relative">
+            <pre className="text-[11px] font-mono text-white/50 bg-white/[0.03] border border-white/[0.06] p-3 overflow-x-auto leading-relaxed whitespace-pre-wrap">
+              {generateSetupConfig(platform)}
+            </pre>
+            <div className="absolute top-1.5 right-1.5 flex gap-1">
+              <button
+                onClick={() => copyToClipboard(generateSetupConfig(platform), "config")}
+                className="p-1 hover:bg-white/[0.1] transition-colors"
+                title="Copy config"
+              >
+                {copied === "config" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-white/30" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Download setup file */}
+          <button
+            onClick={downloadSetupFile}
+            className="flex items-center gap-2 py-1.5 px-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white/60 text-[11px] font-mono transition-colors w-full justify-center"
+          >
+            <FileDown className="w-3 h-3" />
+            Download Setup File
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Delete Account Modal ── */
 function DeleteAccountModal({ onClose }: { onClose: () => void }) {
   const [deletionInfo, setDeletionInfo] = useState<DeletionInfo | null>(null);
@@ -837,7 +1112,7 @@ export default function SettingsPageClient({
             </div>
           </div>
 
-          {/* Row 3: Brain / Adaptive Learning */}
+          {/* Row 3: Brain / Adaptive Learning + Connect AI Tools */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-[7px]">
             <div className={glassPanel}>
               <div className="flex items-center gap-2 mb-4">
@@ -845,6 +1120,14 @@ export default function SettingsPageClient({
                 <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium">AI Brain</span>
               </div>
               <BrainSettingsSection />
+            </div>
+
+            <div className={glassPanel}>
+              <div className="flex items-center gap-2 mb-4">
+                <Link2 className="w-4 h-4 text-white/60" />
+                <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium">Connect AI Tools</span>
+              </div>
+              <ConnectAIToolsSection />
             </div>
           </div>
 
