@@ -58,12 +58,11 @@ async function checkRelayReachable(port, token, remoteHost) {
   const trimmedToken = String(token || '').trim()
   if (!trimmedToken) {
     setStatus('error', 'Gateway token required. Save your connection key to connect.')
+    showConnectionBadge(false)
     return
   }
   try {
     const relayToken = await deriveRelayToken(trimmedToken, port)
-    // Delegate the fetch to the background service worker to bypass
-    // CORS preflight on the custom x-openclaw-relay-token header.
     const res = await chrome.runtime.sendMessage({
       type: 'relayCheck',
       url,
@@ -72,9 +71,11 @@ async function checkRelayReachable(port, token, remoteHost) {
     const result = classifyRelayCheckResponse(res, port)
     if (result.action === 'throw') throw new Error(result.error)
     setStatus(result.kind, result.message)
+    showConnectionBadge(result.kind === 'ok')
   } catch (err) {
     const result = classifyRelayCheckException(err, port)
     setStatus(result.kind, result.message)
+    showConnectionBadge(false)
   }
 }
 
@@ -100,12 +101,14 @@ async function save() {
 
   if (!rawKey) {
     setStatus('error', 'Please enter a connection key.')
+    showConnectionBadge(false)
     return
   }
 
   const parsed = parseConnectionKey(rawKey)
   if (!parsed) {
     setStatus('error', 'Invalid connection key. It should start with dopl_ and be copied from your Dopl Settings page.')
+    showConnectionBadge(false)
     return
   }
 
@@ -118,8 +121,21 @@ async function save() {
     remoteHost,
   })
 
-  updateRelayUrl(remoteHost, port)
   await checkRelayReachable(port, token, remoteHost)
+
+  // Tell background to auto-connect relay + enable window mode + open panel
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Timeout')), 10000)
+      chrome.runtime.sendMessage({ type: 'config.saved' }, (response) => {
+        clearTimeout(timer)
+        if (chrome.runtime.lastError) { reject(new Error(chrome.runtime.lastError.message)); return }
+        resolve(response || {})
+      })
+    })
+  } catch {
+    // non-fatal — relay connect happens on first chat message anyway
+  }
 }
 
 document.getElementById('save').addEventListener('click', () => void save())

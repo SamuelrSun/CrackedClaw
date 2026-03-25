@@ -1526,6 +1526,31 @@ async function whenReady(fn) {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (!msg || typeof msg !== 'object') return false
 
+  // ── Config saved (options page) — auto-enable window mode + connect relay ──
+  if (msg.type === 'config.saved') {
+    ;(async () => {
+      try {
+        // Connect the relay WebSocket
+        await ensureRelayConnection()
+        // Enable window mode so all tabs are auto-attached
+        if (!windowModeEnabled) {
+          await enableWindowMode()
+        }
+        // Try to open the side panel on the active tab
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+        if (activeTab?.id) {
+          try {
+            await chrome.sidePanel.open({ windowId: activeTab.windowId })
+          } catch { /* sidePanel.open may fail outside user gesture */ }
+        }
+        sendResponse({ ok: true })
+      } catch (err) {
+        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
+      }
+    })()
+    return true
+  }
+
   // ── Relay check (options page) ──────────────────────────────────────────
   if (msg.type === 'relayCheck') {
     const { url, token } = msg
@@ -1597,6 +1622,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   // ── Chat send (via HTTP SSE — same pipeline as web app) ──────────────────
   if (msg.type === 'chat.send') {
+    // Ack immediately so the panel never times out waiting for a response.
+    // All streaming tokens, errors, and lifecycle events go via forwardToPanel().
+    sendResponse({ ok: true })
     ;(async () => {
       const tabId = msg.tabId
       try {
@@ -1610,19 +1638,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
               tabs.set(tabId, { state: 'connecting' })
               await attachTab(tabId)
             }
-          } catch { /* non-fatal */ }
+          } catch (attachErr) {
+            console.warn('chat.send: auto-attach failed', attachErr instanceof Error ? attachErr.message : String(attachErr))
+            tabs.delete(tabId)
+          }
         }
 
-        // Ack immediately so the panel doesn't time out waiting.
-        // Streaming tokens + errors are forwarded via forwardToPanel().
-        sendResponse({ ok: true })
         await sendChatViaHttp(msg.text || '', msg.conversationId, tabId)
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err)
         forwardToPanel({ type: 'chat.error', message: errMsg, tabId })
       }
     })()
-    return true
+    return false // sendResponse already called synchronously
   }
 
   // ── Chat abort ──────────────────────────────────────────────────────────
