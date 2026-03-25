@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { GlassNavbar } from "@/components/layout/glass-navbar";
 import {
   BookOpen,
   Brain,
@@ -15,13 +16,11 @@ import {
   Terminal,
   ChevronDown,
   ChevronRight,
-  Sparkles,
   Lock,
   Download,
   Settings,
   Eye,
   Cpu,
-  Layers,
   ArrowUpRight,
   HelpCircle,
   FileText,
@@ -917,114 +916,107 @@ export default function DocsPageClient() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-      {/* Header */}
-      <div className="mb-6">
-        <h1
-          className="text-2xl sm:text-3xl text-white/90 mb-1"
-          style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic" }}
-        >
-          Documentation
-        </h1>
-        <p className="text-[13px] text-white/40">
-          Everything you need to know about Dopl
-        </p>
-      </div>
+    <div
+      className="fixed inset-0 z-[100] flex flex-col p-1 gap-1 md:p-[7px] md:gap-[7px]"
+      style={{
+        backgroundImage: "linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url('/img/landing_background.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      {/* Navbar */}
+      <GlassNavbar />
 
-      {/* Two-column layout */}
-      <div className="flex flex-col lg:flex-row" style={{ gap: "7px" }}>
-        {/* Sidebar — glass panel */}
-        <aside
-          className="lg:w-64 flex-shrink-0 bg-black/[0.07] backdrop-blur-[10px] border border-white/[0.08] p-4 lg:self-start lg:sticky lg:top-20"
-          style={{ borderRadius: "3px" }}
-        >
-          <nav className="space-y-1">
-            {SECTIONS.map((section) => {
-              const isExpanded = expandedSections.has(section.id);
-              const hasActiveArticle = section.articles.some((a) => a.id === activeArticle);
-              return (
-                <div key={section.id}>
-                  <button
-                    onClick={() => toggleSection(section.id)}
-                    className="w-full text-left flex items-center gap-2 py-2 px-2 hover:bg-white/[0.04] transition-colors group"
-                    style={{ borderRadius: "2px" }}
-                  >
-                    {isExpanded ? (
-                      <ChevronDown className="w-3.5 h-3.5 text-white/30 flex-shrink-0" />
-                    ) : (
-                      <ChevronRight className="w-3.5 h-3.5 text-white/30 flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-[12px] font-semibold ${hasActiveArticle ? "text-white/80" : "text-white/50"} group-hover:text-white/70 transition-colors`}>
-                        {section.label}
-                      </p>
-                      {!isExpanded && (
-                        <p className="text-[10px] text-white/25 truncate mt-0.5">{section.description}</p>
+      {/* Content area */}
+      <div className="flex-1 flex gap-1 md:gap-[7px] min-h-0">
+        {/* Sidebar — fixed-width glass panel, scrollable inside */}
+        <aside className="hidden md:flex w-64 flex-shrink-0 flex-col bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/[0.08] overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-3">
+            <nav className="space-y-0.5">
+              {SECTIONS.map((section) => {
+                const isExpanded = expandedSections.has(section.id);
+                const hasActiveArticle = section.articles.some((a) => a.id === activeArticle);
+                return (
+                  <div key={section.id}>
+                    <button
+                      onClick={() => toggleSection(section.id)}
+                      className="w-full text-left flex items-center gap-2 py-2 px-2 hover:bg-white/[0.04] rounded-[2px] transition-colors group"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="w-3.5 h-3.5 text-white/30 flex-shrink-0" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5 text-white/30 flex-shrink-0" />
                       )}
-                    </div>
-                  </button>
-                  {isExpanded && (
-                    <div className="ml-3 pl-3 border-l border-white/[0.06] space-y-0.5 pb-2">
-                      {section.articles.map((article) => (
-                        <button
-                          key={article.id}
-                          onClick={() => setActiveArticle(article.id)}
-                          className={`w-full text-left py-1.5 px-2 transition-colors flex items-start gap-2 ${
-                            activeArticle === article.id
-                              ? "bg-white/[0.06] text-white/85"
-                              : "text-white/40 hover:text-white/60 hover:bg-white/[0.03]"
-                          }`}
-                          style={{ borderRadius: "2px" }}
-                        >
-                          <span className="flex-shrink-0 mt-0.5 opacity-50">{article.icon}</span>
-                          <div className="min-w-0">
-                            <p className="text-[12px] leading-tight">{article.title}</p>
-                            <p className="text-[10px] text-white/25 truncate mt-0.5">{article.subtitle}</p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </nav>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-[12px] font-semibold ${hasActiveArticle ? "text-white/80" : "text-white/50"} group-hover:text-white/70 transition-colors`}>
+                          {section.label}
+                        </p>
+                        {!isExpanded && (
+                          <p className="text-[10px] text-white/25 truncate mt-0.5">{section.description}</p>
+                        )}
+                      </div>
+                    </button>
+                    {isExpanded && (
+                      <div className="ml-3 pl-3 border-l border-white/[0.06] space-y-0.5 pb-1">
+                        {section.articles.map((article) => (
+                          <button
+                            key={article.id}
+                            onClick={() => setActiveArticle(article.id)}
+                            className={`w-full text-left py-1.5 px-2 rounded-[2px] transition-colors flex items-start gap-2 ${
+                              activeArticle === article.id
+                                ? "bg-white/[0.06] text-white/85"
+                                : "text-white/40 hover:text-white/60 hover:bg-white/[0.03]"
+                            }`}
+                          >
+                            <span className="flex-shrink-0 mt-0.5 opacity-50">{article.icon}</span>
+                            <div className="min-w-0">
+                              <p className="text-[12px] leading-tight">{article.title}</p>
+                              <p className="text-[10px] text-white/25 truncate mt-0.5">{article.subtitle}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </nav>
+          </div>
         </aside>
 
-        {/* Article content — glass panel */}
-        <article
-          className="flex-1 min-w-0 bg-black/[0.07] backdrop-blur-[10px] border border-white/[0.08]"
-          style={{ borderRadius: "3px" }}
-        >
-          {currentArticle && (
-            <div className="p-6 sm:p-8">
-              {/* Breadcrumb */}
-              {currentSection && (
-                <p className="text-[10px] uppercase tracking-[0.15em] text-white/30 font-semibold mb-4">
-                  {currentSection.label}
-                </p>
-              )}
+        {/* Article content — glass panel, scrollable inside */}
+        <article className="flex-1 min-w-0 flex flex-col bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/[0.08] overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
+            {currentArticle && (
+              <div className="p-5 sm:p-8 max-w-3xl">
+                {/* Breadcrumb */}
+                {currentSection && (
+                  <p className="text-[10px] uppercase tracking-[0.15em] text-white/30 font-semibold mb-4">
+                    {currentSection.label}
+                  </p>
+                )}
 
-              {/* Title */}
-              <div className="mb-6">
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-white/40">{currentArticle.icon}</span>
-                  <h2
-                    className="text-xl sm:text-2xl text-white/90"
-                    style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic" }}
-                  >
-                    {currentArticle.title}
-                  </h2>
+                {/* Title */}
+                <div className="mb-6">
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="text-white/40">{currentArticle.icon}</span>
+                    <h2
+                      className="text-xl sm:text-2xl text-white/90"
+                      style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic" }}
+                    >
+                      {currentArticle.title}
+                    </h2>
+                  </div>
+                  <p className="text-[13px] text-white/40 ml-7">{currentArticle.subtitle}</p>
                 </div>
-                <p className="text-[13px] text-white/40 ml-7">{currentArticle.subtitle}</p>
-              </div>
 
-              {/* Content */}
-              <div className="text-[14px] leading-relaxed text-white/55">
-                {currentArticle.content}
+                {/* Content */}
+                <div className="text-[14px] leading-relaxed text-white/55">
+                  {currentArticle.content}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </article>
       </div>
     </div>
