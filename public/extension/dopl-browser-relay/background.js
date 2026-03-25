@@ -1612,12 +1612,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           } catch { /* non-fatal */ }
         }
 
-        await sendChatViaHttp(msg.text || '', msg.conversationId, tabId)
+        // Ack immediately so the panel doesn't time out waiting.
+        // Streaming tokens + errors are forwarded via forwardToPanel().
         sendResponse({ ok: true })
+        await sendChatViaHttp(msg.text || '', msg.conversationId, tabId)
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err)
         forwardToPanel({ type: 'chat.error', message: errMsg, tabId })
-        sendResponse({ ok: false, error: errMsg })
       }
     })()
     return true

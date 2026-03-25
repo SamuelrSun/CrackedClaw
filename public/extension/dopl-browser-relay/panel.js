@@ -419,7 +419,7 @@ async function sendMessage() {
   // Send to background — include tabId so background knows which tab's chat
   try {
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Send timeout')), 10000)
+      const timer = setTimeout(() => reject(new Error('Send timeout')), 30000)
       chrome.runtime.sendMessage(
         { type: 'chat.send', text: messageWithContext, tabId: activeTabId },
         (response) => {
