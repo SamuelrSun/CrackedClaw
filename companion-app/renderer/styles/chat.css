@@ -316,3 +316,31 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }
+
+/* ── Markdown links ────────────────────────────────────────────────────── */
+.md-link {
+  color: var(--accent, #6366f1);
+  text-decoration: underline;
+  text-decoration-color: rgba(99, 102, 241, 0.3);
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+
+.md-link:hover {
+  color: #818cf8;
+  text-decoration-color: rgba(129, 140, 248, 0.6);
+}
+
+/* Strikethrough */
+.message-bubble del {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+/* Horizontal rules */
+.message-bubble hr {
+  border: none;
+  border-top: 1px solid var(--glass-border);
+  margin: 12px 0;
+}

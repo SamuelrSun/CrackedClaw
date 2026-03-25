@@ -23,6 +23,7 @@ export async function collectBrainSignals(params: {
   previousAITimestamp?: number;
   sessionId?: string;
   brainEnabled: boolean;
+  source?: string;
 }): Promise<void> {
   if (!params.brainEnabled) return;
 
@@ -34,15 +35,17 @@ export async function collectBrainSignals(params: {
       previousAIMessage,
       previousAITimestamp,
       sessionId,
+      source,
     } = params;
 
     // Classify domain using the simple regex classifier (synchronous fallback)
     const regexDomain = classifyDomain(userMessage + ' ' + aiMessage);
 
-    const baseSignal: Pick<BrainSignal, 'user_id' | 'domain' | 'subdomain' | 'context' | 'session_id'> = {
+    const baseSignal: Pick<BrainSignal, 'user_id' | 'domain' | 'subdomain' | 'context' | 'session_id' | 'source'> = {
       user_id: userId,
       domain: regexDomain !== 'general' ? regexDomain : undefined,
       session_id: sessionId,
+      source,
     };
 
     // Fire-and-forget: LLM-based classification to enrich domain/subdomain/context.

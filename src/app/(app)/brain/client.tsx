@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { GlassNavbar } from '@/components/layout/glass-navbar';
+import { ConnectTab } from '@/components/brain/connect-tab';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -67,7 +68,7 @@ interface DomainNode {
 
 type PreferenceTypeKey = 'personality' | 'process' | 'style' | 'criteria' | 'knowledge' | 'general';
 
-type BrainTab = 'memories' | 'learned' | 'activity';
+type BrainTab = 'memories' | 'learned' | 'activity' | 'connect';
 
 const PREFERENCE_TYPE_LABELS: Record<PreferenceTypeKey, string> = {
   personality: 'Personality',
@@ -1134,6 +1135,7 @@ export function BrainClient({
     { key: 'memories', label: 'What I Know' },
     { key: 'learned', label: "What I've Learned" },
     { key: 'activity', label: 'Activity' },
+    { key: 'connect', label: 'Connect' },
   ];
 
   return (
@@ -1287,6 +1289,8 @@ export function BrainClient({
           {activeTab === 'activity' && (
             <ActivityTab signals={initialSignals} patterns={initialPatterns} />
           )}
+
+          {activeTab === 'connect' && <ConnectTab />}
         </div>
       </div>
     </div>

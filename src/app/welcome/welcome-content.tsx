@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { useFormValidation } from "@/hooks/use-form-validation";
 import { validateEmail, validatePassword } from "@/lib/validation";
@@ -399,6 +399,8 @@ type AppPhase = "login" | "panelOut" | "messaging" | "done";
 
 export function WelcomeContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isBrainIntent = searchParams.get('intent') === 'brain';
 
   const [phase, setPhase] = useState<AppPhase>("login");
 
@@ -453,6 +455,12 @@ export function WelcomeContent() {
 
   // ── Auth success handler (popup flow) ──
   const handleAuthSuccess = useCallback(() => {
+    // Brain-only signup: skip provisioning + onboarding, go straight to /brain
+    if (isBrainIntent) {
+      router.push('/brain');
+      return;
+    }
+
     // Start provisioning immediately in the background
     (async () => {
       try {
@@ -478,7 +486,7 @@ export function WelcomeContent() {
     setTimeout(() => {
       setPhase("messaging");
     }, 600);
-  }, []);
+  }, [isBrainIntent, router]);
 
   // ── When provisioning finishes and we're on the waiting step, advance past it ──
   useEffect(() => {

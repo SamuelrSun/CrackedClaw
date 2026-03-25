@@ -13,10 +13,10 @@ const screenChat  = document.getElementById('screen-chat');
 
 // Chat screen
 const connDot       = document.getElementById('conn-dot');
+const balanceLabel  = document.getElementById('balance-label');
 const msgInput      = document.getElementById('msg-input');
 const btnSend       = document.getElementById('btn-send');
 const btnToggleChat = document.getElementById('btn-toggle-chat');
-const btnAudio      = document.getElementById('btn-audio');
 const btnSettings   = document.getElementById('btn-settings');
 
 // Settings dropdown
@@ -30,9 +30,13 @@ const notifToggle      = document.getElementById('notif-toggle');
 
 let currentConversationId = null;
 let isStreaming = false;
+let isCreatingConversation = false; // guards against double-tap creating two conversations
 let settingsOpen = false;
 let chatPanelOpen = false;
 let tokenMode = false; // true = input bar is in token-paste mode
+
+let balanceFetchTimer = null;
+const BALANCE_FETCH_INTERVAL_MS = 120000; // refresh every 2 minutes
 
 // Heights (px) — must match main process constants
 const INPUT_BAR_HEIGHT = 68;
@@ -77,7 +81,6 @@ function enterTokenMode() {
   btnSend.disabled = false;
   btnSend.title = 'Connect';
   // Hide chat-only buttons when in token mode
-  btnAudio.style.display = 'none';
   btnToggleChat.style.display = 'none';
   btnSettings.style.display = 'none';
   setConnectedIndicator(false);
@@ -97,9 +100,52 @@ function exitTokenMode() {
   btnSend.disabled = false;
   btnSend.title = 'Send';
   // Show chat buttons
-  btnAudio.style.display = '';
   btnToggleChat.style.display = '';
   btnSettings.style.display = '';
+}
+
+// ── Balance display ────────────────────────────────────────────────────────
+
+function updateBalanceDisplay(balance) {
+  if (balance === null || balance === undefined) {
+    balanceLabel.textContent = '';
+    balanceLabel.className = 'balance-label';
+    return;
+  }
+  const num = Number(balance);
+  balanceLabel.textContent = `$${num.toFixed(2)}`;
+  balanceLabel.title = `Account balance: $${num.toFixed(2)}`;
+  if (num <= 0.5) {
+    balanceLabel.className = 'balance-label critical';
+  } else if (num <= 2) {
+    balanceLabel.className = 'balance-label low';
+  } else {
+    balanceLabel.className = 'balance-label';
+  }
+}
+
+async function fetchBalance() {
+  if (tokenMode || !window.dopl.billing) return;
+  try {
+    const result = await window.dopl.billing.getBalance();
+    if (result.ok && result.balance !== null) {
+      updateBalanceDisplay(result.balance);
+    }
+  } catch { /* non-fatal */ }
+}
+
+function startBalancePolling() {
+  if (balanceFetchTimer) clearInterval(balanceFetchTimer);
+  fetchBalance(); // immediate first fetch
+  balanceFetchTimer = setInterval(fetchBalance, BALANCE_FETCH_INTERVAL_MS);
+}
+
+function stopBalancePolling() {
+  if (balanceFetchTimer) {
+    clearInterval(balanceFetchTimer);
+    balanceFetchTimer = null;
+  }
+  updateBalanceDisplay(null);
 }
 
 function autoResizeInput() {
@@ -237,12 +283,20 @@ async function sendMessage() {
   // Auto-create a conversation if we don't have one
   let convId = currentConversationId;
   if (!convId) {
+    // Guard against double-tap: if already creating, bail out
+    if (isCreatingConversation) {
+      isStreaming = false;
+      setInputEnabled(true);
+      return;
+    }
+    isCreatingConversation = true;
     try {
       const autoTitle = text.length > 50 ? text.slice(0, 50) + '…' : text;
       const result = await window.dopl.chat.createConversation(autoTitle);
       if (!result.ok) {
         console.error('[InputBar] Failed to auto-create conversation:', result.error);
         isStreaming = false;
+        isCreatingConversation = false;
         setInputEnabled(true);
         return;
       }
@@ -254,8 +308,11 @@ async function sendMessage() {
     } catch (err) {
       console.error('[InputBar] Auto-create conversation error:', err);
       isStreaming = false;
+      isCreatingConversation = false;
       setInputEnabled(true);
       return;
+    } finally {
+      isCreatingConversation = false;
     }
   }
 
@@ -277,6 +334,9 @@ async function sendMessage() {
   isStreaming = false;
   setInputEnabled(true);
   msgInput.focus();
+
+  // Refresh balance after send (deduction may have occurred)
+  fetchBalance();
 }
 
 // ── Event Bindings ─────────────────────────────────────────────────────────────
@@ -326,11 +386,6 @@ btnRelink.addEventListener('click', () => {
 // Toggle chat panel
 btnToggleChat.addEventListener('click', () => {
   window.dopl.toggleChatPanel();
-});
-
-// Audio (placeholder)
-btnAudio.addEventListener('click', () => {
-  console.log('Audio transcription coming soon');
 });
 
 // Message input
@@ -387,6 +442,11 @@ function enterSetupMode() {
 
 window.dopl.onStatusUpdate((data) => {
   setConnectedIndicator(data.connected, data.connecting);
+  if (data.connected) {
+    startBalancePolling();
+  } else {
+    stopBalancePolling();
+  }
   // If explicitly disconnected (token cleared), switch input bar to token mode
   if (data.disconnected) {
     enterSetupMode();
@@ -419,14 +479,41 @@ if (window.dopl.chat && window.dopl.chat.onReplyFromNotificationComplete) {
   });
 }
 
-// Handle usage limit — disable input and show reset time in placeholder
-if (window.dopl.chat && window.dopl.chat.onUsageLimitHit) {
-  window.dopl.chat.onUsageLimitHit((data) => {
+// Handle billing errors — show balance info or usage limit message
+if (window.dopl.chat && window.dopl.chat.onBillingError) {
+  window.dopl.chat.onBillingError((data) => {
     isStreaming = false;
-    msgInput.disabled = true;
-    btnSend.disabled = true;
-    const label = data.nextResetLabel || 'Usage limit reached';
-    msgInput.placeholder = `⚡ ${label}`;
+    msgInput.disabled = false; // allow user to keep trying after adding funds
+    btnSend.disabled = false;
+    if (data.type === 'insufficient_balance') {
+      const bal = data.balance !== null ? `$${Number(data.balance).toFixed(2)}` : '';
+      msgInput.placeholder = `💳 Insufficient balance${bal ? ` (${bal})` : ''} — add funds at usedopl.com/settings/billing`;
+    } else {
+      const label = data.nextResetLabel || data.reason || 'Usage limit reached';
+      msgInput.placeholder = `⚡ ${label}`;
+    }
+  });
+}
+
+// ── Global shortcut focus ──────────────────────────────────────────────────
+if (window.dopl.onFocusInput) {
+  window.dopl.onFocusInput(() => {
+    msgInput.focus();
+  });
+}
+
+// ── Listener cleanup on reconnect ──────────────────────────────────────────
+// Main sends 'cleanup-listeners' before re-wiring EventManager on reconnect.
+// We must remove all listeners, then re-register them to prevent duplicates.
+if (window.dopl.onCleanupListeners) {
+  window.dopl.onCleanupListeners(() => {
+    // NOTE: We don't call removeAllChatListeners() here because the input bar
+    // uses a fixed set of one-time-registered listeners (onStatusUpdate,
+    // onChatPanelState, etc.) that are idempotent — main's broadcastToAll
+    // always sends to webContents directly, not through accumulated ipcRenderer
+    // listeners. The risk is only in EventManager event listeners which are
+    // wired via wireEventManager() in main process, not in the renderer.
+    console.log('[InputBar] Cleanup signal received — no action needed for input bar');
   });
 }
 
@@ -508,10 +595,12 @@ if (window.dopl.runtime && window.dopl.runtime.onStatus) {
   // Always start at input bar height — no setup card expansion
   window.dopl.windowSetSize(680, INPUT_BAR_HEIGHT, false);
 
-  if (state.token && state.connected) {
+  const hasToken = state.hasToken || state.token;
+  if (hasToken && state.connected) {
     exitTokenMode();
     setConnectedIndicator(true, false);
-  } else if (state.token && !state.connected) {
+    startBalancePolling();
+  } else if (hasToken && !state.connected) {
     // Token exists but not connected — show token mode so user can re-pair
     // but also try reconnecting in the background
     enterTokenMode();

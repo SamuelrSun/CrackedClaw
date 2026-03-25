@@ -5,6 +5,11 @@ contextBridge.exposeInMainWorld('dopl', {
   /** Toggle mouse event pass-through for transparent window areas. */
   setIgnoreMouseEvents: (ignore) => ipcRenderer.send('set-ignore-mouse-events', { ignore }),
 
+  // ── Focus input (from global shortcut) ──────────────────────────────────
+  onFocusInput: (callback) => {
+    ipcRenderer.on('focus-input', () => callback());
+  },
+
   // ── Window Controls (input bar resize) ────────────────────────────────────
   windowSetSize: (width, height, animate) => ipcRenderer.send('window-set-size', { width, height, animate }),
   windowGetSize: () => ipcRenderer.invoke('window-get-size'),
@@ -26,6 +31,14 @@ contextBridge.exposeInMainWorld('dopl', {
   disconnect: () => ipcRenderer.invoke('disconnect'),
   onStatusUpdate: (callback) => {
     ipcRenderer.on('status-update', (_event, data) => callback(data));
+  },
+
+  /**
+   * Fired by main before re-wiring event listeners on reconnect.
+   * Renderers should call removeAllChatListeners() then re-register.
+   */
+  onCleanupListeners: (callback) => {
+    ipcRenderer.on('cleanup-listeners', (_event) => callback());
   },
 
   // ── Glass Tint ───────────────────────────────────────────────────────────
@@ -109,6 +122,22 @@ contextBridge.exposeInMainWorld('dopl', {
       ipcRenderer.removeAllListeners('chat:pushed-message');
     },
 
+    /** Remove ALL chat + event listeners. Call before re-registering on reconnect. */
+    removeAllChatListeners: () => {
+      ipcRenderer.removeAllListeners('chat:stream-chunk');
+      ipcRenderer.removeAllListeners('chat:show-user-message');
+      ipcRenderer.removeAllListeners('chat:message-finalized');
+      ipcRenderer.removeAllListeners('chat:pushed-message');
+      ipcRenderer.removeAllListeners('chat:billing-error');
+      ipcRenderer.removeAllListeners('chat:reply-from-notification-complete');
+      ipcRenderer.removeAllListeners('task-update');
+      ipcRenderer.removeAllListeners('conversation-selected');
+      ipcRenderer.removeAllListeners('status-update');
+      ipcRenderer.removeAllListeners('glass-tint-changed');
+      ipcRenderer.removeAllListeners('chat-panel-state');
+      ipcRenderer.removeAllListeners('runtime-status-update');
+    },
+
     /**
      * Fires when a background assistant message arrives via the EventManager
      * (i.e., from a task that completed while no active stream was running).
@@ -136,13 +165,18 @@ contextBridge.exposeInMainWorld('dopl', {
     },
 
     /**
-     * Fires when the API returns a 429 usage_limit response.
-     * The input bar should disable itself and show a message.
-     * data: { reason, nextResetLabel, currentPlan, resetsAt }
+     * Fires when the API returns a billing error (402 insufficient balance
+     * or 429 legacy usage limit). The input bar should show the error.
+     * data: { type, balance, required, reason, nextResetLabel, topUpUrl }
      */
-    onUsageLimitHit: (callback) => {
-      ipcRenderer.on('chat:usage-limit-hit', (_event, data) => callback(data));
+    onBillingError: (callback) => {
+      ipcRenderer.on('chat:billing-error', (_event, data) => callback(data));
     },
+  },
+
+  // ── Billing ──────────────────────────────────────────────────────────────
+  billing: {
+    getBalance: () => ipcRenderer.invoke('billing:get-balance'),
   },
 
   // ── Notification Preferences ──────────────────────────────────────────────

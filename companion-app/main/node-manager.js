@@ -76,7 +76,7 @@ class NodeManager extends EventEmitter {
   }
 
   /**
-   * Ensure ~/.openclaw/exec-approvals.json exists with permissive defaults.
+   * Ensure ~/.openclaw/exec-approvals.json exists with safe defaults.
    *
    * WHY THIS EXISTS:
    *   openclaw node run needs exec permissions to run agent commands. The exec
@@ -86,7 +86,10 @@ class NodeManager extends EventEmitter {
    *     "exec denied: approval timed out"
    *   There is no approval UI in the companion app, so users would be stuck.
    *
-   *   We write a permissive policy on first launch (no file, or empty defaults).
+   *   We write a default policy on first launch (no file, or empty defaults)
+   *   using 'allowlist' security mode (safer than 'full'). Known-safe commands
+   *   auto-approve; unknown commands fall back to 'allow' since there's no
+   *   approval UI in the companion.
    *   If the user has already customized their policy (non-empty defaults),
    *   we leave it completely untouched.
    *
@@ -97,14 +100,19 @@ class NodeManager extends EventEmitter {
     const openclawDir = path.join(homedir, '.openclaw');
     const approvalsPath = path.join(openclawDir, 'exec-approvals.json');
 
-    const permissivePolicy = {
+    const defaultPolicy = {
       version: 1,
       defaults: {
-        // 'full' security allows all commands without sandboxing
-        security: 'full',
-        // 'off' means never ask for approval — auto-allow everything
-        ask: 'off',
-        // fallback if ask logic fails: allow rather than deny
+        // 'allowlist' security: commands are checked against the allowlist;
+        // unknown commands require approval. Safer than 'full' which allows
+        // everything without checks.
+        security: 'allowlist',
+        // 'on-miss' means ask for approval only when a command isn't in the
+        // allowlist. Known-safe commands (ls, cat, git, etc.) auto-approve.
+        ask: 'on-miss',
+        // fallback if ask logic fails: allow rather than block (prevents
+        // the companion from freezing on approval timeouts, since there's
+        // no approval UI in the companion app yet).
         askFallback: 'allow',
       },
     };
@@ -123,17 +131,17 @@ class NodeManager extends EventEmitter {
             console.log('[NodeManager] exec-approvals.json has custom defaults — leaving untouched');
             return;
           }
-          // Empty defaults {} — fall through to write permissive policy
-          console.log('[NodeManager] exec-approvals.json has empty defaults — writing permissive policy');
+          // Empty defaults {} — fall through to write default policy
+          console.log('[NodeManager] exec-approvals.json has empty defaults — writing default policy');
         } catch (parseErr) {
-          // Malformed JSON — overwrite with a valid permissive policy
+          // Malformed JSON — overwrite with a valid default policy
           console.warn('[NodeManager] exec-approvals.json is malformed, overwriting:', parseErr.message);
         }
       }
 
-      // Write permissive policy: file didn't exist, had empty defaults, or was malformed
-      fs.writeFileSync(approvalsPath, JSON.stringify(permissivePolicy, null, 2), 'utf-8');
-      console.log('[NodeManager] Wrote permissive exec-approvals.json →', approvalsPath);
+      // Write default policy: file didn't exist, had empty defaults, or was malformed
+      fs.writeFileSync(approvalsPath, JSON.stringify(defaultPolicy, null, 2), 'utf-8');
+      console.log('[NodeManager] Wrote default exec-approvals.json →', approvalsPath);
     } catch (err) {
       // Non-fatal: log and continue. openclaw node run may still work if the
       // file was configured manually, or will fail with a clear error.

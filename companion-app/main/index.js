@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain, safeStorage, globalShortcut } = require('electron');
 const path = require('path');
 const Store = require('electron-store');
 const NodeManager = require('./node-manager');
@@ -8,6 +8,40 @@ const EventManager = require('./event-manager');
 const { setupIPC, wireEventManager } = require('./ipc');
 
 const store = new Store();
+
+// ── Secure token storage helpers ──────────────────────────────────────────────
+// Uses Electron's safeStorage (OS keychain) when available, falls back to plain store.
+
+function storeToken(rawToken) {
+  if (safeStorage.isEncryptionAvailable()) {
+    const encrypted = safeStorage.encryptString(rawToken);
+    store.set('connectionTokenEncrypted', encrypted.toString('base64'));
+    store.delete('connectionToken'); // remove any old plaintext token
+  } else {
+    store.set('connectionToken', rawToken);
+  }
+}
+
+function loadToken() {
+  // Try encrypted first
+  const encrypted = store.get('connectionTokenEncrypted');
+  if (encrypted && safeStorage.isEncryptionAvailable()) {
+    try {
+      return safeStorage.decryptString(Buffer.from(encrypted, 'base64'));
+    } catch (err) {
+      console.warn('[Token] Failed to decrypt stored token:', err.message);
+      store.delete('connectionTokenEncrypted');
+      return null;
+    }
+  }
+  // Fall back to plaintext (legacy / encryption unavailable)
+  return store.get('connectionToken') || null;
+}
+
+function clearToken() {
+  store.delete('connectionToken');
+  store.delete('connectionTokenEncrypted');
+}
 const runtimeManager = new RuntimeManager();
 let inputBarWindow = null;
 let chatPanelWindow = null;
@@ -96,9 +130,13 @@ function createInputBarWindow() {
 }
 
 function createChatPanelWindow() {
+  const savedSize = store.get('chatPanelSize');
+  const cpWidth = (savedSize && savedSize.width) || CHAT_PANEL_WIDTH;
+  const cpHeight = (savedSize && savedSize.height) || CHAT_PANEL_HEIGHT;
+
   chatPanelWindow = new BrowserWindow({
-    width: CHAT_PANEL_WIDTH,
-    height: CHAT_PANEL_HEIGHT,
+    width: cpWidth,
+    height: cpHeight,
     minWidth: 400,
     minHeight: 200,
     resizable: true,
@@ -122,6 +160,14 @@ function createChatPanelWindow() {
   chatPanelWindow.loadFile(path.join(__dirname, '../renderer/chat-panel.html'));
   // Chat panel starts ignoring mouse events; renderer toggles when cursor is over panel
   chatPanelWindow.setIgnoreMouseEvents(true, { forward: true });
+
+  // Persist size when user resizes
+  chatPanelWindow.on('resize', () => {
+    if (chatPanelWindow && !chatPanelWindow.isDestroyed()) {
+      const [w, h] = chatPanelWindow.getSize();
+      store.set('chatPanelSize', { width: w, height: h });
+    }
+  });
 
   // Intercept native close → hide (the custom X button calls close-chat-panel IPC)
   chatPanelWindow.on('close', (e) => {
@@ -156,6 +202,10 @@ function showChatPanel() {
   if (inputBarWindow && !inputBarWindow.isDestroyed()) {
     inputBarWindow.webContents.send('chat-panel-state', { visible: true });
   }
+  // Show in Dock + Cmd+Tab when chat panel is visible (macOS)
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.show();
+  }
 }
 
 function hideChatPanel() {
@@ -164,6 +214,10 @@ function hideChatPanel() {
   chatPanelVisible = false;
   if (inputBarWindow && !inputBarWindow.isDestroyed()) {
     inputBarWindow.webContents.send('chat-panel-state', { visible: false });
+  }
+  // Hide from Dock + Cmd+Tab when only the input pill is showing (macOS)
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.hide();
   }
 }
 
@@ -296,6 +350,9 @@ app.whenReady().then(() => {
     getChatPanelVisible: () => chatPanelVisible,
     broadcastToAll,
     getRuntimeManager: () => runtimeManager,
+    storeToken,
+    loadToken,
+    clearToken,
     SETUP_HEIGHT,
     INPUT_BAR_HEIGHT,
     INPUT_BAR_WIDTH,
@@ -328,49 +385,64 @@ app.whenReady().then(() => {
     }
   });
 
+  // Start with Dock hidden (LSUIElement: true hides by default, but
+  // explicitly hide in case the plist flag is removed in the future)
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.hide();
+  }
+
   createInputBarWindow();
   createChatPanelWindow();
   createTray();
 
+  // ── Global shortcut: Cmd+Shift+Space to toggle input bar + focus ──────────
+  const shortcutRegistered = globalShortcut.register('CommandOrControl+Shift+Space', () => {
+    if (!inputBarWindow || inputBarWindow.isDestroyed()) return;
+
+    if (inputBarWindow.isVisible() && inputBarWindow.isFocused()) {
+      // Already visible and focused — hide it
+      inputBarWindow.hide();
+      if (chatPanelVisible) hideChatPanel();
+    } else {
+      // Show, bring to front, and focus the input
+      inputBarWindow.show();
+      inputBarWindow.focus();
+      inputBarWindow.webContents.send('focus-input');
+    }
+  });
+
+  if (!shortcutRegistered) {
+    console.warn('[Shortcut] Failed to register Cmd+Shift+Space — may be in use by another app');
+  } else {
+    console.log('[Shortcut] Cmd+Shift+Space registered for toggle');
+  }
+
   // ── Permission triggers ──
-  // Check ACTUAL permission state each launch, not a stored "already asked" flag.
-  function triggerPermissionPrompts() {
+  // Check accessibility on each launch. Screen recording is checked only once
+  // (on first launch) since desktopCapturer-based detection is unreliable on
+  // newer macOS and causes false positives that open System Preferences every time.
+  {
     const { systemPreferences, shell } = require('electron');
 
     // Accessibility — passing true shows the system prompt if not already granted
-    const accessibilityGranted = systemPreferences.isTrustedAccessibilityClient(true);
-    console.log('[Permissions] Accessibility:', accessibilityGranted ? 'granted' : 'prompt shown');
-
-    // Screen Recording — desktopCapturer doesn't reliably trigger the prompt
-    // on newer macOS, so open System Preferences directly if needed
-    try {
-      const { desktopCapturer } = require('electron');
-      desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } })
-        .then((sources) => {
-          const hasContent = sources.some(s => s.thumbnail && s.thumbnail.getSize().width > 0);
-          if (!hasContent) {
-            console.log('[Permissions] Screen Recording: not granted, opening preferences…');
-            shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
-          } else {
-            console.log('[Permissions] Screen Recording: granted');
-          }
-        })
-        .catch(() => {
-          console.log('[Permissions] Screen Recording: check failed, opening preferences…');
-          shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
-        });
-    } catch (e) {
-      console.log('[Permissions] Screen Recording check failed:', e.message);
-    }
-  }
-
-  // Check live permission state every launch — prompt if not yet granted
-  {
-    const { systemPreferences } = require('electron');
     const accessibilityGranted = systemPreferences.isTrustedAccessibilityClient(false);
     if (!accessibilityGranted) {
-      // Delay so the app window is visible first
-      setTimeout(() => triggerPermissionPrompts(), 2000);
+      setTimeout(() => {
+        systemPreferences.isTrustedAccessibilityClient(true);
+        console.log('[Permissions] Accessibility: prompt shown');
+      }, 2000);
+    } else {
+      console.log('[Permissions] Accessibility: granted');
+    }
+
+    // Screen Recording — prompt once on first launch only
+    const screenRecordingPrompted = store.get('screenRecordingPrompted', false);
+    if (!screenRecordingPrompted) {
+      store.set('screenRecordingPrompted', true);
+      setTimeout(() => {
+        console.log('[Permissions] Screen Recording: first launch, opening preferences…');
+        shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+      }, 4000);
     }
   }
 
@@ -381,7 +453,7 @@ app.whenReady().then(() => {
   });
 
   // Auto-reconnect if token exists
-  const rawToken = store.get('connectionToken');
+  const rawToken = loadToken();
   if (rawToken) {
     try {
       const decoded = JSON.parse(Buffer.from(rawToken, 'base64').toString('utf-8'));
@@ -416,7 +488,7 @@ app.whenReady().then(() => {
       });
       nodeManager.start().catch(() => {});
     } catch (_) {
-      store.delete('connectionToken');
+      clearToken();
     }
   }
 });
@@ -427,6 +499,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true;
+  globalShortcut.unregisterAll();
   if (nodeManager) nodeManager.stop();
   if (eventManager) eventManager.stop();
   // Force-destroy both windows — .destroy() bypasses closable:false and close event handlers

@@ -197,11 +197,23 @@ function renderMarkdown(text) {
   safe = safe.replace(/^## (.+)$/gm, '<h2>$1</h2>');
   safe = safe.replace(/^# (.+)$/gm, '<h1>$1</h1>');
 
+  // Horizontal rules
+  safe = safe.replace(/^(---|\*\*\*|___)$/gm, '<hr>');
+
   // Bold and italic
   safe = safe.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
   safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   safe = safe.replace(/\*(.+?)\*/g, '<em>$1</em>');
   safe = safe.replace(/_(.+?)_/g, '<em>$1</em>');
+
+  // Strikethrough
+  safe = safe.replace(/~~(.+?)~~/g, '<del>$1</del>');
+
+  // Markdown links: [text](url)
+  safe = safe.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="md-link" title="$2">$1</a>');
+
+  // Bare URLs — convert to clickable links (but not inside already-rendered <a> tags)
+  safe = safe.replace(/(^|[^"=])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" class="md-link" title="$2">$2</a>');
 
   // Blockquote
   safe = safe.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');

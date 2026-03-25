@@ -260,8 +260,9 @@
     <div class="input-bar-wrapper">
       <div class="input-bar-glass">
 
-        <!-- Connection status dot -->
+        <!-- Connection status dot + balance -->
         <div id="conn-dot" class="conn-dot disconnected" title="Disconnected"></div>
+        <span id="balance-label" class="balance-label" title="Account balance"></span>
 
         <!-- Text input -->
         <textarea
@@ -271,15 +272,6 @@
           rows="1"
           disabled
         ></textarea>
-
-        <!-- Audio transcription button (placeholder) -->
-        <button id="btn-audio" class="btn-icon" title="Audio transcription (coming soon)">
-          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="4.5" y="0.75" width="6" height="8.5" rx="3" stroke="currentColor" stroke-width="1.3"/>
-            <path d="M2 7.5C2 10.538 4.5 12.5 7.5 12.5S13 10.538 13 7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-            <path d="M7.5 12.5V14.25" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-          </svg>
-        </button>
 
         <!-- Send button -->
         <button id="btn-send" class="btn-icon btn-send-icon" disabled>

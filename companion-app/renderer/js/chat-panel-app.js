@@ -383,6 +383,17 @@ window.dopl.chat.onPushedMessage((data) => {
   }
 });
 
+// ── Open links in external browser ──────────────────────────────────────────────
+// Intercept clicks on markdown-rendered links and open in the default browser
+// instead of navigating within the Electron BrowserWindow.
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('a.md-link, a[href]');
+  if (link && link.href && link.href.startsWith('http')) {
+    e.preventDefault();
+    window.dopl.openInBrowser(link.href);
+  }
+});
+
 // ── Click-through: pass mouse events on transparent corner areas ───────────────
 
 document.addEventListener('mousemove', (e) => {
@@ -406,7 +417,8 @@ document.addEventListener('mousemove', (e) => {
   // Initialize button state
   updateOpenInBrowserButton();
 
-  if (state.token) {
+  const hasToken = state.hasToken || state.token;
+  if (hasToken) {
     // Load conversations so the list is ready
     await loadConversations();
     clearMessages('Start a conversation below');

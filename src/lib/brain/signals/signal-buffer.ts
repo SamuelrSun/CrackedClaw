@@ -32,6 +32,7 @@ export function recordSignal(signal: BrainSignal): void {
       context: signal.context ?? null,
       signal_data: signal.signal_data,
       session_id: signal.session_id ?? null,
+      source: signal.source ?? 'dopl',
     })
     .then(() => {})
     .catch((err) => console.error('[brain-signal] Insert failed:', err));

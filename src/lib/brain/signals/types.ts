@@ -9,6 +9,7 @@ export interface BrainSignal {
   context?: string;
   signal_data: Record<string, unknown>;
   session_id?: string;
+  source?: string;
   created_at?: string;
 }
 

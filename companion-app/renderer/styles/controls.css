@@ -29,6 +29,30 @@
   50% { opacity: 0.4; }
 }
 
+/* ── Balance Label ──────────────────────────────────────────────────────── */
+.balance-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  letter-spacing: 0.2px;
+  flex-shrink: 0;
+  transition: color 0.3s;
+  -webkit-app-region: no-drag;
+  cursor: default;
+}
+
+.balance-label:empty {
+  display: none;
+}
+
+.balance-label.low {
+  color: #f59e0b;
+}
+
+.balance-label.critical {
+  color: var(--error);
+}
+
 /* ── Icon Buttons ────────────────────────────────────────────────────────── */
 .btn-icon {
   width: 30px;

@@ -16,9 +16,8 @@ const EventEmitter = require('events');
 class EventManager extends EventEmitter {
   constructor({ webAppUrl, authToken }) {
     super();
-    // Normalize base URL — strip trailing slash, ensure www subdomain
+    // Normalize base URL — strip trailing slash
     this.webAppUrl = (webAppUrl || '').replace(/\/$/, '');
-    this.webAppUrl = this.webAppUrl.replace('://usedopl.com', '://www.usedopl.com');
     this.authToken = authToken;
 
     this.connected = false;
@@ -27,6 +26,8 @@ class EventManager extends EventEmitter {
     this.maxReconnectDelay = 60000;
     this.reconnectTimer = null;
     this.abortController = null;
+    this.heartbeatTimer = null;
+    this.heartbeatTimeoutMs = 90000; // 90s — if no data in this window, reconnect
 
     // Track message IDs seen during active chat streaming to avoid duplicates
     // when the Realtime subscription also fires for the same message.
@@ -62,11 +63,30 @@ class EventManager extends EventEmitter {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    if (this.heartbeatTimer) {
+      clearTimeout(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
     }
     this.connected = false;
+  }
+
+  /** Reset the heartbeat timer — called whenever data arrives. */
+  _resetHeartbeat() {
+    if (this.heartbeatTimer) clearTimeout(this.heartbeatTimer);
+    if (!this.shouldRun) return;
+    this.heartbeatTimer = setTimeout(() => {
+      console.warn('[EventManager] No data received in', this.heartbeatTimeoutMs, 'ms — forcing reconnect');
+      // Abort the current connection to break out of the reader loop
+      if (this.abortController) {
+        this.abortController.abort();
+        this.abortController = null;
+      }
+      // _connect's catch block + _scheduleReconnect will handle the rest
+    }, this.heartbeatTimeoutMs);
   }
 
   async _connect() {
@@ -91,6 +111,7 @@ class EventManager extends EventEmitter {
       this.connected = true;
       this.reconnectDelay = 2000; // reset backoff on successful connect
       this.emit('connected');
+      this._resetHeartbeat(); // start heartbeat watchdog
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -101,6 +122,7 @@ class EventManager extends EventEmitter {
         const { done, value } = await reader.read();
         if (done) break;
 
+        this._resetHeartbeat(); // any data resets the watchdog
         buffer += decoder.decode(value, { stream: true });
 
         // SSE format: one or more "event: type\ndata: {...}\n\n" blocks
@@ -130,10 +152,14 @@ class EventManager extends EventEmitter {
         }
       }
     } catch (err) {
-      if (err.name === 'AbortError') return; // intentional stop()
-      console.error('[EventManager] Connection error:', err.message);
+      if (err.name === 'AbortError' && !this.shouldRun) return; // intentional stop()
+      // AbortError with shouldRun=true means heartbeat timeout — fall through to reconnect
+      if (err.name !== 'AbortError') {
+        console.error('[EventManager] Connection error:', err.message);
+      }
     }
 
+    if (this.heartbeatTimer) { clearTimeout(this.heartbeatTimer); this.heartbeatTimer = null; }
     this.connected = false;
     this.emit('disconnected');
     this._scheduleReconnect();

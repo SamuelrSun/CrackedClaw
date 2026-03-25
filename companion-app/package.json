@@ -12,8 +12,8 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
-    "electron": "^28.1.0",
-    "electron-builder": "^24.9.1"
+    "electron": "^32.2.0",
+    "electron-builder": "^25.1.8"
   },
   "build": {
     "appId": "com.dopl.connect",

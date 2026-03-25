@@ -116,6 +116,9 @@ function setupIPC(deps) {
     getChatPanelVisible,
     broadcastToAll,
     getRuntimeManager,
+    storeToken,
+    loadToken,
+    clearToken,
     INPUT_BAR_HEIGHT,
     INPUT_BAR_WIDTH,
   } = deps;
@@ -225,9 +228,11 @@ function setupIPC(deps) {
 
   ipcMain.handle('get-state', () => {
     const nodeManager = getNodeManager();
+    const token = loadToken ? loadToken() : store.get('connectionToken') || null;
     return {
       connected: nodeManager ? nodeManager.connected : false,
-      token: store.get('connectionToken') || null,
+      token: token ? '***' : null, // don't send raw token to renderer
+      hasToken: !!token,
       gatewayUrl: store.get('gatewayUrl') || null,
       instanceId: store.get('instanceId') || null,
       webAppUrl: store.get('webAppUrl') || null,
@@ -244,7 +249,7 @@ function setupIPC(deps) {
         return { ok: false, error: 'Invalid token: missing required fields' };
       }
 
-      store.set('connectionToken', rawToken);
+      if (storeToken) storeToken(rawToken); else store.set('connectionToken', rawToken);
       store.set('gatewayUrl', gatewayUrl);
       store.set('instanceId', instanceId);
       store.set('authToken', authToken);
@@ -254,9 +259,13 @@ function setupIPC(deps) {
 
       initChatManager(decoded);
 
-      // Stop any existing EventManager before creating a new one
+      // Stop any existing EventManager and remove its listeners before creating a new one.
+      // This prevents listener accumulation across reconnects.
       const existingEm = getEventManager ? getEventManager() : null;
-      if (existingEm) existingEm.stop();
+      if (existingEm) {
+        existingEm.stop();
+        existingEm.removeAllListeners();
+      }
 
       const em = new EventManager({
         webAppUrl: webAppUrl || store.get('webAppUrl') || 'https://usedopl.com',
@@ -312,7 +321,7 @@ function setupIPC(deps) {
       if (em) { em.stop(); setEventManager(null); }
     }
     setChatManager(null);
-    store.delete('connectionToken');
+    if (clearToken) clearToken(); else store.delete('connectionToken');
     store.delete('gatewayUrl');
     store.delete('instanceId');
     store.delete('authToken');
@@ -539,17 +548,36 @@ function setupIPC(deps) {
 
       return { ok: true, content: fullContent };
     } catch (err) {
-      // Handle usage limit — broadcast to all windows so the UI can disable input
-      if (err.usageLimitData) {
-        broadcastToAll('chat:usage-limit-hit', err.usageLimitData);
+      // Handle billing errors (402 insufficient balance / 429 legacy usage limit)
+      if (err.billingData) {
+        broadcastToAll('chat:billing-error', err.billingData);
         if (chatPanel && !chatPanel.isDestroyed()) {
-          chatPanel.webContents.send('chat:message-finalized', { ok: false, error: err.message, usageLimitData: err.usageLimitData });
+          chatPanel.webContents.send('chat:message-finalized', { ok: false, error: err.message, billingData: err.billingData });
         }
-        return { ok: false, error: err.message, usageLimitData: err.usageLimitData };
+        return { ok: false, error: err.message, billingData: err.billingData };
       }
       if (chatPanel && !chatPanel.isDestroyed()) {
         chatPanel.webContents.send('chat:message-finalized', { ok: false, error: err.message });
       }
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // ── Balance IPC ──────────────────────────────────────────────────────────────
+
+  ipcMain.handle('billing:get-balance', async () => {
+    const chatManager = getChatManager();
+    if (!chatManager) return { ok: false, error: 'Not connected' };
+    try {
+      const baseUrl = await chatManager._resolveBaseUrl();
+      // Use companion-specific balance endpoint
+      const res = await fetch(`${baseUrl}/api/companion/balance`, {
+        headers: { 'X-Companion-Token': chatManager.authToken },
+      });
+      if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+      const data = await res.json();
+      return { ok: true, balance: data.balance_usd ?? data.balance ?? null };
+    } catch (err) {
       return { ok: false, error: err.message };
     }
   });
