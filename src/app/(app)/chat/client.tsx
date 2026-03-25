@@ -2917,7 +2917,7 @@ User message: `
               </button>
               </div>
 
-              {/* Voice input button */}
+              {/* Voice input button — directly left of send */}
               <VoiceInputButton
                 onTranscript={(text) => {
                   setInput(text);
@@ -2929,7 +2929,7 @@ User message: `
                 variant="outreach"
               />
 
-              {/* Send button — always visible when there's input */}
+              {/* Send button */}
               <button
                 type="button"
                 onClick={() => {

@@ -85,9 +85,9 @@ export function VoiceInputButton({
         }
         aria-label={isListening ? "Stop recording" : "Start voice input"}
         className={cn(
-          "relative flex items-center justify-center transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
-          // Size
-          "w-10 h-10",
+          "relative flex items-center justify-center transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-[4px]",
+          // Size — match other input bar icons (w-7 h-7)
+          "w-7 h-7",
           // Variant-specific styles
           isOutreach ? (
             isListening
