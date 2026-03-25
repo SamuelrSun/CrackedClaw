@@ -159,54 +159,7 @@ function getAgentTaskLabel(tool: string, input: Record<string, unknown>): string
   }
 }
 
-function TokenUsageBar() {
-  const [status, setStatus] = useState<{
-    daily: { usedPercent: number; resetsAt: string };
-    weekly: { usedPercent: number };
-    allowed: boolean;
-    nextResetLabel?: string;
-  } | null>(null);
-
-  useEffect(() => {
-    fetch('/api/usage/status')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setStatus(d))
-      .catch(() => {});
-  }, []);
-
-  if (!status) return null;
-
-  const dailyPct = status.daily?.usedPercent || 0;
-  const isDepleted = !status.allowed;
-
-  // Only show when usage is above 60% of daily limit or depleted
-  if (dailyPct < 60 && !isDepleted) return null;
-
-  return (
-    <div className={`flex-shrink-0 px-4 py-1.5 border-t border-white/[0.08] flex items-center gap-3 ${
-      isDepleted ? 'bg-red-500/10' : dailyPct >= 80 ? 'bg-amber-500/10' : 'bg-transparent'
-    }`}>
-      {isDepleted ? (
-        <a href="/settings" className={`font-mono text-[10px] underline ${isDepleted ? 'text-red-400' : 'text-amber-400'}`}>
-          &#9889; Daily limit reached &mdash; {status.nextResetLabel || 'resets tomorrow'}
-        </a>
-      ) : (
-        <div className="flex items-center gap-2 flex-1">
-          <span className="font-mono text-[9px] text-white/30">DAILY</span>
-          <div className="flex-1 h-1 bg-white/[0.08] overflow-hidden rounded-[1px]">
-            <div
-              className="h-full transition-all duration-500"
-              style={{
-                width: `${Math.min(dailyPct, 100)}%`,
-                background: dailyPct >= 90 ? "#f87171" : dailyPct >= 70 ? "#fbbf24" : "#34d399",
-              }}
-            />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// TokenUsageBar removed — outdated daily/weekly limit banner
 
 interface ChatPageClientProps {
   initialConversations: Conversation[];
@@ -2769,9 +2722,6 @@ User message: `
         {/* Subagent Dashboard Panel */}
         {/* SubagentPanel removed — replaced by inline subagent cards */}
 
-        {/* Token Usage Indicator */}
-        <TokenUsageBar />
-
         {/* Input */}
         <div className="flex-shrink-0 p-2 md:p-4 flex justify-center">
           <div className="w-[95%] md:w-3/4 min-w-0 md:min-w-[300px]">
@@ -2917,37 +2867,39 @@ User message: `
               </button>
               </div>
 
-              {/* Voice input button — directly left of send */}
-              <VoiceInputButton
-                onTranscript={(text) => {
-                  setInput(text);
-                }}
-                onInterimUpdate={(text) => {
-                  setInput(text);
-                }}
-                disabled={!gateway || isLoading || isReconnecting}
-                variant="outreach"
-              />
+              {/* Right group: voice input + send */}
+              <div className="flex items-center gap-1.5">
+                {/* Voice input button — directly left of send */}
+                <VoiceInputButton
+                  onTranscript={(text) => {
+                    setInput(text);
+                  }}
+                  onInterimUpdate={(text) => {
+                    setInput(text);
+                  }}
+                  disabled={!gateway || isLoading || isReconnecting}
+                  variant="outreach"
+                />
 
-              {/* Send button */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (input.trim() || attachedFiles.length > 0) {
-                    if (!activeConvo) {
-                      handleLandingSend(input.trim());
-                    } else {
-                      handleSend();
+                {/* Send button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (input.trim() || attachedFiles.length > 0) {
+                      if (!activeConvo) {
+                        handleLandingSend(input.trim());
+                      } else {
+                        handleSend();
+                      }
                     }
-                  }
-                }}
-                disabled={!gateway || isLoading || isReconnecting || (!input.trim() && attachedFiles.length === 0)}
-                className="group/btn relative w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
-                <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">Send</span>
-              </button>
-
+                  }}
+                  disabled={!gateway || isLoading || isReconnecting || (!input.trim() && attachedFiles.length === 0)}
+                  className="group/btn relative w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+                  <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">Send</span>
+                </button>
+              </div>
 
             </div>
           </div>

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { GlassNavbar } from "@/components/layout/glass-navbar";
 import { PricingModal } from "@/components/settings/pricing-modal";
+import { UsageHistogram } from "@/components/settings/usage-histogram";
 
 interface SettingsPageClientProps {
   initialTokenUsage: {
@@ -1038,59 +1039,13 @@ export default function SettingsPageClient({
               </div>
             </div>
 
-            {/* Credit Usage */}
+            {/* Usage */}
             <div className={glassPanel}>
-              <div className="flex items-center gap-2 mb-4">
-                <Zap className="w-4 h-4 text-emerald-400/70" />
-                <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium font-mono">Usage</span>
-              </div>
+              <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium">Usage</span>
 
-              {/* Daily & Weekly bars — shown for all plans, no raw numbers */}
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-[10px] text-white/40 w-12">DAILY</span>
-                    <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
-                      <div
-                        className="h-full transition-all duration-500"
-                        style={{
-                          width: `${Math.min(usageStatus?.daily?.usedPercent || 0, 100)}%`,
-                          background: (usageStatus?.daily?.usedPercent || 0) >= 90 ? "#f87171" : (usageStatus?.daily?.usedPercent || 0) >= 70 ? "#fbbf24" : "#34d399",
-                        }}
-                      />
-                    </div>
-                  </div>
-                  {(usageStatus?.daily?.usedPercent || 0) >= 100 && (
-                    <p className="font-mono text-[10px] text-red-400 pl-[60px]">
-                      Daily limit reached — {usageStatus?.nextResetLabel || "resets tomorrow"}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-[10px] text-white/40 w-12">WEEKLY</span>
-                    <div className="flex-1 h-1.5 bg-white/[0.08] overflow-hidden rounded-[1px]">
-                      <div
-                        className="h-full transition-all duration-500"
-                        style={{
-                          width: `${Math.min(usageStatus?.weekly?.usedPercent || 0, 100)}%`,
-                          background: (usageStatus?.weekly?.usedPercent || 0) >= 90 ? "#f87171" : (usageStatus?.weekly?.usedPercent || 0) >= 70 ? "#fbbf24" : "#34d399",
-                        }}
-                      />
-                    </div>
-                  </div>
-                  {(usageStatus?.weekly?.usedPercent || 0) >= 100 && (
-                    <p className="font-mono text-[10px] text-red-400 pl-[60px]">
-                      Weekly limit reached — resets Monday
-                    </p>
-                  )}
-                </div>
+              <div className="mt-4">
+                <UsageHistogram />
               </div>
-
-              <button
-                onClick={() => setShowPricingModal(true)}
-                className="w-full mt-5 py-2.5 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/70 text-[13px] font-mono transition-colors"
-              >
-                View Plans
-              </button>
             </div>
           </div>
 
