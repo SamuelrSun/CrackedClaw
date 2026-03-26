@@ -103,7 +103,7 @@ function CompanionSetupInline() {
       </p>
 
       <a
-        href="/downloads/dopl-connect.dmg"
+        href="/api/download/companion"
         className="flex items-center gap-2 w-full px-4 py-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/80 text-[13px] transition-colors"
       >
         <Download className="w-4 h-4 text-emerald-400 flex-shrink-0" />

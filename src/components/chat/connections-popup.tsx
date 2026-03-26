@@ -158,7 +158,7 @@ export function ConnectionsPopup({ onClose }: ConnectionsPopupProps) {
               {/* Download link */}
               {!companionConnected && (
                 <a
-                  href="/downloads/dopl-connect.dmg"
+                  href="/api/download/companion"
                   className="flex items-center gap-2 text-[11px] text-emerald-400/70 hover:text-emerald-400 transition-colors"
                 >
                   <Download className="w-3 h-3" />

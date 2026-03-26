@@ -95,7 +95,7 @@ export function CompanionDownloadCard() {
       {!connected && (
         <div className="flex border-t border-white/[0.06]">
           <a
-            href="/downloads/dopl-connect.dmg"
+            href="/api/download/companion"
             download
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-[11px] font-medium text-white/70 hover:text-white/90 hover:bg-white/[0.04] transition-colors"
           >
