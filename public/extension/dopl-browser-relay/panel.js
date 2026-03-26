@@ -405,12 +405,33 @@ async function sendMessage() {
   setStreamingState(true)
   maybeScrollBottom()
 
-  // Get page context (URL + title) to include with the message
+  // Get rich page context: URL, title, and visible text content
   let pageContext = ''
   try {
     const tab = await chrome.tabs.get(activeTabId)
     if (tab?.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
-      pageContext = `[User is on: "${tab.title || 'Untitled'}" — ${tab.url}]\n\n`
+      // Capture page text via background script
+      let pageText = ''
+      try {
+        const result = await new Promise((resolve) => {
+          const t = setTimeout(() => resolve({ text: '' }), 3000)
+          chrome.runtime.sendMessage({ type: 'capture.pageText', tabId: activeTabId }, (r) => {
+            clearTimeout(t)
+            resolve(r || { text: '' })
+          })
+        })
+        pageText = result.text || ''
+      } catch { /* ignore */ }
+
+      pageContext = `[PANEL CONTEXT — User is viewing this tab and wants you to act on it directly]\n`
+      pageContext += `[Tab: "${tab.title || 'Untitled'}" — ${tab.url}]\n`
+      pageContext += `[Instructions: Use the browser tool to control THIS tab. Navigate, click, read on the current tab — do NOT open new tabs unless the user explicitly asks.]\n`
+      if (pageText) {
+        // Truncate to keep context reasonable
+        const truncated = pageText.length > 2000 ? pageText.substring(0, 2000) + '...(truncated)' : pageText
+        pageContext += `[Page content:\n${truncated}\n]\n`
+      }
+      pageContext += '\n'
     }
   } catch { /* ignore */ }
 
@@ -642,11 +663,19 @@ function updateTabInfo(title, url) {
 
 /** Called when the active tab changes — switch chat context */
 async function switchToTab(tabId) {
+  console.log('[PANEL] switchToTab called:', tabId, 'activeTabId:', activeTabId)
   if (tabId === activeTabId) return
   activeTabId = tabId
 
   // Ensure this tab is attached in the background
-  chrome.runtime.sendMessage({ type: 'panel.autoAttach', tabId }, () => {})
+  console.log('[PANEL] sending panel.autoAttach for tab', tabId)
+  chrome.runtime.sendMessage({ type: 'panel.autoAttach', tabId }, (resp) => {
+    if (chrome.runtime.lastError) {
+      console.error('[PANEL] autoAttach message failed:', chrome.runtime.lastError.message)
+    } else {
+      console.log('[PANEL] autoAttach response:', JSON.stringify(resp))
+    }
+  })
 
   // Restore persisted chat for this tab if not in memory
   if (!tabChats.has(tabId)) {
@@ -661,10 +690,11 @@ async function switchToTab(tabId) {
 async function checkActiveTab() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    console.log('[PANEL] checkActiveTab:', tab?.id, tab?.url?.substring(0, 60), 'current activeTabId:', activeTabId)
     if (tab?.id && tab.id !== activeTabId) {
       await switchToTab(tab.id)
     }
-  } catch { /* ignore */ }
+  } catch (err) { console.error('[PANEL] checkActiveTab error:', err) }
 }
 
 // ── Background communication ──────────────────────────────────────────────
@@ -886,5 +916,16 @@ async function init() {
   // Start tracking the active tab
   await checkActiveTab()
 }
+
+// When panel closes, tell background to detach all tabs.
+// beforeunload is unreliable in side panels — use visibilitychange + pagehide.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    chrome.runtime.sendMessage({ type: 'panel.closed' }).catch(() => {})
+  }
+})
+window.addEventListener('pagehide', () => {
+  chrome.runtime.sendMessage({ type: 'panel.closed' }).catch(() => {})
+})
 
 void init()

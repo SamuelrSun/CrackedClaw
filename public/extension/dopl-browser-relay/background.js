@@ -22,6 +22,8 @@ let relayConnectPromise = null
 let relayGatewayToken = ''
 /** @type {string|null} */
 let relayConnectRequestId = null
+/** @type {{ resolve: () => void, reject: (err: Error) => void } | null} */
+let handshakeDeferred = null
 
 let nextSession = 1
 
@@ -233,6 +235,11 @@ async function ensureRelayConnection() {
   try {
     await relayConnectPromise
     reconnectAttempt = 0
+    // The extension relay authenticates via URL token — no gateway handshake needed.
+    // Announce all attached tabs immediately so the server knows about them.
+    void reannounceAttachedTabs().catch((err) =>
+      console.warn('reannounce after relay connect failed', err instanceof Error ? err.message : String(err))
+    )
   } finally {
     relayConnectPromise = null
   }
@@ -244,6 +251,7 @@ function onRelayClosed(reason) {
   relayWs = null
   relayGatewayToken = ''
   relayConnectRequestId = null
+  if (handshakeDeferred) { handshakeDeferred.reject(new Error(`Relay closed (${reason})`)); handshakeDeferred = null }
 
   for (const [id, p] of pending.entries()) {
     pending.delete(id)
@@ -306,6 +314,7 @@ function cancelReconnect() {
 
 // Re-announce all attached tabs to the relay after reconnect.
 async function reannounceAttachedTabs() {
+  console.log('[RELAY] reannounceAttachedTabs called. tabs.size:', tabs.size, 'entries:', [...tabs.entries()].map(([id, t]) => `${id}:${t.state}/${t.sessionId || 'no-sid'}`).join(', '))
   for (const [tabId, tab] of tabs.entries()) {
     if (tab.state !== 'connected' || !tab.sessionId || !tab.targetId) continue
 
@@ -378,9 +387,12 @@ async function reannounceAttachedTabs() {
 function sendToRelay(payload) {
   const ws = relayWs
   if (!ws || ws.readyState !== WebSocket.OPEN) {
+    console.error('[RELAY] sendToRelay FAILED — ws not open. readyState:', ws?.readyState, 'payload method:', payload?.method, 'cdp method:', payload?.params?.method)
     throw new Error('Relay not connected')
   }
-  ws.send(JSON.stringify(payload))
+  const json = JSON.stringify(payload)
+  console.log('[RELAY] sendToRelay OK — payload method:', payload?.method, 'cdp method:', payload?.params?.method, 'bytes:', json.length)
+  ws.send(json)
 }
 
 function ensureGatewayHandshakeStarted(payload) {
@@ -658,6 +670,7 @@ function abortChat(tabId) {
 }
 
 async function onRelayMessage(text) {
+  console.log('[RELAY] onRelayMessage:', text.substring(0, 200))
   /** @type {any} */
   let msg
   try {
@@ -672,6 +685,7 @@ async function onRelayMessage(text) {
     } catch (err) {
       console.warn('gateway connect handshake start failed', err instanceof Error ? err.message : String(err))
       relayConnectRequestId = null
+      if (handshakeDeferred) { handshakeDeferred.reject(err instanceof Error ? err : new Error(String(err))); handshakeDeferred = null }
       const ws = relayWs
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close(1008, 'gateway connect failed')
@@ -685,10 +699,14 @@ async function onRelayMessage(text) {
     if (!msg.ok) {
       const detail = msg?.error?.message || msg?.error || 'gateway connect failed'
       console.warn('gateway connect handshake rejected', String(detail))
+      if (handshakeDeferred) { handshakeDeferred.reject(new Error(String(detail))); handshakeDeferred = null }
       const ws = relayWs
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close(1008, 'gateway connect failed')
       }
+    } else {
+      console.log('gateway connect handshake succeeded')
+      if (handshakeDeferred) { handshakeDeferred.resolve(); handshakeDeferred = null }
     }
     return
   }
@@ -760,15 +778,88 @@ function getTabByTargetId(targetId) {
 }
 
 async function attachTab(tabId, opts = {}) {
-  const debuggee = { tabId }
-  await chrome.debugger.attach(debuggee, '1.3')
-  await chrome.debugger.sendCommand(debuggee, 'Page.enable').catch(() => {})
+  let debuggee = { tabId }
 
-  const info = /** @type {any} */ (await chrome.debugger.sendCommand(debuggee, 'Target.getTargetInfo'))
-  const targetInfo = info?.targetInfo
-  const targetId = String(targetInfo?.targetId || '').trim()
+  // Attach debugger. Do NOT pre-detach — it causes a race condition where
+  // Chrome processes the detach after the new attach, killing the session.
+  try {
+    await chrome.debugger.attach(debuggee, '1.3')
+  } catch (attachErr) {
+    const errMsg = attachErr instanceof Error ? attachErr.message : String(attachErr)
+    if (errMsg.includes('Already being attached') || errMsg.includes('already attached')) {
+      console.log(`[ATTACH] tab ${tabId} already attached, reusing`)
+    } else if (errMsg.includes('chrome-extension://') || errMsg.includes('chrome://')) {
+      // Trend Micro / other security extensions block tab-based attach.
+      // Try targeting the specific page target by ID instead.
+      console.warn(`[ATTACH] tabId attach blocked (${errMsg}), trying targetId fallback...`)
+      const targets = await chrome.debugger.getTargets()
+      const pageTarget = targets.find(t => t.tabId === tabId && t.type === 'page' && !t.attached)
+      if (pageTarget?.id) {
+        debuggee = { targetId: pageTarget.id }
+        await chrome.debugger.attach(debuggee, '1.3')
+        console.log(`[ATTACH] targetId fallback succeeded for tab ${tabId}`)
+      } else {
+        throw attachErr
+      }
+    } else {
+      throw attachErr
+    }
+  }
+
+  // Verify the debugger is usable. Chrome can async-invalidate sessions,
+  // so retry a few times with increasing delay.
+  let pageEnabled = false
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      if (attempt > 0) {
+        console.log(`[ATTACH] retry ${attempt} for tab ${tabId} after ${attempt * 200}ms...`)
+        await new Promise(r => setTimeout(r, attempt * 200))
+        // Re-attach on retry — Chrome may have fully detached
+        try { await chrome.debugger.attach(debuggee, '1.3') } catch { /* already attached or error */ }
+      }
+      await chrome.debugger.sendCommand(debuggee, 'Page.enable')
+      pageEnabled = true
+      break
+    } catch (verifyErr) {
+      const msg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr)
+      if (attempt === 2) {
+        console.error(`[ATTACH] debugger not usable after 3 attempts for tab ${tabId}: ${msg}`)
+        try { await chrome.debugger.detach(debuggee) } catch { /* ignore */ }
+        throw new Error(`Debugger unusable: ${msg}`)
+      }
+      console.warn(`[ATTACH] Page.enable attempt ${attempt} failed: ${msg}`)
+    }
+  }
+
+  // Get real target info from CDP. This provides the correct targetId and
+  // browserContextId that Playwright needs.
+  let targetInfo
+  let targetId
+  try {
+    const info = /** @type {any} */ (await chrome.debugger.sendCommand(debuggee, 'Target.getTargetInfo'))
+    targetInfo = info?.targetInfo
+    targetId = String(targetInfo?.targetId || '').trim()
+  } catch (err) {
+    console.warn(`[ATTACH] Target.getTargetInfo failed for tab ${tabId}, using fallback:`, err instanceof Error ? err.message : String(err))
+  }
+
+  // Fallback: build target info from chrome.tabs API with proper UUIDs
+  // so Playwright's CRBrowser._onAttachedToTarget doesn't crash.
   if (!targetId) {
-    throw new Error('Target.getTargetInfo returned no targetId')
+    try {
+      const tabInfo = await chrome.tabs.get(tabId)
+      targetId = crypto.randomUUID()
+      targetInfo = {
+        targetId,
+        type: 'page',
+        title: tabInfo.title || '',
+        url: tabInfo.url || '',
+        browserContextId: crypto.randomUUID(),
+      }
+      console.log(`[ATTACH] using fallback targetId: ${targetId} for tab ${tabId}`)
+    } catch {
+      throw new Error('Cannot get tab info for fallback targetId')
+    }
   }
 
   const sid = nextSession++
@@ -877,16 +968,26 @@ async function attachTabForWindowMode(tabId, tabUrl) {
   const url = String(tabUrl || '')
   if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('about:')) return
   if (tabs.has(tabId) && tabs.get(tabId)?.state === 'connected') return
-  if (tabOperationLocks.has(tabId)) return
+  // Skip if a navigation-triggered re-attach is already in progress for this tab.
+  // Without this guard, both onDebuggerDetach re-attach and tabs.onUpdated
+  // auto-attach race to chrome.debugger.attach() the same tab, causing one
+  // to fail and set the badge to error (!).
+  if (reattachPending.has(tabId)) return
+  if (tabOperationLocks.has(tabId)) {
+    console.log(`[ATTACH] tab ${tabId} skipped (locked)`)
+    return
+  }
   tabOperationLocks.add(tabId)
   try {
     tabs.set(tabId, { state: 'connecting' })
     setBadge(tabId, 'connecting')
     await attachTab(tabId)
+    console.log(`[ATTACH] tab ${tabId} attached OK (window mode)`)
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
     tabs.delete(tabId)
     setBadge(tabId, 'error')
-    console.warn(`Window mode: failed to attach tab ${tabId}`, err instanceof Error ? err.message : String(err))
+    console.error(`[ATTACH] tab ${tabId} FAILED (window mode) → badge=error: ${msg}`, url?.substring(0, 80))
   } finally {
     tabOperationLocks.delete(tabId)
   }
@@ -909,10 +1010,18 @@ async function enableWindowMode() {
   }
 
   const allTabs = await chrome.tabs.query({})
+  console.log('[RELAY] enableWindowMode: found', allTabs.length, 'tabs to attach')
   for (const tab of allTabs) {
     if (!tab.id) continue
+    console.log('[RELAY] enableWindowMode: attaching tab', tab.id, tab.url?.substring(0, 60))
     await attachTabForWindowMode(tab.id, tab.url)
   }
+  console.log('[RELAY] enableWindowMode: done attaching. tabs.size:', tabs.size)
+
+  // Re-announce all tabs to relay after window mode finishes attaching.
+  // attachTab sends events during attach, but in case any were missed
+  // (e.g. relay handshake wasn't ready), do a final announce.
+  void reannounceAttachedTabs().catch(() => {})
 }
 
 async function disableWindowMode() {
@@ -983,6 +1092,7 @@ async function connectOrToggleForActiveTab() {
     try {
       await ensureRelayConnection()
       await attachTab(tabId)
+      console.log(`[ATTACH] tab ${tabId} attached OK (icon click)`)
     } catch (err) {
       tabs.delete(tabId)
       setBadge(tabId, 'error')
@@ -992,7 +1102,7 @@ async function connectOrToggleForActiveTab() {
       })
       void maybeOpenHelpOnce()
       const message = err instanceof Error ? err.message : String(err)
-      console.warn('attach failed', message, nowStack())
+      console.error(`[ATTACH] tab ${tabId} FAILED (icon click) → badge=error: ${message}`, nowStack())
     }
   } finally {
     tabOperationLocks.delete(tabId)
@@ -1408,37 +1518,59 @@ chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => void whenReady(
 chrome.debugger.onEvent.addListener((...args) => void whenReady(() => onDebuggerEvent(...args)))
 chrome.debugger.onDetach.addListener((...args) => void whenReady(() => onDebuggerDetach(...args)))
 
-// Extension icon click → open side panel (falls back to window mode for older Chrome).
+// Extension icon click → attach debugger first (needs activeTab context),
+// then open side panel. chrome.debugger.attach may require the activeTab
+// grant that only fires from onClicked, not from panel messages.
 chrome.action.onClicked.addListener((tab) => void whenReady(async () => {
+  // Attach debugger while we have activeTab context from the click
+  if (tab?.id && tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
+    try {
+      await ensureRelayConnection()
+      if (!tabs.has(tab.id) || tabs.get(tab.id)?.state !== 'connected') {
+        tabs.set(tab.id, { state: 'connecting' })
+        setBadge(tab.id, 'connecting')
+        await attachTab(tab.id)
+        console.log(`[ATTACH] tab ${tab.id} attached from onClicked ✅`)
+      }
+    } catch (err) {
+      console.warn(`[ATTACH] onClicked attach failed for tab ${tab.id}:`, err instanceof Error ? err.message : String(err))
+      tabs.delete(tab.id)
+      setBadge(tab.id, 'error')
+    }
+  }
+  // Then open the panel
   try {
     await chrome.sidePanel.open({ windowId: tab.windowId })
   } catch (err) {
-    console.warn('sidePanel.open failed, falling back to window mode', err instanceof Error ? err.message : String(err))
-    await toggleWindowMode()
+    console.warn('sidePanel.open failed', err instanceof Error ? err.message : String(err))
   }
 }))
 
-// Auto-attach new tabs when window mode is enabled.
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => void whenReady(async () => {
-  if (!windowModeEnabled) return
-  if (changeInfo.status !== 'complete') return
-  if (!relayWs || relayWs.readyState !== WebSocket.OPEN) {
-    try {
-      await ensureRelayConnection()
-    } catch {
-      return
-    }
-  }
-  await attachTabForWindowMode(tabId, tab.url)
-}))
+// No window-mode auto-attach. Tabs are attached on-demand via panel.autoAttach
+// when the user opens the side panel on a specific tab.
 
 // Refresh badge after navigation completes — service worker may have restarted
 // during navigation, losing ephemeral badge state.
-chrome.webNavigation.onCompleted.addListener(({ tabId, frameId }) => void whenReady(() => {
+chrome.webNavigation.onCompleted.addListener(({ tabId, frameId, url }) => void whenReady(async () => {
   if (frameId !== 0) return
   const tab = tabs.get(tabId)
   if (tab?.state === 'connected') {
     setBadge(tabId, relayWs && relayWs.readyState === WebSocket.OPEN ? 'on' : 'connecting')
+  }
+  // Auto-attach pending tabs (e.g. chrome://newtab → real URL)
+  if (tab?.state === 'pending' && url && !url.startsWith('chrome://') && !url.startsWith('chrome-extension://') && !url.startsWith('about:')) {
+    console.log(`[ATTACH] pending tab ${tabId} navigated to ${url.substring(0, 60)}, attaching...`)
+    try {
+      await ensureRelayConnection()
+      tabs.set(tabId, { state: 'connecting' })
+      setBadge(tabId, 'connecting')
+      await attachTab(tabId)
+      console.log(`[ATTACH] pending tab ${tabId} ATTACHED OK ✅`)
+    } catch (err) {
+      console.warn(`[ATTACH] pending tab ${tabId} attach failed:`, err instanceof Error ? err.message : String(err))
+      tabs.delete(tabId)
+      setBadge(tabId, 'error')
+    }
   }
 }))
 
@@ -1493,12 +1625,13 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 // Rehydrate state on service worker startup. Split: rehydration is the gate
 // (fast), relay reconnect runs in background (slow, non-blocking).
-// Ensure side panel opens on action click — must be set on every SW startup.
+// Do NOT auto-open panel on click — we need onClicked to fire first
+// so we can attach the debugger with activeTab context, then open panel manually.
 if (chrome.sidePanel?.setPanelBehavior) {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {})
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {})
 }
 
-const initPromise = rehydrateState().then(() => loadWindowModeState())
+const initPromise = rehydrateState()
 
 // Always-on: connect relay on startup if config exists (not just when tabs are attached).
 initPromise.then(async () => {
@@ -1527,16 +1660,13 @@ async function whenReady(fn) {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (!msg || typeof msg !== 'object') return false
 
-  // ── Config saved (options page) — auto-enable window mode + connect relay ──
+  // ── Config saved (options page) — connect relay + open panel ──
   if (msg.type === 'config.saved') {
     ;(async () => {
       try {
-        // Connect the relay WebSocket
+        // Connect the relay WebSocket only. Tab attach happens on-demand
+        // when the panel opens on a specific tab (via panel.autoAttach).
         await ensureRelayConnection()
-        // Enable window mode so all tabs are auto-attached
-        if (!windowModeEnabled) {
-          await enableWindowMode()
-        }
         // Try to open the side panel on the active tab
         const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
         if (activeTab?.id) {
@@ -1588,34 +1718,95 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true
   }
 
+  // ── Panel closed — detach all tabs ───────────────────────────────────────
+  if (msg.type === 'panel.closed') {
+    ;(async () => {
+      const tabIds = [...tabs.keys()]
+      console.log(`[PANEL] closed — detaching ${tabIds.length} tabs`)
+      for (const tabId of tabIds) {
+        try {
+          await detachTab(tabId, 'panel_closed')
+        } catch (err) {
+          console.warn(`[PANEL] detach tab ${tabId} failed:`, err instanceof Error ? err.message : String(err))
+        }
+      }
+    })()
+    sendResponse({ ok: true })
+    return false
+  }
+
   // ── Auto-attach tab from panel (per-tab chat) ───────────────────────────
   if (msg.type === 'panel.autoAttach') {
     const tabId = msg.tabId
-    if (!tabId) { sendResponse({ ok: false }); return false }
+    console.log('[ATTACH] panel.autoAttach received for tab', tabId)
+    if (!tabId) { console.log('[ATTACH] no tabId'); sendResponse({ ok: false }); return false }
     ;(async () => {
       try {
-        // Skip if already attached
         if (tabs.has(tabId) && tabs.get(tabId)?.state === 'connected') {
+          console.log('[ATTACH] tab', tabId, 'already connected, skipping')
           sendResponse({ ok: true, already: true }); return
         }
-        // Skip chrome:// and extension pages
+        if (tabOperationLocks.has(tabId)) {
+          console.log('[ATTACH] tab', tabId, 'locked, skipping')
+          sendResponse({ ok: true, already: true }); return
+        }
+        let tabUrl = ''
         try {
           const tabInfo = await chrome.tabs.get(tabId)
-          const url = tabInfo?.url || ''
-          if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('about:')) {
-            sendResponse({ ok: false, error: 'Cannot attach to this page' }); return
+          tabUrl = tabInfo?.url || ''
+          console.log('[ATTACH] tab', tabId, 'url:', tabUrl.substring(0, 80))
+          if (tabUrl.startsWith('chrome://') || tabUrl.startsWith('chrome-extension://') || tabUrl.startsWith('about:')) {
+            console.log('[ATTACH] tab', tabId, 'is chrome page — watching for navigation')
+            // Mark as pending so we auto-attach when the tab navigates to a real URL
+            tabs.set(tabId, { state: 'pending' })
+            sendResponse({ ok: true, pending: true }); return
           }
-        } catch { sendResponse({ ok: false }); return }
+        } catch (tabErr) {
+          console.error('[ATTACH] tab', tabId, 'chrome.tabs.get failed:', tabErr instanceof Error ? tabErr.message : String(tabErr))
+          sendResponse({ ok: false }); return
+        }
 
-        await ensureRelayConnection()
-        tabs.set(tabId, { state: 'connecting' })
-        setBadge(tabId, 'connecting')
-        await attachTab(tabId)
-        sendResponse({ ok: true })
+        tabOperationLocks.add(tabId)
+        try {
+          console.log('[ATTACH] tab', tabId, 'connecting relay...')
+          await ensureRelayConnection()
+          console.log('[ATTACH] tab', tabId, 'relay connected, attaching debugger...')
+          tabs.set(tabId, { state: 'connecting' })
+          setBadge(tabId, 'connecting')
+          await attachTab(tabId)
+          console.log('[ATTACH] tab', tabId, 'ATTACHED OK ✅')
+          sendResponse({ ok: true })
+        } finally {
+          tabOperationLocks.delete(tabId)
+        }
       } catch (err) {
-        // Non-fatal — tab may not be attachable (PDF, etc.)
+        const errMsg = err instanceof Error ? err.message : String(err)
         tabs.delete(tabId)
-        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) })
+        console.error(`[ATTACH] tab ${tabId} FAILED: ${errMsg}`)
+        sendResponse({ ok: false, error: errMsg })
+      }
+    })()
+    return true
+  }
+
+  // ── Capture page text content ────────────────────────────────────────────
+  if (msg.type === 'capture.pageText') {
+    const tabId = msg.tabId
+    if (!tabId) { sendResponse({ text: '' }); return false }
+    ;(async () => {
+      try {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId },
+          func: () => {
+            // Get visible text, strip excessive whitespace
+            const text = document.body?.innerText || ''
+            return text.replace(/\n{3,}/g, '\n\n').substring(0, 3000)
+          },
+        })
+        sendResponse({ text: results?.[0]?.result || '' })
+      } catch (err) {
+        console.warn('[CAPTURE] page text failed:', err instanceof Error ? err.message : String(err))
+        sendResponse({ text: '' })
       }
     })()
     return true

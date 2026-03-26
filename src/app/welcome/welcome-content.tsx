@@ -21,15 +21,14 @@ type MsgEntry =
 
 const MESSAGES: MsgEntry[] = [
   { kind: "text", text: "Hey! Welcome to Dopl.", pauseAfterMs: 1200 },
-  { kind: "text", text: "I'm not your AI companion yet, just the welcome crew.", pauseAfterMs: 1200 },
-  { kind: "text", text: "I'm setting them up right now as we speak.", pauseAfterMs: 1200 },
+  { kind: "text", text: "I'm not your intelligent companion yet, just the welcome (and setup!) crew.", pauseAfterMs: 1200 },
+  { kind: "text", text: "I'm getting them set up for you as we speak.", pauseAfterMs: 1200 },
   { kind: "text", text: "Over time, they'll become your confidant, assistant, partner, and so much more.", pauseAfterMs: 1500 },
-  { kind: "text", text: "I'm excited for the adventures you'll go on!", pauseAfterMs: 1500 },
-  { kind: "waiting" }, // "Give me just a moment..." with animated dots — holds here until provisioning finishes
-  { kind: "text", text: "All set! Your agent is warmed up and waiting for you.", pauseAfterMs: 1500 },
-  { kind: "text", text: "I'm giving you both 100,000 tokens to get to know each other.", pauseAfterMs: 1200 },
-  { kind: "text", text: "That's a lot of conversations.", pauseAfterMs: 1200 },
-  { kind: "text", text: "See you on the other side!", pauseAfterMs: 1500 },
+  { kind: "text", text: "Who knows what adventures you'll go on!", pauseAfterMs: 1500 },
+  { kind: "waiting" }, // "Give me just a moment more..." with animated dots — holds here until provisioning finishes
+  { kind: "text", text: "All set! Your companion is warmed up and waiting for you.", pauseAfterMs: 1500 },
+  { kind: "text", text: "I'm giving you both an allowance to get to know each other.", pauseAfterMs: 1200 },
+  { kind: "text", text: "Farewell!", pauseAfterMs: 1500 },
 ];
 
 const CHAR_INTERVAL_MS = 30;
@@ -681,7 +680,7 @@ export function WelcomeContent() {
                   textAlign: "center",
                 }}
               >
-                Give me just a moment
+                Give me just a moment more
                 <span className="animated-dots">
                   <span className="dot dot-1">.</span>
                   <span className="dot dot-2">.</span>

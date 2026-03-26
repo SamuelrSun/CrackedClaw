@@ -167,6 +167,7 @@ interface ChatPageClientProps {
   hasGateway?: boolean;
   gatewayHost?: string;
   initialConversationId?: string;
+  intro?: boolean;
 }
 
 interface RichMessageProps {
@@ -609,6 +610,7 @@ export default function ChatPageClient({
   hasGateway: initialHasGateway = false,
   gatewayHost,
   initialConversationId,
+  intro = false,
 }: ChatPageClientProps) {
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
   // Hydration guard: skip SSR render of dynamic message content to prevent mismatch errors
@@ -670,15 +672,12 @@ export default function ChatPageClient({
   const pathname = usePathname();
 
   // ── Intro curtain animation (from welcome page transition) ──
-  // Initialize synchronously from URL to avoid flash of uncovered chat page
-  const [introAnimation, setIntroAnimation] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return new URLSearchParams(window.location.search).get('intro') === '1';
-  });
+  // Initialized from the `intro` prop passed by page-content.tsx (which reads the URL param)
+  const [introAnimation, setIntroAnimation] = useState(intro);
   const [introRevealing, setIntroRevealing] = useState(false);
 
   useEffect(() => {
-    if (!introAnimation) return;
+    if (!introAnimation || !mounted) return;
     // After brief hold (page hydrates and renders), slide panels up to reveal
     const revealTimeout = setTimeout(() => {
       setIntroRevealing(true);
@@ -697,7 +696,7 @@ export default function ChatPageClient({
       clearTimeout(doneTimeout);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [introAnimation]);
+  }, [introAnimation, mounted]);
 
   // Fetch and cache the current user's ID on mount
   useEffect(() => {
@@ -753,7 +752,7 @@ export default function ChatPageClient({
   
   const { 
     gateway, 
-    loading: gatewayLoading, 
+    loading: _gatewayLoading, 
     status: gatewayStatus, 
     isConnected,
     statusInfo,
@@ -1055,7 +1054,7 @@ export default function ChatPageClient({
   } = useNodeStatus(30000);
   
   // Use server-provided initial state to avoid hydration mismatch
-  const showBanner = !gatewayLoading && !isConnected && !initialHasGateway && !isReconnecting;
+  const showBanner = !isConnected && !initialHasGateway && !isReconnecting;
   const toast = useToast();
 
   const scrollToBottom = () => {
@@ -2052,102 +2051,6 @@ User message: `
     } catch { /* ignore */ }
     setIsLoading(false);
   };
-
-  // Show glass panel skeleton while checking gateway
-  if (gatewayLoading) {
-    return (
-      <div
-        className="fixed inset-0 z-[100] flex flex-col p-[7px] gap-[7px]"
-        style={{
-          backgroundImage: "linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url('/img/landing_background.jpg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
-        {/* Navbar skeleton */}
-        <nav className="shrink-0 h-[56px] bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 flex items-center px-6">
-          <div className="flex items-center gap-4">
-            <div className="h-4 w-16 rounded bg-white/[0.06] animate-pulse" />
-            <div className="h-3 w-10 rounded bg-white/[0.06] animate-pulse" />
-            <div className="h-3 w-12 rounded bg-white/[0.06] animate-pulse" />
-          </div>
-          <div className="ml-auto flex items-center gap-3">
-            <div className="w-2 h-2 rounded-sm bg-white/[0.08] animate-pulse" />
-            <div className="h-2.5 w-12 rounded bg-white/[0.06] animate-pulse" />
-            <div className="w-7 h-7 rounded-full bg-white/[0.06] animate-pulse" />
-          </div>
-        </nav>
-        <div className="flex-1 flex gap-[7px] min-h-0">
-          {/* Sidebar skeleton */}
-          <aside className="shrink-0 w-72 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 flex flex-col overflow-hidden">
-            <div className="px-3 py-3">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-[4px] bg-white/[0.04]">
-                <div className="w-4 h-4 rounded bg-white/[0.06] animate-pulse" />
-                <div className="h-3 w-28 rounded bg-white/[0.06] animate-pulse" />
-              </div>
-            </div>
-            <div className="flex-1 px-2">
-              {[65, 80, 55, 72, 60, 85].map((w, i) => (
-                <div key={i} className="px-3 py-3">
-                  <div className="flex justify-between items-baseline mb-1.5">
-                    <div className="h-3 rounded bg-white/[0.06] animate-pulse" style={{ width: `${w}%` }} />
-                    <div className="h-2 w-8 rounded bg-white/[0.04] animate-pulse" />
-                  </div>
-                  <div className="h-2.5 w-4/5 rounded bg-white/[0.04] animate-pulse" />
-                </div>
-              ))}
-            </div>
-          </aside>
-          {/* Chat panel skeleton */}
-          <div className="flex-1 flex flex-col overflow-hidden bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10">
-            <div className="shrink-0 px-5 py-3 border-b border-white/[0.06] flex items-center justify-between">
-              <div className="h-4 w-36 rounded bg-white/[0.06] animate-pulse" />
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-sm bg-white/[0.06] animate-pulse" />
-                <div className="h-2 w-20 rounded bg-white/[0.04] animate-pulse" />
-              </div>
-            </div>
-            <div className="flex-1 overflow-hidden p-6 space-y-5">
-              <div className="max-w-[60%] mr-auto">
-                <div className="bg-white/[0.04] border border-white/[0.06] rounded-[3px] p-4 space-y-2">
-                  <div className="h-3 w-full rounded bg-white/[0.06] animate-pulse" />
-                  <div className="h-3 w-[85%] rounded bg-white/[0.05] animate-pulse" />
-                </div>
-              </div>
-              <div className="max-w-[55%] ml-auto">
-                <div className="bg-white/[0.08] border border-white/[0.1] rounded-[3px] p-4">
-                  <div className="h-3 w-full rounded bg-white/[0.06] animate-pulse" />
-                </div>
-              </div>
-              <div className="max-w-[65%] mr-auto">
-                <div className="bg-white/[0.04] border border-white/[0.06] rounded-[3px] p-4 space-y-2">
-                  <div className="h-3 w-full rounded bg-white/[0.06] animate-pulse" />
-                  <div className="h-3 w-[90%] rounded bg-white/[0.05] animate-pulse" />
-                </div>
-              </div>
-            </div>
-            <div className="shrink-0 p-4 flex justify-center">
-              <div className="w-3/4 min-w-[300px]">
-                <div className="bg-white/[0.06] border border-white/[0.08] rounded-[10px] overflow-hidden">
-                  <div className="px-4 pt-4 pb-2">
-                    <div className="h-5 w-48 rounded bg-white/[0.04] animate-pulse" />
-                  </div>
-                  <div className="flex items-center justify-between px-3 py-2">
-                    <div className="flex items-center gap-1.5">
-                      {[1, 2, 3, 4].map((n) => (
-                        <div key={n} className="w-7 h-7 rounded-[4px] border border-white/[0.06] bg-white/[0.03] animate-pulse" />
-                      ))}
-                    </div>
-                    <div className="w-7 h-7 rounded-[4px] border border-white/[0.06] bg-white/[0.03] animate-pulse" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Show prompt to connect gateway if not configured
   if (showBanner) {

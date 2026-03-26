@@ -14,6 +14,12 @@ export default function ChatPage({ initialConversationId: propConversationId }: 
   const [provisioning, setProvisioning] = useState(false);
   const [initialConversationId, setInitialConversationId] = useState<string | undefined>(propConversationId);
 
+  // Check intro param synchronously to avoid flash (strip URL param later in client.tsx)
+  const [intro] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('intro') === '1';
+  });
+
   useEffect(() => {
     let cancelled = false;
 
@@ -106,6 +112,26 @@ export default function ChatPage({ initialConversationId: propConversationId }: 
 
   if (loading || provisioning) {
     return (
+      <>
+      {/* Intro curtain overlay — shown on top of skeleton when ?intro=1 */}
+      {intro && (
+        <div className="fixed inset-0 z-[300] flex pointer-events-none">
+          <div style={{ width: 288, flexShrink: 0, background: "#373024" }} />
+          {[1, 2, 3].map((i) => (
+            <div key={i} style={{ flex: 1, background: "#373024" }} />
+          ))}
+          <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 1 }}>
+            <h1 style={{
+              fontFamily: "'Playfair Display', serif",
+              fontStyle: "italic",
+              color: "white",
+              fontSize: 32,
+              opacity: 0.9,
+              margin: 0,
+            }}>Dopl</h1>
+          </div>
+        </div>
+      )}
       <div
         className="fixed inset-0 z-[100] flex flex-col p-1 gap-1 md:p-[7px] md:gap-[7px]"
         style={{
@@ -245,6 +271,7 @@ export default function ChatPage({ initialConversationId: propConversationId }: 
           </div>
         </div>
       </div>
+      </>
     );
   }
 
@@ -255,6 +282,7 @@ export default function ChatPage({ initialConversationId: propConversationId }: 
       hasGateway={hasGateway}
       initialConversationId={initialConversationId}
       gatewayHost={gatewayHost}
+      intro={intro}
     />
   );
 }
