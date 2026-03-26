@@ -34,11 +34,26 @@ export function SkillDetailModal({
         {/* Header */}
         <div className="flex items-start justify-between p-5 border-b border-white/[0.08]">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-full bg-white/[0.06] flex items-center justify-center text-white/60 text-lg font-medium flex-shrink-0">
-              {initial}
-            </div>
+            {skill.owner?.image ? (
+              <img
+                src={skill.owner.image}
+                alt={skill.displayName}
+                className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-white/[0.06] flex items-center justify-center text-white/60 text-lg font-medium flex-shrink-0">
+                {initial}
+              </div>
+            )}
             <div>
-              <h2 className="text-lg font-medium text-white/90">{skill.displayName}</h2>
+              <a
+                href={`https://clawhub.ai/skills/${skill.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-lg font-medium text-white/90 hover:text-white hover:underline transition-colors"
+              >
+                {skill.displayName}
+              </a>
               <p className="font-mono text-[10px] text-white/30">{skill.slug}</p>
             </div>
           </div>

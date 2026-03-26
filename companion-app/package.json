@@ -28,7 +28,6 @@
       "entitlementsInherit": "entitlements.mac.plist",
       "notarize": false,
       "extendInfo": {
-        "LSUIElement": true
       }
     },
     "afterSign": "./scripts/notarize.js",

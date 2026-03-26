@@ -27,7 +27,29 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (existing) {
-      return jsonResponse({ message: 'Already exists', id: existing.id, existed: true });
+      // If reconnecting via Maton, update the config with new connection info
+      if (resolved.apiProvider === 'maton' && resolved.matonConnectionId) {
+        // Fetch current config to merge
+        const { data: current } = await supabase
+          .from('integrations')
+          .select('config')
+          .eq('id', existing.id)
+          .single();
+
+        const currentConfig = (current?.config as Record<string, unknown>) ?? {};
+        await supabase
+          .from('integrations')
+          .update({
+            status: 'connected',
+            config: {
+              ...currentConfig,
+              api_provider: 'maton',
+              maton_connection_id: resolved.matonConnectionId,
+            },
+          })
+          .eq('id', existing.id);
+      }
+      return jsonResponse({ message: 'Already exists', id: existing.id, integration: existing, existed: true });
     }
 
     const { data, error: dbErr } = await supabase
@@ -38,7 +60,7 @@ export async function POST(request: NextRequest) {
         slug: resolved.slug,
         icon: resolved.icon,
         type: resolved.authType === 'browser' ? 'browser' : resolved.authType === 'api_key' ? 'api_key' : 'oauth',
-        status: 'disconnected',
+        status: resolved.apiProvider === 'maton' ? 'connected' : 'disconnected',
         config: {
           needs_node: resolved.needsNode,
           login_url: resolved.loginUrl,
@@ -48,6 +70,11 @@ export async function POST(request: NextRequest) {
           capabilities: resolved.capabilities,
           is_dynamic: true,
           known_service: resolved.knownService,
+          // Maton integration fields
+          ...(resolved.apiProvider === 'maton' ? {
+            api_provider: 'maton',
+            maton_connection_id: resolved.matonConnectionId,
+          } : {}),
         },
         accounts: [],
       })

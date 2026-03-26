@@ -202,10 +202,7 @@ function showChatPanel() {
   if (inputBarWindow && !inputBarWindow.isDestroyed()) {
     inputBarWindow.webContents.send('chat-panel-state', { visible: true });
   }
-  // Show in Dock + Cmd+Tab when chat panel is visible (macOS)
-  if (process.platform === 'darwin' && app.dock) {
-    app.dock.show();
-  }
+  // Dock icon is always visible — no need to show/hide per panel state
 }
 
 function hideChatPanel() {
@@ -214,10 +211,6 @@ function hideChatPanel() {
   chatPanelVisible = false;
   if (inputBarWindow && !inputBarWindow.isDestroyed()) {
     inputBarWindow.webContents.send('chat-panel-state', { visible: false });
-  }
-  // Hide from Dock + Cmd+Tab when only the input pill is showing (macOS)
-  if (process.platform === 'darwin' && app.dock) {
-    app.dock.hide();
   }
 }
 
@@ -397,12 +390,6 @@ app.whenReady().then(() => {
       inputBarWindow.webContents.send('runtime-status-update', { status, detail });
     }
   });
-
-  // Start with Dock hidden (LSUIElement: true hides by default, but
-  // explicitly hide in case the plist flag is removed in the future)
-  if (process.platform === 'darwin' && app.dock) {
-    app.dock.hide();
-  }
 
   createInputBarWindow();
   createChatPanelWindow();

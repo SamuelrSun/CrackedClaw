@@ -262,6 +262,8 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
   const [statusCheckInProgress, setStatusCheckInProgress] = useState(false);
   const [configuredProviders, setConfiguredProviders] = useState<string[]>([]);
   const [hasMatonKey, setHasMatonKey] = useState(false);
+  const [matonKeyInput, setMatonKeyInput] = useState('');
+  const [matonKeySaving, setMatonKeySaving] = useState(false);
   const [showMethodPicker, setShowMethodPicker] = useState<string | null>(null);
   const [methodPickerMethods, setMethodPickerMethods] = useState<ConnectionMethod[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -602,8 +604,159 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
       return;
     }
 
-    // OAuth / Maton / API-key: create integration then connect
-    const authTypeForApi = methodType === 'api-key' ? 'api_key' : (methodType === 'maton' ? 'oauth' : regEntry.authType);
+    // ── Maton OAuth flow ──────────────────────────────────────────────────
+    if (methodType === 'maton') {
+      try {
+        // 1. Create connection via Maton
+        const matonRes = await fetch('/api/integrations/maton/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ app: regEntry.matonKey || regEntry.id }),
+        });
+        const matonData = await matonRes.json();
+
+        if (!matonRes.ok) {
+          toast.error('Maton Error', matonData.error || 'Failed to create connection');
+          return;
+        }
+
+        const { connectionId, oauthUrl } = matonData;
+
+        if (!oauthUrl) {
+          // No OAuth needed (API key type) — connection is immediately active
+          toast.success(`${regEntry.name} connected!`, 'Connection established via Maton.');
+          // Store in user_integrations
+          await fetch('/api/integrations/create-dynamic', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              resolved: {
+                name: regEntry.name,
+                slug: regEntry.id,
+                icon: regEntry.icon,
+                authType: 'oauth',
+                category: regEntry.category,
+                description: regEntry.description || '',
+                needsNode: false,
+                apiProvider: 'maton',
+                matonConnectionId: connectionId,
+              }
+            }),
+          });
+          return;
+        }
+
+        // 2. Open Maton OAuth URL in popup
+        const width = 500, height = 600;
+        const left = window.screenX + (window.innerWidth - width) / 2;
+        const top = window.screenY + (window.innerHeight - height) / 2;
+        const popup = window.open(
+          oauthUrl,
+          'maton_oauth_popup',
+          `width=${width},height=${height},left=${left},top=${top},popup=yes`,
+        );
+
+        if (!popup) {
+          toast.error('Popup blocked', 'Please allow popups for this site');
+          return;
+        }
+
+        // Show syncing state
+        setItems(prev => {
+          const existing = prev.find(i => i.slug === regEntry.id);
+          if (existing) {
+            return prev.map(i => i.slug === regEntry.id ? { ...i, status: 'syncing' as const } : i);
+          }
+          return [...prev, {
+            id: `maton-${connectionId}`,
+            name: regEntry.name,
+            slug: regEntry.id,
+            icon: regEntry.icon,
+            type: 'oauth' as const,
+            status: 'syncing' as const,
+            config: { needs_node: false },
+            accounts: [],
+            last_sync: null,
+          }];
+        });
+
+        // 3. Poll for connection status
+        toast.info(`Connecting ${regEntry.name}`, 'Complete the OAuth flow in the popup...');
+        let connected = false;
+        for (let i = 0; i < 40; i++) { // 40 polls × 3s = 2 minutes max
+          await new Promise(r => setTimeout(r, 3000));
+
+          // Check if popup was closed by user
+          if (popup.closed && !connected) {
+            // Give it a couple more seconds — user may have just completed OAuth
+            await new Promise(r => setTimeout(r, 2000));
+          }
+
+          try {
+            const statusRes = await fetch(`/api/integrations/maton/status?connectionId=${connectionId}`);
+            const statusData = await statusRes.json();
+
+            if (statusData.status === 'ACTIVE') {
+              connected = true;
+              if (!popup.closed) popup.close();
+
+              // Store the connection in user_integrations
+              await fetch('/api/integrations/create-dynamic', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  resolved: {
+                    name: regEntry.name,
+                    slug: regEntry.id,
+                    icon: regEntry.icon,
+                    authType: 'oauth',
+                    category: regEntry.category,
+                    description: regEntry.description || '',
+                    needsNode: false,
+                    apiProvider: 'maton',
+                    matonConnectionId: connectionId,
+                  }
+                }),
+              });
+
+              setItems(prev => prev.map(i =>
+                i.slug === regEntry.id ? { ...i, status: 'connected' as const } : i
+              ));
+              toast.success(`${regEntry.name} connected!`, 'OAuth completed via Maton.');
+              return;
+            }
+
+            if (statusData.status === 'FAILED') {
+              if (!popup.closed) popup.close();
+              setItems(prev => prev.map(i =>
+                i.slug === regEntry.id ? { ...i, status: 'disconnected' as const } : i
+              ));
+              toast.error('Connection failed', `${regEntry.name} OAuth was rejected or expired.`);
+              return;
+            }
+          } catch { /* continue polling */ }
+
+          // If popup closed and still not active after extra wait, give up
+          if (popup.closed && i > 5) {
+            break;
+          }
+        }
+
+        if (!connected) {
+          setItems(prev => prev.map(i =>
+            i.slug === regEntry.id ? { ...i, status: 'disconnected' as const } : i
+          ));
+          toast.info(`${regEntry.name}`, 'Connection timed out. Please try again.');
+        }
+      } catch (err) {
+        console.error('Maton connect error:', err);
+        toast.error('Error', `Failed to connect ${regEntry.name} via Maton`);
+      }
+      return;
+    }
+
+    // ── OAuth / API-key: create integration then connect ───────────────
+    const authTypeForApi = methodType === 'api-key' ? 'api_key' : regEntry.authType;
     try {
       const res = await fetch('/api/integrations/create-dynamic', {
         method: 'POST',
@@ -870,14 +1023,62 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <input
-                  type="password"
-                  placeholder="Enter Maton API key..."
-                  className="bg-white/[0.06] border border-white/[0.1] rounded-[4px] px-3 py-1.5 text-xs text-white/80 placeholder:text-white/40 outline-none focus:border-white/[0.25] flex-1 sm:w-64"
-                />
-                <button className="px-3 py-1.5 text-xs font-medium text-white/70 border border-white/[0.1] rounded-[4px] hover:bg-white/[0.08] transition-colors flex-shrink-0">
-                  Save
-                </button>
+                {hasMatonKey ? (
+                  <>
+                    <span className="font-mono text-[10px] text-emerald-400/70">✓ Key configured</span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await fetch('/api/integrations/maton', { method: 'DELETE' });
+                          setHasMatonKey(false);
+                          toast.success('Removed', 'Maton API key removed');
+                        } catch {
+                          toast.error('Error', 'Failed to remove Maton API key');
+                        }
+                      }}
+                      className="px-2 py-1 text-[10px] font-mono text-red-400/60 hover:text-red-400 border border-red-800/20 rounded-[2px] hover:bg-red-900/10 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="password"
+                      value={matonKeyInput}
+                      onChange={(e) => setMatonKeyInput(e.target.value)}
+                      placeholder="Enter Maton API key..."
+                      className="bg-white/[0.06] border border-white/[0.1] rounded-[4px] px-3 py-1.5 text-xs text-white/80 placeholder:text-white/40 outline-none focus:border-white/[0.25] flex-1 sm:w-64"
+                    />
+                    <button
+                      disabled={!matonKeyInput.trim() || matonKeySaving}
+                      onClick={async () => {
+                        setMatonKeySaving(true);
+                        try {
+                          const res = await fetch('/api/integrations/maton', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ api_key: matonKeyInput.trim() }),
+                          });
+                          const data = await res.json();
+                          if (res.ok) {
+                            setHasMatonKey(true);
+                            setMatonKeyInput('');
+                            toast.success('Saved', 'Maton API key verified and saved');
+                          } else {
+                            toast.error('Invalid key', data.error || 'Could not verify Maton API key');
+                          }
+                        } catch {
+                          toast.error('Error', 'Failed to save Maton API key');
+                        }
+                        setMatonKeySaving(false);
+                      }}
+                      className="px-3 py-1.5 text-xs font-medium text-white/70 border border-white/[0.1] rounded-[4px] hover:bg-white/[0.08] transition-colors flex-shrink-0 disabled:opacity-40"
+                    >
+                      {matonKeySaving ? 'Verifying...' : 'Save'}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>

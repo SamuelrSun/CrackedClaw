@@ -8,8 +8,14 @@ import { InstalledSkillCard } from "@/components/skills/installed-skill-card";
 import { SkillDetailModal } from "@/components/skills/skill-detail-modal";
 import type { SkillItem, SkillDetail } from "@/types/skill";
 
-type SortMode = "trending" | "downloads" | "newest" | "rating";
+type SortMode = "all" | "trending" | "downloads" | "newest" | "rating";
 type ViewMode = "browse" | "installed";
+
+const QUERY_POOL = [
+  "calendar", "ai", "data", "marketing", "finance", "social",
+  "developer", "writing", "analytics", "weather", "music",
+  "security", "database", "chat", "image",
+];
 
 interface SkillsClientProps {
   initialInstalledSlugs: string[];
@@ -17,7 +23,7 @@ interface SkillsClientProps {
 
 export function SkillsClient({ initialInstalledSlugs }: SkillsClientProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortMode, setSortMode] = useState<SortMode>("trending");
+  const [sortMode, setSortMode] = useState<SortMode>("all");
   const [skills, setSkills] = useState<SkillItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [installedSlugs, setInstalledSlugs] = useState<Set<string>>(new Set(initialInstalledSlugs));
@@ -27,23 +33,31 @@ export function SkillsClient({ initialInstalledSlugs }: SkillsClientProps) {
   const [installing, setInstalling] = useState<Set<string>>(new Set());
   const [loadingDetail, setLoadingDetail] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Load More state
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [seenSlugs, setSeenSlugs] = useState<Set<string>>(new Set());
+  const [queryIndex, setQueryIndex] = useState(0);
 
   // Fetch browse/search results
   const fetchSkills = useCallback(async (query: string, sort: SortMode) => {
     setLoading(true);
+    setQueryIndex(0);
     try {
       const params = new URLSearchParams();
       if (query) {
         params.set("q", query);
         params.set("limit", "20");
       } else {
-        params.set("sort", sort);
+        // "all" uses downloads as a proxy for popular
+        params.set("sort", sort === "all" ? "downloads" : sort);
         params.set("limit", "30");
       }
       const res = await fetch(`/api/skills/search?${params}`);
       if (res.ok) {
         const data = await res.json();
-        setSkills(data.skills || []);
+        const fetched: SkillItem[] = data.skills || [];
+        setSkills(fetched);
+        setSeenSlugs(new Set(fetched.map((s) => s.slug)));
       }
     } catch (err) {
       console.error("Failed to fetch skills:", err);
@@ -51,6 +65,38 @@ export function SkillsClient({ initialInstalledSlugs }: SkillsClientProps) {
       setLoading(false);
     }
   }, []);
+
+  // Load more skills (only for browse view, not search)
+  const handleLoadMore = useCallback(async () => {
+    if (loadingMore || queryIndex >= QUERY_POOL.length) return;
+    setLoadingMore(true);
+    const q = QUERY_POOL[queryIndex];
+    setQueryIndex((i) => i + 1);
+    try {
+      const params = new URLSearchParams({ q, limit: "10" });
+      const res = await fetch(`/api/skills/search?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        const incoming: SkillItem[] = data.skills || [];
+        setSkills((prev) => {
+          const next = [...prev];
+          const seen = new Set(prev.map((s) => s.slug));
+          for (const skill of incoming) {
+            if (!seen.has(skill.slug)) {
+              seen.add(skill.slug);
+              next.push(skill);
+            }
+          }
+          setSeenSlugs(seen);
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load more skills:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, queryIndex]);
 
   // Fetch installed skills details
   const fetchInstalledSkills = useCallback(async () => {
@@ -184,6 +230,7 @@ export function SkillsClient({ initialInstalledSlugs }: SkillsClientProps) {
   };
 
   const sidebarItems: { key: SortMode | "installed"; label: string }[] = [
+    { key: "all", label: "All" },
     { key: "trending", label: "Trending" },
     { key: "downloads", label: "Popular" },
     { key: "newest", label: "Newest" },
@@ -264,6 +311,7 @@ export function SkillsClient({ initialInstalledSlugs }: SkillsClientProps) {
                 }}
                 className="w-full bg-black/30 border border-white/10 rounded-[2px] px-3 py-2 font-mono text-[10px] uppercase tracking-wide text-white/70 focus:outline-none focus:border-white/20"
               >
+                <option value="all">All</option>
                 <option value="trending">Trending</option>
                 <option value="downloads">Popular</option>
                 <option value="newest">Newest</option>
@@ -343,6 +391,18 @@ export function SkillsClient({ initialInstalledSlugs }: SkillsClientProps) {
                     />
                   ))}
                 </div>
+                {/* Load More button (browse view, not search) */}
+                {!searchQuery && queryIndex < QUERY_POOL.length && (
+                  <div className="flex justify-center mt-4">
+                    <button
+                      onClick={handleLoadMore}
+                      disabled={loadingMore}
+                      className="font-mono text-[10px] px-6 py-2 bg-white/[0.05] border border-white/[0.1] text-white/50 hover:text-white/70 hover:bg-white/[0.08] rounded-[2px] transition-colors disabled:opacity-50"
+                    >
+                      {loadingMore ? "Loading..." : "Load More"}
+                    </button>
+                  </div>
+                )}
               )
             ) : installedSlugs.size === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center py-12">

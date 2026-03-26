@@ -105,6 +105,22 @@ function normalizeSkill(item: ClawHubSearchResult | ClawHubBrowseResult): Normal
   };
 }
 
+// ── Quality filter ─────────────────────────────────────────────────────────
+
+const CJK_REGEX = /[\u4e00-\u9fff\u3400-\u4dbf\u3000-\u303f\uff00-\uffef]/;
+
+function isSkillTrusted(skill: NormalizedSkill): boolean {
+  // Filter out non-English skills (CJK characters in name or summary)
+  if (CJK_REGEX.test(skill.displayName) || CJK_REGEX.test(skill.summary)) {
+    return false;
+  }
+  // Filter out explicitly Chinese-tagged slugs
+  if (skill.slug.endsWith('-cn') || skill.slug.includes('-zh-') || skill.slug.includes('-chinese')) {
+    return false;
+  }
+  return true;
+}
+
 // ── Route ──────────────────────────────────────────────────────────────────
 
 /**
@@ -120,7 +136,7 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q')?.trim() ?? '';
-  const limit = Math.min(parseInt(searchParams.get('limit') ?? '20', 10), 100);
+  const limit = Math.min(parseInt(searchParams.get('limit') ?? '20', 10) || 20, 100);
   const sort = searchParams.get('sort') ?? 'trending';
 
   const cacheKey = q ? `search:${q}:${limit}` : `browse:${sort}:${limit}`;
@@ -145,7 +161,7 @@ export async function GET(request: NextRequest) {
 
       if (res.ok) {
         const json = await res.json() as { results?: ClawHubSearchResult[] };
-        skills = (json.results ?? []).map(normalizeSkill);
+        skills = (json.results ?? []).map(normalizeSkill).filter(isSkillTrusted);
       } else {
         console.error(`ClawHub search error: ${res.status}`);
         return jsonResponse({ skills: [], error: `ClawHub returned ${res.status}` });
@@ -167,7 +183,7 @@ export async function GET(request: NextRequest) {
       if (browseRes.ok) {
         const json = await browseRes.json() as { skills?: ClawHubBrowseResult[]; items?: ClawHubBrowseResult[] };
         const raw = json.skills ?? json.items ?? [];
-        skills = raw.map(normalizeSkill);
+        skills = raw.map(normalizeSkill).filter(isSkillTrusted);
       }
 
       // If browse returned empty (known ClawHub issue), fall back to a broad search
@@ -189,8 +205,11 @@ export async function GET(request: NextRequest) {
               const searchJson = await searchRes.json() as { results?: ClawHubSearchResult[] };
               for (const r of searchJson.results ?? []) {
                 if (!seen.has(r.slug)) {
-                  seen.add(r.slug);
-                  allResults.push(normalizeSkill(r));
+                  const normalized = normalizeSkill(r);
+                  if (isSkillTrusted(normalized)) {
+                    seen.add(r.slug);
+                    allResults.push(normalized);
+                  }
                 }
               }
             }

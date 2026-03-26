@@ -50,6 +50,14 @@ interface NormalizedSkillDetail {
   owner: ClawHubOwner;
   latestVersion: ClawHubLatestVersion;
   readme: string | null;
+  // Flattened for frontend
+  version?: string;
+  changelog?: string | null;
+  license?: string | null;
+  downloads?: number;
+  installs?: number;
+  stars?: number;
+  versions?: number;
 }
 
 // ── Cache (5 min TTL) ──────────────────────────────────────────────────────
@@ -162,6 +170,14 @@ export async function GET(
       owner: json.owner ?? {},
       latestVersion: json.latestVersion ?? {},
       readme,
+      // Flatten for frontend consumption
+      version: json.latestVersion?.version ?? '',
+      changelog: json.latestVersion?.changelog ?? null,
+      license: json.latestVersion?.license ?? null,
+      downloads: skillData.stats?.downloads ?? 0,
+      installs: skillData.stats?.installsAllTime ?? 0,
+      stars: skillData.stats?.stars ?? 0,
+      versions: skillData.stats?.versions ?? 0,
     };
 
     setCache(slug, normalized);

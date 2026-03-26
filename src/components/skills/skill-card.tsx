@@ -20,11 +20,27 @@ export function SkillCard({ skill, isInstalled, isInstalling, onInstall, onClick
     >
       {/* Header */}
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-white/[0.06] flex items-center justify-center text-white/60 text-sm font-medium flex-shrink-0">
-          {initial}
-        </div>
+        {skill.owner?.image ? (
+          <img
+            src={skill.owner.image}
+            alt={skill.displayName}
+            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+          />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-white/[0.06] flex items-center justify-center text-white/60 text-sm font-medium flex-shrink-0">
+            {initial}
+          </div>
+        )}
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-white/80 truncate">{skill.displayName}</p>
+          <a
+            href={`https://clawhub.ai/skills/${skill.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-white/80 truncate hover:text-white/95 hover:underline transition-colors block"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {skill.displayName}
+          </a>
           <p className="font-mono text-[9px] text-white/25 truncate">{skill.slug}</p>
         </div>
       </div>
