@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Space_Grotesk, JetBrains_Mono, Playfair_Display } from "next/font/google";
 import { ErrorBoundary } from "@/components/error/error-boundary";
 import { ToastProvider } from "@/contexts/toast-context";
 import { SearchProvider } from "@/contexts/search-context";
@@ -17,6 +17,13 @@ const spaceGrotesk = Space_Grotesk({
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
+  display: "swap",
+});
+
+const playfairDisplay = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-playfair",
+  style: ["normal", "italic"],
   display: "swap",
 });
 
@@ -75,7 +82,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} ${playfairDisplay.variable}`}>
       <body className="bg-[#0a0a0f] text-forest antialiased">
         <ToastProvider>
           <SearchProvider>

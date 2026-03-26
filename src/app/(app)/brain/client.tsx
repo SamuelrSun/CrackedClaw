@@ -746,13 +746,12 @@ function RecentSessionsSection({ sessions }: { sessions: MemoryItem[] }) {
 
 // ─── What I Know Tab ─────────────────────────────────────────────────────────
 
-function WhatIKnowTab() {
+function WhatIKnowTab({ filterDomain, onFilterDomainChange, onDomainsReady }: { filterDomain: string | null; onFilterDomainChange: (d: string | null) => void; onDomainsReady?: (domains: DomainNode[]) => void }) {
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAdd, setShowAdd] = useState(false);
-  const [filterDomain, setFilterDomain] = useState<string | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchMemories = useCallback(async (search?: string) => {
@@ -875,6 +874,25 @@ function WhatIKnowTab() {
     return Array.from(domains).sort();
   }, [nonSessionMemories]);
 
+  // Build domain tree for sidebar and report to parent
+  const memoryDomainTree = useMemo(() => {
+    const map = new Map<string, DomainNode>();
+    for (const m of nonSessionMemories) {
+      const domain = m.domain || 'general';
+      let node = map.get(domain);
+      if (!node) {
+        node = { name: domain, count: 0, subdomains: new Map() };
+        map.set(domain, node);
+      }
+      node.count++;
+    }
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [nonSessionMemories]);
+
+  useEffect(() => {
+    onDomainsReady?.(memoryDomainTree);
+  }, [memoryDomainTree, onDomainsReady]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -893,7 +911,7 @@ function WhatIKnowTab() {
         </div>
       )}
 
-      {/* Search + Add + Domain filter row */}
+      {/* Search + Add row */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/20 text-xs pointer-events-none">🔍</span>
@@ -905,18 +923,6 @@ function WhatIKnowTab() {
             className="w-full bg-white/[0.05] border border-white/[0.08] rounded-[2px] pl-8 pr-3 py-1.5 text-xs font-mono text-white/70 placeholder:text-white/20 outline-none focus:border-white/[0.15] transition-colors"
           />
         </div>
-        {availableDomains.length > 1 && (
-          <select
-            value={filterDomain || ''}
-            onChange={(e) => setFilterDomain(e.target.value || null)}
-            className="bg-white/[0.05] border border-white/[0.08] text-white/50 text-[10px] px-2 py-1.5 font-mono rounded-[2px]"
-          >
-            <option value="">All domains</option>
-            {availableDomains.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-        )}
         <button
           onClick={() => setShowAdd((v) => !v)}
           className="font-mono text-[10px] text-emerald-400 hover:text-emerald-300 px-3 py-1.5 bg-emerald-900/20 border border-emerald-800/30 rounded-[2px] transition-colors"
@@ -924,6 +930,24 @@ function WhatIKnowTab() {
           + Add memory
         </button>
       </div>
+
+      {/* Mobile domain filter */}
+      {availableDomains.length > 1 && (
+        <div className="md:hidden">
+          <select
+            value={filterDomain || ''}
+            onChange={(e) => onFilterDomainChange(e.target.value || null)}
+            className="w-full bg-white/[0.05] border border-white/[0.1] text-white/70 text-xs px-3 py-2 font-mono"
+          >
+            <option value="">All domains ({nonSessionMemories.length})</option>
+            {availableDomains.map((d) => (
+              <option key={d} value={d}>
+                {d} ({nonSessionMemories.filter((m) => m.domain === d).length})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Add form */}
       {showAdd && (
@@ -1073,6 +1097,8 @@ export function BrainClient({
 }) {
   const [activeTab, setActiveTab] = useState<BrainTab>('memories');
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
+  const [memoryDomains, setMemoryDomains] = useState<DomainNode[]>([]);
+  const [memoryFilterDomain, setMemoryFilterDomain] = useState<string | null>(null);
   const [criteriaSearch, setCriteriaSearch] = useState('');
   // Mutable criteria state so deletes/weight changes reflect immediately
   const [criteria, setCriteria] = useState<BrainCriterionView[]>(initialCriteria);
@@ -1153,8 +1179,8 @@ export function BrainClient({
       {/* Main content */}
       <div className="flex-1 min-h-0 flex gap-1 md:gap-[7px] overflow-hidden">
 
-        {/* Left sidebar: Domain tree — glass panel, desktop only, only for "learned" tab */}
-        {activeTab === 'learned' && (
+        {/* Left sidebar: Domain tree — glass panel, desktop only, for "learned" and "memories" tabs */}
+        {(activeTab === 'learned' || (activeTab === 'memories' && memoryDomains.length > 1)) && (
           <div className="hidden md:flex flex-col w-[220px] flex-shrink-0 bg-black/[0.07] backdrop-blur-[10px] rounded-[3px] border border-white/10 overflow-hidden">
             <div className="px-3 py-2 border-b border-white/[0.06] flex-shrink-0">
               <span className="font-mono text-[9px] uppercase tracking-wide text-white/40">
@@ -1162,12 +1188,21 @@ export function BrainClient({
               </span>
             </div>
             <div className="overflow-y-auto flex-1">
-              <DomainTree
-                domains={domainTree}
-                selected={selectedDomain}
-                total={initialCriteria.length}
-                onSelect={setSelectedDomain}
-              />
+              {activeTab === 'learned' ? (
+                <DomainTree
+                  domains={domainTree}
+                  selected={selectedDomain}
+                  total={initialCriteria.length}
+                  onSelect={setSelectedDomain}
+                />
+              ) : (
+                <DomainTree
+                  domains={memoryDomains}
+                  selected={memoryFilterDomain}
+                  total={memoryDomains.reduce((acc, d) => acc + d.count, 0)}
+                  onSelect={setMemoryFilterDomain}
+                />
+              )}
             </div>
           </div>
         )}
@@ -1201,7 +1236,13 @@ export function BrainClient({
           </div>
 
           {/* Tab content */}
-          {activeTab === 'memories' && <WhatIKnowTab />}
+          {activeTab === 'memories' && (
+            <WhatIKnowTab
+              filterDomain={memoryFilterDomain}
+              onFilterDomainChange={setMemoryFilterDomain}
+              onDomainsReady={setMemoryDomains}
+            />
+          )}
 
           {activeTab === 'learned' && (
             <>

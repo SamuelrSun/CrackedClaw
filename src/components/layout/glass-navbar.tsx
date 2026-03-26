@@ -15,6 +15,7 @@ const navLinks = [
   { href: "/brain", label: "Brain" },
   { href: "/agents", label: "Agents" },
   { href: "/integrations", label: "Integrations" },
+  { href: "/skills", label: "Skills" },
   { href: "/docs", label: "Docs" },
   { href: "/settings", label: "Settings" },
 ];

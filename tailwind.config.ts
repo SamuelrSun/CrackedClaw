@@ -21,6 +21,7 @@ const config: Config = {
         header: ['Space Grotesk', 'sans-serif'],
         body: ['General Sans', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
+        playfair: ['var(--font-playfair)', 'Playfair Display', 'serif'],
       },
       borderRadius: {
         'none': '0px',

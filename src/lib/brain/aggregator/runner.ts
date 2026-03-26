@@ -61,11 +61,33 @@ export async function runBrainAggregation(userId: string): Promise<AggregationRe
     return { patternsFound: 0, criteriaSynthesized: 0 };
   }
 
-  // 3. Aggregate patterns
+  // 3. Aggregate patterns (creates new / merges into existing)
   const patterns = await aggregatePatterns(userId);
 
-  // 4. Synthesize eligible patterns (confidence >= 0.6)
-  const eligiblePatterns = patterns.filter((p) => p.confidence >= 0.6);
+  // 4. Synthesize ALL eligible pending patterns from the DB (not just freshly returned ones).
+  //    Previous bug: only freshly-created patterns were passed to the synthesizer,
+  //    but patterns accumulate confidence over multiple aggregation runs. By the time
+  //    they reach >= 0.6 confidence, they're no longer in the return value.
+  const { data: pendingPatterns } = await supabase
+    .from('brain_patterns')
+    .select('domain, subdomain, context, pattern_type, description, evidence, occurrence_count, confidence')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .gte('confidence', 0.6)
+    .order('confidence', { ascending: false })
+    .limit(20);
+
+  const eligiblePatterns = (pendingPatterns || []).map((p) => ({
+    domain: p.domain,
+    subdomain: p.subdomain || undefined,
+    context: p.context || undefined,
+    pattern_type: p.pattern_type,
+    description: p.description,
+    evidence: (p.evidence as Array<{ signal_type: string; summary: string; created_at: string }>) || [],
+    occurrence_count: p.occurrence_count,
+    confidence: p.confidence,
+  }));
+
   let criteriaSynthesized = 0;
 
   if (eligiblePatterns.length > 0) {
