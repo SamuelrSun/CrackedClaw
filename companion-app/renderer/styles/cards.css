@@ -1,0 +1,228 @@
+/* ── Liquid Glass Cards ─────────────────────────────────────────────────── */
+/* Shared glass card base for all inline cards (tasks, browser, integrations) */
+
+.glass-card {
+  width: 260px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+  transition: border-color 0.3s;
+  margin: 4px 0;
+}
+
+/* Horizontal group for consecutive cards */
+.card-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+/* ── Task / Subagent Card ──────────────────────────────────────────────── */
+.card-task {
+  width: 260px;
+  height: 68px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 14px;
+  gap: 4px;
+}
+
+.card-task-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-task-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Animated status dot */
+.card-task-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+}
+
+.card-task-dot-inner {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  position: relative;
+  z-index: 1;
+}
+
+.card-task-dot-ping {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  opacity: 0.75;
+  animation: dot-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes dot-ping {
+  0% { transform: scale(1); opacity: 0.75; }
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+
+/* Status colors */
+.card-task-dot--pending .card-task-dot-inner,
+.card-task-dot--pending .card-task-dot-ping { background: #fbbf24; }
+.card-task-dot--running .card-task-dot-inner,
+.card-task-dot--running .card-task-dot-ping { background: #34d399; }
+
+/* Status label */
+.card-task-label {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.card-task-status-text {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.card-task-status-text--pending { color: rgba(251, 191, 36, 0.7); }
+.card-task-status-text--running { color: rgba(52, 211, 153, 0.7); }
+.card-task-status-text--complete { color: rgba(52, 211, 153, 0.7); }
+.card-task-status-text--error,
+.card-task-status-text--failed { color: rgba(248, 113, 113, 0.7); }
+
+/* Timer */
+.card-task-timer {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+/* Complete/Failed icons (SVG inline) */
+.card-task-icon-check {
+  width: 14px;
+  height: 14px;
+  color: #34d399;
+  flex-shrink: 0;
+}
+
+.card-task-icon-fail {
+  width: 14px;
+  height: 14px;
+  color: #f87171;
+  flex-shrink: 0;
+}
+
+/* Task description */
+.card-task-details {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.45);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ── Browser Card ──────────────────────────────────────────────────────── */
+.card-browser {
+  width: 260px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  padding: 10px 14px;
+  margin: 4px 0;
+}
+
+.card-browser-status {
+  padding-left: 10px;
+  border-left: 2px solid var(--accent, #60a5fa);
+}
+
+.card-browser-url {
+  display: block;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.card-browser-message {
+  display: block;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* ── Integration Card ──────────────────────────────────────────────────── */
+.card-integration {
+  width: 260px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  padding: 10px 14px;
+  margin: 4px 0;
+}
+
+.card-integration-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.card-integration-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.card-integration-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-integration-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.card-integration-type {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.card-integration-action {
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.card-integration-hint {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+}

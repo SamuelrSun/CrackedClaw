@@ -418,28 +418,38 @@ app.whenReady().then(() => {
   }
 
   // ── Permission triggers ──
-  // Check accessibility on each launch. Screen recording is checked only once
-  // (on first launch) since desktopCapturer-based detection is unreliable on
-  // newer macOS and causes false positives that open System Preferences every time.
+  // Prompt for Accessibility and Screen Recording on first launch only.
+  // Subsequent launches: user can re-trigger from the app's settings/IPC.
+  //
+  // Why first-launch only for Accessibility:
+  //   Each Electron rebuild changes the code signature hash, so macOS may
+  //   report isTrustedAccessibilityClient(false) even when the user already
+  //   granted it (the old entry in System Preferences is stale). Calling
+  //   isTrustedAccessibilityClient(true) every launch would nag the user
+  //   with a system dialog on every app update.
   {
     const { systemPreferences, shell } = require('electron');
 
-    // Accessibility — passing true shows the system prompt if not already granted
     const accessibilityGranted = systemPreferences.isTrustedAccessibilityClient(false);
-    if (!accessibilityGranted) {
+    const accessibilityPrompted = store.get('accessibilityPrompted', false);
+
+    if (!accessibilityGranted && !accessibilityPrompted) {
+      // First time: show the system dialog
       setTimeout(() => {
         systemPreferences.isTrustedAccessibilityClient(true);
-        console.log('[Permissions] Accessibility: prompt shown');
+        store.set('accessibilityPrompted', true);
+        console.log('[Permissions] Accessibility: first-launch prompt shown');
       }, 2000);
-    } else {
+    } else if (accessibilityGranted) {
       console.log('[Permissions] Accessibility: granted');
+    } else {
+      console.log('[Permissions] Accessibility: not granted but already prompted — user can re-enable in Settings');
     }
 
-    // Screen Recording — prompt once on first launch only
     const screenRecordingPrompted = store.get('screenRecordingPrompted', false);
     if (!screenRecordingPrompted) {
-      store.set('screenRecordingPrompted', true);
       setTimeout(() => {
+        store.set('screenRecordingPrompted', true);
         console.log('[Permissions] Screen Recording: first launch, opening preferences…');
         shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
       }, 4000);

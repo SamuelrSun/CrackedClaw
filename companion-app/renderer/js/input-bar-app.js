@@ -16,8 +16,13 @@ const connDot       = document.getElementById('conn-dot');
 const balanceLabel  = document.getElementById('balance-label');
 const msgInput      = document.getElementById('msg-input');
 const btnSend       = document.getElementById('btn-send');
+const btnVoice      = document.getElementById('btn-voice');
 const btnToggleChat = document.getElementById('btn-toggle-chat');
 const btnSettings   = document.getElementById('btn-settings');
+
+// Loading timer elements
+const loadingTimer     = document.getElementById('loading-timer');
+const loadingTimerText = document.getElementById('loading-timer-text');
 
 // Settings dropdown
 const settingsDropdown = document.getElementById('settings-dropdown');
@@ -38,12 +43,63 @@ let tokenMode = false; // true = input bar is in token-paste mode
 let balanceFetchTimer = null;
 const BALANCE_FETCH_INTERVAL_MS = 120000; // refresh every 2 minutes
 
+// Loading timer
+let loadingInterval = null;
+
 // Heights (px) — must match main process constants
 const INPUT_BAR_HEIGHT = 68;
 const SETUP_HEIGHT = 340;
 const DROPDOWN_GAP = 6;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+
+// Send SVG icon HTML
+const SEND_ICON_HTML = `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M14.5 1.5L7 9M14.5 1.5L10 14.5L7 9M14.5 1.5L1.5 5.5L7 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
+// Stop SVG icon HTML
+const STOP_ICON_HTML = `<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+  <rect width="10" height="10" rx="1.5" />
+</svg>`;
+
+function startLoadingTimer() {
+  if (loadingTimer) {
+    loadingTimer.classList.remove('hidden');
+    const start = Date.now();
+    if (loadingTimerText) loadingTimerText.textContent = '0s';
+    loadingInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - start) / 1000);
+      if (loadingTimerText) {
+        loadingTimerText.textContent = elapsed < 60
+          ? `${elapsed}s`
+          : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
+      }
+    }, 1000);
+  }
+}
+
+function stopLoadingTimer() {
+  if (loadingTimer) loadingTimer.classList.add('hidden');
+  if (loadingInterval) {
+    clearInterval(loadingInterval);
+    loadingInterval = null;
+  }
+}
+
+function setSendButtonStreaming(streaming) {
+  if (!btnSend) return;
+  if (streaming) {
+    btnSend.innerHTML = STOP_ICON_HTML;
+    btnSend.classList.add('btn-stop-icon');
+    btnSend.disabled = false;
+    btnSend.title = 'Stop';
+  } else {
+    btnSend.innerHTML = SEND_ICON_HTML;
+    btnSend.classList.remove('btn-stop-icon');
+    btnSend.title = 'Send';
+  }
+}
 
 function setConnectedIndicator(connected, connecting) {
   if (connecting) {
@@ -58,6 +114,7 @@ function setConnectedIndicator(connected, connecting) {
 function setInputEnabled(enabled) {
   msgInput.disabled = !enabled;
   btnSend.disabled = !enabled;
+  if (btnVoice) btnVoice.disabled = !enabled;
   if (tokenMode) return; // don't override placeholder in token mode
   if (enabled) {
     msgInput.placeholder = 'Message… (Enter to send, Shift+Enter for new line)';
@@ -83,6 +140,7 @@ function enterTokenMode() {
   // Hide chat-only buttons when in token mode
   btnToggleChat.style.display = 'none';
   btnSettings.style.display = 'none';
+  if (btnVoice) btnVoice.style.display = 'none';
   setConnectedIndicator(false);
 }
 
@@ -102,6 +160,7 @@ function exitTokenMode() {
   // Show chat buttons
   btnToggleChat.style.display = '';
   btnSettings.style.display = '';
+  if (btnVoice) btnVoice.style.display = '';
 }
 
 // ── Balance display ────────────────────────────────────────────────────────
@@ -150,17 +209,17 @@ function stopBalancePolling() {
 
 function autoResizeInput() {
   msgInput.style.height = 'auto';
-  const newTextHeight = Math.min(msgInput.scrollHeight, 140);
+  const newTextHeight = Math.min(msgInput.scrollHeight, 120); // cap at 120px (~5 lines)
   msgInput.style.height = newTextHeight + 'px';
 
-  // Resize the Electron window to fit the pill content. Without this, the pill
-  // overflows the fixed 68px window when the user types multiple lines, causing
-  // the bar to appear clipped. After clearing the input (e.g. after send), the
-  // scrollHeight drops back and the window shrinks to INPUT_BAR_HEIGHT.
+  // Resize the Electron window to accommodate textarea growth, but cap it so
+  // pasting large blocks of text doesn't expand the window unboundedly.
+  // The textarea itself handles overflow beyond 120px via overflow-y: auto.
   requestAnimationFrame(() => {
     if (settingsOpen) return; // don't clobber the settings dropdown sizing
     const bodyH = document.body.scrollHeight;
-    const targetH = Math.max(INPUT_BAR_HEIGHT, bodyH);
+    const maxH = INPUT_BAR_HEIGHT + 80; // allow some growth but cap it
+    const targetH = Math.max(INPUT_BAR_HEIGHT, Math.min(bodyH, maxH));
     window.dopl.windowSetSize(680, targetH, false);
   });
 }
@@ -252,6 +311,8 @@ async function handleTokenSubmit() {
     await new Promise((r) => setTimeout(r, 800));
     exitTokenMode();
     setConnectedIndicator(true);
+    // Open chat panel by default after connecting
+    window.dopl.showChatPanel();
   } else {
     msgInput.disabled = false;
     btnSend.disabled = false;
@@ -279,6 +340,8 @@ async function sendMessage() {
 
   isStreaming = true;
   setInputEnabled(false);
+  startLoadingTimer();
+  setSendButtonStreaming(true);
 
   // Auto-create a conversation if we don't have one
   let convId = currentConversationId;
@@ -286,6 +349,8 @@ async function sendMessage() {
     // Guard against double-tap: if already creating, bail out
     if (isCreatingConversation) {
       isStreaming = false;
+      stopLoadingTimer();
+      setSendButtonStreaming(false);
       setInputEnabled(true);
       return;
     }
@@ -297,6 +362,8 @@ async function sendMessage() {
         console.error('[InputBar] Failed to auto-create conversation:', result.error);
         isStreaming = false;
         isCreatingConversation = false;
+        stopLoadingTimer();
+        setSendButtonStreaming(false);
         setInputEnabled(true);
         return;
       }
@@ -309,6 +376,8 @@ async function sendMessage() {
       console.error('[InputBar] Auto-create conversation error:', err);
       isStreaming = false;
       isCreatingConversation = false;
+      stopLoadingTimer();
+      setSendButtonStreaming(false);
       setInputEnabled(true);
       return;
     } finally {
@@ -332,6 +401,8 @@ async function sendMessage() {
   }
 
   isStreaming = false;
+  stopLoadingTimer();
+  setSendButtonStreaming(false);
   setInputEnabled(true);
   msgInput.focus();
 
@@ -417,6 +488,16 @@ btnSend.addEventListener('click', async () => {
     }
     return;
   }
+  if (isStreaming) {
+    // Stop button: abort the current stream
+    window.dopl.chat.abortMessage().catch(() => {});
+    isStreaming = false;
+    stopLoadingTimer();
+    setSendButtonStreaming(false);
+    setInputEnabled(true);
+    msgInput.focus();
+    return;
+  }
   if (!isStreaming && msgInput.value.trim()) {
     sendMessage();
   }
@@ -474,6 +555,8 @@ if (window.dopl.chat && window.dopl.chat.onReplyFromNotificationComplete) {
   window.dopl.chat.onReplyFromNotificationComplete((data) => {
     if (data.conversationId === currentConversationId) {
       isStreaming = false;
+      stopLoadingTimer();
+      setSendButtonStreaming(false);
       setInputEnabled(true);
     }
   });
@@ -483,6 +566,8 @@ if (window.dopl.chat && window.dopl.chat.onReplyFromNotificationComplete) {
 if (window.dopl.chat && window.dopl.chat.onBillingError) {
   window.dopl.chat.onBillingError((data) => {
     isStreaming = false;
+    stopLoadingTimer();
+    setSendButtonStreaming(false);
     msgInput.disabled = false; // allow user to keep trying after adding funds
     btnSend.disabled = false;
     if (data.type === 'insufficient_balance') {
@@ -542,15 +627,18 @@ function applyRuntimeStatus(status, detail, isConnected) {
     msgInput.placeholder = '⬇️ Downloading runtime… (first time only, ~40MB)';
     msgInput.disabled = true;
     btnSend.disabled = true;
+    if (btnVoice) btnVoice.disabled = true;
   } else if (status === 'installing-openclaw') {
     msgInput.placeholder = '⚙️ Installing components… (almost there)';
     msgInput.disabled = true;
     btnSend.disabled = true;
+    if (btnVoice) btnVoice.disabled = true;
   } else if (status === 'ready' || status === 'checking') {
     // Runtime ready — restore normal UI state
     if (msgInput.disabled && !isStreaming) {
       msgInput.disabled = false;
       btnSend.disabled = false;
+      if (btnVoice) btnVoice.disabled = false;
       msgInput.placeholder = isConnected
         ? 'Message… (Enter to send, Shift+Enter for new line)'
         : '🔗 Paste connection token to link your instance…';
@@ -572,6 +660,171 @@ if (window.dopl.runtime && window.dopl.runtime.onStatus) {
     // Determine if we're currently connected (for placeholder restoration)
     const connDotConnected = connDot.classList.contains('connected');
     applyRuntimeStatus(status, detail, connDotConnected && !tokenMode);
+  });
+}
+
+// ── Voice Input (Speech Recognition) ──────────────────────────────────────────
+
+let speechRecognition = null;
+let isRecording = false;
+let finalTranscript = '';
+let shouldRestart = false;
+let restartTimeout = null;
+let restartAttempts = 0;
+
+const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+const voiceSupported = !!SpeechRecognitionCtor;
+
+// Hide voice button if not supported
+if (!voiceSupported && btnVoice) {
+  btnVoice.style.display = 'none';
+}
+
+function startVoiceRecording() {
+  if (!voiceSupported || isRecording) return;
+
+  finalTranscript = '';
+  restartAttempts = 0;
+
+  const recognition = new SpeechRecognitionCtor();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = () => {
+    isRecording = true;
+    shouldRestart = true;
+    restartAttempts = 0;
+    btnVoice.classList.add('recording');
+    // Swap icon to animated sound wave bars
+    btnVoice.innerHTML = `
+      <span class="voice-bars">
+        ${[1,2,3,4,3].map((h, i) =>
+          `<span style="height:${h*3}px; animation:voiceBar 0.8s ease-in-out ${i*0.1}s infinite alternate"></span>`
+        ).join('')}
+      </span>
+    `;
+    btnVoice.title = 'Click to stop recording';
+  };
+
+  recognition.onresult = (event) => {
+    let interim = '';
+    let newFinal = '';
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      const text = result[0].transcript;
+      if (result.isFinal) {
+        newFinal += text;
+      } else {
+        interim += text;
+      }
+    }
+
+    if (newFinal) {
+      const trimmed = newFinal.trim();
+      if (trimmed) {
+        finalTranscript = finalTranscript ? finalTranscript + ' ' + trimmed : trimmed;
+      }
+    }
+
+    // Show live preview in the textarea
+    const liveText = finalTranscript + (interim ? ' ' + interim : '');
+    msgInput.value = liveText;
+    autoResizeInput();
+  };
+
+  recognition.onerror = (event) => {
+    if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+      shouldRestart = false;
+      stopVoiceRecording();
+      return;
+    }
+    if (event.error === 'no-speech') return; // normal during pauses
+    if (event.error === 'aborted' && shouldRestart && restartAttempts < 3) {
+      scheduleVoiceRestart();
+      return;
+    }
+  };
+
+  recognition.onend = () => {
+    // Browsers cap sessions at ~60s — auto-restart if user is still recording
+    if (shouldRestart && isRecording) {
+      scheduleVoiceRestart();
+    } else {
+      finishVoiceRecording();
+    }
+  };
+
+  speechRecognition = recognition;
+
+  try {
+    recognition.start();
+  } catch (e) {
+    console.error('[Voice] Failed to start:', e);
+    isRecording = false;
+  }
+}
+
+function scheduleVoiceRestart() {
+  if (restartTimeout) clearTimeout(restartTimeout);
+  const delay = Math.min(100 * Math.pow(2, restartAttempts), 2000);
+  restartAttempts++;
+  restartTimeout = setTimeout(() => {
+    if (shouldRestart && isRecording) {
+      try {
+        speechRecognition?.start();
+      } catch {
+        startVoiceRecording();
+      }
+    }
+  }, delay);
+}
+
+function stopVoiceRecording() {
+  shouldRestart = false;
+  isRecording = false;
+  if (restartTimeout) {
+    clearTimeout(restartTimeout);
+    restartTimeout = null;
+  }
+  speechRecognition?.stop();
+  finishVoiceRecording();
+}
+
+function finishVoiceRecording() {
+  isRecording = false;
+  shouldRestart = false;
+  if (!btnVoice) return;
+  btnVoice.classList.remove('recording');
+  // Restore mic icon
+  btnVoice.innerHTML = `
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="9" y="2" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M5 10a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="12" y1="19" x2="12" y2="22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="8" y1="22" x2="16" y2="22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+  `;
+  btnVoice.title = 'Voice input';
+
+  // Commit the final transcript to the textarea
+  if (finalTranscript) {
+    msgInput.value = finalTranscript;
+    autoResizeInput();
+    msgInput.focus();
+  }
+}
+
+// Wire up the voice button click
+if (btnVoice) {
+  btnVoice.addEventListener('click', () => {
+    if (isRecording) {
+      stopVoiceRecording();
+    } else {
+      startVoiceRecording();
+    }
   });
 }
 

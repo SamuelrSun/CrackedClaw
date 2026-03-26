@@ -46,7 +46,8 @@ export type ParsedSegment =
   | { type: "welcome"; userName: string; agentName: string }
   | { type: "integrations-resolve"; services: string[] }
   | { type: "skill-suggest"; skillId: string; reason: string }
-  | { type: "inline-task"; taskName: string; status: "running" | "complete" | "failed"; details?: string }
+  | { type: "inline-task"; taskName: string; status: "running" | "complete" | "failed"; details?: string; taskId?: string }
+  | { type: "inline-task-group"; tasks: Array<{ taskName: string; status: "running" | "complete" | "failed"; details?: string; taskId?: string }> }
   | { type: "workflow-preview"; workflow: WorkflowDef }
   | { type: "browser-preview"; url: string; status: "browsing" | "waiting-login" | "complete" | "error"; message?: string }
   | { type: "browser-open"; url: string; message?: string }

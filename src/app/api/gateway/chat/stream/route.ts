@@ -9,7 +9,7 @@ import { incrementUsage } from "@/lib/usage/tracker";
 // Legacy credit system — kept for reference, replaced by wallet
 // import { checkCreditLimit } from "@/lib/usage/credits";
 import { logChatUsage } from "@/lib/ai/metered-client";
-import { checkWalletBalance, deductFromWallet } from "@/lib/usage/wallet";
+import { checkWalletBalance, deductFromWallet, maybeAutoReload } from "@/lib/usage/wallet";
 import { calculateUserCost } from "@/lib/usage/pricing";
 import { buildSystemPromptForUser, buildDynamicContext, buildLinkedContextSummary } from "@/lib/gateway/system-prompt";
 import { getUserInstance } from "@/lib/gateway/openclaw-proxy";
@@ -514,6 +514,11 @@ The user can see the tab being controlled in real time.`;
               balance_remaining: newBalance >= 0 ? Math.round(newBalance * 100) / 100 : undefined,
             }));
           } catch { /* writer may be closed */ }
+
+          // Fire-and-forget: trigger auto-reload if balance dropped below threshold
+          if (newBalance >= 0) {
+            maybeAutoReload(user.id, newBalance).catch(() => {});
+          }
         }
       } catch (e) {
         console.error("Post-stream error:", e);

@@ -60,7 +60,8 @@ function parseAndRenderCards(text) {
     } else if (tagType === 'browser') {
       segments.push({ type: 'browser-card', url: parts[1], status: parts[2], message: parts.slice(3).join(':') });
     } else if (tagType === 'task') {
-      segments.push({ type: 'task-card', status: parts[1], title: parts[2], details: parts.slice(3).join(':') });
+      // Format: [[task:name:status:details]] — name is the task label, status is running/complete/failed
+      segments.push({ type: 'task-card', title: parts[1], status: parts[2] || 'running', details: parts.slice(3).join(':') });
     } else {
       // Unknown tag, keep as text
       segments.push({ type: 'text', content: match[0] });
@@ -78,19 +79,35 @@ function parseAndRenderCards(text) {
     return { html: null, hasCards: false };
   }
 
-  // Render segments
+  // Render segments — group consecutive task cards horizontally
   let html = '';
+  let taskBuffer = [];
+
+  function flushTasks() {
+    if (taskBuffer.length === 0) return;
+    if (taskBuffer.length === 1) {
+      html += taskBuffer[0];
+    } else {
+      html += '<div class="card-group">' + taskBuffer.join('') + '</div>';
+    }
+    taskBuffer = [];
+  }
+
   for (const seg of segments) {
-    if (seg.type === 'text') {
-      html += renderMarkdown(seg.content);
-    } else if (seg.type === 'integration-card') {
-      html += renderIntegrationCard(seg.service);
-    } else if (seg.type === 'browser-card') {
-      html += renderBrowserCard(seg.url, seg.status, seg.message);
-    } else if (seg.type === 'task-card') {
-      html += renderTaskCard(seg.status, seg.title, seg.details);
+    if (seg.type === 'task-card') {
+      taskBuffer.push(renderTaskCard(seg.status, seg.title, seg.details));
+    } else {
+      flushTasks();
+      if (seg.type === 'text') {
+        html += renderMarkdown(seg.content);
+      } else if (seg.type === 'integration-card') {
+        html += renderIntegrationCard(seg.service);
+      } else if (seg.type === 'browser-card') {
+        html += renderBrowserCard(seg.url, seg.status, seg.message);
+      }
     }
   }
+  flushTasks();
 
   return { html, hasCards: true };
 }
@@ -147,21 +164,34 @@ function renderBrowserCard(url, status, message) {
 }
 
 function renderTaskCard(status, title, details) {
-  const icons = {
-    'pending': '⏳',
-    'running': '🔄',
-    'complete': '✅',
-    'error': '❌',
-  };
-  const icon = icons[status] || '📋';
+  const isActive = status === 'running' || status === 'pending';
+  const statusLabel = status === 'pending' ? 'Starting...'
+    : status === 'running' ? 'Running'
+    : status === 'complete' ? 'Complete'
+    : 'Failed';
+
+  let statusIcon = '';
+  if (isActive) {
+    statusIcon = `<span class="card-task-dot card-task-dot--${escapeHtml(status)}">
+      <span class="card-task-dot-ping"></span>
+      <span class="card-task-dot-inner"></span>
+    </span>`;
+  } else if (status === 'complete') {
+    statusIcon = `<svg class="card-task-icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  } else {
+    statusIcon = `<svg class="card-task-icon-fail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+  }
 
   return `
     <div class="card-task">
       <div class="card-task-header">
-        <span class="card-task-icon">${icon}</span>
-        <span class="card-task-title">${escapeHtml(title || 'Task')}</span>
+        <div class="card-task-status">
+          ${statusIcon}
+          <span class="card-task-label">Subagent</span>
+          <span class="card-task-status-text card-task-status-text--${escapeHtml(status)}">${statusLabel}</span>
+        </div>
       </div>
-      ${details ? `<div class="card-task-details">${escapeHtml(details)}</div>` : ''}
+      <div class="card-task-details">${escapeHtml(title || details || 'Background task')}</div>
     </div>
   `;
 }

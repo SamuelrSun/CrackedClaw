@@ -54,6 +54,8 @@ contextBridge.exposeInMainWorld('dopl', {
     check: () => ipcRenderer.invoke('check-permissions'),
     openAccessibility: () => ipcRenderer.invoke('open-accessibility-settings'),
     openScreenRecording: () => ipcRenderer.invoke('open-screen-recording-settings'),
+    promptAccessibility: () => ipcRenderer.invoke('prompt-accessibility'),
+    resetPrompts: () => ipcRenderer.invoke('reset-permission-prompts'),
   },
 
   // ── Open in Browser ──────────────────────────────────────────────────────
@@ -99,6 +101,10 @@ contextBridge.exposeInMainWorld('dopl', {
     /** Send a message from the input bar. Returns { ok, content, error }. */
     sendMessage: (conversationId, message) =>
       ipcRenderer.invoke('chat:send-message', { conversationId, message }),
+
+    /** Abort the currently streaming message. */
+    abortMessage: () =>
+      ipcRenderer.invoke('chat:abort-message'),
 
     /** Chat panel listens for the user message echo (sent before streaming). */
     onShowUserMessage: (callback) => {

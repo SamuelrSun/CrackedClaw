@@ -30,6 +30,9 @@ CREATE POLICY "Service can insert transactions" ON wallet_transactions
   FOR INSERT WITH CHECK (true);
 
 -- Atomic balance deduction function
+-- Always deducts (allows negative balance) because the AI response already streamed.
+-- Pre-check (balance > 0) happens before streaming; deduction happens after.
+-- Negative balance blocks the NEXT message, not the current one.
 CREATE OR REPLACE FUNCTION deduct_balance(
   p_user_id UUID,
   p_amount NUMERIC
@@ -40,11 +43,11 @@ BEGIN
   UPDATE profiles 
   SET balance_usd = balance_usd - p_amount,
       total_spent_usd = total_spent_usd + p_amount
-  WHERE id = p_user_id AND balance_usd >= p_amount
+  WHERE id = p_user_id
   RETURNING balance_usd INTO new_balance;
   
   IF NOT FOUND THEN
-    RETURN -1;  -- Insufficient balance
+    RETURN -1;  -- User not found
   END IF;
   
   RETURN new_balance;

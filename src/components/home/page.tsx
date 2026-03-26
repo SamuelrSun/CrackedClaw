@@ -466,6 +466,7 @@ export default function LandingPage() {
                     {[
                       { label: "Terms of Service", href: "/terms" },
                       { label: "Privacy Policy", href: "/privacy" },
+                      { label: "Pricing", href: "/pricing" },
                     ].map((item) => (
                       <li key={item.label}>
                         <Link

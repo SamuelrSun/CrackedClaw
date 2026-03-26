@@ -137,8 +137,10 @@ function setupIPC(deps) {
     const { systemPreferences } = require('electron');
     return {
       accessibility: systemPreferences.isTrustedAccessibilityClient(false),
-      // Screen recording can't be directly checked, but we can try
-      screenRecording: true, // assume true, will fail gracefully if not
+      accessibilityPrompted: store.get('accessibilityPrompted', false),
+      screenRecordingPrompted: store.get('screenRecordingPrompted', false),
+      // Screen recording can't be directly checked on macOS
+      screenRecording: true,
     };
   });
 
@@ -148,6 +150,21 @@ function setupIPC(deps) {
 
   ipcMain.handle('open-screen-recording-settings', async () => {
     shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+  });
+
+  // Re-trigger the native accessibility dialog (for when user needs to re-grant after an app update)
+  ipcMain.handle('prompt-accessibility', async () => {
+    const { systemPreferences } = require('electron');
+    systemPreferences.isTrustedAccessibilityClient(true);
+    store.set('accessibilityPrompted', true);
+    return { prompted: true };
+  });
+
+  // Reset permission prompt flags — allows first-launch prompts to fire again
+  ipcMain.handle('reset-permission-prompts', async () => {
+    store.delete('accessibilityPrompted');
+    store.delete('screenRecordingPrompted');
+    return { ok: true };
   });
 
   // ── Open in Browser ───────────────────────────────────────────────────────
@@ -561,6 +578,14 @@ function setupIPC(deps) {
       }
       return { ok: false, error: err.message };
     }
+  });
+
+  // ── Abort IPC ────────────────────────────────────────────────────────────────
+
+  ipcMain.handle('chat:abort-message', () => {
+    const chatManager = getChatManager();
+    if (chatManager) chatManager.abortMessage();
+    return { ok: true };
   });
 
   // ── Balance IPC ──────────────────────────────────────────────────────────────

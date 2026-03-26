@@ -32,6 +32,7 @@ import { AgentActivityPanel } from "@/components/chat/agent-activity-panel";
 import type { AgentActivityEntry } from "@/components/chat/agent-activity-panel";
 import { SubagentPanel } from "@/components/chat/subagent-panel";
 import { InlineTaskCard } from "@/components/chat/inline-task-card";
+import { SubagentInlineCard } from "@/components/chat/subagent-inline-card";
 import type { SubagentSession } from "@/components/chat/subagent-card";
 import { ChatError } from "@/components/chat/chat-error";
 import { useNodeStatus } from "@/hooks/use-node-status";
@@ -170,6 +171,42 @@ interface ChatPageClientProps {
   intro?: boolean;
 }
 
+function formatRuntime(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
+}
+
+function groupConsecutiveTasks(segments: ParsedSegment[]): ParsedSegment[] {
+  const result: ParsedSegment[] = [];
+  let taskBuffer: Array<{ taskName: string; status: "running" | "complete" | "failed"; details?: string; taskId?: string }> = [];
+
+  for (const seg of segments) {
+    if (seg.type === "inline-task") {
+      taskBuffer.push(seg);
+    } else {
+      if (taskBuffer.length > 0) {
+        if (taskBuffer.length === 1) {
+          result.push({ type: "inline-task", ...taskBuffer[0] });
+        } else {
+          result.push({ type: "inline-task-group", tasks: [...taskBuffer] });
+        }
+        taskBuffer = [];
+      }
+      result.push(seg);
+    }
+  }
+  // Flush remaining
+  if (taskBuffer.length > 0) {
+    if (taskBuffer.length === 1) {
+      result.push({ type: "inline-task", ...taskBuffer[0] });
+    } else {
+      result.push({ type: "inline-task-group", tasks: [...taskBuffer] });
+    }
+  }
+  return result;
+}
+
 interface RichMessageProps {
   segments: ParsedSegment[];
   onIntegrationConnect: (provider: string) => Promise<boolean>;
@@ -182,6 +219,7 @@ interface RichMessageProps {
   onSendEmail?: (email: EmailDraft) => Promise<void>;
   onSaveDraftEmail?: (email: EmailDraft) => Promise<void>;
   onViewActivity: () => void;
+  inlineSubagents?: SubagentSession[];
 }
 
 function RichMessage({
@@ -196,10 +234,12 @@ function RichMessage({
   onSendEmail,
   onSaveDraftEmail,
   onViewActivity,
+  inlineSubagents,
 }: RichMessageProps) {
+  const processedSegments = groupConsecutiveTasks(segments);
   return (
     <div className="space-y-3">
-      {segments.map((segment, idx) => {
+      {processedSegments.map((segment, idx) => {
         switch (segment.type) {
           case "file-attachment":
             return (
@@ -282,15 +322,53 @@ function RichMessage({
                 reason={segment.reason}
               />
             );
-          case "inline-task":
+          case "inline-task": {
+            // Look up real-time status from Supabase via inlineSubagents
+            const liveTask = inlineSubagents?.find(s => s.label === segment.taskName || s.task === segment.taskName);
+            const liveStatus: "pending" | "running" | "complete" | "failed" =
+              liveTask?.status === "done" ? "complete" :
+              liveTask?.status === "running" ? "running" :
+              liveTask?.status === "failed" || liveTask?.status === "killed" ? "failed" :
+              segment.status;
+            const liveRuntime = liveTask?.endedAt && liveTask?.startedAt
+              ? formatRuntime(liveTask.endedAt - liveTask.startedAt)
+              : undefined;
             return (
-              <InlineTaskCard
+              <SubagentInlineCard
                 key={idx}
-                taskId={`inline-${idx}`}
-                taskName={segment.taskName}
-                status={segment.status}
-                details={segment.details}
+                taskId={liveTask?.id || `inline-${idx}`}
+                label={segment.taskName}
+                status={liveStatus}
+                startedAt={liveTask?.startedAt}
+                runtime={liveRuntime}
               />
+            );
+          }
+          case "inline-task-group":
+            return (
+              <div key={idx} className="flex flex-wrap gap-2 my-2">
+                {segment.tasks.map((task, tidx) => {
+                  const liveTask = inlineSubagents?.find(s => s.label === task.taskName || s.task === task.taskName);
+                  const liveStatus: "pending" | "running" | "complete" | "failed" =
+                    liveTask?.status === "done" ? "complete" :
+                    liveTask?.status === "running" ? "running" :
+                    liveTask?.status === "failed" || liveTask?.status === "killed" ? "failed" :
+                    task.status;
+                  const liveRuntime = liveTask?.endedAt && liveTask?.startedAt
+                    ? formatRuntime(liveTask.endedAt - liveTask.startedAt)
+                    : undefined;
+                  return (
+                    <SubagentInlineCard
+                      key={`${idx}-${tidx}`}
+                      taskId={liveTask?.id || `inline-${idx}-${tidx}`}
+                      label={task.taskName}
+                      status={liveStatus}
+                      startedAt={liveTask?.startedAt}
+                      runtime={liveRuntime}
+                    />
+                  );
+                })}
+              </div>
             );
           case "browser-preview":
             return (
@@ -624,6 +702,8 @@ export default function ChatPageClient({
   // Sync messages when initialMessages prop updates (async load from page-content)
   useEffect(() => { if (initialMessages.length > 0) setMessages(initialMessages as StreamingMessage[]); }, [initialMessages]);
   const [isLoading, setIsLoading] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const loadingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<GatewayError | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
   const [retryCount, setRetryCount] = useState(0);
@@ -705,6 +785,25 @@ export default function ChatPageClient({
       if (user) userIdRef.current = user.id;
     }).catch(() => {});
   }, []);
+
+  // Elapsed timer while agent is loading
+  useEffect(() => {
+    if (isLoading) {
+      setElapsedSeconds(0);
+      const start = Date.now();
+      loadingTimerRef.current = setInterval(() => {
+        setElapsedSeconds(Math.floor((Date.now() - start) / 1000));
+      }, 1000);
+    } else {
+      if (loadingTimerRef.current) {
+        clearInterval(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+    }
+    return () => {
+      if (loadingTimerRef.current) clearInterval(loadingTimerRef.current);
+    };
+  }, [isLoading]);
 
   // Update document title when active conversation changes
   useEffect(() => {
@@ -2505,6 +2604,7 @@ User message: `
                           }
                         }}
                         onViewActivity={() => setActivityPanelOpen(true)}
+                        inlineSubagents={inlineSubagents}
                       />
                     ) : msg.role === "user" ? (
                       <UserMessageContent content={msg.content} />
@@ -2648,6 +2748,18 @@ User message: `
                 </div>
               )}
             </div>
+            {/* Elapsed timer indicator — shown while agent is processing */}
+            {isLoading && (
+              <div className="flex items-center gap-2 px-3 py-1">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+                </span>
+                <span className="font-mono text-[11px] text-white/40">
+                  {elapsedSeconds < 60 ? `${elapsedSeconds}s` : `${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`}
+                </span>
+              </div>
+            )}
             <textarea
               value={input}
               onChange={(e) => {
@@ -2784,24 +2896,38 @@ User message: `
                   variant="outreach"
                 />
 
-                {/* Send button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (input.trim() || attachedFiles.length > 0) {
-                      if (!activeConvo) {
-                        handleLandingSend(input.trim());
-                      } else {
-                        handleSend();
+                {/* Send / Stop button */}
+                {isLoading ? (
+                  <button
+                    type="button"
+                    onClick={() => { wsAbortChat(); }}
+                    className="group/btn relative w-7 h-7 flex items-center justify-center text-red-400/70 hover:text-red-400 border border-red-400/20 hover:border-red-400/40 rounded-[4px] transition-colors bg-transparent"
+                    title="Stop"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                      <rect width="10" height="10" rx="1.5" />
+                    </svg>
+                    <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">Stop</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (input.trim() || attachedFiles.length > 0) {
+                        if (!activeConvo) {
+                          handleLandingSend(input.trim());
+                        } else {
+                          handleSend();
+                        }
                       }
-                    }
-                  }}
-                  disabled={!gateway || isLoading || isReconnecting || (!input.trim() && attachedFiles.length === 0)}
-                  className="group/btn relative w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
-                  <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">Send</span>
-                </button>
+                    }}
+                    disabled={!gateway || isReconnecting || (!input.trim() && attachedFiles.length === 0)}
+                    className="group/btn relative w-7 h-7 flex items-center justify-center text-white/40 hover:text-white/80 border border-white/[0.1] rounded-[4px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-transparent"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+                    <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] text-white/80 bg-black/80 rounded whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">Send</span>
+                  </button>
+                )}
               </div>
 
             </div>

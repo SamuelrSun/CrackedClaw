@@ -166,7 +166,6 @@ function renderConversationList(convs) {
     <div class="conv-item${c.id === currentConversationId ? ' active' : ''}"
          data-id="${c.id}" data-title="${escapeHtml(c.title || 'Untitled')}">
       <div class="conv-item-title">${escapeHtml(c.title || 'Untitled')}</div>
-      <div class="conv-item-time">${relativeTime(c.updated_at || c.created_at)}</div>
     </div>
   `).join('');
 

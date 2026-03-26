@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth, jsonResponse, errorResponse } from "@/lib/api-auth";
 import { createClient } from "@/lib/supabase/server";
 import { logActivity, incrementTokenUsage } from "@/lib/supabase/data";
@@ -45,10 +45,14 @@ export async function POST(request: NextRequest) {
     };
     const resolvedModel = MODEL_MAP[modelLevel as string] ?? "claude-sonnet-4";
 
-    // Token limit enforcement
+    // Wallet balance enforcement (PAYGO)
     const limitCheck = await checkTokenLimit(user.id);
     if (!limitCheck.allowed) {
-      return errorResponse(`Token limit reached: ${limitCheck.reason}`, 429);
+      return NextResponse.json({
+        error: "insufficient_balance",
+        reason: limitCheck.reason || 'Your balance is $0.00. Add funds to continue.',
+        balance: limitCheck.balance ?? 0,
+      }, { status: 429 });
     }
 
     const supabase = await createClient();

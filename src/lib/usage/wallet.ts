@@ -135,13 +135,103 @@ export async function addToWallet(
 }
 
 /**
- * Grant the $5 welcome stipend for new signups.
+ * Grant the $10 welcome stipend for new signups.
+ * Idempotent: checks welcome_grant_used flag before granting.
  */
-export async function grantWelcomeStipend(userId: string): Promise<void> {
-  await addToWallet(userId, 5.00, {
+export async function grantWelcomeStipend(userId: string): Promise<boolean> {
+  const supabase = createAdminClient();
+
+  // Check if already granted (idempotent)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('welcome_grant_used')
+    .eq('id', userId)
+    .single();
+
+  if (profile?.welcome_grant_used) return false;
+
+  // Mark as used FIRST (prevent double-grant race)
+  await supabase
+    .from('profiles')
+    .update({ welcome_grant_used: true })
+    .eq('id', userId);
+
+  await addToWallet(userId, 10.00, {
     type: 'stipend',
-    description: 'Welcome bonus',
+    description: 'Welcome bonus — $10 free credit',
   });
+
+  return true;
+}
+
+/**
+ * Check and trigger auto-reload if balance dropped below threshold.
+ * Fire-and-forget — errors are logged but don't block the response.
+ */
+export async function maybeAutoReload(userId: string, currentBalance: number): Promise<void> {
+  if (currentBalance > 0) return; // Only trigger when balance is very low or negative
+
+  const supabase = createAdminClient();
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('auto_reload_enabled, auto_reload_amount, auto_reload_threshold, stripe_customer_id')
+    .eq('id', userId)
+    .single();
+
+  if (!profile?.auto_reload_enabled || !profile.stripe_customer_id) return;
+
+  const threshold = Number(profile.auto_reload_threshold ?? 2);
+  if (currentBalance > threshold) return;
+
+  const amount = Number(profile.auto_reload_amount ?? 10);
+  if (amount < 5) return;
+
+  try {
+    // Dynamic import to avoid circular deps
+    const Stripe = (await import('stripe')).default;
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2026-02-25.clover',
+    });
+
+    // Get the customer's default payment method
+    const customer = await stripe.customers.retrieve(profile.stripe_customer_id) as { 
+      invoice_settings?: { default_payment_method?: string };
+      default_source?: string;
+    };
+    const paymentMethod = customer.invoice_settings?.default_payment_method || customer.default_source;
+    if (!paymentMethod) {
+      console.warn('[auto-reload] No saved payment method for user', userId);
+      return;
+    }
+
+    // Create a PaymentIntent (off-session charge)
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100),
+      currency: 'usd',
+      customer: profile.stripe_customer_id,
+      payment_method: paymentMethod as string,
+      off_session: true,
+      confirm: true,
+      metadata: {
+        user_id: userId,
+        type: 'auto_reload',
+        amount: amount.toString(),
+      },
+    });
+
+    if (paymentIntent.status === 'succeeded') {
+      await addToWallet(userId, amount, {
+        type: 'auto_reload',
+        stripePaymentId: paymentIntent.id,
+        description: `Auto-reload — $${amount.toFixed(2)}`,
+      });
+      console.log(`[auto-reload] Charged $${amount} for user ${userId}`);
+    }
+  } catch (err) {
+    console.error('[auto-reload] Failed:', err);
+    // Don't throw — auto-reload failure shouldn't break the chat flow
+  }
 }
 
 /**

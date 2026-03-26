@@ -46,11 +46,11 @@ export async function POST(request: NextRequest) {
     // Resolve file attachments — extract text, base64 images for AI
     const resolved = await resolveAttachments(user!.id, message);
 
-    // Token limit enforcement
+    // Wallet balance enforcement (PAYGO)
     const limitCheck = await checkTokenLimit(user!.id);
     if (!limitCheck.allowed) {
       return NextResponse.json(
-        { error: 'Token limit reached', reason: limitCheck.reason, usage: limitCheck.usage },
+        { error: 'insufficient_balance', reason: limitCheck.reason || 'Your balance is $0.00. Add funds to continue.', balance: limitCheck.balance ?? 0 },
         { status: 429 }
       );
     }

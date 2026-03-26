@@ -139,11 +139,22 @@ class ChatManager {
   }
 
   /**
+   * Abort the currently streaming message, if any.
+   */
+  abortMessage() {
+    if (this._activeController) {
+      this._activeController.abort();
+      this._activeController = null;
+    }
+  }
+
+  /**
    * Route the message through the Dopl web app's /api/gateway/chat/stream endpoint.
    * This gives the full Dopl system prompt, workflow matching, memory, etc.
    */
   async _sendViaWebApp(conversationId, userContent, onChunk) {
     const controller = new AbortController();
+    this._activeController = controller;
     const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
     const baseUrl = await this._resolveBaseUrl();
@@ -233,6 +244,9 @@ class ChatManager {
     } finally {
       clearTimeout(timeoutId);
       reader.releaseLock();
+      if (this._activeController === controller) {
+        this._activeController = null;
+      }
     }
 
     // Server handles persistence — no need to save messages here

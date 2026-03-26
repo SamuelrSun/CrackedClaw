@@ -32,8 +32,8 @@
 .btn-new-chat {
   display: block;
   width: 100%;
-  padding: 11px 14px;
-  font-size: 13px;
+  padding: 8px 12px;
+  font-size: 12px;
   font-weight: 600;
   font-family: inherit;
   text-align: left;
@@ -64,10 +64,10 @@
 }
 
 .conv-item {
-  padding: 9px 14px;
+  padding: 7px 12px;
   cursor: pointer;
   transition: background 0.1s;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .conv-item:last-child {
@@ -79,24 +79,18 @@
 }
 
 .conv-item.active {
-  background: rgba(16, 185, 129, 0.12);
+  background: rgba(16, 185, 129, 0.10);
   border-left: 2px solid var(--accent);
-  padding-left: 12px;
+  padding-left: 10px;
 }
 
 .conv-item-title {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.conv-item-time {
-  font-size: 10.5px;
-  color: var(--text-tertiary);
-  margin-top: 1px;
 }
 
 .conv-list-empty {
@@ -200,4 +194,104 @@
 
 .msg-input::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Voice Input Button ──────────────────────────────────────────────────── */
+.btn-voice-icon {
+  position: relative;
+}
+
+.btn-voice-icon.recording {
+  color: #ef4444;
+}
+
+.btn-voice-icon.recording::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(239, 68, 68, 0.4);
+  animation: voice-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0; transform: scale(1.4); }
+}
+
+/* Sound wave bars shown during recording */
+.voice-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+
+.voice-bars span {
+  width: 2px;
+  border-radius: 9999px;
+  background: #ef4444;
+}
+
+@keyframes voiceBar {
+  from { transform: scaleY(0.5); }
+  to   { transform: scaleY(1.5); }
+}
+
+/* ── Loading Timer ───────────────────────────────────────────────────────── */
+.loading-timer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.loading-timer.hidden {
+  display: none;
+}
+
+.loading-dot {
+  position: relative;
+  width: 6px;
+  height: 6px;
+}
+
+.loading-dot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #34d399;
+  animation: loading-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.loading-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #34d399;
+}
+
+@keyframes loading-ping {
+  0% { transform: scale(1); opacity: 0.75; }
+  75%, 100% { transform: scale(2.5); opacity: 0; }
+}
+
+.loading-timer-text {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* ── Stop button (shown while streaming) ────────────────────────────────── */
+.btn-stop-icon {
+  color: rgba(248, 113, 113, 0.7);
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
+.btn-stop-icon:hover {
+  color: rgb(248, 113, 113);
+  border-color: rgba(248, 113, 113, 0.4);
 }

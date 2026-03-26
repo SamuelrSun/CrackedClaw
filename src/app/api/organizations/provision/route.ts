@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { grantWelcomeStipend } from "@/lib/usage/wallet";
 
 export const dynamic = 'force-dynamic';
 
@@ -102,6 +103,16 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString(),
           })
           .eq("id", user.id);
+      }
+    }
+
+    // Grant $10 welcome stipend for new users (idempotent — safe to call on re-provision)
+    if (!hasInstance) {
+      try {
+        await grantWelcomeStipend(user.id);
+      } catch (e) {
+        console.error("Failed to grant welcome stipend:", e);
+        // Non-fatal — user can still use the platform
       }
     }
 

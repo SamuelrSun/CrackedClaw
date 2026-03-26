@@ -379,30 +379,32 @@ export function SkillsClient({ initialInstalledSlugs }: SkillsClientProps) {
                   <p className="font-mono text-[10px] text-white/25">Try a different search.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {skills.map((skill) => (
-                    <SkillCard
-                      key={skill.slug}
-                      skill={skill}
-                      isInstalled={installedSlugs.has(skill.slug)}
-                      isInstalling={installing.has(skill.slug)}
-                      onInstall={handleInstall}
-                      onClick={handleCardClick}
-                    />
-                  ))}
-                </div>
-                {/* Load More button (browse view, not search) */}
-                {!searchQuery && queryIndex < QUERY_POOL.length && (
-                  <div className="flex justify-center mt-4">
-                    <button
-                      onClick={handleLoadMore}
-                      disabled={loadingMore}
-                      className="font-mono text-[10px] px-6 py-2 bg-white/[0.05] border border-white/[0.1] text-white/50 hover:text-white/70 hover:bg-white/[0.08] rounded-[2px] transition-colors disabled:opacity-50"
-                    >
-                      {loadingMore ? "Loading..." : "Load More"}
-                    </button>
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {skills.map((skill) => (
+                      <SkillCard
+                        key={skill.slug}
+                        skill={skill}
+                        isInstalled={installedSlugs.has(skill.slug)}
+                        isInstalling={installing.has(skill.slug)}
+                        onInstall={handleInstall}
+                        onClick={handleCardClick}
+                      />
+                    ))}
                   </div>
-                )}
+                  {/* Load More button (browse view, not search) */}
+                  {!searchQuery && queryIndex < QUERY_POOL.length && (
+                    <div className="flex justify-center mt-4">
+                      <button
+                        onClick={handleLoadMore}
+                        disabled={loadingMore}
+                        className="font-mono text-[10px] px-6 py-2 bg-white/[0.05] border border-white/[0.1] text-white/50 hover:text-white/70 hover:bg-white/[0.08] rounded-[2px] transition-colors disabled:opacity-50"
+                      >
+                        {loadingMore ? "Loading..." : "Load More"}
+                      </button>
+                    </div>
+                  )}
+                </>
               )
             ) : installedSlugs.size === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center py-12">
