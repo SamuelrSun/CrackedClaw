@@ -272,9 +272,12 @@ function updateTrayMenu(connected) {
       click: () => {
         app.isQuitting = true;
         if (nodeManager) nodeManager.stop();
+        if (eventManager) eventManager.stop();
         if (inputBarWindow && !inputBarWindow.isDestroyed()) inputBarWindow.destroy();
         if (chatPanelWindow && !chatPanelWindow.isDestroyed()) chatPanelWindow.destroy();
         app.quit();
+        // Hard fallback — if app.quit() doesn't exit within 2s, force it
+        setTimeout(() => app.exit(0), 2000);
       },
     },
   ]);
@@ -327,6 +330,16 @@ if (!gotLock) {
   app.on('second-instance', () => {
     if (inputBarWindow && !inputBarWindow.isDestroyed()) {
       inputBarWindow.show();
+      inputBarWindow.focus();
+    }
+  });
+
+  // macOS: clicking the Dock icon fires 'activate', not 'second-instance'
+  app.on('activate', () => {
+    if (inputBarWindow && !inputBarWindow.isDestroyed()) {
+      inputBarWindow.show();
+      inputBarWindow.focus();
+      inputBarWindow.webContents.send('focus-input');
     }
   });
 }
@@ -494,7 +507,10 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  // Keep running in tray
+  // Keep running in tray — unless we're actually quitting
+  if (app.isQuitting) {
+    app.exit(0);
+  }
 });
 
 app.on('before-quit', () => {
