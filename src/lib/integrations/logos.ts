@@ -93,7 +93,7 @@ const SIMPLE_ICONS_SLUGS: Record<string, string> = {
   todoist: "todoist",
   evernote: "evernote",
   obsidian: "obsidian",
-  1password: "1password",
+  "1password": "1password",
   lastpass: "lastpass",
   bitwarden: "bitwarden",
   mailchimp: "mailchimp",
