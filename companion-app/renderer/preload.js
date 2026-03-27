@@ -111,9 +111,12 @@ contextBridge.exposeInMainWorld('dopl', {
       ipcRenderer.on('chat:show-user-message', (_event, data) => callback(data));
     },
 
-    /** Streaming chunk (for chat panel). */
+    /**
+     * Streaming chunk (for chat panel).
+     * data: { conversationId: string, text: string }
+     */
     onStreamChunk: (callback) => {
-      ipcRenderer.on('chat:stream-chunk', (_event, chunk) => callback(chunk));
+      ipcRenderer.on('chat:stream-chunk', (_event, data) => callback(data));
     },
 
     /** Called when the assistant message is complete (chat panel finalizes bubble). */
@@ -179,6 +182,10 @@ contextBridge.exposeInMainWorld('dopl', {
       ipcRenderer.on('chat:billing-error', (_event, data) => callback(data));
     },
   },
+
+  // ── Pop-out chat window ──────────────────────────────────────────────────
+  /** Spawns a new independent pop-out chat window for the given conversation. */
+  popOutChat: (conversationId) => ipcRenderer.invoke('pop-out-chat', { conversationId }),
 
   // ── Billing ──────────────────────────────────────────────────────────────
   billing: {

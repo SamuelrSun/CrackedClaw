@@ -45,6 +45,7 @@ function clearToken() {
 const runtimeManager = new RuntimeManager();
 let inputBarWindow = null;
 let chatPanelWindow = null;
+const popOutWindows = new Set();
 let tray = null;
 let nodeManager = null;
 let chatManager = null;
@@ -176,6 +177,49 @@ function createChatPanelWindow() {
       hideChatPanel();
     }
   });
+}
+
+// ── Pop-out chat windows ──────────────────────────────────────────────────────
+
+function createPopOutChatWindow(conversationId) {
+  const win = new BrowserWindow({
+    width: 480,
+    height: 700,
+    minWidth: 380,
+    minHeight: 400,
+    resizable: true,
+    maximizable: true,
+    minimizable: true,
+    transparent: false,
+    frame: false,
+    titleBarStyle: 'hiddenInset',
+    backgroundColor: '#111111',
+    alwaysOnTop: false,
+    skipTaskbar: false,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, '../renderer/preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  const htmlPath = path.join(__dirname, '../renderer/chat-panel.html');
+  win.loadFile(htmlPath, {
+    query: {
+      popout: 'true',
+      conversationId: conversationId || '',
+    },
+  });
+
+  win.once('ready-to-show', () => win.show());
+
+  win.on('closed', () => {
+    popOutWindows.delete(win);
+  });
+
+  popOutWindows.add(win);
+  return win;
 }
 
 // ── Chat panel positioning ────────────────────────────────────────────────────
@@ -311,6 +355,11 @@ function broadcastToAll(channel, data) {
   if (chatPanelWindow && !chatPanelWindow.isDestroyed()) {
     chatPanelWindow.webContents.send(channel, data);
   }
+  for (const win of popOutWindows) {
+    if (!win.isDestroyed()) {
+      win.webContents.send(channel, data);
+    }
+  }
 }
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
@@ -341,6 +390,7 @@ app.whenReady().then(() => {
   const ipcDeps = {
     getInputBarWindow: () => inputBarWindow,
     getChatPanelWindow: () => chatPanelWindow,
+    createPopOutChatWindow,
     store,
     getNodeManager: () => nodeManager,
     setNodeManager: (nm) => { nodeManager = nm; },

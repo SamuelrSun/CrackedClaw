@@ -43,6 +43,34 @@ function useConnectionKey() {
   return { key, displayKey, keyLoading };
 }
 
+function useCompanionToken() {
+  const [token, setToken] = useState<string | null>(null);
+  const [tokenLoading, setTokenLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/node/connection-token")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setToken(data?.token ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setToken(null);
+      })
+      .finally(() => {
+        if (!cancelled) setTokenLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const displayToken = token
+    ? `${token.slice(0, 12)}…${token.slice(-4)}`
+    : null;
+
+  return { token, displayToken, tokenLoading };
+}
+
+
 function TokenPill({ displayKey, keyLoading, onCopy }: {
   displayKey: string | null;
   keyLoading: boolean;
@@ -94,6 +122,7 @@ export function ComputerPopup({ onClose }: ComputerPopupProps) {
   const [status, setStatus] = useState<NodeStatusResponse | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const { key, displayKey, keyLoading } = useConnectionKey();
+  const { token: companionToken, displayToken: companionDisplayToken, tokenLoading: companionTokenLoading } = useCompanionToken();
 
   // Fetch node status on open
   useEffect(() => {
@@ -114,6 +143,10 @@ export function ComputerPopup({ onClose }: ComputerPopupProps) {
 
   const copyToken = () => {
     if (key) navigator.clipboard.writeText(key).catch(() => {});
+  };
+
+  const copyCompanionToken = () => {
+    if (companionToken) navigator.clipboard.writeText(companionToken).catch(() => {});
   };
 
   return (
@@ -308,7 +341,7 @@ export function ComputerPopup({ onClose }: ComputerPopupProps) {
                 </a>
 
                 {/* Token pill */}
-                <TokenPill displayKey={displayKey} keyLoading={keyLoading} onCopy={copyToken} />
+                <TokenPill displayKey={companionDisplayToken} keyLoading={companionTokenLoading} onCopy={copyCompanionToken} />
 
                 {/* Setup instructions */}
                 <div>

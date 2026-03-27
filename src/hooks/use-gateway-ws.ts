@@ -19,7 +19,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 export interface WSChatEvent {
-  type: "token" | "thinking" | "done" | "error" | "lifecycle_start" | "lifecycle_end";
+  type: "token" | "thinking" | "done" | "error" | "lifecycle_start" | "lifecycle_end" | "tool_start" | "tool_end";
   /** Incremental text delta (for type:"token" or type:"thinking") */
   delta?: string;
   /** Thinking text chunk (for type:"thinking") */
@@ -28,6 +28,12 @@ export interface WSChatEvent {
   fullText?: string;
   /** Error message (for type:"error") */
   message?: string;
+  /** Tool name (for tool_start / tool_end) */
+  tool?: string;
+  /** Tool input (for tool_start) */
+  input?: Record<string, unknown>;
+  /** Tool result (for tool_end) */
+  result?: unknown;
   runId?: string;
   sessionKey?: string;
 }
@@ -215,6 +221,26 @@ export function useGatewayWS({
                 sessionKey: payload?.sessionKey as string,
               });
             }
+          }
+
+          // Tool use events — forward so the UI can show activity during tool execution
+          if (stream === "tool_start" && data?.tool) {
+            onEventRef.current?.({
+              type: "tool_start",
+              tool: data.tool as string,
+              input: data.input as Record<string, unknown> | undefined,
+              runId: payload?.runId as string,
+              sessionKey: payload?.sessionKey as string,
+            });
+          }
+          if (stream === "tool_end" && data?.tool) {
+            onEventRef.current?.({
+              type: "tool_end",
+              tool: data.tool as string,
+              result: data.result,
+              runId: payload?.runId as string,
+              sessionKey: payload?.sessionKey as string,
+            });
           }
           return;
         }

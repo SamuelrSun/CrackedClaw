@@ -332,6 +332,28 @@
   text-decoration-color: rgba(129, 140, 248, 0.6);
 }
 
+/* ── Pop-out window overrides ────────────────────────────────────────────── */
+
+/* In pop-out mode the window is opaque and fills the full viewport */
+.popout-mode .chat-panel {
+  border-radius: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.95);
+  height: 100vh;
+}
+
+/* Make the header draggable in pop-out so the user can reposition the window.
+   Pad left so content doesn't overlap the macOS traffic light buttons (hiddenInset). */
+.popout-mode .chat-panel-header {
+  -webkit-app-region: drag;
+  padding-left: 78px;
+}
+
+/* All interactive children of the header must opt back out of dragging */
+.popout-mode .chat-panel-header * {
+  -webkit-app-region: no-drag;
+}
+
 /* Strikethrough */
 .message-bubble del {
   text-decoration: line-through;

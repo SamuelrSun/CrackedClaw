@@ -37,7 +37,9 @@ function wireEventManager(em, deps) {
     });
     notif.on('click', () => {
       showChatPanel();
-      broadcastToAll('conversation-selected', { id: conversationId, title: 'Chat' });
+      // Only switch conversation in the main panel, not pop-outs
+      const cp = getChatPanelWindow();
+      if (cp && !cp.isDestroyed()) cp.webContents.send('conversation-selected', { id: conversationId, title: 'Chat' });
       const ibw = getInputBarWindow();
       if (ibw && !ibw.isDestroyed()) ibw.show();
     });
@@ -47,17 +49,14 @@ function wireEventManager(em, deps) {
   em.on('new_message', (data) => {
     // data: { id, conversation_id, role, content, created_at }
 
-    // Push the message into the chat panel if it's showing the right conversation
-    const chatPanel = getChatPanelWindow();
-    if (chatPanel && !chatPanel.isDestroyed()) {
-      chatPanel.webContents.send('chat:pushed-message', {
-        id: data.id,
-        conversationId: data.conversation_id,
-        role: data.role,
-        content: data.content,
-        timestamp: data.created_at,
-      });
-    }
+    // Push the message into all chat windows showing the right conversation
+    broadcastToAll('chat:pushed-message', {
+      id: data.id,
+      conversationId: data.conversation_id,
+      role: data.role,
+      content: data.content,
+      timestamp: data.created_at,
+    });
 
     // Fire a desktop notification when the panel isn't focused / visible
     const notificationsEnabled = store.get('notificationsEnabled', true);
@@ -101,6 +100,7 @@ function setupIPC(deps) {
   const {
     getInputBarWindow,
     getChatPanelWindow,
+    createPopOutChatWindow,
     store,
     getNodeManager,
     setNodeManager,
@@ -241,6 +241,16 @@ function setupIPC(deps) {
     return getChatPanelVisible();
   });
 
+  // ── Pop-out chat window ────────────────────────────────────────────────────
+
+  ipcMain.handle('pop-out-chat', (_event, { conversationId } = {}) => {
+    if (createPopOutChatWindow) {
+      createPopOutChatWindow(conversationId || '');
+      return { ok: true };
+    }
+    return { ok: false, error: 'Pop-out not available' };
+  });
+
   // ── Connection IPC ─────────────────────────────────────────────────────────
 
   ipcMain.handle('get-state', () => {
@@ -370,8 +380,9 @@ function setupIPC(deps) {
    * Called when either window selects a conversation.
    * Broadcasts to BOTH windows so each can update its UI.
    */
-  ipcMain.on('chat:select-conversation', (_event, { id, title }) => {
-    broadcastToAll('conversation-selected', { id, title });
+  ipcMain.on('chat:select-conversation', (event, { id, title }) => {
+    // Only send back to the window that selected — don't sync across windows
+    event.sender.send('conversation-selected', { id, title });
   });
 
   // ── Notification Helper ────────────────────────────────────────────────────
@@ -403,10 +414,11 @@ function setupIPC(deps) {
       closeButtonText: 'Dismiss',
     });
 
-    // Click → open chat panel on the right conversation
+    // Click → open chat panel on the right conversation (main panel only)
     notif.on('click', () => {
       showChatPanel();
-      broadcastToAll('conversation-selected', { id: conversationId, title: 'Chat' });
+      const cp = getChatPanelWindow();
+      if (cp && !cp.isDestroyed()) cp.webContents.send('conversation-selected', { id: conversationId, title: 'Chat' });
       const ibw = getInputBarWindow();
       if (ibw && !ibw.isDestroyed()) ibw.show();
     });
@@ -415,9 +427,10 @@ function setupIPC(deps) {
     notif.on('reply', (_event, replyText) => {
       if (!replyText || !replyText.trim()) return;
 
-      // Bring conversation into view
+      // Bring conversation into view (main panel only)
       showChatPanel();
-      broadcastToAll('conversation-selected', { id: conversationId, title: 'Chat' });
+      const cp = getChatPanelWindow();
+      if (cp && !cp.isDestroyed()) cp.webContents.send('conversation-selected', { id: conversationId, title: 'Chat' });
       const ibw = getInputBarWindow();
       if (ibw && !ibw.isDestroyed()) ibw.show();
 
@@ -426,25 +439,19 @@ function setupIPC(deps) {
 
       const chatPanel = getChatPanelWindow();
 
-      // Echo the user's reply immediately into the chat panel
-      if (chatPanel && !chatPanel.isDestroyed()) {
-        chatPanel.webContents.send('chat:show-user-message', {
-          conversationId,
-          role: 'user',
-          content: replyText.trim(),
-          timestamp: new Date().toISOString(),
-        });
-      }
+      // Echo the user's reply immediately into all chat windows
+      broadcastToAll('chat:show-user-message', {
+        conversationId,
+        role: 'user',
+        content: replyText.trim(),
+        timestamp: new Date().toISOString(),
+      });
 
       // Send and stream the response
       cm.sendMessage(conversationId, replyText.trim(), (chunk) => {
-        if (chatPanel && !chatPanel.isDestroyed()) {
-          chatPanel.webContents.send('chat:stream-chunk', chunk);
-        }
+        broadcastToAll('chat:stream-chunk', { conversationId, text: chunk });
       }).then((responseContent) => {
-        if (chatPanel && !chatPanel.isDestroyed()) {
-          chatPanel.webContents.send('chat:message-finalized', { ok: true, content: responseContent });
-        }
+        broadcastToAll('chat:message-finalized', { ok: true, content: responseContent, conversationId });
 
         // Tell the input bar that the notification-triggered reply is complete
         // so it can reset isStreaming / re-enable the input if needed
@@ -457,9 +464,7 @@ function setupIPC(deps) {
         // entirely from the notification tray (recursive chain)
         fireNotification(conversationId, responseContent);
       }).catch((err) => {
-        if (chatPanel && !chatPanel.isDestroyed()) {
-          chatPanel.webContents.send('chat:message-finalized', { ok: false, error: err.message });
-        }
+        broadcastToAll('chat:message-finalized', { ok: false, error: err.message, conversationId });
       });
     });
 
@@ -524,33 +529,26 @@ function setupIPC(deps) {
     const chatManager = getChatManager();
     if (!chatManager) return { ok: false, error: 'Not connected' };
 
-    const chatPanel = getChatPanelWindow();
-
-    // Push the user message to the chat panel right away
-    if (chatPanel && !chatPanel.isDestroyed()) {
-      chatPanel.webContents.send('chat:show-user-message', {
-        conversationId,
-        role: 'user',
-        content: message,
-        timestamp: new Date().toISOString(),
-      });
-    }
+    // Push the user message to ALL chat windows (each will filter by conversationId)
+    broadcastToAll('chat:show-user-message', {
+      conversationId,
+      role: 'user',
+      content: message,
+      timestamp: new Date().toISOString(),
+    });
 
     try {
       const fullContent = await chatManager.sendMessage(
         conversationId,
         message,
         (chunk) => {
-          if (chatPanel && !chatPanel.isDestroyed()) {
-            chatPanel.webContents.send('chat:stream-chunk', chunk);
-          }
+          // Broadcast chunk with conversationId so each window can filter
+          broadcastToAll('chat:stream-chunk', { conversationId, text: chunk });
         }
       );
 
-      // Signal message complete to chat panel
-      if (chatPanel && !chatPanel.isDestroyed()) {
-        chatPanel.webContents.send('chat:message-finalized', { ok: true, content: fullContent });
-      }
+      // Signal message complete to all windows
+      broadcastToAll('chat:message-finalized', { ok: true, content: fullContent, conversationId });
 
       // ── Desktop notification ─────────────────────────────────────────────
       // Notify only when the app is not focused or the chat panel is hidden.
@@ -568,14 +566,10 @@ function setupIPC(deps) {
       // Handle billing errors (402 insufficient balance / 429 legacy usage limit)
       if (err.billingData) {
         broadcastToAll('chat:billing-error', err.billingData);
-        if (chatPanel && !chatPanel.isDestroyed()) {
-          chatPanel.webContents.send('chat:message-finalized', { ok: false, error: err.message, billingData: err.billingData });
-        }
+        broadcastToAll('chat:message-finalized', { ok: false, error: err.message, billingData: err.billingData, conversationId });
         return { ok: false, error: err.message, billingData: err.billingData };
       }
-      if (chatPanel && !chatPanel.isDestroyed()) {
-        chatPanel.webContents.send('chat:message-finalized', { ok: false, error: err.message });
-      }
+      broadcastToAll('chat:message-finalized', { ok: false, error: err.message, conversationId });
       return { ok: false, error: err.message };
     }
   });

@@ -7,6 +7,17 @@
  * Depends on: utils.js (escapeHtml, relativeTime, formatTimestamp, renderMarkdown)
  */
 
+// ── Pop-out mode detection ─────────────────────────────────────────────────────
+
+const urlParams = new URLSearchParams(window.location.search);
+const isPopOut = urlParams.get('popout') === 'true';
+const initialConversationId = urlParams.get('conversationId') || null;
+
+// Apply pop-out body class early so CSS kicks in before any rendering
+if (isPopOut) {
+  document.body.classList.add('popout-mode');
+}
+
 // ── DOM References ─────────────────────────────────────────────────────────────
 
 const chatHeader          = document.getElementById('chat-header');
@@ -15,6 +26,7 @@ const messagesList        = document.getElementById('messages-list');
 const messagesArea        = document.getElementById('messages-area');
 const typingIndicator     = document.getElementById('typing-indicator');
 const btnClosePanel       = document.getElementById('btn-close-panel');
+const btnPopOut           = document.getElementById('btn-pop-out');
 const btnOpenInBrowser    = document.getElementById('btn-open-in-browser');
 const panelConvSelector   = document.getElementById('panel-conv-selector');
 const panelConvDropdown   = document.getElementById('panel-conv-dropdown');
@@ -250,10 +262,26 @@ function closeDropdown() {
 
 // ── Event Bindings ─────────────────────────────────────────────────────────────
 
-// X button — close this window
+// X button — in main panel: hide chat panel; in pop-out: close the window
 btnClosePanel.addEventListener('click', () => {
-  window.dopl.closeChatPanel();
+  if (isPopOut) {
+    window.close();
+  } else {
+    window.dopl.closeChatPanel();
+  }
 });
+
+// Pop-out button — only visible and active in the main (non-pop-out) panel
+if (btnPopOut) {
+  if (isPopOut) {
+    // Already a pop-out — hide the button (can't pop out of a pop-out)
+    btnPopOut.style.display = 'none';
+  } else {
+    btnPopOut.addEventListener('click', () => {
+      window.dopl.popOutChat(currentConversationId);
+    });
+  }
+}
 
 // Open in browser
 btnOpenInBrowser.addEventListener('click', () => {
@@ -314,6 +342,10 @@ window.dopl.onConversationSelected((data) => {
   }
 });
 
+// In pop-out mode, also re-register to ignore external conversation changes.
+// The above handler is needed for the initial auto-select, but the IPC is now
+// scoped to the requesting window only (not broadcast), so this is safe.
+
 // User message received from main (sent before streaming starts)
 window.dopl.chat.onShowUserMessage((data) => {
   // Only show if it's for the current conversation
@@ -328,7 +360,15 @@ window.dopl.chat.onShowUserMessage((data) => {
 });
 
 // Streaming chunk
-window.dopl.chat.onStreamChunk((chunk) => {
+// data: { conversationId, text } — filter by current conversation so pop-out
+// windows only render chunks for the conversation they're showing.
+window.dopl.chat.onStreamChunk((data) => {
+  const chunk = (data && typeof data === 'object') ? data.text : data;
+  const chunkConvId = (data && typeof data === 'object') ? data.conversationId : null;
+
+  // Ignore chunks meant for a different conversation
+  if (chunkConvId && chunkConvId !== currentConversationId) return;
+
   // Hide typing indicator once we start streaming
   typingIndicator.classList.add('hidden');
 
@@ -344,6 +384,9 @@ window.dopl.chat.onStreamChunk((chunk) => {
 
 // Message complete
 window.dopl.chat.onMessageFinalized((data) => {
+  // Ignore finalization for other conversations
+  if (data.conversationId && data.conversationId !== currentConversationId) return;
+
   typingIndicator.classList.add('hidden');
   finalizeStreamingBubble(data.ok, data.content, data.error);
 
@@ -394,12 +437,15 @@ document.addEventListener('click', (e) => {
 });
 
 // ── Click-through: pass mouse events on transparent corner areas ───────────────
+// Skip in pop-out mode — pop-out windows are opaque and always receive mouse events.
 
-document.addEventListener('mousemove', (e) => {
-  const el = document.elementFromPoint(e.clientX, e.clientY);
-  const overPanel = !!(el && el.closest('.chat-panel'));
-  window.dopl.setIgnoreMouseEvents(!overPanel);
-});
+if (!isPopOut) {
+  document.addEventListener('mousemove', (e) => {
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const overPanel = !!(el && el.closest('.chat-panel'));
+    window.dopl.setIgnoreMouseEvents(!overPanel);
+  });
+}
 
 // ── Initialization ─────────────────────────────────────────────────────────────
 
@@ -420,7 +466,15 @@ document.addEventListener('mousemove', (e) => {
   if (hasToken) {
     // Load conversations so the list is ready
     await loadConversations();
-    clearMessages('Start a conversation below');
+
+    // In pop-out mode, auto-select the conversation that was passed via query param
+    if (isPopOut && initialConversationId) {
+      const conv = conversations.find((c) => c.id === initialConversationId);
+      const title = conv ? (conv.title || 'Untitled') : 'Chat';
+      selectConversation(initialConversationId, title, false);
+    } else {
+      clearMessages('Start a conversation below');
+    }
   } else {
     clearMessages('Connect from the input bar to start chatting.');
     chatTitle.textContent = 'Not connected';

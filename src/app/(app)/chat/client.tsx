@@ -73,6 +73,18 @@ import { UsageLimitModal } from "@/components/chat/usage-limit-modal";
 import { PricingModal } from "@/components/settings/pricing-modal";
 import { usePathname } from "next/navigation";
 
+
+/** Strip agent control tokens; return null if the message is purely a control signal. */
+function sanitizeAgentMessage(text: string): string | null {
+  if (!text) return null;
+  const trimmed = text.trim();
+  // Purely control-signal messages — suppress entirely
+  if (/^(NO_REPLY|HEARTBEAT_OK)$/i.test(trimmed)) return null;
+  // Strip trailing NO_REPLY that sometimes leaks
+  return trimmed.replace(/\s*NO_REPLY\s*$/i, '').trim() || null;
+}
+
+
 interface ToolCallInfo {
   tool: string;
   status: "running" | "done";
@@ -742,11 +754,13 @@ export default function ChatPageClient({
   const [editingChatTitle, setEditingChatTitle] = useState(false);
   const [editingChatTitleValue, setEditingChatTitleValue] = useState("");
   const [usageLimitData, setUsageLimitData] = useState<{ reason: string; nextResetLabel: string; currentPlan: string; balance?: number } | null>(null);
+  const [contextInfo, setContextInfo] = useState<{ percentage: number; totalTokens: number; contextTokens: number; compactions: number } | null>(null);
   const [showChatPricingModal, setShowChatPricingModal] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const lastFailedMessage = useRef<string | null>(null);
   const handleSendRef = useRef<(messageOverride?: string) => Promise<void>>(async () => {});
   const userIdRef = useRef<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useUser();
   const { openSearch } = useSearchContext();
   const pathname = usePathname();
@@ -878,7 +892,6 @@ export default function ChatPageClient({
     if (event.type === "token" && event.delta) {
       const msgId = wsStreamingMsgIdRef.current;
       if (!msgId) return;
-      setIsLoading(false);
       wsFullTextRef.current += event.delta;
       setMessages((prev) =>
         prev.map((m) => {
@@ -909,7 +922,16 @@ export default function ChatPageClient({
     } else if (event.type === "done") {
       const msgId = wsStreamingMsgIdRef.current;
       if (!msgId) return;
-      const fullText = event.fullText ?? wsFullTextRef.current;
+      const rawText = event.fullText ?? wsFullTextRef.current;
+      const fullText = sanitizeAgentMessage(rawText);
+      // If purely a control signal, remove the placeholder message
+      if (fullText === null) {
+        setMessages((prev) => prev.filter((m) => m.id !== msgId));
+        setIsLoading(false);
+        wsStreamingMsgIdRef.current = null;
+        wsFullTextRef.current = "";
+        return;
+      }
       // Mark streaming done
       setMessages((prev) =>
         prev.map((m) =>
@@ -986,6 +1008,21 @@ export default function ChatPageClient({
         }).catch(() => {}); // Silent failure is fine
       }
 
+      // Fetch context window usage after each response
+      fetch('/api/gateway/context')
+        .then(r => r.json())
+        .then(data => {
+          if (data?.available && typeof data.percentage === 'number') {
+            setContextInfo({
+              percentage: data.percentage,
+              totalTokens: data.totalTokens,
+              contextTokens: data.contextTokens,
+              compactions: data.compactions ?? 0,
+            });
+          }
+        })
+        .catch(() => {}); // Silent failure
+
       // Fire-and-forget usage tracking for WS path
       if (lastUserMsg || fullText) {
         fetch('/api/usage/track', {
@@ -1000,6 +1037,33 @@ export default function ChatPageClient({
 
       // Refresh conversation list title
       if (convoId) refreshConversations(convoId);
+    } else if (event.type === "tool_start" && event.tool) {
+      const msgId = wsStreamingMsgIdRef.current;
+      if (!msgId) return;
+      const label = getToolLabel(event.tool, event.input);
+      const toolCall: ToolCallInfo = { tool: event.tool, status: "running", label, startTime: Date.now(), input: event.input };
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId ? { ...m, toolCalls: [...((m as StreamingMessage).toolCalls || []), toolCall] } : m
+        )
+      );
+    } else if (event.type === "tool_end" && event.tool) {
+      const msgId = wsStreamingMsgIdRef.current;
+      if (!msgId) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId
+            ? {
+                ...m,
+                toolCalls: ((m as StreamingMessage).toolCalls || []).map((tc) =>
+                  tc.tool === event.tool && tc.status === "running"
+                    ? { ...tc, status: "done" as const, result: event.result ? JSON.stringify(event.result).slice(0, 500) : undefined, duration: tc.startTime ? Date.now() - tc.startTime : undefined }
+                    : tc
+                ),
+              }
+            : m
+        )
+      );
     } else if (event.type === "error" && !event.message?.includes("falling back")) {
       // Don't show "falling back" as a visible error — it's handled below
       const msgId = wsStreamingMsgIdRef.current;
@@ -1113,16 +1177,20 @@ export default function ChatPageClient({
                   isStreaming: true,
                 }]);
               } else if (event.type === "done" || event.type === "end") {
-                const finalContent = wsFullTextRef.current;
+                const finalContent = sanitizeAgentMessage(wsFullTextRef.current);
                 const finalConvoId = event.conversation_id || conversationId;
-                setMessages([{
-                  id: event.message_id || streamingMsgId,
-                  role: "assistant",
-                  content: finalContent,
-                  timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                  isStreaming: false,
-                  toolCalls: [],
-                }]);
+                if (finalContent !== null) {
+                  setMessages([{
+                    id: event.message_id || streamingMsgId,
+                    role: "assistant",
+                    content: finalContent,
+                    timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                    isStreaming: false,
+                    toolCalls: [],
+                  }]);
+                } else {
+                  setMessages([]);
+                }
                 if (finalConvoId && !conversationId) {
                   wsConvoIdRef.current = finalConvoId;
                 }
@@ -1498,6 +1566,9 @@ User message: `
       setMessages((prev) => [...prev, userMessage]);
       setInput("");
       setAttachedFiles([]);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
     }
 
     setIsLoading(true);
@@ -2674,7 +2745,7 @@ User message: `
           {/* Inline Scan Progress Card — removed; deep scan UI no longer shown */}
 
           {/* Loading indicator */}
-          {isLoading && (
+          {isLoading && messages.every(m => !(m as StreamingMessage).content) && (
             <div className="max-w-[70%] mr-auto px-1">
               <span className="font-mono text-[11px] text-white/30 italic animate-pulse">
                 {retryCount > 0 ? `Retrying (${retryCount}/3)...` : "Thinking..."}
@@ -2747,6 +2818,25 @@ User message: `
                   <span className="font-mono text-[9px] text-white/30">{wsConnected ? "ws" : wsConnecting ? "ws…" : "ws off"}</span>
                 </div>
               )}
+              {contextInfo && (
+                <div className="flex items-center gap-1" title={`Context: ${contextInfo.totalTokens.toLocaleString()} / ${contextInfo.contextTokens.toLocaleString()} tokens${contextInfo.compactions > 0 ? ` · ${contextInfo.compactions} compaction${contextInfo.compactions > 1 ? "s" : ""}` : ""}`}>
+                  <div className="w-8 h-1 rounded-full bg-white/[0.08] overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        contextInfo.percentage >= 90 ? "bg-red-400" :
+                        contextInfo.percentage >= 70 ? "bg-amber-400" :
+                        "bg-emerald-400/60"
+                      }`}
+                      style={{ width: `${Math.min(contextInfo.percentage, 100)}%` }}
+                    />
+                  </div>
+                  <span className={`font-mono text-[9px] ${
+                    contextInfo.percentage >= 90 ? "text-red-400/70" :
+                    contextInfo.percentage >= 70 ? "text-amber-400/70" :
+                    "text-white/30"
+                  }`}>{contextInfo.percentage}%</span>
+                </div>
+              )}
             </div>
             {/* Elapsed timer indicator — shown while agent is processing */}
             {isLoading && (
@@ -2761,6 +2851,7 @@ User message: `
               </div>
             )}
             <textarea
+              ref={textareaRef}
               value={input}
               onChange={(e) => {
                 setInput(e.target.value);
