@@ -22,8 +22,7 @@ function formatDuration(seconds: number): string {
 function parseThinkingLines(text: string): string[] {
   // Split on newlines, filter out empty lines and clean up
   return text
-    .split(/
-/)
+    .split(/\n/)
     .map(line => line.trim())
     .filter(line => line.length > 0);
 }
