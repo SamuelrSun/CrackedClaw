@@ -58,6 +58,8 @@ import type { EmailDraft } from "@/lib/email/gmail-client";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { useGatewayWS, type WSChatEvent } from "@/hooks/use-gateway-ws";
 import { ThinkingBlock } from "@/components/chat/thinking-block";
+import { NarrationBlock } from "@/components/chat/narration-block";
+import { NarrationLine } from "@/components/chat/narration-line";
 import { ToolTimeline } from "@/components/chat/tool-timeline";
 import { ModelSelector } from "@/components/chat/model-selector";
 import { InputToolbar } from "@/components/chat/input-toolbar";
@@ -102,6 +104,10 @@ interface StreamingMessage extends Message {
   thinkingText?: string;
   thinkingStartTime?: number;
   thinkingDuration?: number;
+  // Narration separation: text before/between tool calls vs final response
+  narrationSegments?: string[];  // text chunks that appeared before/between tool calls
+  pendingNarrationText?: string; // buffer for current text segment while streaming
+  finalResponseContent?: string; // text after the last tool call (the "actual response")
   // Pay-as-you-go cost data
   cost_usd?: number;
   model?: string;
@@ -908,7 +914,12 @@ export default function ChatPageClient({
           const duration = sm.thinkingStartTime && !sm.thinkingDuration
             ? Date.now() - sm.thinkingStartTime
             : sm.thinkingDuration;
-          return { ...m, content: (m.content || "") + event.delta!, ...(duration !== sm.thinkingDuration ? { thinkingDuration: duration } : {}) };
+          return {
+            ...m,
+            content: (m.content || "") + event.delta!,
+            pendingNarrationText: (sm.pendingNarrationText || "") + event.delta!,
+            ...(duration !== sm.thinkingDuration ? { thinkingDuration: duration } : {}),
+          };
         })
       );
     } else if (event.type === "thinking" && event.text) {
@@ -939,11 +950,18 @@ export default function ChatPageClient({
         wsFullTextRef.current = "";
         return;
       }
-      // Mark streaming done
+      // Mark streaming done + compute finalResponseContent for narration separation
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msgId ? { ...m, content: fullText, isStreaming: false } : m
-        )
+        prev.map((m) => {
+          if (m.id !== msgId) return m;
+          const sm = m as StreamingMessage;
+          const hadToolCalls = (sm.toolCalls || []).length > 0;
+          // finalResponseContent = text accumulated since the last tool call, or full content if no tools
+          // If the post-tool text is empty/whitespace, fall back to full content (agent may have only narrated)
+          const rawFinalResponse = hadToolCalls ? (sm.pendingNarrationText || "") : fullText;
+          const finalResponse = rawFinalResponse.trim() ? rawFinalResponse : fullText;
+          return { ...m, content: fullText, isStreaming: false, finalResponseContent: sanitizeAgentMessage(finalResponse) ?? fullText };
+        })
       );
       setIsLoading(false);
       setRetryCount(0);
@@ -1050,9 +1068,22 @@ export default function ChatPageClient({
       const label = getToolLabel(event.tool, event.input);
       const toolCall: ToolCallInfo = { tool: event.tool, status: "running", label, startTime: Date.now(), input: event.input };
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msgId ? { ...m, toolCalls: [...((m as StreamingMessage).toolCalls || []), toolCall] } : m
-        )
+        prev.map((m) => {
+          if (m.id !== msgId) return m;
+          const sm = m as StreamingMessage;
+          // Flush pending narration text into narrationSegments
+          const pendingText = sm.pendingNarrationText || "";
+          const updatedSegments = [...(sm.narrationSegments || [])];
+          if (pendingText.trim()) {
+            updatedSegments.push(pendingText);
+          }
+          return {
+            ...m,
+            toolCalls: [...(sm.toolCalls || []), toolCall],
+            narrationSegments: updatedSegments,
+            pendingNarrationText: "",
+          };
+        })
       );
     } else if (event.type === "tool_end" && event.tool) {
       const msgId = wsStreamingMsgIdRef.current;
@@ -1270,47 +1301,62 @@ export default function ChatPageClient({
       return true;
     }
 
-    const width = 600;
-    const height = 700;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
+    // Route through Maton connect flow
+    try {
+      const matonRes = await fetch('/api/integrations/maton/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app: provider }),
+      });
+      const matonData = await matonRes.json();
+      if (!matonRes.ok || (!matonData.oauthUrl && !matonData.connectionId)) return false;
 
-    const popup = window.open(
-      `/api/integrations/oauth/start?provider=${provider}`,
-      `Connect ${provider}`,
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
+      if (!matonData.oauthUrl) {
+        // No OAuth needed, connection is immediately active
+        fetch('/api/integrations/sync-workspace', { method: 'POST' }).catch(() => {});
+        return true;
+      }
 
-    if (!popup) return false;
+      const { connectionId, oauthUrl } = matonData;
+      const width = 600;
+      const height = 700;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
 
-    return new Promise<boolean>((resolve) => {
-      const pollInterval = setInterval(async () => {
+      const popup = window.open(
+        oauthUrl,
+        `Connect ${provider}`,
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+
+      if (!popup) return false;
+
+      // Poll Maton for connection status
+      for (let i = 0; i < 40; i++) {
+        await new Promise(r => setTimeout(r, 3000));
         try {
-          const res = await fetch(`/api/integrations/status/${provider}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.connected) {
-              clearInterval(pollInterval);
-              popup.close();
-              resolve(true);
-              // Auto-send continuation message so agent continues the task
-              setTimeout(() => {
-                const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
-                handleSendRef.current(`${providerName} connected ✓`);
-              }, 500);
-              return;
-            }
+          const statusRes = await fetch(`/api/integrations/maton/status?connectionId=${connectionId}`);
+          const statusData = await statusRes.json();
+          if (statusData.status === 'ACTIVE') {
+            popup.close();
+            fetch('/api/integrations/sync-workspace', { method: 'POST' }).catch(() => {});
+            setTimeout(() => {
+              const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
+              handleSendRef.current(`${providerName} connected ✓`);
+            }, 500);
+            return true;
           }
-        } catch { /* ignore */ }
-
-        if (popup.closed) {
-          clearInterval(pollInterval);
-          resolve(false);
-        }
-      }, 1500);
-
-      setTimeout(() => { clearInterval(pollInterval); resolve(false); }, 5 * 60 * 1000);
-    });
+          if (statusData.status === 'FAILED') {
+            popup.close();
+            return false;
+          }
+        } catch { /* continue */ }
+        if (popup.closed && i > 5) break;
+      }
+      return false;
+    } catch {
+      return false;
+    }
   }, []);
 
   const handleWorkflowSelect = useCallback((workflowTitle: string) => {
@@ -1714,7 +1760,12 @@ User message: `
               const duration = sm.thinkingStartTime && !sm.thinkingDuration
                 ? Date.now() - sm.thinkingStartTime
                 : sm.thinkingDuration;
-              return { ...m, content: m.content + chunk.text!, ...(duration !== sm.thinkingDuration ? { thinkingDuration: duration } : {}) };
+              return {
+                ...m,
+                content: m.content + chunk.text!,
+                pendingNarrationText: (sm.pendingNarrationText || "") + chunk.text!,
+                ...(duration !== sm.thinkingDuration ? { thinkingDuration: duration } : {}),
+              };
             });
           } else if (chunk.type === "thinking" && chunk.text) {
             updateMsg((m) => {
@@ -1726,7 +1777,21 @@ User message: `
             setIsLoading(false);
             const label = getToolLabel(chunk.tool, chunk.input);
             const toolCall: ToolCallInfo = { tool: chunk.tool, status: "running", label, startTime: Date.now(), input: chunk.input };
-            updateMsg((m) => ({ ...m, toolCalls: [...(m.toolCalls || []), toolCall] }));
+            updateMsg((m) => {
+              const sm = m as StreamingMessage;
+              // Flush pending narration text into narrationSegments
+              const pendingText = sm.pendingNarrationText || "";
+              const updatedSegments = [...(sm.narrationSegments || [])];
+              if (pendingText.trim()) {
+                updatedSegments.push(pendingText);
+              }
+              return {
+                ...m,
+                toolCalls: [...(sm.toolCalls || []), toolCall],
+                narrationSegments: updatedSegments,
+                pendingNarrationText: "",
+              };
+            });
             const taskId = `${chunk.tool}-${Date.now()}`;
             const taskLabel = getAgentTaskLabel(chunk.tool, chunk.input || {});
             setActiveAgentTasks(prev => [...prev, { id: taskId, label: taskLabel, startedAt: Date.now() }]);
@@ -1855,7 +1920,13 @@ User message: `
                 refreshConversations(chunk.conversation_id);
               }
             }
-            updateMsg((m) => ({ ...m, isStreaming: false }));
+            updateMsg((m) => {
+              const sm = m as StreamingMessage;
+              const hadToolCalls = (sm.toolCalls || []).length > 0;
+              const rawFinalResponse = hadToolCalls ? (sm.pendingNarrationText || "") : m.content;
+              const finalResponse = rawFinalResponse.trim() ? rawFinalResponse : m.content;
+              return { ...m, isStreaming: false, finalResponseContent: sanitizeAgentMessage(finalResponse) ?? m.content };
+            });
             setActiveAgentTasks([]);
             setRetryCount(0);
             lastFailedMessage.current = null;
@@ -2657,6 +2728,10 @@ User message: `
                     {msg.role === "assistant" && streamingMsg.isStreaming && !msg.content && !msgThinkingText && toolCalls.length === 0 && (
                       <span className="font-mono text-[11px] text-white/30 italic animate-pulse">Thinking...</span>
                     )}
+                    {/* Show narration line while streaming with active tool calls */}
+                    {msg.role === "assistant" && streamingMsg.isStreaming && toolCalls.length > 0 && streamingMsg.pendingNarrationText && (
+                      <NarrationLine text={streamingMsg.pendingNarrationText} />
+                    )}
                     {hasRichContent && msg.role === "assistant" ? (
                       <RichMessage
                         segments={segments}
@@ -2706,14 +2781,26 @@ User message: `
                     ) : msg.role === "user" ? (
                       <UserMessageContent content={msg.content} />
                     ) : (
+                      (() => {
+                        // Determine display content: use separated response if narration was extracted, else full content
+                        const displayContent = (!streamingMsg.isStreaming && streamingMsg.finalResponseContent !== undefined && toolCalls.length > 0)
+                          ? streamingMsg.finalResponseContent
+                          : msg.content;
+                        return (
                       <div className="relative">
-                        <MarkdownMessage content={msg.content} />
-                        {msg.content.length >= 20 && (
+                        {/* Narration block (collapsed) — only when done streaming and had tool calls with narration */}
+                        {msg.role === "assistant" && !streamingMsg.isStreaming && (streamingMsg.narrationSegments || []).filter(Boolean).length > 0 && (
+                          <NarrationBlock segments={streamingMsg.narrationSegments!} />
+                        )}
+                        <MarkdownMessage content={displayContent} />
+                        {displayContent.length >= 20 && (
                           <div className="flex justify-end mt-1">
-                            <VoiceOutputButton text={msg.content} />
+                            <VoiceOutputButton text={displayContent} />
                           </div>
                         )}
                       </div>
+                        );
+                      })()
                     )}
                   </div>
                   {msg.role === "user" && (

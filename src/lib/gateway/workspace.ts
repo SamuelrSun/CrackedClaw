@@ -169,6 +169,8 @@ export async function updateIntegrations(
     gatewayUrl = instance.gatewayUrl;
   }
 
+  // Legacy: fetch existing direct OAuth connections (transition period)
+  // TODO: Remove once all users have migrated to Maton
   const { data: integrations } = await supabase
     .from('user_integrations')
     .select('provider, account_email, account_name, account_id, is_default')
@@ -177,7 +179,7 @@ export async function updateIntegrations(
     .order('provider')
     .order('is_default', { ascending: false });
 
-  // Also fetch Maton connections if user has a Maton key
+  // Fetch Maton connections (primary integration path)
   let matonConnections: MatonConnection[] = [];
   try {
     const { data: profile } = await supabase
@@ -296,47 +298,36 @@ Read \`INTEGRATIONS.md\` to see what services are connected. Read \`USER.md\` fo
 
 ## INTEGRATION ACCESS
 
+All API-based services are accessed through the **Maton API Gateway**.
 Shell helpers at ~/bin/. Use exec() to call them:
-
-### dopl-token — Get OAuth tokens
-\`\`\`bash
-dopl-token google           # default Google account
-dopl-token google user@example.com  # specific account
-dopl-token _list            # list all connected integrations
-\`\`\`
-
-### dopl-google — Call Google APIs (auto-handles token)
-\`\`\`bash
-dopl-google "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=10"
-dopl-google "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5"
-DOPL_GOOGLE_ACCOUNT=user@example.com dopl-google "https://www.googleapis.com/..."
-\`\`\`
-
-### Token Bridge (for subagents and direct API calls)
-\`\`\`bash
-TOKEN=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
-  -H 'Content-Type: application/json' \\
-  -d '{"user_id":"${userId}","provider":"google","bridge_secret":"${bridgeSecret}"}' \\
-  | jq -r '.access_token')
-curl -s -H "Authorization: Bearer $TOKEN" "https://gmail.googleapis.com/gmail/v1/users/me/messages"
-\`\`\`
 
 ### dopl-maton — Call any API through Maton gateway
 \`\`\`bash
 dopl-maton google-calendar "calendar/v3/calendars/primary/events?maxResults=10"
+dopl-maton google-mail "gmail/v1/users/me/messages?maxResults=5"
 dopl-maton slack "api/conversations.list"
 dopl-maton notion "v1/search" -X POST -d '{"query":"meeting notes"}'
 dopl-maton github "repos/USER/REPO/issues"
 \`\`\`
 
-### Pattern for OAuth-connected services:
-1. \`TOKEN=$(dopl-token PROVIDER)\`
-2. \`curl -s -H "Authorization: Bearer $TOKEN" https://api.PROVIDER.com/...\`
+### dopl-token — Get API keys
+\`\`\`bash
+dopl-token maton            # Maton API key
+dopl-token _list            # list all connected services
+\`\`\`
 
-### Pattern for Maton-connected services:
+### Maton Token Bridge (for subagents and direct API calls)
+\`\`\`bash
+MATON_KEY=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
+  -H 'Content-Type: application/json' \\
+  -d '{"user_id":"${userId}","provider":"maton","bridge_secret":"${bridgeSecret}"}' \\
+  | jq -r '.access_token')
+curl -s -H "Authorization: Bearer $MATON_KEY" "https://gateway.maton.ai/APP/api/path"
+\`\`\`
+
+### How to use:
 1. \`dopl-maton APP "api/path"\` (simplest)
 2. Or manually: \`MATON_KEY=$(dopl-token maton) && curl -s -H "Authorization: Bearer $MATON_KEY" https://gateway.maton.ai/APP/api/path\`
-
 3. Don't know the API? \`web_search\` for docs first
 4. Store successful patterns: \`memory_add({ content: 'Notion API: dopl-maton notion v1/search -X POST -d {"query":"..."}' })\`
 
@@ -390,12 +381,13 @@ sessions_spawn({
 \`\`\`
 (NOTE: __CONVO_ID__ is filled in per-message by the dynamic context layer.)
 
-**Subagent token access:**
+**Subagent Maton access:**
 \`\`\`bash
-TOKEN=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
+MATON_KEY=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
   -H 'Content-Type: application/json' \\
-  -d '{"user_id":"${userId}","provider":"google","bridge_secret":"${bridgeSecret}"}' \\
+  -d '{"user_id":"${userId}","provider":"maton","bridge_secret":"${bridgeSecret}"}' \\
   | jq -r '.access_token')
+curl -s -H "Authorization: Bearer $MATON_KEY" "https://gateway.maton.ai/APP/api/path"
 \`\`\`
 
 ## WORKFORCE REGISTRATION
@@ -578,15 +570,8 @@ body: {"conversation_id":"__CONVO_ID__","content":"<your results>","push_secret"
 \`\`\`
 (NOTE: __CONVO_ID__ is filled in per-message by the dynamic context layer.)
 
-Token bridge for subagents:
+Maton token bridge for subagents:
 \`\`\`bash
-# OAuth token (Google, etc.)
-TOKEN=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
-  -H 'Content-Type: application/json' \\
-  -d '{"user_id":"${userId}","provider":"PROVIDER","bridge_secret":"${bridgeSecret}"}' \\
-  | jq -r '.access_token')
-
-# Maton API key (for Maton gateway services)
 MATON_KEY=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
   -H 'Content-Type: application/json' \\
   -d '{"user_id":"${userId}","provider":"maton","bridge_secret":"${bridgeSecret}"}' \\
@@ -681,13 +666,16 @@ Ask the user to connect services. Use [[integrations:resolve:SERVICE]] to show a
 `;
   }
 
-  // Group by provider
+  // Group legacy OAuth connections by provider
   const byProvider = new Map<string, UserIntegration[]>();
   for (const intg of integrations) {
     const existing = byProvider.get(intg.provider) || [];
     existing.push(intg);
     byProvider.set(intg.provider, existing);
   }
+
+  // Build a set of Maton app names for dedup (avoid showing google twice if connected via both)
+  const matonApps = new Set(matonConnections.map(c => c.app.toLowerCase()));
 
   const lines: string[] = [
     '# Connected Integrations',
@@ -696,13 +684,23 @@ Ask the user to connect services. Use [[integrations:resolve:SERVICE]] to show a
     '## Active Connections',
   ];
 
+  // Maton connections first (primary path)
+  for (const conn of matonConnections) {
+    lines.push(`- **${conn.app}** — connected via Maton (use \`dopl-maton ${conn.app} "api/path"\`)`);
+  }
+
+  // Legacy OAuth connections (transition period)
   for (const [provider, accounts] of byProvider) {
+    // Skip if already listed via Maton (e.g. google-mail covers google, microsoft-teams covers microsoft)
+    const providerLower = provider.toLowerCase();
+    const matonCovered = [...matonApps].some(app => app === providerLower || app.startsWith(`${providerLower}-`));
+    if (matonCovered) continue;
     if (accounts.length === 1) {
       const a = accounts[0];
       const label = a.account_email || a.account_name || 'connected';
-      lines.push(`- **${provider}** — ${label}`);
+      lines.push(`- **${provider}** — ${label} (legacy OAuth)`);
     } else {
-      lines.push(`- **${provider}** (${accounts.length} accounts)`);
+      lines.push(`- **${provider}** (${accounts.length} accounts, legacy OAuth)`);
       for (const a of accounts) {
         const label = a.account_email || a.account_name || a.account_id || 'unknown';
         const defaultTag = a.is_default ? ' [DEFAULT]' : '';
@@ -711,33 +709,16 @@ Ask the user to connect services. Use [[integrations:resolve:SERVICE]] to show a
     }
   }
 
-  // Maton connections (services connected via Maton gateway)
-  if (matonConnections.length > 0) {
-    lines.push('');
-    lines.push('## Maton Gateway Connections');
-    lines.push('These services are accessible via the Maton API gateway.');
-    lines.push('Use `dopl-token maton` to get the API key, then call via gateway.maton.ai.');
-    lines.push('Or use `dopl-maton APP "api/path"` for quick access.');
-    lines.push('');
-    for (const conn of matonConnections) {
-      lines.push(`- **${conn.app}** — ${conn.status} (connection: ${conn.connectionId})`);
-    }
-  }
-
   lines.push('');
   lines.push('## Instructions');
-  lines.push('To access OAuth-connected services:');
-  lines.push('  1. `dopl-token PROVIDER` — get OAuth token');
-  lines.push('  2. Call the API with Bearer token');
-  lines.push('');
-  lines.push('To access Maton-connected services:');
-  lines.push('  1. `dopl-maton APP "api/path"` — call via Maton gateway');
+  lines.push('All API services are accessed through the Maton gateway:');
+  lines.push('  1. `dopl-maton APP "api/path"` — call any connected service');
   lines.push('  2. Or: `MATON_KEY=$(dopl-token maton) && curl -H "Authorization: Bearer $MATON_KEY" https://gateway.maton.ai/APP/api/path`');
   lines.push('');
-  lines.push('See SOUL.md for detailed examples and patterns.');
+  lines.push('For browser-only services (LinkedIn, Instagram), use the browser tool or companion app.');
   lines.push('');
   lines.push('## Not Yet Connected');
-  lines.push('User can connect: Slack, GitHub, Notion, Stripe, Linear, Figma, and more.');
+  lines.push('Connect more services in the Dopl app Integrations page.');
 
   return lines.join('\n');
 }

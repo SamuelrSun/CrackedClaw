@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Check, Loader2, Key, Copy, Download, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntegrationIcon } from "@/components/integrations/integration-icon";
+import { connectViaMaton } from "@/lib/integrations/maton-connect";
 
 const INTEGRATIONS = [
   { id: "google",      name: "Google",     hasOAuth: true },
@@ -34,6 +35,7 @@ export function ConnectionsPopup({ onClose }: ConnectionsPopupProps) {
   const [companionConnected, setCompanionConnected] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [tokenCopied, setTokenCopied] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/integrations/status")
@@ -243,11 +245,13 @@ export function ConnectionsPopup({ onClose }: ConnectionsPopupProps) {
                   key={integration.id}
                   onClick={() => {
                     if ("requiresCompanion" in integration && integration.requiresCompanion) return;
-                    window.open(
-                      `/api/integrations/oauth/start?provider=${integration.id}`,
-                      "_blank",
-                      "popup,width=600,height=700"
-                    );
+                    // Route through Maton connect flow
+                    setConnectError(null);
+                    connectViaMaton({
+                      app: integration.id,
+                      onConnected: () => setConnectedIds(prev => new Set([...prev, integration.id])),
+                      onError: (err) => setConnectError(err),
+                    });
                   }}
                   disabled={"requiresCompanion" in integration && integration.requiresCompanion}
                   className={cn(
@@ -267,6 +271,9 @@ export function ConnectionsPopup({ onClose }: ConnectionsPopupProps) {
                 </button>
               ))}
             </div>
+            {connectError && (
+              <p className="mt-2 text-[11px] text-red-400/80">{connectError}</p>
+            )}
           </div>
 
         </div>

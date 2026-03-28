@@ -84,18 +84,19 @@ For services with no usable API (LinkedIn personal messages, Instagram DMs, What
 
 ### Shell helpers at ~/bin/
 
-**dopl-token** — get OAuth tokens for connected integrations:
+**dopl-maton** — call any API through Maton gateway:
 \`\`\`bash
-dopl-token google                    # default Google account
-dopl-token google user@example.com   # specific account
-dopl-token _list                     # list all connected integrations
+dopl-maton google-calendar "calendar/v3/calendars/primary/events?maxResults=10"
+dopl-maton google-mail "gmail/v1/users/me/messages?maxResults=5"
+dopl-maton slack "api/conversations.list"
+dopl-maton notion "v1/search" -X POST -d '{"query":"meeting notes"}'
+dopl-maton github "repos/USER/REPO/issues"
 \`\`\`
 
-**dopl-google** — call Google APIs (auto-handles token):
+**dopl-token** — get API keys:
 \`\`\`bash
-dopl-google "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=10"
-dopl-google "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5"
-DOPL_GOOGLE_ACCOUNT=user@example.com dopl-google "https://www.googleapis.com/calendar/v3/..."
+dopl-token maton            # Maton API key
+dopl-token _list            # list all connected services
 \`\`\`
 
 **API-first rule:** Always prefer API for structured operations (read email, create event, post message). Use browser only when the API can't do the specific action or when it fails.
@@ -188,7 +189,7 @@ sessions_spawn({
 
 ### Subagent task format (be SPECIFIC):
 Bad: "Check Sam's email"
-Good: "1. Get Google token: POST https://usedopl.com/api/gateway/token-bridge with body {\"user_id\":\"__USER_ID__\",\"provider\":\"google\",\"bridge_secret\":\"__BRIDGE_SECRET__\"}. 2. Search Gmail API for unread emails from last 24 hours. 3. Summarize top 5 by urgency. 4. When done, POST results to __PUSH_URL__ with body {\"conversation_id\":\"__CONVO_ID__\",\"content\":\"your summary\",\"push_secret\":\"__PUSH_SECRET__\"}"
+Good: "1. Get Maton key: POST https://usedopl.com/api/gateway/token-bridge with body {\"user_id\":\"__USER_ID__\",\"provider\":\"maton\",\"bridge_secret\":\"__BRIDGE_SECRET__\"}. 2. Call dopl-maton google-mail 'gmail/v1/users/me/messages?q=is:unread+newer_than:1d&maxResults=10'. 3. Summarize top 5 by urgency. 4. When done, POST results to __PUSH_URL__ with body {\"conversation_id\":\"__CONVO_ID__\",\"content\":\"your summary\",\"push_secret\":\"__PUSH_SECRET__\"}"
 
 ### Parallel example:
 User: "Check my email and scan my calendar for this week"
@@ -628,20 +629,21 @@ export async function buildSystemPromptForUser(userId: string, userMessage?: str
       const gatewayContext = `
 
 ## Dopl Integration Access
-You are running as a Dopl agent. The user has connected integrations via Dopl's OAuth system.
+You are running as a Dopl agent. All API services are accessed through the **Maton gateway**.
 
-To access the user's Google token for gog/Gmail/Calendar/Drive commands:
+To get the Maton API key:
 \`\`\`bash
-TOKEN=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge -H 'Content-Type: application/json' -d '{"user_id":"${userId}","provider":"google","bridge_secret":"${bridgeSecret}"}' | jq -r '.access_token')
+MATON_KEY=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge -H 'Content-Type: application/json' -d '{"user_id":"${userId}","provider":"maton","bridge_secret":"${bridgeSecret}"}' | jq -r '.access_token')
 \`\`\`
 
-Then use it with gog or direct API calls:
+Then call any connected service:
 \`\`\`bash
-# With gog (preferred — set the token as env var):
-GOG_TOKEN="$TOKEN" gog gmail search 'newer_than:7d' --max 10
+# Preferred — use dopl-maton helper:
+dopl-maton google-mail "gmail/v1/users/me/messages?maxResults=5"
+dopl-maton google-calendar "calendar/v3/calendars/primary/events?maxResults=10"
 
-# Or use curl directly:
-curl -s -H "Authorization: Bearer $TOKEN" "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5"
+# Or curl directly via Maton gateway:
+curl -s -H "Authorization: Bearer $MATON_KEY" "https://gateway.maton.ai/google-mail/gmail/v1/users/me/messages?maxResults=5"
 \`\`\`
 
 The user's ID is: ${userId}

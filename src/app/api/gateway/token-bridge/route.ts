@@ -1,6 +1,6 @@
 /**
- * Token Bridge — allows the OpenClaw instance to fetch user OAuth tokens
- * The instance calls this endpoint to get the user's Google token for gog commands
+ * Token Bridge — allows the OpenClaw instance to fetch API keys
+ * All API services are accessed through Maton gateway.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -15,7 +15,7 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
-  const { user_id, provider, bridge_secret, account_id } = body;
+  const { user_id, provider, bridge_secret } = body;
 
   const expectedSecret = process.env.TOKEN_BRIDGE_SECRET;
   if (!expectedSecret) throw new Error('TOKEN_BRIDGE_SECRET environment variable is required');
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     const settings = (profile?.instance_settings as Record<string, unknown>) || {};
     const matonKey = (settings.maton_api_key as string) || '';
     if (!matonKey) {
-      return NextResponse.json({ error: 'No Maton API key configured. Go to Integrations to add your key.' }, { status: 404 });
+      return NextResponse.json({ error: 'No Maton API key configured. Go to Integrations to connect your services.' }, { status: 404 });
     }
     return NextResponse.json({ access_token: matonKey, provider: 'maton', type: 'api_key' });
   }
@@ -74,64 +74,41 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Special: list all connected integrations
+  // _list — legacy alias for _maton_connections (old instances may call this)
+  // Fall through to _maton_connections handler above won't work since it already returned.
+  // Duplicate the Maton connections fetch inline.
   if (provider === '_list') {
-    const { data } = await supabase
-      .from('user_integrations')
-      .select('id, provider, account_email, account_name, is_default, status, created_at')
-      .eq('user_id', user_id)
-      .eq('status', 'connected')
-      .order('provider')
-      .order('is_default', { ascending: false });
-    return NextResponse.json({ integrations: data || [] });
-  }
-
-  let tokenQuery = supabase
-    .from('user_integrations')
-    .select('id, access_token, refresh_token, expires_at, account_id')
-    .eq('user_id', user_id)
-    .eq('provider', provider)
-    .eq('status', 'connected');
-
-  if (account_id) {
-    tokenQuery = tokenQuery.eq('account_id', account_id);
-  } else {
-    // Default: prefer is_default=true, fall back to first connected
-    tokenQuery = tokenQuery.order('is_default', { ascending: false }).order('created_at', { ascending: true });
-  }
-
-  const { data } = await tokenQuery.limit(1).maybeSingle();
-
-  if (!data?.access_token) {
-    return NextResponse.json({ error: 'No ' + provider + ' integration connected' }, { status: 404 });
-  }
-
-  // Refresh if expired, near expiry, or expiry unknown (null)
-  const expiresAt = data.expires_at ? new Date(data.expires_at).getTime() : 0;
-  const needsRefresh = !expiresAt || (expiresAt - Date.now() < 5 * 60 * 1000);
-  if (needsRefresh && data.refresh_token) {
+    const { data: listProfile } = await supabase
+      .from('profiles')
+      .select('instance_settings')
+      .eq('id', user_id)
+      .single();
+    const listSettings = (listProfile?.instance_settings as Record<string, unknown>) || {};
+    const listKey = (listSettings.maton_api_key as string) || '';
+    if (!listKey) {
+      return NextResponse.json({ connections: [], hasKey: false });
+    }
     try {
-      const res = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: process.env.GOOGLE_CLIENT_ID!,
-          client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-          refresh_token: data.refresh_token,
-          grant_type: 'refresh_token',
-        }),
+      const listRes = await fetch('https://ctrl.maton.ai/connections?status=ACTIVE', {
+        headers: { 'Authorization': `Bearer ${listKey}` },
+        signal: AbortSignal.timeout(10_000),
       });
-      if (res.ok) {
-        const refreshed = await res.json();
-        // Update by row ID to avoid overwriting other accounts for the same provider
-        await supabase.from('user_integrations').update({
-          access_token: refreshed.access_token,
-          expires_at: new Date(Date.now() + (refreshed.expires_in || 3600) * 1000).toISOString(),
-        }).eq('id', data.id);
-        return NextResponse.json({ access_token: refreshed.access_token });
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        const connections = (listData.connections || []).map((c: Record<string, unknown>) => ({
+          app: c.app,
+          status: c.status,
+          connectionId: c.connection_id,
+        }));
+        return NextResponse.json({ connections, hasKey: true });
       }
-    } catch { /* return current token */ }
+    } catch { /* fall through */ }
+    return NextResponse.json({ connections: [], hasKey: true, error: 'Failed to reach Maton' });
   }
 
-  return NextResponse.json({ access_token: data.access_token });
+  // Any other provider — direct OAuth is no longer supported
+  return NextResponse.json(
+    { error: `Direct OAuth for "${provider}" is no longer supported. All services are accessed through the Maton gateway. Use dopl-maton instead.` },
+    { status: 410 }
+  );
 }

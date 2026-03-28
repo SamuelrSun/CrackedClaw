@@ -571,10 +571,9 @@ export function searchIntegrations(query: string): IntegrationConfig[] {
 export function getIntegrationConnectionMethod(id: string): 'maton' | 'oauth' | 'browser' | 'skill' {
   const integration = getIntegration(id);
   if (!integration) return 'browser';
-  if (integration.apiProvider === 'maton' && isMatonSupported(id)) return 'maton';
-  if (integration.hasApi && integration.authType === 'oauth') return 'oauth';
+  if (integration.hasApi && isMatonSupported(id)) return 'maton';
   if (!integration.hasApi) return 'browser';
-  return 'oauth';
+  return 'maton'; // All API services route through Maton
 }
 
 // ── Dynamic connection method resolution ──────────────────────────────────
@@ -615,7 +614,7 @@ function mapToOAuthProvider(registryId: string): string | null {
  */
 export function getAvailableConnectionMethods(
   id: string,
-  configuredOAuthProviders: string[],
+  _configuredOAuthProviders: string[],
   hasMatonKey: boolean,
   hasCompanionApp: boolean,
 ): ConnectionMethod[] {
@@ -632,30 +631,26 @@ export function getAvailableConnectionMethods(
     }];
   }
 
-  // 1. Direct OAuth — if this service maps to a configured OAuth provider
-  const oauthSlug = mapToOAuthProvider(id);
-  if (oauthSlug && configuredOAuthProviders.includes(oauthSlug)) {
-    methods.push({
-      type: 'oauth',
-      label: `Connect with ${integration.name}`,
-      available: true,
-      multiAccount: true,
-      description: 'OAuth — supports multiple accounts',
-    });
-  }
-
-  // 2. Maton gateway
+  // 1. Maton gateway (primary path for all API services)
   if (isMatonSupported(id) && hasMatonKey) {
     methods.push({
       type: 'maton',
-      label: 'Connect via Maton',
+      label: `Connect ${integration.name}`,
       available: true,
       multiAccount: false,
-      description: 'Via your Maton API key',
+      description: 'Connect via Maton gateway',
+    });
+  } else if (isMatonSupported(id) && !hasMatonKey) {
+    methods.push({
+      type: 'maton',
+      label: `Connect ${integration.name}`,
+      available: false,
+      multiAccount: false,
+      description: 'Set up Maton API key first',
     });
   }
 
-  // 3. Browser fallback
+  // 2. Browser fallback (for no-API services or as alternative)
   if (integration.browserFallback) {
     methods.push({
       type: 'browser',
@@ -666,7 +661,7 @@ export function getAvailableConnectionMethods(
     });
   }
 
-  // 4. API key
+  // 3. API key (for services that support direct keys)
   if (integration.authType === 'api-key' || ['stripe', 'sendgrid', 'twilio', 'telegram'].includes(id)) {
     methods.push({
       type: 'api-key',

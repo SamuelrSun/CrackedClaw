@@ -431,7 +431,7 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
     }
   };
 
-  const addAccount = (integrationId: string) => {
+  const addAccount = async (integrationId: string) => {
     const integration = items.find(i => i.id === integrationId);
     if (!integration) return;
 
@@ -471,61 +471,69 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
       return;
     }
 
-    // Open OAuth popup with prompt=consent to force account selection
-    const width = 500, height = 600;
-    const left = window.screenX + (window.innerWidth - width) / 2;
-    const top = window.screenY + (window.innerHeight - height) / 2;
-    const popup = window.open(
-      `/api/integrations/oauth/start?provider=${provider}&prompt=consent`,
-      "oauth_popup",
-      `width=${width},height=${height},left=${left},top=${top},popup=yes`
-    );
+    // Route through Maton connect flow
+    try {
+      const matonRes = await fetch('/api/integrations/maton/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app: provider }),
+      });
+      const matonData = await matonRes.json();
 
-    if (!popup) {
-      toast.error("Popup blocked", "Please allow popups for this site");
-      return;
+      if (!matonRes.ok) {
+        toast.error('Connection Error', matonData.error || 'Failed to create connection');
+        return;
+      }
+
+      if (!matonData.oauthUrl) {
+        // No OAuth needed, connection is immediately active
+        toast.success(`${integration.name} connected!`, 'Connection established.');
+        fetch('/api/integrations/sync-workspace', { method: 'POST' }).catch(() => {});
+        return;
+      }
+
+      const { connectionId, oauthUrl } = matonData;
+      const width = 500, height = 600;
+      const left = window.screenX + (window.innerWidth - width) / 2;
+      const top = window.screenY + (window.innerHeight - height) / 2;
+      const popup = window.open(
+        oauthUrl,
+        'maton_oauth_popup',
+        `width=${width},height=${height},left=${left},top=${top},popup=yes`
+      );
+
+      if (!popup) {
+        toast.error("Popup blocked", "Please allow popups for this site");
+        return;
+      }
+
+      // Poll Maton for connection status
+      for (let i = 0; i < 40; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+          const statusRes = await fetch(`/api/integrations/maton/status?connectionId=${connectionId}`);
+          const statusData = await statusRes.json();
+          if (statusData.status === 'ACTIVE') {
+            if (!popup.closed) popup.close();
+            setItems(prev => prev.map(item =>
+              item.id !== integrationId ? item : { ...item, status: 'connected' as const }
+            ));
+            toast.success(`${integration.name} connected!`, 'OAuth completed via Maton.');
+            fetch('/api/integrations/sync-workspace', { method: 'POST' }).catch(() => {});
+            return;
+          }
+          if (statusData.status === 'FAILED') {
+            if (!popup.closed) popup.close();
+            toast.error('Connection failed', 'OAuth was rejected or expired.');
+            return;
+          }
+        } catch { /* continue polling */ }
+        if (popup.closed && i > 5) break;
+      }
+      toast.info('Connection', 'Timed out. Please try again.');
+    } catch {
+      toast.error('Error', `Failed to connect ${integration.name}`);
     }
-
-    // Listen for OAuth completion
-    const onMessage = (event: MessageEvent) => {
-      if (event.data?.type === "oauth_complete" && event.data?.provider === provider) {
-        window.removeEventListener("message", onMessage);
-        // Refresh integrations to show new account
-        fetch('/api/integrations/accounts')
-          .then(r => r.json())
-          .then(data => {
-            if (data.accounts) {
-              // Rebuild accounts for this integration from the refreshed data
-              const providerAccounts = data.accounts[provider] || [];
-              setItems(prev => prev.map(item => {
-                if (item.id !== integrationId) return item;
-                return {
-                  ...item,
-                  status: providerAccounts.length > 0 ? 'connected' as const : item.status,
-                  accounts: providerAccounts.map((a: Record<string, unknown>) => ({
-                    id: a.id as string,
-                    email: a.email as string,
-                    name: a.name as string,
-                    picture: a.picture as string,
-                    is_default: a.is_default as boolean,
-                    connectedAt: a.connected_at ? new Date(a.connected_at as string).toLocaleDateString() : 'Recently',
-                  })),
-                };
-              }));
-            }
-          })
-          .catch(() => window.location.reload());
-      }
-    };
-    window.addEventListener("message", onMessage);
-
-    // Poll for popup close
-    const poll = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(poll);
-        window.removeEventListener("message", onMessage);
-      }
-    }, 1000);
   };
 
 
@@ -822,11 +830,11 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
     const availableMethods = methods.filter(m => m.available);
 
     if (availableMethods.length === 0) {
-      // Fallback to legacy behavior based on authType
-      if (regEntry.authType === 'browser-login') {
+      // Fallback: try Maton for API services, browser for browser-only
+      if (regEntry.authType === 'browser-login' || !regEntry.hasApi) {
         connectWithMethod(registryId, 'browser');
       } else {
-        connectWithMethod(registryId, 'oauth');
+        connectWithMethod(registryId, 'maton');
       }
       return;
     }

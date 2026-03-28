@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Check, ChevronDown, Copy, Globe, Loader2, Monitor, Plus, RefreshCw, X } from "lucide-react";
 import type { ResolvedIntegration } from "@/lib/integrations/resolver";
 import { IntegrationIcon } from "@/components/integrations/integration-icon";
+import { connectViaMaton } from "@/lib/integrations/maton-connect";
 
 interface DynamicIntegrationsCardProps {
   services: string[];
@@ -33,36 +34,20 @@ interface NodeStatus {
   nodeName?: string;
 }
 
-function openOAuthPopup(provider: string): Promise<boolean> {
-  const width = 600, height = 700;
-  const left = window.screenX + (window.outerWidth - width) / 2;
-  const top = window.screenY + (window.outerHeight - height) / 2;
-  const popup = window.open(
-    `/api/integrations/oauth/start?provider=${provider}`,
-    `Connect ${provider}`,
-    `width=${width},height=${height},left=${left},top=${top}`
-  );
-  if (!popup) return Promise.resolve(false);
-
+function openMatonConnectPopup(provider: string): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
-    const onMessage = (e: MessageEvent) => {
-      if (e.data?.type === "oauth_complete" && e.data?.provider === provider) {
-        window.removeEventListener("message", onMessage);
-        clearInterval(poll);
-        popup.close();
-        resolve(e.data.success === true);
-      }
-    };
-    window.addEventListener("message", onMessage);
-    const poll = setInterval(() => {
-      if (popup.closed) {
-        window.removeEventListener("message", onMessage);
-        clearInterval(poll);
-        resolve(false);
-      }
-    }, 800);
+    connectViaMaton({
+      app: provider,
+      onConnected: () => resolve(true),
+      onError: () => resolve(false),
+    }).then(result => {
+      if (!result.success) resolve(false);
+    });
   });
 }
+
+// Legacy alias for backward compat
+const openOAuthPopup = openMatonConnectPopup;
 
 async function fetchAccountsForProvider(oauthSlug: string): Promise<ConnectedAccount[]> {
   try {

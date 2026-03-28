@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth } from "@/lib/api-auth";
+import { generateConversationTitle } from "@/lib/utils/title-generator";
 import { createClient } from "@/lib/supabase/server";
 import { logActivity, incrementTokenUsage } from "@/lib/supabase/data";
 import { matchWorkflow, buildWorkflowContext } from "@/lib/workflows/matcher";
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
           .from("conversations")
           .insert({
             user_id: user.id,
-            title: message.length > 50 ? message.substring(0, 47) + "..." : message,
+            title: generateConversationTitle(message),
           })
           .select()
           .single();
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
         if (existingConvo?.title === "New conversation") {
           await supabase
             .from("conversations")
-            .update({ title: message.length > 50 ? message.substring(0, 47) + "..." : message })
+            .update({ title: generateConversationTitle(message) })
             .eq("id", activeConversationId);
         }
       }
