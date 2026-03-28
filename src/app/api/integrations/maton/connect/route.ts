@@ -113,23 +113,43 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await res.json() as MatonConnectionResponse;
-
-    // Maton returns the connection details with an OAuth URL
     const connectionId = data.connection_id;
-    const oauthUrl = data.url;
 
     if (!connectionId) {
       console.error('[maton/connect] No connection_id in response:', data);
       return errorResponse('Maton did not return a connection ID', 502);
     }
 
+    // Maton's POST /connections only returns { connection_id }.
+    // The OAuth URL and status are on the detail endpoint.
+    const detailRes = await fetch(`https://ctrl.maton.ai/connections/${connectionId}`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!detailRes.ok) {
+      console.error(`[maton/connect] Failed to fetch connection detail: ${detailRes.status}`);
+      return errorResponse(`Failed to fetch connection details from Maton`, 502);
+    }
+
+    const detail = await detailRes.json();
+    const connection = detail.connection || detail;
+    const oauthUrl = connection.url || null;
+    const status = (connection.status as string) || 'PENDING';
+
+    if (!oauthUrl && status === 'PENDING') {
+      // Connection created but no OAuth URL available yet
+      console.error('[maton/connect] PENDING connection with no URL:', detail);
+      return errorResponse('Connection created but no OAuth URL returned. Please try again.', 502);
+    }
+
     if (!oauthUrl) {
-      // Some connections (API_KEY type) don't need OAuth — they're immediately active
+      // Immediately active (API_KEY type connections)
       return jsonResponse({
         connectionId,
         oauthUrl: null,
         app,
-        status: data.status || 'ACTIVE',
+        status,
         message: 'Connection created (no OAuth required)',
       });
     }
@@ -138,7 +158,7 @@ export async function POST(request: NextRequest) {
       connectionId,
       oauthUrl,
       app,
-      status: data.status || 'PENDING',
+      status,
     });
   } catch (err) {
     console.error('[maton/connect] Error:', err);

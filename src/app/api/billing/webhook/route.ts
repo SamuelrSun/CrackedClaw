@@ -48,6 +48,23 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ── PaymentIntent succeeded (inline Elements flow for wallet deposits) ──
+  if (event.type === 'payment_intent.succeeded') {
+    const paymentIntent = event.data.object as Stripe.PaymentIntent;
+    const { user_id, type, amount } = paymentIntent.metadata || {};
+
+    if (user_id && type === 'wallet_deposit' && amount) {
+      const depositAmount = parseFloat(amount);
+      if (depositAmount > 0) {
+        await addToWallet(user_id, depositAmount, {
+          type: 'deposit',
+          stripePaymentId: paymentIntent.id,
+          description: `Added $${depositAmount.toFixed(2)}`,
+        });
+      }
+    }
+  }
+
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as {
       metadata?: { user_id?: string; org_id?: string; plan?: string; type?: string; amount?: string };

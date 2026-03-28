@@ -15,11 +15,13 @@ import {
   Globe,
   AlertTriangle,
   Brain,
-
+  ArrowDownLeft,
+  ArrowUpRight,
+  Wallet,
 } from "lucide-react";
 import { GlassNavbar } from "@/components/layout/glass-navbar";
 import { PricingModal } from "@/components/settings/pricing-modal";
-import { UsageHistogram } from "@/components/settings/usage-histogram";
+import { AddFundsModal } from "@/components/billing/add-funds-modal";
 
 interface SettingsPageClientProps {
   initialTokenUsage: {
@@ -621,6 +623,203 @@ function DeleteAccountModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+/* ── Wallet Panel ── */
+interface WalletHistoryEntry {
+  id: string;
+  created_at: string;
+  type: "deposit" | "stipend" | "refund" | "auto_reload" | "chat_spend";
+  amount_usd: number;
+  description: string;
+  input_tokens?: number;
+  output_tokens?: number;
+}
+
+function balanceColor(balance: number): string {
+  if (balance > 5) return "#34d399";
+  if (balance > 1) return "#fbbf24";
+  return "#f87171";
+}
+
+function WalletPanel() {
+  const [balance, setBalance] = useState<number | null>(null);
+  const [history, setHistory] = useState<WalletHistoryEntry[]>([]);
+  const [walletLoading, setWalletLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [addAmount, setAddAmount] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalAmount, setModalAmount] = useState(0);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  function loadBalance() {
+    fetch("/api/usage/status")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setBalance(d.wallet?.balance_usd ?? 0); })
+      .catch(() => {})
+      .finally(() => setWalletLoading(false));
+  }
+
+  function loadHistory() {
+    fetch("/api/billing/history?limit=20")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setHistory(d.entries || []); })
+      .catch(() => {})
+      .finally(() => setHistoryLoading(false));
+  }
+
+  useEffect(() => {
+    loadBalance();
+    loadHistory();
+  }, []);
+
+  function handleAddFunds() {
+    const amt = parseFloat(addAmount);
+    if (!amt || amt < 5) {
+      setAddError("Minimum $5");
+      return;
+    }
+    if (amt > 500) {
+      setAddError("Maximum $500");
+      return;
+    }
+    setAddError(null);
+    setModalAmount(amt);
+    setModalOpen(true);
+  }
+
+  function handleModalSuccess() {
+    setModalOpen(false);
+    setAddAmount("");
+    setSuccessMsg(`$${modalAmount.toFixed(2)} added to your wallet!`);
+    setTimeout(() => setSuccessMsg(null), 4000);
+    // Refresh balance and history
+    setWalletLoading(true);
+    setHistoryLoading(true);
+    loadBalance();
+    loadHistory();
+  }
+
+  function formatDate(iso: string) {
+    return new Date(iso).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
+
+  const bal = balance ?? 0;
+
+  return (
+    <div className="space-y-5">
+      {/* Big Balance */}
+      <div className="flex flex-col items-center py-4 gap-1">
+        {walletLoading ? (
+          <div className="h-16 w-40 bg-white/[0.05] animate-pulse" />
+        ) : (
+          <>
+            <span
+              className="text-7xl font-mono font-bold leading-none tracking-tight"
+              style={{ color: balanceColor(bal) }}
+            >
+              ${bal.toFixed(2)}
+            </span>
+            <span className="text-[10px] uppercase tracking-widest text-white/40 mt-1">Current Balance</span>
+          </>
+        )}
+      </div>
+
+      <div className="h-px w-full bg-white/[0.08]" />
+
+      {/* Add Funds */}
+      <div className="space-y-2">
+        <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Add Funds</p>
+        {successMsg && (
+          <div className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-[2px]">
+            <p className="text-[12px] text-emerald-400">{successMsg}</p>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-white/40 font-mono">$</span>
+            <input
+              type="number"
+              min="5"
+              max="500"
+              placeholder="Enter amount"
+              value={addAmount}
+              onChange={(e) => { setAddAmount(e.target.value); setAddError(null); }}
+              onKeyDown={(e) => e.key === "Enter" && handleAddFunds()}
+              className="w-full bg-white/[0.05] border border-white/10 text-white/80 text-[13px] pl-7 pr-3 py-2.5 outline-none focus:border-white/20 placeholder:text-white/20 font-mono"
+            />
+          </div>
+          <button
+            onClick={handleAddFunds}
+            disabled={!addAmount}
+            className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 bg-emerald-500/[0.12] hover:bg-emerald-500/[0.2] border border-emerald-500/30 text-emerald-400 text-[13px] transition-colors disabled:opacity-40"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            Add Funds
+          </button>
+        </div>
+        {addError && <p className="text-[11px] text-red-400">{addError}</p>}
+        <p className="text-[10px] text-white/30">$5 minimum · $500 maximum</p>
+      </div>
+
+      {/* Add Funds Modal */}
+      <AddFundsModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        amount={modalAmount}
+        onSuccess={handleModalSuccess}
+      />
+
+      <div className="h-px w-full bg-white/[0.08]" />
+
+      {/* Billing History */}
+      <div className="space-y-2">
+        <p className="text-[11px] uppercase tracking-widest text-white/50 font-medium">Recent Transactions</p>
+        {historyLoading ? (
+          <div className="space-y-2">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-8 bg-white/[0.04] animate-pulse" />
+            ))}
+          </div>
+        ) : history.length === 0 ? (
+          <p className="text-[12px] text-white/30 py-3 text-center">No transactions yet</p>
+        ) : (
+          <div className="max-h-48 overflow-y-auto space-y-0.5 pr-1">
+            {history.map((entry) => {
+              const isDeposit = entry.type !== "chat_spend";
+              return (
+                <div
+                  key={entry.id}
+                  className="flex items-center justify-between py-2 px-3 bg-white/[0.03] hover:bg-white/[0.05] transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {isDeposit ? (
+                      <ArrowDownLeft className="w-3 h-3 text-emerald-400/60 flex-shrink-0" />
+                    ) : (
+                      <ArrowUpRight className="w-3 h-3 text-white/20 flex-shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-white/60 truncate">{entry.description}</p>
+                      <p className="text-[9px] text-white/30">{formatDate(entry.created_at)}</p>
+                    </div>
+                  </div>
+                  <span className={`text-[11px] font-mono flex-shrink-0 ml-2 ${isDeposit ? "text-emerald-400" : "text-white/40"}`}>
+                    {isDeposit ? "+" : "-"}${Math.abs(entry.amount_usd).toFixed(entry.amount_usd < 0.01 ? 4 : 2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Page ── */
 export default function SettingsPageClient({
   initialTokenUsage,
@@ -756,23 +955,19 @@ export default function SettingsPageClient({
                   </div>
                 )}
 
-                {!billingLoading && (
-                  <button
-                    onClick={() => setShowPricingModal(true)}
-                    className="w-full py-2 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white/70 text-[13px] transition-colors"
-                  >
-                    Plans & Billing
-                  </button>
-                )}
+
               </div>
             </div>
 
-            {/* Usage */}
+            {/* Wallet */}
             <div className={glassPanel}>
-              <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium">Usage</span>
+              <div className="flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-white/60" />
+                <span className="text-[11px] uppercase tracking-widest text-white/60 font-medium">Wallet</span>
+              </div>
 
               <div className="mt-4">
-                <UsageHistogram />
+                <WalletPanel />
               </div>
             </div>
           </div>

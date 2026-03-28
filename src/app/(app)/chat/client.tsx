@@ -1485,42 +1485,60 @@ export default function ChatPageClient({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gateway]);
 
-  // Integration polling: detect when user connects integration in another tab
+  // Integration + companion polling: detect new connections and notify agent
   useEffect(() => {
     let prevConnected: Set<string> = new Set();
+    let prevCompanionOnline = false;
     let initialized = false;
 
-    const checkIntegrations = async () => {
+    const checkConnections = async () => {
       try {
+        // Check integrations (OAuth + Maton)
         const res = await fetch("/api/integrations/status");
-        if (!res.ok) return;
-        const data = await res.json();
-        const connected: string[] = data.connected || [];
-        const connectedSet = new Set(connected);
-        
-        if (!initialized) {
-          prevConnected = connectedSet;
-          initialized = true;
-          return;
-        }
-        
-        // Find newly connected integrations
-        for (const provider of Array.from(connectedSet)) {
-          if (!prevConnected.has(provider)) {
-            const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
-            // Inject system message and auto-send to agent
-            const systemNote = `${providerName} connected ✓`;
-            handleSendRef.current(systemNote);
+        if (res.ok) {
+          const data = await res.json();
+          const connected: string[] = data.connected || [];
+          const connectedSet = new Set(connected);
+          
+          if (!initialized) {
+            prevConnected = connectedSet;
+          } else {
+            // Find newly connected integrations
+            for (const provider of Array.from(connectedSet)) {
+              if (!prevConnected.has(provider)) {
+                const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
+                handleSendRef.current(`${providerName} connected ✓`);
+              }
+            }
           }
+          prevConnected = connectedSet;
         }
-        prevConnected = connectedSet;
+
+        // Check companion/desktop connection
+        const nodeRes = await fetch("/api/nodes/status");
+        if (nodeRes.ok) {
+          const nodeData = await nodeRes.json();
+          const nodes: Array<{ name?: string; status?: string }> = nodeData.nodes || [];
+          const connectedNode = nodes.find(n => n.status === "connected");
+          const isOnline = !!connectedNode;
+          
+          if (!initialized) {
+            prevCompanionOnline = isOnline;
+          } else if (isOnline && !prevCompanionOnline) {
+            const deviceName = connectedNode?.name || "Desktop";
+            handleSendRef.current(`Desktop companion connected ✓ (${deviceName})`);
+          }
+          prevCompanionOnline = isOnline;
+        }
+
+        initialized = true;
       } catch {
         // ignore polling errors
       }
     };
     
-    const interval = setInterval(checkIntegrations, 7000);
-    checkIntegrations(); // init baseline
+    const interval = setInterval(checkConnections, 7000);
+    checkConnections(); // init baseline
     return () => clearInterval(interval);
   }, []);
 
@@ -2723,6 +2741,10 @@ User message: `
                           }))} />
                         </ThinkingBlock>
                       )
+                    )}
+                    {/* Show live thinking line while reasoning tokens stream in */}
+                    {msg.role === "assistant" && streamingMsg.isStreaming && !msg.content && msgThinkingText && (
+                      <NarrationLine text={msgThinkingText} />
                     )}
                     {/* Show Thinking... when streaming placeholder has no content yet */}
                     {msg.role === "assistant" && streamingMsg.isStreaming && !msg.content && !msgThinkingText && toolCalls.length === 0 && (

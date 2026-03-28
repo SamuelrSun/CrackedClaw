@@ -124,21 +124,32 @@ export function ComputerPopup({ onClose }: ComputerPopupProps) {
   const { key, displayKey, keyLoading } = useConnectionKey();
   const { token: companionToken, displayToken: companionDisplayToken, tokenLoading: companionTokenLoading } = useCompanionToken();
 
-  // Fetch node status on open
+  // Fetch node status on open + poll every 5s
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/nodes/status")
-      .then((r) => r.json())
-      .then((data: NodeStatusResponse) => {
-        if (!cancelled) setStatus(data);
-      })
-      .catch(() => {
-        if (!cancelled) setStatus({ connected: false });
-      })
-      .finally(() => {
-        if (!cancelled) setStatusLoading(false);
-      });
-    return () => { cancelled = true; };
+    const check = () => {
+      fetch("/api/nodes/status")
+        .then((r) => r.json())
+        .then((data) => {
+          if (cancelled) return;
+          // API returns { nodes: [{ name, status }] } — map to our interface
+          const nodes: Array<{ name?: string; status?: string }> = data.nodes || [];
+          const connectedNode = nodes.find(n => n.status === 'connected');
+          setStatus({
+            connected: !!connectedNode,
+            deviceName: connectedNode?.name,
+          });
+        })
+        .catch(() => {
+          if (!cancelled) setStatus({ connected: false });
+        })
+        .finally(() => {
+          if (!cancelled) setStatusLoading(false);
+        });
+    };
+    check();
+    const interval = setInterval(check, 5000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
   const copyToken = () => {

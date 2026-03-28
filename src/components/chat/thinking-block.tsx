@@ -18,6 +18,16 @@ function formatDuration(seconds: number): string {
   return s > 0 ? `${m}m ${s}s` : `${m}m`;
 }
 
+/** Split thinking text into individual steps/lines for display */
+function parseThinkingLines(text: string): string[] {
+  // Split on newlines, filter out empty lines and clean up
+  return text
+    .split(/
+/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0);
+}
+
 export function ThinkingBlock({
   duration,
   thinkingText,
@@ -30,6 +40,8 @@ export function ThinkingBlock({
     duration < 1
       ? "Worked for less than a second"
       : `Worked for ${formatDuration(duration)}`;
+
+  const lines = thinkingText ? parseThinkingLines(thinkingText) : [];
 
   return (
     <div className="my-1">
@@ -45,12 +57,19 @@ export function ThinkingBlock({
         <span className="text-[10px]">{open ? "▼" : "▶"}</span>
       </button>
 
-      {open && (thinkingText || children) && (
+      {open && (lines.length > 0 || children) && (
         <div className="mt-1.5 pl-3 border-l border-white/[0.1]">
-          {thinkingText && (
-            <p className="font-mono text-[12px] text-white/50 italic leading-relaxed whitespace-pre-wrap">
-              {thinkingText}
-            </p>
+          {lines.length > 0 && (
+            <div className="flex flex-col gap-0.5">
+              {lines.map((line, i) => (
+                <p
+                  key={i}
+                  className="font-mono text-[11px] text-white/35 leading-relaxed m-0"
+                >
+                  {line}
+                </p>
+              ))}
+            </div>
           )}
           {children && <div className="mt-2">{children}</div>}
         </div>
