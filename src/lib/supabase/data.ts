@@ -154,6 +154,70 @@ export async function getIntegrations(): Promise<Integration[]> {
       }
     }
 
+    // Also fetch Maton connections and add as cards if not already present
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('instance_settings')
+        .single();
+      const settings = (profile?.instance_settings as Record<string, unknown>) || {};
+      const matonKey = (settings.maton_api_key as string) || '';
+      if (matonKey) {
+        const matonRes = await fetch('https://ctrl.maton.ai/connections?status=ACTIVE', {
+          headers: { 'Authorization': `Bearer ${matonKey}` },
+          signal: AbortSignal.timeout(8_000),
+        });
+        if (matonRes.ok) {
+          const matonData = await matonRes.json();
+          const connections = (matonData.connections || []) as Array<{
+            connection_id: string;
+            app: string;
+            status: string;
+            metadata?: { email?: string; name?: string; picture?: string };
+            creation_time?: string;
+          }>;
+          for (const conn of connections) {
+            // Check if this Maton app is already shown as a card
+            const appSlug = conn.app;
+            const alreadyShown = merged.some(m =>
+              m.slug === appSlug ||
+              m.slug?.includes(appSlug.replace('google-', '')) ||
+              m.name?.toLowerCase().replace(/\s+/g, '-') === appSlug
+            );
+            if (!alreadyShown) {
+              const appName = appSlug
+                .split('-')
+                .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join(' ');
+              merged.push({
+                id: `maton-${conn.connection_id}`,
+                user_id: '',
+                name: appName,
+                slug: appSlug,
+                icon: '🔗',
+                type: 'oauth' as IntegrationType,
+                status: 'connected' as IntegrationStatus,
+                config: { apiProvider: 'maton', matonConnectionId: conn.connection_id },
+                accounts: [{
+                  id: conn.connection_id,
+                  email: conn.metadata?.email || '',
+                  name: conn.metadata?.name || conn.metadata?.email || 'Connected via Maton',
+                  picture: conn.metadata?.picture,
+                  connectedAt: conn.creation_time ? new Date(conn.creation_time).toLocaleDateString() : 'Recently',
+                  is_default: true,
+                }] as IntegrationAccount[],
+                last_sync: null,
+                created_at: conn.creation_time || new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              });
+            }
+          }
+        }
+      }
+    } catch (matonErr) {
+      console.error('Maton connections fetch error (non-fatal):', matonErr);
+    }
+
     return merged
   } catch (err) {
     console.error('Integrations fetch error:', err)
