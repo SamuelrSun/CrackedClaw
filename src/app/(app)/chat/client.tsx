@@ -2653,6 +2653,10 @@ User message: `
                         </ThinkingBlock>
                       )
                     )}
+                    {/* Show Thinking... when streaming placeholder has no content yet */}
+                    {msg.role === "assistant" && streamingMsg.isStreaming && !msg.content && !msgThinkingText && toolCalls.length === 0 && (
+                      <span className="font-mono text-[11px] text-white/30 italic animate-pulse">Thinking...</span>
+                    )}
                     {hasRichContent && msg.role === "assistant" ? (
                       <RichMessage
                         segments={segments}
