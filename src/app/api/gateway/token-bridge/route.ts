@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Special: list all connected integrations
+  if (provider === '_list') {
     const { data } = await supabase
       .from('user_integrations')
       .select('id, provider, account_email, account_name, is_default, status, created_at')
