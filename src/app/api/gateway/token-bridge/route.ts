@@ -27,8 +27,54 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'user_id and provider required' }, { status: 400 });
   }
 
+  // Maton API key — returns the user's Maton key for gateway API calls
+  if (provider === 'maton') {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('instance_settings')
+      .eq('id', user_id)
+      .single();
+    const settings = (profile?.instance_settings as Record<string, unknown>) || {};
+    const matonKey = (settings.maton_api_key as string) || '';
+    if (!matonKey) {
+      return NextResponse.json({ error: 'No Maton API key configured. Go to Integrations to add your key.' }, { status: 404 });
+    }
+    return NextResponse.json({ access_token: matonKey, provider: 'maton', type: 'api_key' });
+  }
+
+  // Maton connections — list active connections from Maton's API
+  if (provider === '_maton_connections') {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('instance_settings')
+      .eq('id', user_id)
+      .single();
+    const settings = (profile?.instance_settings as Record<string, unknown>) || {};
+    const matonKey = (settings.maton_api_key as string) || '';
+    if (!matonKey) {
+      return NextResponse.json({ connections: [], hasKey: false });
+    }
+    try {
+      const res = await fetch('https://ctrl.maton.ai/connections?status=ACTIVE', {
+        headers: { 'Authorization': `Bearer ${matonKey}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) {
+        return NextResponse.json({ connections: [], hasKey: true, error: `Maton API error: ${res.status}` });
+      }
+      const data = await res.json();
+      const connections = (data.connections || []).map((c: Record<string, unknown>) => ({
+        app: c.app,
+        status: c.status,
+        connectionId: c.connection_id,
+      }));
+      return NextResponse.json({ connections, hasKey: true });
+    } catch {
+      return NextResponse.json({ connections: [], hasKey: true, error: 'Failed to reach Maton' });
+    }
+  }
+
   // Special: list all connected integrations
-  if (provider === '_list') {
     const { data } = await supabase
       .from('user_integrations')
       .select('id, provider, account_email, account_name, is_default, status, created_at')

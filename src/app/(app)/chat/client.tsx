@@ -144,6 +144,11 @@ function getToolLabel(tool: string, input?: Record<string, unknown>): string {
     if (cmd) return `Running: ${cmd.length > 40 ? cmd.slice(0, 40) + "..." : cmd}`;
     return "Running command";
   }
+  if (tool === "sessions_spawn") {
+    const taskLabel = (input?.label || input?.task) as string | undefined;
+    if (taskLabel) return `Spawning subagent: ${taskLabel.length > 50 ? taskLabel.slice(0, 50) + '...' : taskLabel}`;
+    return "Spawning subagent";
+  }
   if (tool.includes("skill")) return "Installing skill";
   return `Using ${tool}`;
 }
@@ -167,6 +172,8 @@ function getAgentTaskLabel(tool: string, input: Record<string, unknown>): string
       const url = input.url as string || '';
       try { return `Reading ${new URL(url).hostname}...`; } catch { return 'Reading webpage...'; }
     }
+    case 'sessions_spawn':
+      return `Subagent: ${String(input.label || input.task || '').slice(0, 60) || 'Background task'}`;
     default:
       return `Running ${tool}...`;
   }
@@ -1723,6 +1730,20 @@ User message: `
             const taskId = `${chunk.tool}-${Date.now()}`;
             const taskLabel = getAgentTaskLabel(chunk.tool, chunk.input || {});
             setActiveAgentTasks(prev => [...prev, { id: taskId, label: taskLabel, startedAt: Date.now() }]);
+
+            // Auto-track sessions_spawn in agent_tasks for inline subagent cards
+            if (chunk.tool === 'sessions_spawn' && userIdRef.current) {
+              const spawnLabel = String((chunk.input as Record<string,unknown>)?.label || (chunk.input as Record<string,unknown>)?.task || 'Background task').slice(0, 100);
+              const spawnSupabase = createSupabaseClient();
+              spawnSupabase.from('agent_tasks').insert({
+                user_id: userIdRef.current,
+                name: spawnLabel,
+                label: spawnLabel,
+                status: 'running',
+                model: (chunk.input as Record<string,unknown>)?.model || null,
+                started_at: new Date().toISOString(),
+              }).then(() => {}, (err: unknown) => console.error('Failed to insert subagent task:', err));
+            }
           } else if (chunk.type === "tool_end" && chunk.tool) {
             setActiveAgentTasks(prev => prev.slice(1));
             updateMsg((m) => ({
@@ -1733,6 +1754,7 @@ User message: `
                   : tc
               ),
             }));
+
             // Mark activity as done when scan tool ends
             if (chunk.tool === 'scan_integration') {
               setAgentActivities(prev => prev.map(a =>
@@ -2745,7 +2767,7 @@ User message: `
           {/* Inline Scan Progress Card — removed; deep scan UI no longer shown */}
 
           {/* Loading indicator */}
-          {isLoading && messages.every(m => !(m as StreamingMessage).content) && (
+          {isLoading && messages.filter(m => m.role === 'assistant').every(m => !(m as StreamingMessage).content) && (
             <div className="max-w-[70%] mr-auto px-1">
               <span className="font-mono text-[11px] text-white/30 italic animate-pulse">
                 {retryCount > 0 ? `Retrying (${retryCount}/3)...` : "Thinking..."}
@@ -2979,9 +3001,21 @@ User message: `
                 <VoiceInputButton
                   onTranscript={(text) => {
                     setInput(text);
+                    requestAnimationFrame(() => {
+                      if (textareaRef.current) {
+                        textareaRef.current.style.height = 'auto';
+                        textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+                      }
+                    });
                   }}
                   onInterimUpdate={(text) => {
                     setInput(text);
+                    requestAnimationFrame(() => {
+                      if (textareaRef.current) {
+                        textareaRef.current.style.height = 'auto';
+                        textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+                      }
+                    });
                   }}
                   disabled={!gateway || isLoading || isReconnecting}
                   variant="outreach"

@@ -37,6 +37,12 @@ export interface UserInstanceInfo {
   authToken: string;
 }
 
+export interface MatonConnection {
+  app: string;
+  status: string;
+  connectionId: string;
+}
+
 // ---------------------------------------------------------------------------
 // Core: Write a file to a Dopl workspace via DO provisioning server
 // ---------------------------------------------------------------------------
@@ -171,7 +177,35 @@ export async function updateIntegrations(
     .order('provider')
     .order('is_default', { ascending: false });
 
-  const content = buildIntegrationsFile(integrations || []);
+  // Also fetch Maton connections if user has a Maton key
+  let matonConnections: MatonConnection[] = [];
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('instance_settings')
+      .eq('id', userId)
+      .single();
+    const settings = (profile?.instance_settings as Record<string, unknown>) || {};
+    const matonKey = (settings.maton_api_key as string) || '';
+    if (matonKey) {
+      const res = await fetch('https://ctrl.maton.ai/connections?status=ACTIVE', {
+        headers: { 'Authorization': `Bearer ${matonKey}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        matonConnections = (data.connections || []).map((conn: Record<string, unknown>) => ({
+          app: conn.app as string,
+          status: conn.status as string,
+          connectionId: conn.connection_id as string,
+        }));
+      }
+    }
+  } catch (err) {
+    console.error('[workspace] Failed to fetch Maton connections:', err);
+  }
+
+  const content = buildIntegrationsFile(integrations || [], matonConnections);
   await writeWorkspaceFile(gatewayUrl, 'INTEGRATIONS.md', content);
 }
 
@@ -287,11 +321,24 @@ TOKEN=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
 curl -s -H "Authorization: Bearer $TOKEN" "https://gmail.googleapis.com/gmail/v1/users/me/messages"
 \`\`\`
 
-### Pattern for ANY integration:
+### dopl-maton — Call any API through Maton gateway
+\`\`\`bash
+dopl-maton google-calendar "calendar/v3/calendars/primary/events?maxResults=10"
+dopl-maton slack "api/conversations.list"
+dopl-maton notion "v1/search" -X POST -d '{"query":"meeting notes"}'
+dopl-maton github "repos/USER/REPO/issues"
+\`\`\`
+
+### Pattern for OAuth-connected services:
 1. \`TOKEN=$(dopl-token PROVIDER)\`
 2. \`curl -s -H "Authorization: Bearer $TOKEN" https://api.PROVIDER.com/...\`
+
+### Pattern for Maton-connected services:
+1. \`dopl-maton APP "api/path"\` (simplest)
+2. Or manually: \`MATON_KEY=$(dopl-token maton) && curl -s -H "Authorization: Bearer $MATON_KEY" https://gateway.maton.ai/APP/api/path\`
+
 3. Don't know the API? \`web_search\` for docs first
-4. Store successful patterns: \`memory_add({ content: 'Notion API: POST https://api.notion.com/v1/search with Bearer token and Notion-Version: 2022-06-28 header' })\`
+4. Store successful patterns: \`memory_add({ content: 'Notion API: dopl-maton notion v1/search -X POST -d {"query":"..."}' })\`
 
 **For browser-only services (LinkedIn, Instagram — no public API):**
 \`browser({ action: "open", profile: "linkedin" })\`
@@ -532,12 +579,20 @@ body: {"conversation_id":"__CONVO_ID__","content":"<your results>","push_secret"
 (NOTE: __CONVO_ID__ is filled in per-message by the dynamic context layer.)
 
 Token bridge for subagents:
-\`\`\`bash
+```bash
+# OAuth token (Google, etc.)
 TOKEN=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
   -H 'Content-Type: application/json' \\
   -d '{"user_id":"${userId}","provider":"PROVIDER","bridge_secret":"${bridgeSecret}"}' \\
   | jq -r '.access_token')
-\`\`\`
+
+# Maton API key (for Maton gateway services)
+MATON_KEY=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
+  -H 'Content-Type: application/json' \\
+  -d '{"user_id":"${userId}","provider":"maton","bridge_secret":"${bridgeSecret}"}' \\
+  | jq -r '.access_token')
+curl -s -H "Authorization: Bearer $MATON_KEY" https://gateway.maton.ai/APP/api/path
+```
 
 ## Proactive Behavior
 
@@ -608,13 +663,13 @@ Use \`memory_search\` for accumulated knowledge about this user.
  *
  * @param integrations - Array of integration rows from user_integrations
  */
-export function buildIntegrationsFile(integrations: UserIntegration[]): string {
+export function buildIntegrationsFile(integrations: UserIntegration[], matonConnections: MatonConnection[] = []): string {
   const now = new Date().toLocaleString('en-US', {
     year: 'numeric', month: 'numeric', day: 'numeric',
     hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
   });
 
-  if (integrations.length === 0) {
+  if (integrations.length === 0 && matonConnections.length === 0) {
     return `# Connected Integrations
 Last updated: ${now}
 
@@ -656,11 +711,28 @@ Ask the user to connect services. Use [[integrations:resolve:SERVICE]] to show a
     }
   }
 
+  // Maton connections (services connected via Maton gateway)
+  if (matonConnections.length > 0) {
+    lines.push('');
+    lines.push('## Maton Gateway Connections');
+    lines.push('These services are accessible via the Maton API gateway.');
+    lines.push('Use `dopl-token maton` to get the API key, then call via gateway.maton.ai.');
+    lines.push('Or use `dopl-maton APP "api/path"` for quick access.');
+    lines.push('');
+    for (const conn of matonConnections) {
+      lines.push(`- **${conn.app}** — ${conn.status} (connection: ${conn.connectionId})`);
+    }
+  }
+
   lines.push('');
   lines.push('## Instructions');
-  lines.push('To access any connected service:');
+  lines.push('To access OAuth-connected services:');
   lines.push('  1. `dopl-token PROVIDER` — get OAuth token');
   lines.push('  2. Call the API with Bearer token');
+  lines.push('');
+  lines.push('To access Maton-connected services:');
+  lines.push('  1. `dopl-maton APP "api/path"` — call via Maton gateway');
+  lines.push('  2. Or: `MATON_KEY=$(dopl-token maton) && curl -H "Authorization: Bearer $MATON_KEY" https://gateway.maton.ai/APP/api/path`');
   lines.push('');
   lines.push('See SOUL.md for detailed examples and patterns.');
   lines.push('');

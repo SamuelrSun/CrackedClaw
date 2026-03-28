@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireApiAuth, jsonResponse, errorResponse } from '@/lib/api-auth';
 import { saveMatonApiKey, getMatonApiKey, validateMatonApiKey } from '@/lib/integrations/maton-key';
+import { updateIntegrations } from '@/lib/gateway/workspace';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,11 @@ export async function POST(request: NextRequest) {
     return errorResponse('Failed to save API key', 500);
   }
 
+  // Sync INTEGRATIONS.md with the user's instance (now includes Maton connections)
+  updateIntegrations(user.id).catch(err =>
+    console.error('[maton] Failed to sync INTEGRATIONS.md:', err)
+  );
+
   return jsonResponse({ success: true, message: 'Maton API key saved' });
 }
 
@@ -64,6 +70,11 @@ export async function DELETE() {
   if (!saved) {
     return errorResponse('Failed to remove API key', 500);
   }
+
+  // Sync INTEGRATIONS.md (Maton connections removed)
+  updateIntegrations(user.id).catch(err =>
+    console.error('[maton] Failed to sync INTEGRATIONS.md after key removal:', err)
+  );
 
   return jsonResponse({ success: true, message: 'Maton API key removed' });
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireApiAuth, jsonResponse, errorResponse } from '@/lib/api-auth';
 import { getMatonApiKey } from '@/lib/integrations/maton-key';
+import { updateIntegrations } from '@/lib/gateway/workspace';
 import { isMatonSupported } from '@/lib/integrations/maton-services';
 
 export const dynamic = 'force-dynamic';

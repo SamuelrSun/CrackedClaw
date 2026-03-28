@@ -625,6 +625,8 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
         if (!oauthUrl) {
           // No OAuth needed (API key type) — connection is immediately active
           toast.success(`${regEntry.name} connected!`, 'Connection established via Maton.');
+          // Trigger INTEGRATIONS.md sync on the user's gateway instance
+          fetch('/api/integrations/sync-workspace', { method: 'POST' }).catch(() => {});
           // Store in user_integrations
           await fetch('/api/integrations/create-dynamic', {
             method: 'POST',
@@ -723,6 +725,8 @@ export default function IntegrationsPageClient({ initialIntegrations, isLoading 
                 i.slug === regEntry.id ? { ...i, status: 'connected' as const } : i
               ));
               toast.success(`${regEntry.name} connected!`, 'OAuth completed via Maton.');
+              // Trigger INTEGRATIONS.md sync on the user's gateway instance
+              fetch('/api/integrations/sync-workspace', { method: 'POST' }).catch(() => {});
               return;
             }
 
