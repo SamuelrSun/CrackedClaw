@@ -579,7 +579,7 @@ body: {"conversation_id":"__CONVO_ID__","content":"<your results>","push_secret"
 (NOTE: __CONVO_ID__ is filled in per-message by the dynamic context layer.)
 
 Token bridge for subagents:
-```bash
+\`\`\`bash
 # OAuth token (Google, etc.)
 TOKEN=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
   -H 'Content-Type: application/json' \\
@@ -592,7 +592,7 @@ MATON_KEY=$(curl -s -X POST ${appUrl}/api/gateway/token-bridge \\
   -d '{"user_id":"${userId}","provider":"maton","bridge_secret":"${bridgeSecret}"}' \\
   | jq -r '.access_token')
 curl -s -H "Authorization: Bearer $MATON_KEY" https://gateway.maton.ai/APP/api/path
-```
+\`\`\`
 
 ## Proactive Behavior
 
